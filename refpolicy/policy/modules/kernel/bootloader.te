@@ -1,0 +1,198 @@
+type bootloader_t;
+domain_make_domain(bootloader_t)
+
+type bootloader_exec_t;
+domain_make_entrypoint_file(bootloader_t,bootloader_exec_t)
+
+#
+# boot_t is the type for files in /boot
+#
+type boot_t;
+files_make_file(boot_t)
+
+#
+# bootloader_etc_t is the configuration file,
+# grub.conf, lilo.conf, etc.
+#
+type bootloader_etc_t alias etc_bootloader_t;
+files_make_file(bootloader_etc_t)
+
+#
+# system_map_t is for the system.map files in /boot
+#
+type system_map_t;
+files_make_file(system_map_t)
+
+#
+# The temp file is used for initrd creation;
+# it consists of files and device nodes
+#
+type bootloader_tmp_t;
+files_make_file(bootloader_tmp_t)
+devices_make_device_node(bootloader_tmp_t)
+
+allow bootloader_t self:capability { dac_read_search fsetid sys_rawio sys_admin mknod chown };
+allow bootloader_t self:process { sigkill sigstop signull signal };
+allow bootloader_t self:fifo_file { getattr read write };
+
+kernel_stat_kernel_core_interface(bootloader_t)
+kernel_read_system_state(bootloader_t)
+kernel_read_software_raid_state(bootloader_t)
+kernel_read_kernel_sysctl(bootloader_t)
+
+storage_raw_read_fixed_disk(bootloader_t)
+storage_raw_write_fixed_disk(bootloader_t)
+storage_raw_read_removable_device(bootloader_t)
+storage_raw_write_removable_device(bootloader_t)
+
+# for reading BIOS data (cjp: ?)
+devices_raw_read_memory(bootloader_t)
+
+libraries_use_dynamic_loader(bootloader_t)
+libraries_read_shared_libraries(bootloader_t)
+
+files_read_general_system_config(bootloader_t)
+files_read_runtime_system_config(bootloader_t)
+files_read_system_source_code(bootloader_t)
+
+# uncomment the following line if you use "lilo -p"
+#files_create_private_config(bootloader_t,bootloader_etc_t)
+#allow bootloader_t bootloader_etc_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+
+filesystem_read_persistent_filesystem_stats(bootloader_t)
+
+terminal_use_controlling_terminal(bootloader_t)
+
+allow bootloader_t bootloader_etc_t:file { getattr read };
+
+define(`initrc_insmod_optional_policy', `
+modutils_insmod_execute(insmod_t)
+')
+
+miscfiles_read_localization(bootloader_t)
+
+devices_ignore_modify_generic_devices(bootloader_t)
+
+########################################
+#
+# mkinitrd policy
+#
+
+files_read_general_system_resources(bootloader_t)
+bootloader_install_initrd(bootloader_t)
+
+devices_get_random_data(bootloader_t)
+devices_get_pseudorandom_data(bootloader_t)
+corecommands_execute_general_programs(bootloader_t)
+corecommands_execute_system_programs(bootloader_t)
+corecommands_execute_shell(bootloader_t)
+
+selinux_read_binary_policy(bootloader_t)
+selinux_read_load_policy_binary(bootloader_t)
+
+modutils_read_kernel_modules(bootloader_t)
+modutils_read_kernel_module_dependencies(bootloader_t)
+modutils_read_kernel_module_loading_config(bootloader_t)
+
+logging_modify_system_logs(bootloader_t)
+
+files_create_private_tmp_data(bootloader_t,bootloader_tmp_t,{ dir file lnk_file chr_file blk_file })
+allow bootloader_t bootloader_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow bootloader_t bootloader_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow bootloader_t bootloader_tmp_t:chr_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow bootloader_t bootloader_tmp_t:blk_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow bootloader_t bootloader_tmp_t:lnk_file { create read getattr setattr unlink rename };
+# for tune2fs (cjp: ?)
+files_create_private_root_dir_entry(bootloader_t,bootloader_tmp_t)
+
+################################################################################
+ifdef(`TODO',`
+
+# admin runs bootloader:
+domain_auto_trans(sysadm_t, bootloader_exec_t, bootloader_t)
+allow bootloader_t admin_tty_type:chr_file rw_file_perms;
+allow bootloader_t privfd:fd use;
+
+allow bootloader_t { device_type ttyfile }:chr_file getattr;
+allow bootloader_t device_type:blk_file getattr;
+allow bootloader_t initctl_t:fifo_file getattr;
+
+# no transition from initrc to bootloader,
+# so why are these rules needed
+role system_r types bootloader_t;
+allow bootloader_t initrc_devpts_t:chr_file rw_file_perms; 
+allow bootloader_t initrc_t:fifo_file { read write };
+allow bootloader_t initrc_t:fd use;
+
+allow bootloader_t lib_t:file { getattr read };
+
+allow bootloader_t sysfs_t:dir getattr;
+
+allow bootloader_t var_t:dir search;
+allow bootloader_t var_t:file { getattr read };
+
+ifdef(`fsadm.te', `
+allow bootloader_t fsadm_exec_t:file { rx_file_perms execute_no_trans };
+')
+
+# LVM2 / Device Mapper's /dev/mapper/control
+# maybe we should change the labeling for this
+ifdef(`lvm.te', `
+allow bootloader_t lvm_control_t:chr_file rw_file_perms;
+domain_auto_trans(bootloader_t, lvm_exec_t, lvm_t)
+allow lvm_t bootloader_tmp_t:file rw_file_perms;
+r_dir_file(bootloader_t, lvm_etc_t)
+')
+
+ifdef(`distro_debian', `
+allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
+allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
+allow bootloader_t boot_t:file relabelfrom;
+allow bootloader_t { usr_t lib_t fsadm_exec_t }:file relabelto;
+allow bootloader_t { usr_t lib_t fsadm_exec_t }:file create_file_perms;
+allow bootloader_t tmpfs_t:dir r_dir_perms;
+allow bootloader_t initrc_var_run_t:dir r_dir_perms;
+allow bootloader_t var_lib_t:dir search;
+allow bootloader_t dpkg_var_lib_t:dir r_dir_perms;
+allow bootloader_t dpkg_var_lib_t:file { getattr read };
+# for /usr/share/initrd-tools/scripts
+can_exec(bootloader_t, usr_t)
+')
+
+ifdef(`distro_redhat', `
+# for mke2fs
+domain_auto_trans(bootloader_t, mount_exec_t, mount_t);
+allow mount_t bootloader_tmp_t:dir mounton;
+allow bootloader_t modules_object_t:lnk_file { getattr read };
+
+# new file system defaults to file_t, granting file_t access is still bad.
+allow bootloader_t file_t:dir create_dir_perms;
+allow bootloader_t file_t:{ file blk_file chr_file } create_file_perms;
+allow bootloader_t file_t:lnk_file create_lnk_perms;
+allow bootloader_t self:unix_stream_socket create_socket_perms;
+allow bootloader_t boot_runtime_t:file { read getattr unlink };
+
+# for memlock
+allow bootloader_t zero_device_t:chr_file { getattr read };
+allow bootloader_t self:capability ipc_lock;
+')
+
+dontaudit bootloader_t selinux_config_t:dir search;
+dontaudit bootloader_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+dontaudit bootloader_t devpts_t:dir create_dir_perms;
+# for nscd
+dontaudit bootloader_t var_run_t:dir search;
+
+') dnl end TODO
+
+########################################
+#
+# Conditional policy logic
+#
+
+ifdef(`monolithic_policy',`
+ifdef(`modutils.te',`initrc_insmod_optional_policy')
+',`
+optional modutils { modutils_insmod_execute_depend }
+ifopt (modutils) { initrc_insmod_optional_policy }
+') dnl end monolithic_policy

@@ -1,0 +1,114 @@
+attribute can_modify_kernel_modules;
+neverallow ~can_modify_kernel_modules modules_object_t:file { create append write };
+
+# kernel modules
+type modules_object_t;
+files_make_file(modules_object_t)
+
+# module loading config
+type modules_conf_t;
+files_make_file(modules_conf_t)
+
+# module dependencies
+type modules_dep_t;
+files_make_file(modules_dep_t)
+
+type insmod_t;
+domain_make_domain(insmod_t)
+kernel_load_module(insmod_t)
+role system_r types insmod_t;
+
+type insmod_exec_t;
+domain_make_entrypoint_file(insmod_t,insmod_exec_t)
+
+# Rules for /proc/sys/kernel/tainted
+kernel_read_kernel_sysctl(insmod_t)
+kernel_modify_kernel_sysctl(insmod_t)
+kernel_read_hotplug_sysctl(insmod_t)
+
+terminal_use_controlling_terminal(insmod_t)
+
+devices_write_mtrr(insmod_t)
+devices_get_pseudorandom_data(insmod_t)
+devices_direct_agp_access(insmod_t)
+devices_get_zeros(insmod_t)
+
+filesystem_read_persistent_filesystem_stats(insmod_t)
+
+files_read_runtime_system_config(insmod_t)
+files_read_general_system_config(insmod_t)
+
+domain_signal_all_domains(insmod_t)
+
+libraries_use_dynamic_loader(insmod_t)
+libraries_read_shared_libraries(insmod_t)
+
+corecommands_execute_general_programs(insmod_t)
+corecommands_execute_system_programs(insmod_t)
+corecommands_execute_shell(insmod_t)
+
+miscfiles_read_localization(insmod_t)
+
+allow insmod_t insmod_exec_t:file { getattr read execute execute_no_trans };
+
+# Read module config and dependency information
+allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
+
+# read modules
+allow insmod_t modules_object_t:dir { getattr search read };
+allow insmod_t modules_object_t:file { getattr read };
+
+allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
+
+allow insmod_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow insmod_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow insmod_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow insmod_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+#
+#
+# TODO rules:
+#
+#
+ifdef(`TODO_list',`
+
+allow insmod_t self:capability { dac_override net_raw sys_tty_config };
+
+# for loading modules at boot time
+allow insmod_t { init_t initrc_t }:fd use;
+allow insmod_t initrc_t:fifo_file { getattr read write };
+
+allow insmod_t usr_t:file { getattr read };
+allow insmod_t lib_t:file { getattr read };
+allow insmod_t { var_t var_log_t }:dir search;
+
+allow insmod_t privfd:fd use;
+
+allow insmod_t apm_bios_t:chr_file { read write };
+
+allow insmod_t sound_device_t:chr_file { read ioctl write };
+
+ifdef(`xserver.te', `
+allow insmod_t xserver_log_t:file getattr;
+')
+
+allow insmod_t sysfs_t:dir search;
+allow insmod_t { usbfs_t usbdevfs_t }:dir search;
+allow insmod_t { usbfs_t usbdevfs_t }:filesystem mount;
+
+allow insmod_t { initrc_devpts_t admin_tty_type }:chr_file { getattr read write };
+allow insmod_t devpts_t:dir { getattr search };
+
+can_exec(insmod_t,etc_t)
+
+ifdef(`mount.te', `
+# Run mount in the mount_t domain.
+domain_auto_trans(insmod_t, mount_exec_t, mount_t)
+')
+# for when /var is not mounted early in the boot
+dontaudit insmod_t file_t:dir search;
+
+# for nscd
+dontaudit insmod_t var_run_t:dir search;
+
+') dnl if TODO_list

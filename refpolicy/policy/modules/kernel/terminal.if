@@ -1,0 +1,107 @@
+########################################
+#
+# terminal_use_console(domain,[`optional'])
+#
+define(`terminal_use_console',`
+requires_block_template(terminal_use_console_depend,$2)
+devices_list_device_nodes($1,optional)
+allow $1 console_device_t:chr_file { read write };
+')
+
+define(`terminal_use_console_depend',`
+type console_device_t;
+class chr_file { read write };
+devices_list_device_nodes_depend
+')
+
+########################################
+#
+# terminal_use_controlling_terminal(domain,[`optional'])
+#
+define(`terminal_use_controlling_terminal',`
+requires_block_template(terminal_use_controlling_terminal_depend,$2)
+devices_list_device_nodes($1,optional)
+allow $1 devtty_t:chr_file { read write };
+')
+
+define(`terminal_use_controlling_terminal_depend',`
+type devtty_t;
+class chr_file { read write };
+devices_list_device_nodes_depend
+')
+
+########################################
+#
+# terminal_make_pty(domain,ptytype,[`optional'])
+#
+define(`terminal_make_pty',`
+requires_block_template(terminal_make_pty_depend,$3)
+devices_list_device_nodes($1,optional)
+allow $1 ptmx_t:chr_file { getattr read write };
+allow $1 devpts_t:dir { getattr search read };
+allow $1 devpts_t:filesystem getattr;
+allow $2 devpts_t:filesystem associate;
+type_transition $1 devpts_t:chr_file $2;
+typeattribute $2 ptynode;
+')
+
+define(`terminal_make_pty_depend',`
+attribute ptynode;
+type ptmx_t, devpts_t;
+class filesystem { getattr associate };
+class dir { getattr search read };
+class chr_file { getattr read write };
+devices_list_device_nodes_depend
+')
+
+########################################
+#
+# terminal_use_all_terminals(domain,[`optional'])
+#
+define(`terminal_use_all_terminals',`
+requires_block_template(terminal_use_all_terminals_depend,$2)
+devices_list_device_nodes($1,optional)
+allow $1 devpts_t:dir { getattr read search };
+allow $1 { console_device_t devtty_t ttynode ptynode }:chr_file { read write };
+')
+
+define(`terminal_use_all_terminals_depend',`
+attribute ttynode, ptynode;
+type console_device_t, devtty_t, devpts_t;
+class chr_file { read write };
+devices_list_device_nodes_depend
+')
+
+########################################
+#
+# terminal_reset_labels(domain,[`optional'])
+#
+define(`terminal_reset_labels',`
+requires_block_template(terminal_reset_labels_depend,$2)
+devices_list_device_nodes($1,optional)
+kernel_relabeling_privilege($1,optional)
+allow $1 ttynode:chr_file relabelfrom;
+allow $1 tty_device_t:chr_file relabelto;
+')
+
+define(`terminal_reset_labels_depend',`
+attribute ttynode;
+type tty_device_t;
+class chr_file { relabelfrom relabelto };
+devices_list_device_nodes_depend
+kernel_relabeling_privilege_depend
+')
+
+########################################
+#
+# terminal_ignore_list_ptys(domain,[`optional'])
+#
+define(`terminal_ignore_list_ptys',`
+requires_block_template(terminal_ignore_list_ptys_depend,$2)
+allow $1 console_device_t:chr_file { read write };
+')
+
+define(`terminal_ignore_list_ptys_depend',`
+type devpts_t;
+class dir { getattr search read };
+')

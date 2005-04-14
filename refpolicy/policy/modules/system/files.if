@@ -1,0 +1,412 @@
+########################################
+#
+# files_make_file(type,[`optional'])
+#
+define(`files_make_file',`
+requires_block_template(files_make_file_depend,$2)
+typeattribute $1 file_type;
+filesystem_associate($1,optional)
+')
+
+define(`files_make_file_depend',`
+attribute file_type;
+filesystem_associate_depend
+')
+
+########################################
+#
+# files_get_all_file_stats(type,[`optional'])
+#
+define(`files_get_all_file_stats',`
+requires_block_template(files_get_all_file_stats_depend,$2)
+allow $1 file_type:dir { search getattr };
+allow $1 file_type:file getattr;
+allow $1 file_type:lnk_file getattr;
+allow $1 file_type:fifo_file getattr;
+allow $1 file_type:sock_file getattr;
+')
+
+define(`files_get_all_file_stats_depend',`
+attribute file_type;
+class dir { search getattr };
+class file getattr;
+class lnk_file getattr;
+class fifo_file getattr;
+class sock_file getattr;
+')
+
+########################################
+#
+# files_read_root_dir(domain,[`optional'])
+#
+define(`files_read_root_dir',`
+requires_block_template(files_read_root_dir_depend,$2)
+allow $1 root_t:dir { getattr search read };
+allow $1 root_t:lnk_file { getattr read };
+')
+
+define(`files_read_root_dir_depend',`
+type root_t;
+class dir { getattr search read };
+class lnk_file { getattr read };
+')
+
+########################################
+#
+# files_create_root_dir_entry(domain,[`optional'])
+#
+define(`files_create_root_dir_entry',`
+requires_block_template(files_create_root_dir_entry_depend,$2)
+allow $1 root_t:dir { getattr search read write add_name };
+')
+
+define(`files_create_root_dir_entry_depend',`
+type root_t;
+class dir { getattr search read write add_name };
+')
+
+########################################
+#
+# files_create_private_root_dir_entry(domain,privatetype,[class(es)],[`optional'])
+#
+define(`files_create_private_root_dir_entry',`
+requires_block_template(files_create_private_root_dir_entry_depend,$2)
+allow $1 root_t:dir { getattr search read write add_name remove_name };
+ifelse(`$3',`',`
+type_transition $1 root_t:file $2;
+',`
+type_transition $1 root_t:$3 $2;
+') dnl end ifelse
+')
+
+define(`files_create_private_root_dir_entry_depend',`
+type root_t;
+class dir { getattr search read write add_name remove_name };
+')
+
+########################################
+#
+# files_remove_root_dir_entry(domain,[`optional'])
+#
+define(`files_remove_root_dir_entry',`
+requires_block_template(files_remove_root_dir_entry_depend,$2)
+allow $1 root_t:dir { getattr search read write remove_name };
+')
+
+define(`files_remove_root_dir_entry_depend',`
+type root_t;
+class dir { getattr search read write remove_name };
+')
+
+########################################
+#
+# files_read_general_system_config(type,[`optional'])
+#
+define(`files_read_general_system_config',`
+requires_block_template(files_read_general_system_config_depend,$2)
+allow $1 etc_t:dir { getattr search read };
+allow $1 etc_t:file { getattr read };
+allow $1 etc_t:lnk_file { getattr read };
+')
+
+define(`files_read_general_system_config_depend',`
+type etc_t;
+class dir { getattr search read };
+class file { getattr read };
+class lnk_file { getattr read };
+')
+
+########################################
+#
+# files_execute_system_config_script(domain,[`optional'])
+#
+define(`files_execute_system_config_script',`
+requires_block_template(files_execute_system_config_script_depend,$2)
+allow $1 etc_t:dir { getattr search read };
+allow $1 etc_t:lnk_file { getattr read };
+allow $1 etc_t:file { getattr read execute execute_no_trans };
+')
+
+define(`files_execute_system_config_script_depend',`
+type etc_t, etc_runtime_t;
+class dir { getattr search read };
+class lnk_file { getattr read };
+class file { getattr read execute execute_no_trans };
+')
+
+########################################
+#
+# files_create_boot_flag(type,[`optional'])
+#
+# /halt, /.autofsck, etc
+#
+define(`files_create_boot_flag',`
+requires_block_template(files_create_boot_flag_depend,$2)
+allow $1 root_t:dir { getattr search read write add_name remove_name };
+allow $1 etc_runtime_t:file { create read write setattr unlink };
+type_transition $1 root_t:file etc_runtime_t;
+')
+
+define(`files_create_boot_flag_depend',`
+type root_t, etc_runtime_t;
+class dir { getattr search read write add_name };
+class file { create read write setattr };
+')
+
+########################################
+#
+# files_create_runtime_system_config(type,[`optional'])
+#
+define(`files_create_runtime_system_config',`
+requires_block_template(files_create_runtime_system_config_depend,$2)
+allow $1 etc_t:dir { getattr search read write add_name remove_name };
+allow $1 etc_runtime_t:file { create read write setattr unlink };
+type_transition $1 etc_t:file etc_runtime_t;
+')
+
+define(`files_create_runtime_system_config_depend',`
+type etc_t, etc_runtime_t;
+class dir { getattr search read write add_name };
+class file { create read write setattr };
+')
+
+########################################
+#
+# files_read_runtime_system_config(domain,[`optional'])
+#
+define(`files_read_runtime_system_config',`
+requires_block_template(files_read_runtime_system_config_depend,$2)
+allow $1 etc_t:dir { getattr search read };
+allow $1 etc_runtime_t:file { getattr read };
+')
+
+define(`files_create_runtime_system_config_depend',`
+type etc_t, etc_runtime_t;
+class dir { getattr search read };
+class file { getattr read };
+')
+
+########################################
+#
+# files_create_private_config(domain,privatetype,[class(es)],[`optional'])
+#
+define(`files_create_private_config',`
+requires_block_template(files_create_private_config_depend,$4)
+allow $1 etc_t:dir { getattr search read write add_name remove_name };
+ifelse(`$3',`',`
+type_transition $1 etc_t:file $2;
+',`
+type_transition $1 etc_t:$3 $2;
+') dnl end ifelse
+')
+
+define(`files_create_private_config_depend',`
+type etc_t;
+class dir { getattr search read write add_name remove_name };
+')
+
+########################################
+#
+# files_read_general_shared_resources(domain,[`optional'])
+#
+define(`files_read_general_shared_resources',`
+requires_block_template(files_read_general_shared_resources_depend,$2)
+allow $1 usr_t:dir { getattr search read };
+allow $1 usr_t:{ file lnk_file } { getattr read };
+')
+
+define(`files_read_general_shared_resources_depend',`
+type usr_t;
+class dir { getattr search read };
+class file { getattr read };
+class lnk_file { getattr read };
+')
+
+########################################
+#
+# files_manage_pseudorandom_saved_seed(domain,[`optional'])
+#
+define(`files_manage_pseudorandom_saved_seed',`
+requires_block_template(files_manage_pseudorandom_saved_seed_depend,$2)
+allow $1 var_t:dir search;
+allow $1 var_lib_t:dir { getattr search read write add_name remove_name };
+allow $1 var_lib_t:file { getattr create read write setattr unlink };
+')
+
+define(`files_manage_pseudorandom_saved_seed_depend',`
+type usr_t;
+class dir { getattr search read write add_name remove_name };
+class file { getattr create read write setattr unlink };
+')
+
+########################################
+#
+# files_create_daemon_runtime_data(domain,pidfile,[object class(es)],[`optional'])
+#
+define(`files_create_daemon_runtime_data',`
+requires_block_template(files_create_daemon_runtime_data_depend,$4)
+allow $1 var_t:dir search;
+allow $1 var_run_t:dir { getattr search read write add_name remove_name };
+ifelse(`$3',`',`
+type_transition $1 var_run_t:file $2;
+',`
+type_transition $1 var_run_t:$3 $2;
+') dnl end ifelse
+typeattribute $1 pidfile;
+')
+
+define(`files_create_daemon_runtime_data_depend',`
+attribute pidfile;
+type var_t, var_run_t;
+class dir { getattr search read write add_name remove_name };
+')
+
+########################################
+#
+# files_modify_system_runtime_data(domain,[`optional'])
+#
+define(`files_modify_system_runtime_data',`
+requires_block_template(files_modify_system_runtime_data_depend,$2)
+allow $1 var_t:dir search;
+allow $1 var_run_t:dir { getattr search read };
+allow $1 var_run_t:file { getattr read write };
+')
+
+define(`files_modify_system_runtime_data_depend',`
+type var_t, var_run_t;
+class dir { getattr search read };
+class file { getattr read write };
+')
+
+########################################
+#
+# files_remove_all_daemon_runtime_data(domain,[`optional'])
+#
+define(`files_remove_all_daemon_runtime_data',`
+requires_block_template(files_remove_all_daemon_runtime_data_depend,$2)
+allow $1 var_t:dir search;
+allow $1 var_run_t:{ sock_file lnk_file } { getattr unlink };
+allow $1 var_run_t:dir rmdir;
+allow $1 pidfile:dir { getattr search read write add_name remove_name };
+allow $1 pidfile:file { getattr unlink };
+allow $1 pidfile:sock_file { getattr unlink };
+')
+
+define(`files_remove_all_daemon_runtime_data_depend',`
+attribute pidfile;
+type var_t, var_run_t;
+class dir { getattr search read write add_name remove_name rmdir };
+class file { getattr unlink };
+class lnk_file { getattr unlink };
+class sock_file { getattr unlink };
+')
+
+########################################
+#
+# files_create_private_tmp_data(domain,private_type,[object class(es)],[`optional'])
+#
+define(`files_create_private_tmp_data',`
+requires_block_template(files_create_private_tmp_data_depend,$2)
+allow $1 tmp_t:dir { getattr search read write add_name remove_name };
+ifelse(`$3',`',`
+type_transition $1 tmp_t:file $2;
+',`
+type_transition $1 tmp_t:$3 $2;
+')
+typeattribute $1 tmpfile;
+')
+
+define(`files_create_private_tmp_data_depend',`
+attribute tmpfile;
+type etc_t;
+class dir { getattr search read write add_name };
+')
+
+########################################
+#
+# files_remove_all_tmp_data(domain,[`optional'])
+#
+define(`files_remove_all_tmp_data',`
+requires_block_template(files_remove_all_tmp_data_depend,$2)
+allow $1 tmpfile:dir { getattr search read write add_name remove_name rmdir };
+allow $1 tmpfile:file { getattr unlink };
+allow $1 tmpfile:lnk_file { getattr unlink };
+allow $1 tmpfile:fifo_file { getattr unlink };
+allow $1 tmpfile:sock_file { getattr unlink };
+')
+
+define(`files_remove_all_tmp_data_depend',`
+attribute tmpfile;
+class dir { getattr search read write add_name remove_name rmdir };
+class file { getattr unlink };
+class lnk_file { getattr unlink };
+class fifo_file { getattr unlink };
+class sock_file { getattr unlink };
+')
+
+########################################
+#
+# files_manage_general_lock_files(domain,[`optional'])
+#
+define(`files_manage_general_lock_files',`
+requires_block_template(files_manage_general_lock_files_depend,$2)
+allow $1 var_lock_t:dir { getattr search create read write setattr add_name remove_name rmdir };
+allow $1 var_lock_t:file { getattr create read write setattr unlink };
+')
+
+define(`files_remove_general_lock_files_depend',`
+type var_lock_t;
+class dir { getattr search create read write setattr add_name remove_name rmdir };
+class file { getattr create read write setattr unlink };
+')
+
+########################################
+#
+# files_remove_all_lock_files(domain,[`optional'])
+#
+define(`files_remove_all_lock_files',`
+requires_block_template(files_remove_all_lock_files_depend,$2)
+allow $1 lockfile:dir { getattr search read write add_name remove_name };
+allow $1 lockfile:file { getattr unlink };
+')
+
+define(`files_remove_all_lock_files_depend',`
+attribute lockfile;
+class dir { getattr search read write add_name remove_name };
+class file { getattr unlink };
+')
+
+########################################
+#
+# files_read_general_system_resources(domain,[`optional'])
+#
+define(`files_read_general_system_resources',`
+requires_block_template(files_read_general_system_resources_depend,$2)
+allow $1 usr_t:dir { getattr search read };
+allow $1 usr_t:{ file lnk_file } { getattr read };
+')
+
+define(`files_read_general_system_resources_depend',`
+type usr_t;
+class dir { getattr search read };
+class file { getattr read };
+class lnk_file { getattr read };
+')
+
+########################################
+#
+# files_read_system_source_code(type,[`optional'])
+#
+define(`files_read_system_source_code',`
+requires_block_template(files_read_system_source_code_depend,$2)
+allow $1 usr_t:dir search;
+allow $1 src_t:dir { getattr search read };
+allow $1 src_t:{ file lnk_file } { getattr read };
+')
+
+define(`files_read_system_source_code_depend',`
+type usr_t, src_t;
+class dir { getattr search read };
+class file { getattr read };
+class lnk_file { getattr read };
+')

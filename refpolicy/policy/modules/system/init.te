@@ -1,0 +1,444 @@
+# init_t is the domain of the init process.
+# init_exec_t is the type of the init program.
+# init_var_run_t is the type for /var/run/shutdown.pid.
+# initctl_t is the type of the named pipe created 
+#           by init during initialization.  This pipe is used
+#           to communicate with init.
+#
+type init_t;
+domain_make_domain(init_t)
+role system_r types init_t;
+
+type init_exec_t;
+domain_make_entrypoint_file(init_t,init_exec_t)
+
+type initctl_t;
+files_make_file(initctl_t)
+devices_create_dev_entry(init_t,initctl_t,fifo_file)
+
+type init_var_run_t;
+files_make_file(init_var_run_t)
+files_create_daemon_runtime_data(init_t,init_var_run_t)
+
+kernel_transition_from(init_t,init_exec_t)
+kernel_sigchld_from(init_t)
+
+# If you load a new policy that removes active domains, processes can
+# get stuck if you do not allow unlabeled processes to signal init
+# If you load an incompatible policy, you should probably reboot,
+# since you may have compromised system security.
+kernel_unlabeled_sigchld_from(init_t)
+
+kernel_set_selinux_boolean(init_t)
+kernel_read_system_state(init_t)
+kernel_read_hardware_state(init_t)
+kernel_share_state(init_t)
+
+terminal_use_all_terminals(init_t)
+
+domain_signal_all_domains(init_t)
+domain_kill_all_domains(init_t)
+
+files_modify_system_runtime_data(init_t)
+
+libraries_use_dynamic_loader(init_t)
+libraries_read_shared_libraries(init_t)
+
+corecommands_chroot(init_t)
+corecommands_execute_general_programs(init_t)
+corecommands_execute_system_programs(init_t)
+
+selinux_read_config(init_t)
+
+miscfiles_read_localization(init_t)
+
+# Re-exec itself
+allow init_t init_exec_t:file { getattr read execute execute_no_trans };
+
+# For /var/run/shutdown.pid.
+allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
+
+# Run init scripts.  this is ok since initrc
+# is also in this module
+allow init_t initrc_t:process transition;
+allow init_t initrc_exec_t:file { getattr read execute };
+
+# Create unix sockets
+allow init_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow init_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow init_t self:fifo_file { read write ioctl };
+
+########################################
+#
+# the following seem questionable
+#
+
+libraries_modify_dynamic_loader_cache(init_t)
+files_create_runtime_system_config(init_t)
+authlogin_modify_login_records(init_t)
+logging_modify_system_logs(init_t)
+
+# Use capabilities. old rule:
+#allow init_t self:capability ~sys_module;
+# is ~sys_module really needed? observed: 
+# sys_boot
+# sys_tty_config
+# kill: now provided by domain_kill_all_domains()
+# setuid (from /sbin/shutdown)
+# sys_chroot (from /usr/bin/chroot): now provided by corecommands_chroot()
+allow init_t self:capability { sys_boot sys_tty_config setuid };
+
+# Modify utmp.
+allow init_t initrc_var_run_t:file { getattr read write setattr };
+
+define(`init_consoletype_optional_policy',`
+consoletype_execute(init_t,optional)
+')
+
+########################################
+#
+# Conditional policy logic
+#
+
+ifdef(`monolithic_policy',`
+ifdef(`consoletype.te',`init_consoletype_optional_policy')
+',`
+optional consoletype { consoletype_execute_depend }
+ifopt (consoletype) { init_consoletype_optional_policy }
+') dnl end monolithic_policy
+
+########################################
+#
+# the following still need to be converted over
+#
+
+# something other then static libs
+allow init_t lib_t:file { getattr read };
+
+# for mount points
+allow init_t file_t:dir search;
+
+# file descriptors inherited from the rootfs.
+dontaudit init_t root_t:{ file chr_file } { read write }; 
+
+
+
+
+
+type initrc_t;
+domain_make_domain(initrc_t)
+role system_r types initrc_t;
+
+type initrc_exec_t;
+domain_make_entrypoint_file(initrc_t,initrc_exec_t)
+
+type initrc_devpts_t;
+terminal_make_pty(initrc_t,initrc_devpts_t)
+
+type initrc_var_run_t;
+files_make_file(initrc_var_run_t)
+files_create_daemon_runtime_data(initrc_t,initrc_var_run_t)
+
+type initrc_state_t;
+files_make_file(initrc_state_t)
+
+type initrc_tmp_t;
+files_make_file(initrc_tmp_t)
+files_create_private_tmp_data(initrc_t,initrc_tmp_t)
+
+allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
+allow initrc_t self:capability ~{ sys_admin sys_module };
+allow initrc_t self:passwd rootok;
+
+# Allow IPC with self
+allow initrc_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow initrc_t self:unix_stream_socket { create listen accept ioctl read getattr write setattr append bind connect getopt setopt shutdown connectto };
+allow initrc_t self:fifo_file { read write ioctl };
+
+allow initrc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
+
+allow initrc_t initrc_state_t:dir { create read getattr lock setattr ioctl unlink rename search add_name remove_name reparent write rmdir };
+allow initrc_t initrc_state_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
+
+kernel_read_system_state(initrc_t)
+kernel_read_software_raid_state(initrc_t)
+kernel_read_network_state(initrc_t)
+kernel_read_ring_buffer(initrc_t)
+kernel_change_ring_buffer_level(initrc_t)
+kernel_clear_ring_buffer(initrc_t)
+kernel_get_sysvipc_info(initrc_t)
+kernel_read_hardware_state(initrc_t)
+kernel_modify_hardware_config_option(initrc_t)
+kernel_read_all_sysctl(initrc_t)
+kernel_modify_all_sysctl(initrc_t)
+kernel_get_selinux_enforcement_mode(initrc_t)
+kernel_list_usb_hardware(initrc_t)
+
+filesystem_register_binary_executable_type(initrc_t)
+# cjp: not sure why these are here; should use mount policy
+filesystem_mount_all_filesystems(initrc_t)
+filesystem_unmount_all_filesystems(initrc_t)
+
+# can_network(initrc_t):
+allow initrc_t self:tcp_socket { connect listen accept create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow initrc_t self:udp_socket { connect create ioctl read getattr write setattr append bind getopt setopt shutdown };
+corenetwork_send_tcp_on_all_interfaces(initrc_t)
+corenetwork_send_raw_on_all_interfaces(initrc_t)
+corenetwork_send_udp_on_all_interfaces(initrc_t)
+#corenetwork_send_tcp_on_all_nodes(initrc_t)
+#corenetwork_send_raw_on_all_nodes(initrc_t)
+#corenetwork_send_udp_on_all_nodes(initrc_t)
+#corenetwork_send_tcp_on_all_ports(initrc_t)
+#corenetwork_send_udp_on_all_ports(initrc_t)
+corenetwork_receive_tcp_on_all_interfaces(initrc_t)
+corenetwork_receive_raw_on_all_interfaces(initrc_t)
+corenetwork_receive_udp_on_all_interfaces(initrc_t)
+#corenetwork_receive_tcp_on_all_nodes(initrc_t)
+#corenetwork_receive_raw_on_all_nodes(initrc_t)
+#corenetwork_receive_udp_on_all_nodes(initrc_t)
+#corenetwork_receive_tcp_on_all_ports(initrc_t)
+#corenetwork_receive_udp_on_all_ports(initrc_t)
+#corenetwork_bind_tcp_on_all_nodes(initrc_t)
+#corenetwork_bind_udp_on_all_nodes(initrc_t)
+#allow initrc_t net_conf_t:file r_file_perms;
+#sysnetwork_read_network_config(initrc_t)
+
+domain_kill_all_domains(initrc_t)
+domain_read_all_domains_process_state(initrc_t)
+
+devices_get_random_data(initrc_t)
+devices_get_pseudorandom_data(initrc_t)
+devices_add_entropy(initrc_t)
+devices_set_pseudorandom_seed(initrc_t)
+devices_read_framebuffer(initrc_t)
+devices_read_realtime_clock(initrc_t)
+devices_read_sound_mixer_levels(initrc_t)
+devices_write_sound_mixer_levels(initrc_t)
+
+terminal_use_all_terminals(initrc_t)
+terminal_reset_labels(initrc_t)
+
+bootloader_read_kernel_symbol_table(initrc_t)
+
+libraries_modify_dynamic_loader_cache(initrc_t)
+libraries_use_dynamic_loader(initrc_t)
+libraries_read_shared_libraries(initrc_t)
+libraries_execute_library_scripts(initrc_t)
+
+files_get_all_file_stats(initrc_t)
+files_remove_all_tmp_data(initrc_t)
+files_remove_all_lock_files(initrc_t)
+files_remove_all_daemon_runtime_data(initrc_t)
+files_read_general_system_config(initrc_t)
+files_create_runtime_system_config(initrc_t)
+files_manage_general_lock_files(initrc_t)
+files_execute_system_config_script(initrc_t)
+files_read_general_shared_resources(initrc_t)
+files_manage_pseudorandom_saved_seed(initrc_t)
+
+corecommands_execute_general_programs(initrc_t)
+corecommands_execute_system_programs(initrc_t)
+
+selinux_read_config(initrc_t)
+selinux_read_default_contexts(run_init_t)
+
+modutils_read_kernel_module_loading_config(initrc_t)
+
+authlogin_modify_login_records(initrc_t)
+authlogin_modify_last_login_log(initrc_t)
+
+miscfiles_read_localization(initrc_t)
+
+logging_modify_system_logs(initrc_t)
+logging_read_all_logs(initrc_t)
+logging_append_all_logs(initrc_t)
+
+ifdef(`distro_redhat',`
+kernel_set_selinux_enforcement_mode(initrc_t)
+
+files_create_boot_flag(initrc_t)
+
+# Create and read /boot/kernel.h and /boot/System.map.
+# Redhat systems typically create this file at boot time.
+bootloader_create_runtime_data(initrc_t)
+')
+
+#################################
+#
+# Rules for the run_init_t domain.
+#
+
+type run_init_t;
+domain_make_domain(run_init_t)
+
+type run_init_exec_t;
+files_make_file(run_init_exec_t)
+
+
+ifdef(`targeted_policy',`
+# targeted/unconfined stuff
+',`
+corecommands_execute_general_programs(run_init_t)
+corecommands_execute_shell(run_init_t)
+
+filesystem_read_persistent_filesystem_stats(run_init_t)
+
+files_read_general_system_config(run_init_t)
+
+libraries_use_dynamic_loader(run_init_t)
+libraries_read_shared_libraries(run_init_t)
+
+selinux_read_config(run_init_t)
+
+miscfiles_read_localization(run_init_t)
+
+allow run_init_t initrc_t:process transition;
+allow run_init_t initrc_exec_t:file { getattr read execute };
+
+# for utmp
+allow run_init_t initrc_var_run_t:file { getattr read write };
+
+allow run_init_t self:process setexec;
+allow run_init_t self:capability setuid;
+
+allow run_init_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow run_init_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+allow run_init_t self:fifo_file { getattr read write };
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_init_t self:capability { dac_override dac_read_search };
+
+devices_ignore_list_device_nodes(run_init_t)
+terminal_ignore_list_ptys(run_init_t)
+') dnl end ifdef targeted policy
+
+
+ifdef(`TODO',`
+
+# Mount and unmount file systems.
+allow initrc_t { file_t default_t }:dir { read search getattr mounton };
+
+allow initrc_t var_spool_t:file rw_file_perms;
+
+allow initrc_t privfd:fd use;
+
+# for cryptsetup
+allow initrc_t fixed_disk_device_t:blk_file getattr;
+
+# Set device ownerships/modes.
+allow initrc_t device_type:chr_file setattr;
+allow initrc_t misc_device_t:{ chr_file blk_file } setattr;
+allow initrc_t fixed_disk_device_t:blk_file setattr;
+allow initrc_t removable_device_t:blk_file setattr;
+allow initrc_t xconsole_device_t:fifo_file setattr;
+allow initrc_t sound_device_t:chr_file setattr;
+
+# Allow access to the sysadm TTYs. Note that this will give access to the 
+# TTYs to any process in the initrc_t domain. Therefore, daemons and such
+# started from init should be placed in their own domain.
+allow initrc_t admin_tty_type:chr_file rw_file_perms;
+
+# Read user home directories.
+allow initrc_t { home_root_t home_type }:dir r_dir_perms;
+allow initrc_t home_type:file r_file_perms;
+
+allow initrc_t udev_runtime_t:file rw_file_perms;
+
+# for lsof in shutdown scripts
+can_kerberos(initrc_t)
+
+#
+# Wants to remove udev.tbl
+#
+allow initrc_t device_t:dir rw_dir_perms;
+allow initrc_t device_t:lnk_file unlink;
+
+#
+#  These rules are here to allow init scripts to su
+#
+ifdef(`su.te', `
+su_restricted_domain(initrc,system)
+role system_r types initrc_su_t;
+')
+
+ifdef(`distro_debian', `
+allow initrc_t { etc_t device_t }:dir setattr;
+
+# for storing state under /dev/shm
+allow initrc_t tmpfs_t:dir setattr;
+file_type_auto_trans(initrc_t, tmpfs_t, initrc_var_run_t, dir)
+file_type_auto_trans(initrc_t, tmpfs_t, fixed_disk_device_t, blk_file)
+allow { initrc_var_run_t fixed_disk_device_t } tmpfs_t:filesystem associate;
+')
+
+ifdef(`distro_redhat', `
+# Create and read /boot/kernel.h and /boot/System.map.
+# Redhat systems typically create this file at boot time.
+allow initrc_t boot_t:lnk_file rw_file_perms;
+
+allow initrc_t tmpfs_t:chr_file rw_file_perms;
+allow initrc_t tmpfs_t:dir r_dir_perms;
+
+#
+# readahead asks for these
+#
+allow initrc_t etc_aliases_t:file { getattr read };
+allow initrc_t var_lib_nfs_t:file { getattr read };
+
+')dnl end distro_redhat
+
+#
+# Shutting down xinet causes these
+#
+# Fam
+dontaudit initrc_t device_t:dir { read write };
+# Rsync
+dontaudit initrc_t mail_spool_t:lnk_file read;
+
+# for lsof which is used by alsa shutdown
+dontaudit initrc_t domain:{ udp_socket tcp_socket fifo_file unix_dgram_socket } getattr;
+dontaudit initrc_t proc_kmsg_t:file getattr;
+
+
+#################################
+#
+# Rules for the run_init_t domain.
+#
+
+
+ifdef(`targeted_policy', `
+domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
+allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
+allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
+domain_trans(initrc_t, shell_exec_t, unconfined_t)
+', `
+domain_auto_trans(sysadm_t, run_init_exec_t, run_init_t)
+role sysadm_r types run_init_t;
+
+domain_auto_trans(run_init_t, chkpwd_exec_t, sysadm_chkpwd_t)
+
+# for utmp
+allow run_init_t admin_tty_type:chr_file rw_file_perms;
+
+allow run_init_t privfd:fd use;
+allow run_init_t lib_t:file { getattr read };
+
+dontaudit run_init_t shadow_t:file { getattr read };
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_init_t file_type:dir search;
+
+') dnl endif targeted policy
+
+ifdef(`distro_gentoo', `
+# Gentoo integrated run_init+open_init_pty-runscript:
+domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
+')
+
+') dnl end TODO
