@@ -1,5 +1,97 @@
 #######################################
 #
+# Per user domain template for this module
+#
+# authlogin_per_userdomain_template(userdomain_prefix)
+#
+define(`authlogin_per_userdomain_template',`
+requires_block_template(authlogin_per_userdomain_template_depend)
+
+type $1_chkpwd_t;     # , nscd_client_domain;
+domain_make_domain($1_chkpwd_t)
+domain_make_entrypoint_file($1_chkpwd_t,chkpwd_exec_t)
+role $1_r types $1_chkpwd_t;
+role $1_r types system_chkpwd_t;
+
+# Use capabilities.
+allow $1_chkpwd_t self:capability setuid;
+
+authlogin_read_shadow_passwords($1_chkpwd_t)
+logging_send_system_log_message($1_chkpwd_t)
+
+libraries_use_dynamic_loader($1_chkpwd_t)
+libraries_read_shared_libraries($1_chkpwd_t)
+files_read_general_system_config($1_chkpwd_t)
+miscfiles_read_localization($1_chkpwd_t)
+selinux_read_config($1_chkpwd_t)
+filesystem_ignore_read_persistent_filesystem_stats($1_chkpwd_t)
+
+# is_selinux_enabled
+kernel_read_system_state($1_chkpwd_t)
+#can_getcon($1_chkpwd_t)
+#can_ypbind($1_chkpwd_t)
+#can_kerberos($1_chkpwd_t)
+#can_ldap($1_chkpwd_t)
+#can_resolve($1_chkpwd_t)
+
+# Transition from the user domain to this domain.
+ifelse($1, system, `', `
+# Transition from the user domain to this domain.
+allow $1_t chkpwd_exec_t:file { getattr read execute };
+allow $1_t $1_chkpwd_t:process transition;
+
+#allow $1_t sbin_t:dir search;
+
+# Write to the user domain tty.
+#userdomain_use_$1_terminal($1_chkpwd_t)
+#userdomain_use_$1_pty($1_chkpwd_t)
+
+#allow $1_chkpwd_t privfd:fd use;
+
+# Inherit and use descriptors from gnome-pty-helper.
+#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
+
+# Inherit and use descriptors from newrole.
+#ifdef(`newrole.te', `allow $1_chkpwd_t newrole_t:fd use;')
+') dnl ifelse system
+
+# for nscd
+dontaudit $1_chkpwd_t var_t:dir search;
+')
+
+define(`authlogin_per_userdomain_template_depend',`
+type chkpwd_exec_t, system_chkpwd_t;
+class file { getattr read execute };
+class process transition;
+class capability setuid;
+class unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+class unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+')
+
+#######################################
+#
+# authlogin_check_password_transition(type,[`optional'])
+#
+define(`authlogin_check_password_transition',`
+requires_block_template(authlogin_check_password_transition_depend,$2)
+allow $1 chkpwd_exec_t:file { getattr read execute };
+allow $1 system_chkpwd_t:process transition;
+dontaudit $1 shadow_t:file { getattr read };
+#allow auth_chkpwd sbin_t:dir search;
+#can_ypbind(auth_chkpwd)
+#can_kerberos(auth_chkpwd)
+#can_ldap(auth_chkpwd)
+#can_resolve(auth_chkpwd)
+')
+
+define(`authlogin_check_password_transition_depend',`
+type system_chkpwd_t, chkpwd_exec_t, shadow_t;
+class file { getattr read execute };
+class process transition;
+')
+
+#######################################
+#
 # authlogin_modify_login_records(type,[`optional'])
 #
 define(`authlogin_modify_login_records',`
@@ -10,6 +102,54 @@ allow $1 wtmp_t:file { getattr read write setattr };
 define(`authlogin_modify_login_records_depend',`
 type wtmp_t;
 class file { getattr read write setattr };
+')
+
+#######################################
+#
+# authlogin_read_shadow_passwords(type,[`optional'])
+#
+define(`authlogin_read_shadow_passwords',`
+requires_block_template(authlogin_read_shadow_passwords_depend,$2)
+allow $1 shadow_t:file { getattr read };
+typeattribute $1 can_read_shadow_passwords;
+')
+
+define(`authlogin_read_shadow_passwords_depend',`
+attribute can_read_shadow_passwords;
+type shadow_t;
+class file { getattr read };
+')
+
+#######################################
+#
+# authlogin_ignore_read_shadow_passwords(type,[`optional'])
+#
+define(`authlogin_ignore_read_shadow_passwords',`
+requires_block_template(authlogin_ignore_read_shadow_passwords_depend,$2)
+dontaudit $1 shadow_t:file { getattr read };
+')
+
+define(`authlogin_ignore_read_shadow_passwords_depend',`
+type shadow_t;
+class file { getattr read };
+')
+
+#######################################
+#
+# authlogin_modify_shadow_passwords(type,[`optional'])
+#
+define(`authlogin_modify_shadow_passwords',`
+requires_block_template(authlogin_modify_shadow_passwords_depend,$2)
+allow $1 shadow_t:file { getattr read write };
+typeattribute $1 can_read_shadow_passwords;
+typeattribute $1 can_write_shadow_passwords;
+')
+
+define(`authlogin_modify_shadow_passwords_depend',`
+attribute can_read_shadow_passwords;
+attribute can_write_shadow_passwords;
+type shadow_t;
+class file { getattr read write };
 ')
 
 #######################################
