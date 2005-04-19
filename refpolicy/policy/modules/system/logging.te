@@ -1,4 +1,81 @@
 attribute logfile;
 
-type var_log_t;
+type devlog_t;
+files_make_file(devlog_t)
+
+type klogd_t;
+domain_make_domain(klogd_t)
+role system_r types klogd_t;
+
+type klogd_exec_t;
+domain_make_entrypoint_file(klogd_t,klogd_exec_t)
+
+type klogd_tmp_t;
+files_make_file(klogd_tmp_t)
+
+type klogd_var_run_t;
+files_make_file(klogd_var_run_t)
+
+type syslogd_t;
+domain_make_domain(syslogd_t)
+role system_r types syslogd_t;
+
+type syslogd_exec_t;
+domain_make_entrypoint_file(syslogd_t,syslogd_exec_t)
+
+type syslogd_tmp_t;
+files_make_file(syslogd_tmp_t)
+
+type syslogd_var_run_t;
+files_make_file(syslogd_var_run_t)
+
+type var_log_t, logfile;
 files_make_file(var_log_t)
+
+########################################
+#
+# klogd local policy
+#
+
+allow klogd_t klogd_tmp_t:file { getattr create read write append setattr unlink };
+allow klogd_t klogd_var_run_t:file { getattr create read write append setattr unlink };
+
+allow klogd_t self:capability sys_admin;
+dontaudit klogd_t self:capability sys_resource;
+
+kernel_read_system_state(klogd_t)
+
+libraries_use_dynamic_loader(klogd_t)
+libraries_read_shared_libraries(klogd_t)
+
+files_create_daemon_runtime_data(klogd_t,klogd_var_run_t)
+files_create_private_tmp_data(klogd_t,klogd_tmp_t)
+
+# read /etc/nsswitch.conf
+files_read_general_system_config(klogd_t)
+
+files_read_runtime_system_config(klogd_t)
+miscfiles_read_localization(klogd_t)
+
+logging_send_system_log_message(klogd_t)
+
+# Read /proc/kmsg and /dev/mem.
+kernel_read_kernel_messages(klogd_t)
+devices_raw_read_memory(klogd_t)
+
+# Control syslog and console logging
+kernel_clear_ring_buffer(klogd_t)
+kernel_change_ring_buffer_level(klogd_t)
+
+bootloader_read_kernel_symbol_table(klogd_t)
+
+########################################
+#
+# syslogd local policy
+#
+files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t)
+files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
+devices_create_dev_entry(syslogd_t,devlog_t,sock_file)
+
+allow syslogd_t syslogd_tmp_t:file { getattr create read write append setattr unlink };
+allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
