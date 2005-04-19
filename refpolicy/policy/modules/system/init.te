@@ -20,6 +20,22 @@ type init_var_run_t;
 files_make_file(init_var_run_t)
 files_create_daemon_runtime_data(init_t,init_var_run_t)
 
+# Re-exec itself
+allow init_t init_exec_t:file { getattr read execute execute_no_trans };
+
+# For /var/run/shutdown.pid.
+allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
+
+# Run init scripts.  this is ok since initrc
+# is also in this module
+allow init_t initrc_t:process transition;
+allow init_t initrc_exec_t:file { getattr read execute };
+
+# Create unix sockets
+allow init_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow init_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow init_t self:fifo_file { read write ioctl };
+
 kernel_transition_from(init_t,init_exec_t)
 kernel_sigchld_from(init_t)
 
@@ -41,6 +57,10 @@ domain_kill_all_domains(init_t)
 
 files_modify_system_runtime_data(init_t)
 
+# file descriptors inherited from the rootfs.
+files_ignore_modify_rootfs_file(init_t)
+files_ignore_modify_rootfs_device(init_t)
+
 libraries_use_dynamic_loader(init_t)
 libraries_read_shared_libraries(init_t)
 
@@ -51,22 +71,6 @@ corecommands_execute_system_programs(init_t)
 selinux_read_config(init_t)
 
 miscfiles_read_localization(init_t)
-
-# Re-exec itself
-allow init_t init_exec_t:file { getattr read execute execute_no_trans };
-
-# For /var/run/shutdown.pid.
-allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
-
-# Run init scripts.  this is ok since initrc
-# is also in this module
-allow init_t initrc_t:process transition;
-allow init_t initrc_exec_t:file { getattr read execute };
-
-# Create unix sockets
-allow init_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow init_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow init_t self:fifo_file { read write ioctl };
 
 ########################################
 #
@@ -117,11 +121,11 @@ allow init_t lib_t:file { getattr read };
 # for mount points
 allow init_t file_t:dir search;
 
-# file descriptors inherited from the rootfs.
-dontaudit init_t root_t:{ file chr_file } { read write }; 
 
-
-
+############################################################
+#
+# Init script policy
+#
 
 
 type initrc_t;
@@ -290,6 +294,8 @@ libraries_read_shared_libraries(run_init_t)
 
 selinux_read_config(run_init_t)
 
+authlogin_ignore_read_shadow_passwords(run_init_t)
+
 miscfiles_read_localization(run_init_t)
 
 allow run_init_t initrc_t:process transition;
@@ -425,8 +431,6 @@ allow run_init_t admin_tty_type:chr_file rw_file_perms;
 
 allow run_init_t privfd:fd use;
 allow run_init_t lib_t:file { getattr read };
-
-dontaudit run_init_t shadow_t:file { getattr read };
 
 # often the administrator runs such programs from a directory that is owned
 # by a different user or has restrictive SE permissions, do not want to audit
