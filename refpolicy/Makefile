@@ -1,3 +1,20 @@
+#
+# Makefile for the security policy.
+#
+# Targets:
+# 
+# install       - compile and install the policy configuration, and context files.
+# load          - compile, install, and load the policy configuration.
+# reload        - compile, install, and load/reload the policy configuration.
+# relabel       - relabel filesystems based on the file contexts configuration.
+# checklabels   - check filesystems against the file context configuration
+# restorelabels - check filesystems against the file context configuration
+#                 and restore the label of files with incorrect labels
+# policy        - compile the policy configuration locally for testing/development.
+#
+# The default target is 'policy'.
+#
+
 ########################################
 #
 # Configurable portions of the Makefile
@@ -104,6 +121,16 @@ endif
 
 ########################################
 #
+# Load the binary policy
+#
+reload tmp/load: $(LOADPATH) $(FCPATH)
+	$(QUIET) $(LOADPOLICY) -q $(LOADPATH)
+	@touch tmp/load
+
+load: tmp/load
+
+########################################
+#
 # Construct a monolithic policy.conf
 #
 policy.conf: $(POLICY_SECTIONS)
@@ -163,17 +190,39 @@ $(FC): $(ALL_FC_FILES)
 
 ########################################
 #
+# Remove the dontaudit rules from the policy.conf
+#
+enableaudit: policy.conf
+	@test -d tmp || mkdir -p tmp
+	@echo "Removing dontaudit rules from policy.conf"
+	$(QUIET) grep -v dontaudit policy.conf > tmp/policy.audit
+	$(QUIET) mv tmp/policy.audit policy.conf
+
+########################################
+#
 # Filesystem labeling
 #
-FILESYSTEMS=`mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';`
+FILESYSTEMS := `mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';`
 
-checklabels: $(SETFILES)
+checklabels: $(FC) $(SETFILES)
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
 	$(QUIET) $(SETFILES) -v -n $(FC) $(FILESYSTEMS)
 
-restorelabels: $(SETFILES)
+restorelabels: $(FC) $(SETFILES)
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
 	$(QUIET) $(SETFILES) -v $(FC) $(FILESYSTEMS)
 
 relabel:  $(FC) $(SETFILES)
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
 	$(QUIET) $(SETFILES) $(FC) $(FILESYSTEMS)
 
 clean:
