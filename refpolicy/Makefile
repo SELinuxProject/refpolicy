@@ -76,7 +76,7 @@ ALL_MODULES := $(filter-out tmp,$(DETECTED_DIRS))
 PRE_TE_FILES := $(addprefix $(FLASKDIR),security_classes initial_sids access_vectors)
 ALL_INTERFACES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.if))
 ALL_TE_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.te))
-POST_TE_FILES := $(addprefix $(MISCDIR),users constraints mls initial_sid_contexts fs_use genfs_contexts)
+POST_TE_FILES := $(addprefix $(MISCDIR),users constraints mls initial_sid_contexts fs_use)
 
 ALL_FC_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.fc))
 
