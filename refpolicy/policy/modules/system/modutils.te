@@ -17,11 +17,46 @@ files_make_file(modules_dep_t)
 
 type insmod_t;
 domain_make_domain(insmod_t)
-kernel_load_module(insmod_t)
 role system_r types insmod_t;
 
 type insmod_exec_t;
 domain_make_entrypoint_file(insmod_t,insmod_exec_t)
+
+type depmod_t;
+domain_make_domain(depmod_t)
+role system_r types depmod_t;
+
+type depmod_exec_t;
+domain_make_entrypoint_file(depmod_t,depmod_exec_t)
+
+type update_modules_t;
+domain_make_domain(update_modules_t)
+role system_r types update_modules_t;
+
+type update_modules_exec_t;
+domain_make_entrypoint_file(update_modules_t,update_modules_exec_t)
+
+########################################
+#
+# insmod local policy
+#
+
+allow insmod_t insmod_exec_t:file { getattr read execute execute_no_trans };
+
+# Read module config and dependency information
+allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
+
+# read modules
+allow insmod_t modules_object_t:dir { getattr search read };
+allow insmod_t modules_object_t:file { getattr read };
+
+allow insmod_t self:capability { dac_override net_raw sys_tty_config };
+allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
+
+allow insmod_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow insmod_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+kernel_load_module(insmod_t)
 
 # Rules for /proc/sys/kernel/tainted
 kernel_read_kernel_sysctl(insmod_t)
@@ -39,6 +74,8 @@ filesystem_read_persistent_filesystem_stats(insmod_t)
 
 files_read_runtime_system_config(insmod_t)
 files_read_general_system_config(insmod_t)
+files_read_general_shared_resources(insmod_t)
+files_execute_system_config_script(insmod_t)
 
 domain_signal_all_domains(insmod_t)
 
@@ -51,21 +88,23 @@ corecommands_execute_shell(insmod_t)
 
 miscfiles_read_localization(insmod_t)
 
-allow insmod_t insmod_exec_t:file { getattr read execute execute_no_trans };
+logging_send_system_log_message(insmod_t)
 
-# Read module config and dependency information
-allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
+define(`insmod_mount_optional_policy',`
+mount_transition(insmod_t)
+')
 
-# read modules
-allow insmod_t modules_object_t:dir { getattr search read };
-allow insmod_t modules_object_t:file { getattr read };
+########################################
+#
+# Conditional policy logic
+#
 
-allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
-
-allow insmod_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow insmod_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow insmod_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
-allow insmod_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+ifdef(`monolithic_policy',`
+ifdef(`mount.te',`insmod_mount_optional_policy')
+',`
+optional mount { mount_transition_depend }
+ifopt (consoletype) { insmod_mount_optional_policy }
+') dnl end monolithic_policy
 
 #
 #
@@ -74,13 +113,10 @@ allow insmod_t self:rawip_socket { create ioctl read getattr write setattr appen
 #
 ifdef(`TODO_list',`
 
-allow insmod_t self:capability { dac_override net_raw sys_tty_config };
-
 # for loading modules at boot time
 allow insmod_t { init_t initrc_t }:fd use;
 allow insmod_t initrc_t:fifo_file { getattr read write };
 
-allow insmod_t usr_t:file { getattr read };
 allow insmod_t lib_t:file { getattr read };
 allow insmod_t { var_t var_log_t }:dir search;
 
@@ -95,18 +131,12 @@ allow insmod_t xserver_log_t:file getattr;
 ')
 
 allow insmod_t sysfs_t:dir search;
-allow insmod_t { usbfs_t usbdevfs_t }:dir search;
-allow insmod_t { usbfs_t usbdevfs_t }:filesystem mount;
+allow insmod_t usbfs_t:dir search;
+allow insmod_t usbfs_t:filesystem mount;
 
 allow insmod_t { initrc_devpts_t admin_tty_type }:chr_file { getattr read write };
 allow insmod_t devpts_t:dir { getattr search };
 
-can_exec(insmod_t,etc_t)
-
-ifdef(`mount.te', `
-# Run mount in the mount_t domain.
-domain_auto_trans(insmod_t, mount_exec_t, mount_t)
-')
 # for when /var is not mounted early in the boot
 dontaudit insmod_t file_t:dir search;
 
@@ -114,3 +144,122 @@ dontaudit insmod_t file_t:dir search;
 dontaudit insmod_t var_run_t:dir search;
 
 ') dnl if TODO_list
+
+########################################
+#
+# depmod local policy
+#
+
+allow depmod_t depmod_exec_t:file { getattr read execute execute_no_trans };
+
+# Read conf.modules.
+allow depmod_t modules_conf_t:file { getattr read };
+
+# Read module objects.
+allow depmod_t modules_object_t:dir { getattr search read };
+allow depmod_t modules_object_t:{ file lnk_file } { getattr read };
+
+# Create modules.dep.
+allow depmod_t modules_object_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow depmod_t modules_dep_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+type_transition depmod_t modules_object_t:file modules_dep_t;
+
+kernel_read_system_state(depmod_t)
+
+filesystem_read_persistent_filesystem_stats(depmod_t)
+
+terminal_use_console(depmod_t)
+
+bootloader_read_kernel_symbol_table(depmod_t)
+
+files_read_runtime_system_config(depmod_t)
+files_read_general_system_config(depmod_t)
+
+libraries_use_dynamic_loader(depmod_t)
+libraries_read_shared_libraries(depmod_t)
+
+ifdef(`TODO',`
+r_dir_file(depmod_t, src_t)
+
+domain_auto_trans(initrc_t, depmod_exec_t, depmod_t)
+allow depmod_t { bin_t sbin_t }:dir search;
+
+domain_auto_trans(sysadm_t, depmod_exec_t, depmod_t)
+
+# Inherit and use descriptors from init and login programs.
+allow depmod_t { init_t privfd }:fd use;
+
+# read system.map
+allow depmod_t boot_t:file { getattr read };
+
+# Access terminals.
+allow depmod_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow depmod_t sysadm_gph_t:fd use;')
+
+# Read System.map from home directories.
+allow depmod_t { home_root_t staff_home_dir_t sysadm_home_dir_t }:dir r_dir_perms;
+r_dir_file(depmod_t, { staff_home_t sysadm_home_t })
+') dnl end ifdef TODO
+
+#################################
+#
+# update-modules local policy
+#
+
+allow update_modules_t self:fifo_file { getattr read write };
+
+allow update_modules_t modules_dep_t:file { getattr read write };
+
+allow update_modules_t insmod_exec_t:file { getattr read execute execute_no_trans };
+allow update_modules_t update_modules_exec_t:file { getattr read execute execute_no_trans };
+
+allow update_modules_t modules_object_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow update_modules_t modules_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+type_transition update_modules_t modules_object_t:file modules_conf_t;
+
+allow update_modules_t depmod_exec_t:file { getattr read execute };
+type_transition update_modules_t depmod_exec_t:process depmod_t;
+
+kernel_read_kernel_sysctl(update_modules_t)
+kernel_read_system_state(update_modules_t)
+
+devices_get_pseudorandom_data(update_modules_t)
+
+filesystem_read_persistent_filesystem_stats(update_modules_t)
+
+terminal_use_console(update_modules_t)
+terminal_use_controlling_terminal(update_modules_t)
+
+files_read_runtime_system_config(update_modules_t)
+files_read_general_system_config(update_modules_t)
+files_execute_system_config_script(insmod_t)
+
+corecommands_execute_general_programs(insmod_t)
+corecommands_execute_system_programs(insmod_t)
+corecommands_execute_shell(insmod_t)
+
+libraries_use_dynamic_loader(update_modules_t)
+libraries_read_shared_libraries(update_modules_t)
+
+logging_send_system_log_message(update_modules_t)
+
+miscfiles_read_localization(update_modules_t)
+
+ifdef(`TODO',`
+role sysadm_r types update_modules_t;
+
+domain_auto_trans({ initrc_t sysadm_t }, update_modules_exec_t, update_modules_t)
+allow update_modules_t privfd:fd use;
+allow update_modules_t init_t:fd use;
+
+allow update_modules_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+allow update_modules_t devpts_t:dir search;
+
+dontaudit update_modules_t sysadm_home_dir_t:dir search;
+
+allow update_modules_t lib_t:file { getattr read };
+
+file_type_auto_trans(update_modules_t, etc_t, modules_conf_t, file)
+
+tmp_domain(update_modules)
+') dnl endif TODO
