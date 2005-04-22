@@ -1,27 +1,66 @@
 # Copyright (C) 2005 Tresys Technology, LLC
 
+#
 # init_t is the domain of the init process.
-# init_exec_t is the type of the init program.
-# init_var_run_t is the type for /var/run/shutdown.pid.
-# initctl_t is the type of the named pipe created 
-#           by init during initialization.  This pipe is used
-#           to communicate with init.
 #
 type init_t;
 domain_make_domain(init_t)
 role system_r types init_t;
 
+#
+# init_exec_t is the type of the init program.
+#
 type init_exec_t;
 domain_make_entrypoint_file(init_t,init_exec_t)
 
+#
+# initctl_t is the type of the named pipe created 
+# by init during initialization.  This pipe is used
+# to communicate with init.
+#
 type initctl_t;
 files_make_file(initctl_t)
 filesystem_tmpfs_associate(initctl_t)
 devices_create_dev_entry(init_t,initctl_t,fifo_file)
 
+#
+# init_var_run_t is the type for /var/run/shutdown.pid.
+#
 type init_var_run_t;
 files_make_file(init_var_run_t)
 files_create_daemon_runtime_data(init_t,init_var_run_t)
+
+type initrc_t;
+domain_make_domain(initrc_t)
+role system_r types initrc_t;
+
+type initrc_exec_t;
+domain_make_entrypoint_file(initrc_t,initrc_exec_t)
+
+type initrc_devpts_t;
+terminal_make_pseudoterminal(initrc_t,initrc_devpts_t)
+
+type initrc_var_run_t;
+files_make_file(initrc_var_run_t)
+files_create_daemon_runtime_data(initrc_t,initrc_var_run_t)
+
+type initrc_state_t;
+files_make_file(initrc_state_t)
+
+type initrc_tmp_t;
+files_make_file(initrc_tmp_t)
+files_create_private_tmp_data(initrc_t,initrc_tmp_t)
+
+type run_init_t;
+domain_make_domain(run_init_t)
+
+type run_init_exec_t;
+files_make_file(run_init_exec_t)
+
+########################################
+#
+# Init local policy
+#
 
 # Re-exec itself
 allow init_t init_exec_t:file { getattr read execute execute_no_trans };
@@ -124,31 +163,10 @@ allow init_t lib_t:file { getattr read };
 allow init_t file_t:dir search;
 
 
-############################################################
+########################################
 #
-# Init script policy
+# Init script local policy
 #
-
-type initrc_t;
-domain_make_domain(initrc_t)
-role system_r types initrc_t;
-
-type initrc_exec_t;
-domain_make_entrypoint_file(initrc_t,initrc_exec_t)
-
-type initrc_devpts_t;
-terminal_make_pseudoterminal(initrc_t,initrc_devpts_t)
-
-type initrc_var_run_t;
-files_make_file(initrc_var_run_t)
-files_create_daemon_runtime_data(initrc_t,initrc_var_run_t)
-
-type initrc_state_t;
-files_make_file(initrc_state_t)
-
-type initrc_tmp_t;
-files_make_file(initrc_tmp_t)
-files_create_private_tmp_data(initrc_t,initrc_tmp_t)
 
 allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability ~{ sys_admin sys_module };
@@ -266,62 +284,7 @@ files_create_boot_flag(initrc_t)
 bootloader_create_runtime_data(initrc_t)
 ')
 
-#################################
-#
-# Rules for the run_init_t domain.
-#
-
-type run_init_t;
-domain_make_domain(run_init_t)
-
-type run_init_exec_t;
-files_make_file(run_init_exec_t)
-
-
-ifdef(`targeted_policy',`
-# targeted/unconfined stuff
-',`
-corecommands_execute_general_programs(run_init_t)
-corecommands_execute_shell(run_init_t)
-
-filesystem_read_persistent_filesystem_attributes(run_init_t)
-
-files_read_general_system_config(run_init_t)
-
-libraries_use_dynamic_loader(run_init_t)
-libraries_read_shared_libraries(run_init_t)
-
-selinux_read_config(run_init_t)
-
-authlogin_ignore_read_shadow_passwords(run_init_t)
-
-miscfiles_read_localization(run_init_t)
-
-logging_send_system_log_message(run_init_t)
-
-allow run_init_t initrc_t:process transition;
-allow run_init_t initrc_exec_t:file { getattr read execute };
-
-# for utmp
-allow run_init_t initrc_var_run_t:file { getattr read write };
-
-allow run_init_t self:process setexec;
-allow run_init_t self:capability setuid;
-
-allow run_init_t self:fifo_file { getattr read write };
-
-# often the administrator runs such programs from a directory that is owned
-# by a different user or has restrictive SE permissions, do not want to audit
-# the failed access to the current directory
-dontaudit run_init_t self:capability { dac_override dac_read_search };
-
-devices_ignore_list_device_nodes(run_init_t)
-terminal_ignore_list_pseudoterminals(run_init_t)
-') dnl end ifdef targeted policy
-
-
 ifdef(`TODO',`
-
 # Mount and unmount file systems.
 allow initrc_t { file_t default_t }:dir { read search getattr mounton };
 
@@ -400,13 +363,56 @@ dontaudit initrc_t mail_spool_t:lnk_file read;
 # for lsof which is used by alsa shutdown
 dontaudit initrc_t domain:{ udp_socket tcp_socket fifo_file unix_dgram_socket } getattr;
 dontaudit initrc_t proc_kmsg_t:file getattr;
-
+') dnl end TODO
 
 #################################
 #
-# Rules for the run_init_t domain.
+# Run_init local policy
 #
 
+ifdef(`targeted_policy',`
+# targeted/unconfined stuff
+',`
+corecommands_execute_general_programs(run_init_t)
+corecommands_execute_shell(run_init_t)
+
+filesystem_read_persistent_filesystem_attributes(run_init_t)
+
+files_read_general_system_config(run_init_t)
+
+libraries_use_dynamic_loader(run_init_t)
+libraries_read_shared_libraries(run_init_t)
+
+selinux_read_config(run_init_t)
+
+authlogin_ignore_read_shadow_passwords(run_init_t)
+
+miscfiles_read_localization(run_init_t)
+
+logging_send_system_log_message(run_init_t)
+
+allow run_init_t initrc_t:process transition;
+allow run_init_t initrc_exec_t:file { getattr read execute };
+
+# for utmp
+allow run_init_t initrc_var_run_t:file { getattr read write };
+
+allow run_init_t self:process setexec;
+allow run_init_t self:capability setuid;
+
+allow run_init_t self:fifo_file { getattr read write };
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_init_t self:capability { dac_override dac_read_search };
+
+devices_ignore_list_device_nodes(run_init_t)
+terminal_ignore_list_pseudoterminals(run_init_t)
+') dnl end ifdef targeted policy
+
+
+ifdef(`TODO',`
 
 ifdef(`targeted_policy', `
 domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
