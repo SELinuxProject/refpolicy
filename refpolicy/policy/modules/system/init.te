@@ -129,7 +129,6 @@ allow init_t file_t:dir search;
 # Init script policy
 #
 
-
 type initrc_t;
 domain_make_domain(initrc_t)
 role system_r types initrc_t;
@@ -138,7 +137,7 @@ type initrc_exec_t;
 domain_make_entrypoint_file(initrc_t,initrc_exec_t)
 
 type initrc_devpts_t;
-terminal_make_pty(initrc_t,initrc_devpts_t)
+terminal_make_pseudoterminal(initrc_t,initrc_devpts_t)
 
 type initrc_var_run_t;
 files_make_file(initrc_var_run_t)
@@ -212,6 +211,10 @@ devices_read_framebuffer(initrc_t)
 devices_read_realtime_clock(initrc_t)
 devices_read_sound_mixer_levels(initrc_t)
 devices_write_sound_mixer_levels(initrc_t)
+devices_set_all_character_device_attributes(initrc_t)
+
+storage_set_fixed_disk_attributes(initrc_t)
+storage_set_removable_device_attributes(initrc_t)
 
 terminal_use_all_terminals(initrc_t)
 terminal_reset_labels(initrc_t)
@@ -223,7 +226,7 @@ libraries_use_dynamic_loader(initrc_t)
 libraries_read_shared_libraries(initrc_t)
 libraries_execute_library_scripts(initrc_t)
 
-files_get_all_file_stats(initrc_t)
+files_get_all_file_attributes(initrc_t)
 files_remove_all_tmp_data(initrc_t)
 files_remove_all_lock_files(initrc_t)
 files_remove_all_daemon_runtime_data(initrc_t)
@@ -281,7 +284,7 @@ ifdef(`targeted_policy',`
 corecommands_execute_general_programs(run_init_t)
 corecommands_execute_shell(run_init_t)
 
-filesystem_read_persistent_filesystem_stats(run_init_t)
+filesystem_read_persistent_filesystem_attributes(run_init_t)
 
 files_read_general_system_config(run_init_t)
 
@@ -294,6 +297,8 @@ authlogin_ignore_read_shadow_passwords(run_init_t)
 
 miscfiles_read_localization(run_init_t)
 
+logging_send_system_log_message(run_init_t)
+
 allow run_init_t initrc_t:process transition;
 allow run_init_t initrc_exec_t:file { getattr read execute };
 
@@ -303,9 +308,6 @@ allow run_init_t initrc_var_run_t:file { getattr read write };
 allow run_init_t self:process setexec;
 allow run_init_t self:capability setuid;
 
-allow run_init_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow run_init_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-
 allow run_init_t self:fifo_file { getattr read write };
 
 # often the administrator runs such programs from a directory that is owned
@@ -314,7 +316,7 @@ allow run_init_t self:fifo_file { getattr read write };
 dontaudit run_init_t self:capability { dac_override dac_read_search };
 
 devices_ignore_list_device_nodes(run_init_t)
-terminal_ignore_list_ptys(run_init_t)
+terminal_ignore_list_pseudoterminals(run_init_t)
 ') dnl end ifdef targeted policy
 
 
@@ -331,12 +333,7 @@ allow initrc_t privfd:fd use;
 allow initrc_t fixed_disk_device_t:blk_file getattr;
 
 # Set device ownerships/modes.
-allow initrc_t device_type:chr_file setattr;
-allow initrc_t misc_device_t:{ chr_file blk_file } setattr;
-allow initrc_t fixed_disk_device_t:blk_file setattr;
-allow initrc_t removable_device_t:blk_file setattr;
 allow initrc_t xconsole_device_t:fifo_file setattr;
-allow initrc_t sound_device_t:chr_file setattr;
 
 # Allow access to the sysadm TTYs. Note that this will give access to the 
 # TTYs to any process in the initrc_t domain. Therefore, daemons and such

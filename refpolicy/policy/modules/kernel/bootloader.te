@@ -36,6 +36,11 @@ type bootloader_tmp_t;
 files_make_file(bootloader_tmp_t)
 devices_make_device_node(bootloader_tmp_t)
 
+########################################
+#
+# bootloader local policy
+#
+
 allow bootloader_t self:capability { dac_read_search fsetid sys_rawio sys_admin mknod chown };
 allow bootloader_t self:process { sigkill sigstop signull signal };
 allow bootloader_t self:fifo_file { getattr read write };
@@ -50,6 +55,7 @@ storage_raw_write_fixed_disk(bootloader_t)
 storage_raw_read_removable_device(bootloader_t)
 storage_raw_write_removable_device(bootloader_t)
 
+devices_get_all_block_device_attributes(bootloader_t)
 # for reading BIOS data (cjp: ?)
 devices_raw_read_memory(bootloader_t)
 
@@ -66,7 +72,7 @@ logging_send_system_log_message(bootloader_t)
 #files_create_private_config(bootloader_t,bootloader_etc_t)
 #allow bootloader_t bootloader_etc_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 
-filesystem_read_persistent_filesystem_stats(bootloader_t)
+filesystem_read_persistent_filesystem_attributes(bootloader_t)
 
 terminal_use_controlling_terminal(bootloader_t)
 
@@ -115,6 +121,10 @@ allow bootloader_t bootloader_tmp_t:lnk_file { create read getattr setattr unlin
 # for tune2fs (cjp: ?)
 files_create_private_root_dir_entry(bootloader_t,bootloader_tmp_t)
 
+ifdef(`fsadm.te', `
+filesystemtools_execute(bootloader_t)
+')
+
 ################################################################################
 ifdef(`TODO',`
 
@@ -124,7 +134,6 @@ allow bootloader_t admin_tty_type:chr_file rw_file_perms;
 allow bootloader_t privfd:fd use;
 
 allow bootloader_t { device_type ttyfile }:chr_file getattr;
-allow bootloader_t device_type:blk_file getattr;
 allow bootloader_t initctl_t:fifo_file getattr;
 
 # no transition from initrc to bootloader,
@@ -140,10 +149,6 @@ allow bootloader_t sysfs_t:dir getattr;
 
 allow bootloader_t var_t:dir search;
 allow bootloader_t var_t:file { getattr read };
-
-ifdef(`fsadm.te', `
-allow bootloader_t fsadm_exec_t:file { rx_file_perms execute_no_trans };
-')
 
 # LVM2 / Device Mapper's /dev/mapper/control
 # maybe we should change the labeling for this
