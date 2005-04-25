@@ -6,11 +6,8 @@ type devlog_t;
 files_make_file(devlog_t)
 
 type klogd_t;
-domain_make_domain(klogd_t)
-role system_r types klogd_t;
-
 type klogd_exec_t;
-domain_make_entrypoint_file(klogd_t,klogd_exec_t)
+domain_make_daemon_domain(klogd_t,klogd_exec_t)
 
 type klogd_tmp_t;
 files_make_file(klogd_tmp_t)
@@ -19,11 +16,8 @@ type klogd_var_run_t;
 files_make_file(klogd_var_run_t)
 
 type syslogd_t;
-domain_make_domain(syslogd_t)
-role system_r types syslogd_t;
-
 type syslogd_exec_t;
-domain_make_entrypoint_file(syslogd_t,syslogd_exec_t)
+domain_make_daemon_domain(syslogd_t,syslogd_exec_t)
 
 type syslogd_tmp_t;
 files_make_file(syslogd_tmp_t)
@@ -46,6 +40,15 @@ allow klogd_t self:capability sys_admin;
 dontaudit klogd_t self:capability sys_resource;
 
 kernel_read_system_state(klogd_t)
+kernel_read_messages(klogd_t)
+# Control syslog and console logging
+kernel_clear_ring_buffer(klogd_t)
+kernel_change_ring_buffer_level(klogd_t)
+devices_raw_read_memory(klogd_t)
+
+filesystem_get_all_filesystems_attributes(klogd_t)
+
+bootloader_read_kernel_symbol_table(klogd_t)
 
 libraries_use_dynamic_loader(klogd_t)
 libraries_read_shared_libraries(klogd_t)
@@ -61,22 +64,107 @@ miscfiles_read_localization(klogd_t)
 
 logging_send_system_log_message(klogd_t)
 
-kernel_read_messages(klogd_t)
-devices_raw_read_memory(klogd_t)
-
-# Control syslog and console logging
-kernel_clear_ring_buffer(klogd_t)
-kernel_change_ring_buffer_level(klogd_t)
-
-bootloader_read_kernel_symbol_table(klogd_t)
-
 ########################################
 #
 # syslogd local policy
 #
-files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t)
-files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
-devices_create_dev_entry(syslogd_t,devlog_t,sock_file)
+
+# Use capabilities.
+allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
+
+# Modify/create log files.
+allow syslogd_t var_log_t:dir { read getattr search add_name write };
+allow syslogd_t var_log_t:file { create ioctl getattr setattr append link };
 
 allow syslogd_t syslogd_tmp_t:file { getattr create read write append setattr unlink };
 allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
+
+allow syslogd_t devlog_t:unix_stream_socket name_bind;
+allow syslogd_t devlog_t:unix_dgram_socket name_bind;
+
+allow syslogd_t self:unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+allow syslogd_t self:unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow syslogd_t self:unix_dgram_socket sendto;
+allow syslogd_t self:fifo_file { getattr read write ioctl lock };
+
+# Create and bind to /dev/log or /var/run/log.
+allow syslogd_t devlog_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+
+kernel_read_hardware_state(syslogd_t)
+
+devices_create_dev_entry(syslogd_t,devlog_t,sock_file)
+
+corenetwork_network_raw_on_all_interfaces(syslogd_t)
+corenetwork_network_udp_on_all_interfaces(syslogd_t)
+corenetwork_network_raw_on_all_nodes(syslogd_t)
+corenetwork_network_udp_on_all_nodes(syslogd_t)
+corenetwork_network_udp_on_all_ports(syslogd_t)
+corenetwork_bind_udp_on_all_nodes(syslogd_t)
+corenetwork_bind_udp_on_syslogd_port(syslogd_t)
+
+filesystem_get_all_filesystems_attributes(syslogd_t)
+
+files_read_general_system_config(syslogd_t)
+files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
+files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
+files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
+ifdef(`distro_suse', `
+# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
+file_type_auto_trans(syslogd_t, var_lib_t, devlog_t, sock_file)
+')
+
+libraries_use_dynamic_loader(syslogd_t)
+libraries_read_shared_libraries(syslogd_t)
+
+miscfiles_read_localization(syslogd_t)
+
+#
+# /initrd is not umounted before minilog starts
+#
+#dontaudit syslogd_t file_t:dir search;
+#allow syslogd_t { tmpfs_t devpts_t }:dir search;
+#dontaudit syslogd_t unlabeled_t:file read;
+#dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
+allow syslogd_t self:capability net_admin;
+allow syslogd_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
+
+ifdef(`klogd.te', `', `
+# Allow access to /proc/kmsg for syslog-ng
+kernel_read_messages(syslogd_t)
+kernel_clear_ring_buffer(syslogd_t)
+kernel_change_ring_buffer_level(syslogd_t)
+')
+
+ifdef(`TODO',`
+daemon_domain(syslogd)
+
+# can_network is for the UDP socket
+can_ypbind(syslogd_t)
+
+# log to the xconsole
+allow syslogd_t xconsole_device_t:fifo_file { ioctl read write };
+
+ifdef(`crond.te', `
+# Write to the cron log.
+allow syslogd_t crond_log_t:file rw_file_perms;
+# for daemon re-start
+allow system_crond_t syslogd_t:lnk_file read;
+')
+
+ifdef(`logrotate.te', `
+allow logrotate_t syslogd_exec_t:file r_file_perms;
+')
+
+# for sending messages to logged in users
+allow syslogd_t initrc_var_run_t:file { read lock };
+dontaudit syslogd_t initrc_var_run_t:file write;
+allow syslogd_t ttyfile:chr_file { getattr write };
+
+#
+# Special case to handle crashes
+#
+allow syslogd_t { device_t file_t }:sock_file unlink;
+
+# Allow syslog to a terminal
+allow syslogd_t tty_device_t:chr_file { getattr write ioctl append };
+') dnl end TODO
