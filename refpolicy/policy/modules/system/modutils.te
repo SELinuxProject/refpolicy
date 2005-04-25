@@ -1,12 +1,5 @@
 # Copyright (C) 2005 Tresys Technology, LLC
 
-attribute can_modify_kernel_modules;
-neverallow ~can_modify_kernel_modules modules_object_t:file { create append write };
-
-# kernel modules
-type modules_object_t;
-files_make_file(modules_object_t)
-
 # module loading config
 type modules_conf_t;
 files_make_file(modules_conf_t)
@@ -49,10 +42,6 @@ allow insmod_t insmod_exec_t:file { getattr read execute execute_no_trans };
 # Read module config and dependency information
 allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
 
-# read modules
-allow insmod_t modules_object_t:dir { getattr search read };
-allow insmod_t modules_object_t:file { getattr read };
-
 allow insmod_t self:capability { dac_override net_raw sys_tty_config };
 allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
 
@@ -67,6 +56,8 @@ kernel_load_module(insmod_t)
 kernel_read_kernel_sysctl(insmod_t)
 kernel_modify_kernel_sysctl(insmod_t)
 kernel_read_hotplug_sysctl(insmod_t)
+
+bootloader_read_kernel_modules(insmod_t)
 
 terminal_use_controlling_terminal(insmod_t)
 
@@ -160,22 +151,18 @@ allow depmod_t depmod_exec_t:file { getattr read execute execute_no_trans };
 # Read conf.modules.
 allow depmod_t modules_conf_t:file { getattr read };
 
-# Read module objects.
-allow depmod_t modules_object_t:dir { getattr search read };
-allow depmod_t modules_object_t:{ file lnk_file } { getattr read };
-
-# Create modules.dep.
-allow depmod_t modules_object_t:dir { read getattr lock search ioctl add_name remove_name write };
 allow depmod_t modules_dep_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-type_transition depmod_t modules_object_t:file modules_dep_t;
 
 kernel_read_system_state(depmod_t)
+
+bootloader_create_private_module_dir_entry(depmod_t,modules_dep_t)
 
 filesystem_get_persistent_filesystem_attributes(depmod_t)
 
 terminal_use_console(depmod_t)
 
 bootloader_read_kernel_symbol_table(depmod_t)
+bootloader_read_kernel_modules(depmod_t)
 
 files_read_runtime_system_config(depmod_t)
 files_read_general_system_config(depmod_t)
@@ -218,9 +205,8 @@ allow update_modules_t modules_dep_t:file { getattr read write };
 allow update_modules_t insmod_exec_t:file { getattr read execute execute_no_trans };
 allow update_modules_t update_modules_exec_t:file { getattr read execute execute_no_trans };
 
-allow update_modules_t modules_object_t:dir { read getattr lock search ioctl add_name remove_name write };
+bootloader_create_private_module_dir_entry(update_modules_t,modules_conf_t)
 allow update_modules_t modules_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-type_transition update_modules_t modules_object_t:file modules_conf_t;
 
 allow update_modules_t depmod_exec_t:file { getattr read execute };
 type_transition update_modules_t depmod_exec_t:process depmod_t;

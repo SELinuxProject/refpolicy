@@ -1,10 +1,6 @@
 # Copyright (C) 2005 Tresys Technology, LLC
 
-type bootloader_t;
-domain_make_domain(bootloader_t)
-
-type bootloader_exec_t;
-domain_make_entrypoint_file(bootloader_t,bootloader_exec_t)
+attribute can_modify_kernel_modules;
 
 #
 # boot_t is the type for files in /boot
@@ -12,8 +8,19 @@ domain_make_entrypoint_file(bootloader_t,bootloader_exec_t)
 type boot_t;
 files_make_file(boot_t)
 
+#
+# boot_runtime_t is the type for /boot/kernel.h,
+# which is automatically generated at boot time.
+# only for Red Hat
+#
 type boot_runtime_t;
 files_make_file(boot_runtime_t)
+
+type bootloader_t;
+domain_make_domain(bootloader_t)
+
+type bootloader_exec_t;
+domain_make_entrypoint_file(bootloader_t,bootloader_exec_t)
 
 #
 # bootloader_etc_t is the configuration file,
@@ -23,18 +30,25 @@ type bootloader_etc_t alias etc_bootloader_t;
 files_make_file(bootloader_etc_t)
 
 #
-# system_map_t is for the system.map files in /boot
-#
-type system_map_t;
-files_make_file(system_map_t)
-
-#
 # The temp file is used for initrd creation;
 # it consists of files and device nodes
 #
 type bootloader_tmp_t;
 files_make_file(bootloader_tmp_t)
 devices_make_device_node(bootloader_tmp_t)
+
+# kernel modules
+type modules_object_t;
+files_make_file(modules_object_t)
+
+neverallow ~can_modify_kernel_modules modules_object_t:file { create append write };
+
+#
+# system_map_t is for the system.map files in /boot
+#
+type system_map_t;
+files_make_file(system_map_t)
+
 
 ########################################
 #
@@ -92,6 +106,9 @@ devices_ignore_modify_generic_devices(bootloader_t)
 # mkinitrd policy
 #
 
+allow bootloader_t modules_object_t:dir { getattr search read };
+allow bootloader_t modules_object_t:file { getattr read };
+
 files_read_general_system_resources(bootloader_t)
 bootloader_install_initrd(bootloader_t)
 
@@ -104,7 +121,6 @@ corecommands_execute_shell(bootloader_t)
 selinux_read_binary_policy(bootloader_t)
 selinux_read_load_policy_binary(bootloader_t)
 
-modutils_read_kernel_modules(bootloader_t)
 modutils_read_kernel_module_dependencies(bootloader_t)
 modutils_read_kernel_module_loading_config(bootloader_t)
 modutils_insmod_execute(bootloader_t)
