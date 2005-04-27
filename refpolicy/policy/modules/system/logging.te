@@ -73,17 +73,19 @@ logging_send_system_log_message(klogd_t)
 
 # Use capabilities.
 allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
+dontaudit syslogd_t self:capability sys_tty_config;
 
-# Modify/create log files.
+# create/append log files.
 allow syslogd_t var_log_t:dir { read getattr search add_name write };
 allow syslogd_t var_log_t:file { create ioctl getattr setattr append link };
 
+# manage temporary files
 allow syslogd_t syslogd_tmp_t:file { getattr create read write append setattr unlink };
 allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
 
+# receive messages to be logged
 allow syslogd_t devlog_t:unix_stream_socket name_bind;
 allow syslogd_t devlog_t:unix_dgram_socket name_bind;
-
 allow syslogd_t self:unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
 allow syslogd_t self:unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown listen accept };
 allow syslogd_t self:unix_dgram_socket sendto;
@@ -92,9 +94,18 @@ allow syslogd_t self:fifo_file { getattr read write ioctl lock };
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
 
+# manage pid file
+allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
+files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t)
+
 kernel_read_hardware_state(syslogd_t)
+kernel_read_kernel_sysctl(syslogd_t)
 
 devices_create_dev_entry(syslogd_t,devlog_t,sock_file)
+devices_discard_data_stream(syslogd_t)
+
+terminal_use_controlling_terminal(syslogd_t)
+terminal_ignore_use_console(syslogd_t)
 
 corenetwork_network_raw_on_all_interfaces(syslogd_t)
 corenetwork_network_udp_on_all_interfaces(syslogd_t)
@@ -105,6 +116,9 @@ corenetwork_bind_udp_on_all_nodes(syslogd_t)
 corenetwork_bind_udp_on_syslogd_port(syslogd_t)
 
 filesystem_get_all_filesystems_attributes(syslogd_t)
+
+init_use_file_descriptors(syslogd_t)
+init_script_use_pseudoterminal(syslogd_t)
 
 files_read_general_system_config(syslogd_t)
 files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
@@ -139,8 +153,31 @@ kernel_clear_ring_buffer(syslogd_t)
 kernel_change_ring_buffer_level(syslogd_t)
 ')
 
+ifdef(`udev.te', `
+udev_read_database(syslogd_t)
+')dnl end if udev.te
+
 ifdef(`TODO',`
-daemon_domain(syslogd)
+allow syslogd_t proc_t:dir r_dir_perms;
+allow syslogd_t proc_t:lnk_file read;
+allow syslogd_t null_device_t:chr_file r_file_perms;
+dontaudit syslogd_t unpriv_userdomain:fd use;
+allow syslogd_t autofs_t:dir { search getattr };
+allow syslogd_t privfd:fd use;
+dontaudit syslogd_t sysadm_home_dir_t:dir search;
+ifdef(`newrole.te', `allow syslogd_t newrole_t:process sigchld;')
+ifdef(`rhgb.te', `
+allow syslogd_t rhgb_t:process sigchld;
+allow syslogd_t rhgb_t:fd use;
+allow syslogd_t rhgb_t:fifo_file { read write };
+')
+ifdef(`targeted_policy', `
+dontaudit syslogd_t { tty_device_t devpts_t }:chr_file { read write };
+dontaudit syslogd_t root_t:file { getattr read };
+')dnl end if targeted_policy
+ifdef(`direct_sysadm_daemon', `
+dontaudit syslogd_t admin_tty_type:chr_file rw_file_perms;
+')
 
 # can_network is for the UDP socket
 can_ypbind(syslogd_t)
