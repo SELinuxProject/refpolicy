@@ -1,0 +1,172 @@
+########################################
+#
+# Declarations
+#
+
+type local_login_t; #, privuser, privrole, auth_chkpwd, privowner, privfd, nscd_client_domain;
+domain_make_domain(local_login_t)
+authlogin_make_login_program_entrypoint(local_login_t)
+role system_r types local_login_t;
+
+type local_login_tmp_t;
+files_make_file(local_login_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow local_login_t self:capability { dac_override chown fowner fsetid kill setgid setuid net_bind_service sys_nice sys_resource sys_tty_config };
+allow local_login_t self:process { setrlimit setexec };
+
+allow local_login_t local_login_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow local_login_t local_login_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(local_login_t, local_login_tmp_t, { file dir })
+
+kernel_read_system_state(local_login_t)
+kernel_get_selinuxfs_mount_point(local_login_t)
+kernel_validate_selinux_context(local_login_t)
+kernel_compute_selinux_av(local_login_t)
+kernel_compute_create(local_login_t)
+kernel_compute_relabel(local_login_t)
+kernel_compute_reachable_user_contexts(local_login_t)
+
+# for SSP/ProPolice
+devices_get_pseudorandom_data(local_login_t)
+
+init_ignore_use_file_descriptors(local_login_t)
+
+files_read_general_system_config(local_login_t)
+files_read_runtime_system_config(local_login_t)
+
+libraries_use_dynamic_loader(local_login_t)
+libraries_read_shared_libraries(local_login_t)
+
+logging_send_system_log_message(local_login_t)
+
+selinux_read_config(local_login_t)
+selinux_read_default_contexts(local_login_t)
+
+authlogin_ignore_read_shadow_passwords(local_login_t)
+authlogin_modify_login_records(local_login_t)
+authlogin_modify_last_login_log(local_login_t)
+
+miscfiles_read_localization(local_login_t)
+
+ifdef(`TODO',`
+general_domain_access(local_login_t)
+
+base_file_read_access(local_login_t)
+
+# Read directories and files with the readable_t type.
+# This type is a general type for "world"-readable files.
+allow local_login_t readable_t:dir r_dir_perms;
+allow local_login_t readable_t:notdevfile_class_set r_file_perms;
+
+# Read /var, /var/spool
+allow local_login_t { var_t var_spool_t }:dir search;
+
+# for when /var/mail is a sym-link
+allow local_login_t var_t:lnk_file read;
+
+# Read executable types.
+allow local_login_t exec_type:{ file lnk_file } r_file_perms;
+
+# Read /dev directories and any symbolic links.
+allow local_login_t device_t:lnk_file r_file_perms;
+
+ifdef(`pam.te', `
+can_exec(local_login_t, pam_exec_t)
+')
+
+ifdef(`pamconsole.te', `
+rw_dir_create_file(local_login_t, pam_var_console_t)
+')
+
+dontaudit local_login_t sysfs_t:dir search;
+
+allow local_login_t autofs_t:dir { search read getattr };
+allow local_login_t mnt_t:dir r_dir_perms;
+
+# FIXME: what is this for?
+ifdef(`xdm.te', `
+allow xdm_t local_login_t:process signull;
+')
+
+ifdef(`crack.te', `
+allow local_login_t crack_db_t:file r_file_perms;
+')
+
+# Permit login to search the user home directories.
+allow local_login_t home_root_t:dir search;
+allow local_login_t home_dir_type:dir search;
+
+# Write to /var/run/utmp.
+allow local_login_t var_run_t:dir search;
+allow local_login_t initrc_var_run_t:file rw_file_perms;
+
+# Write to /var/log/wtmp.
+allow local_login_t var_log_t:dir search;
+
+# Write to /var/log/btmp
+allow local_login_t faillog_t:file { append read write };
+
+# Search for mail spool file.
+allow local_login_t mail_spool_t:dir r_dir_perms;
+allow local_login_t mail_spool_t:file getattr;
+allow local_login_t mail_spool_t:lnk_file read;
+
+allow local_login_t mouse_device_t:chr_file { getattr setattr };
+
+ifdef(`targeted_policy',`
+unconfined_domain(local_login_t)
+domain_auto_trans(local_login_t, shell_exec_t, unconfined_t)
+')
+
+# But also permit other user domains to be entered by login.
+domain_trans(local_login_t, shell_exec_t, userdomain)
+allow local_login_t userdomain:process signal;
+
+# Do not audit denied attempts to access devices.
+dontaudit local_login_t fixed_disk_device_t:blk_file { getattr setattr };
+dontaudit local_login_t removable_device_t:blk_file { getattr setattr };
+dontaudit local_login_t device_t:{ chr_file blk_file lnk_file } { getattr setattr };
+dontaudit local_login_t misc_device_t:{ chr_file blk_file } { getattr setattr };
+dontaudit local_login_t framebuf_device_t:chr_file { getattr setattr read };
+dontaudit local_login_t apm_bios_t:chr_file { getattr setattr };
+dontaudit local_login_t v4l_device_t:chr_file { getattr setattr read };
+dontaudit local_login_t removable_device_t:chr_file { getattr setattr };
+dontaudit local_login_t scanner_device_t:chr_file { getattr setattr };
+
+# Do not audit denied attempts to access /mnt.
+dontaudit local_login_t mnt_t:dir r_dir_perms;
+
+# Create lock file.
+allow local_login_t var_lock_t:dir rw_dir_perms;
+allow local_login_t var_lock_t:file create_file_perms;
+
+# Read and write ttys.
+allow local_login_t tty_device_t:chr_file { setattr rw_file_perms };
+allow local_login_t ttyfile:chr_file { setattr rw_file_perms };
+
+# Relabel ttys.
+allow local_login_t tty_device_t:chr_file { getattr relabelfrom relabelto };
+allow local_login_t ttyfile:chr_file { getattr relabelfrom relabelto };
+
+ifdef(`gpm.te',
+`allow local_login_t gpmctl_t:sock_file { getattr setattr };')
+
+# Allow setting of attributes on sound devices.
+allow local_login_t sound_device_t:chr_file { getattr setattr };
+
+# Allow setting of attributes on power management devices.
+allow local_login_t power_device_t:chr_file { getattr setattr };
+
+#if (use_nfs_home_dirs) {
+#r_dir_file(local_login_t, nfs_t)
+#}
+
+#if (use_samba_home_dirs) {
+#r_dir_file(local_login_t, cifs_t)
+#}
+') dnl endif TODO
