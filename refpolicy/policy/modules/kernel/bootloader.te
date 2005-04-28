@@ -2,6 +2,11 @@
 
 policy_module(bootloader,1.0)
 
+########################################
+#
+# Declarations
+#
+
 attribute can_modify_kernel_modules;
 
 #
@@ -9,6 +14,7 @@ attribute can_modify_kernel_modules;
 #
 type boot_t;
 files_make_file(boot_t)
+files_make_mountpoint(boot_t)
 
 #
 # boot_runtime_t is the type for /boot/kernel.h,
@@ -51,7 +57,6 @@ neverallow ~can_modify_kernel_modules modules_object_t:file { create append writ
 type system_map_t;
 files_make_file(system_map_t)
 
-
 ########################################
 #
 # bootloader local policy
@@ -76,6 +81,12 @@ devices_set_all_block_device_attributes(bootloader_t)
 # for reading BIOS data (cjp: ?)
 devices_raw_read_memory(bootloader_t)
 
+init_get_control_channel_attributes(bootloader_t)
+init_script_use_pseudoterminal(bootloader_t)
+init_script_use_file_descriptors(bootloader_t)
+
+domain_use_widely_inheritable_file_descriptors(bootloader_t)
+
 libraries_use_dynamic_loader(bootloader_t)
 libraries_read_shared_libraries(bootloader_t)
 
@@ -92,10 +103,11 @@ logging_send_system_log_message(bootloader_t)
 filesystem_get_persistent_filesystem_attributes(bootloader_t)
 
 terminal_use_controlling_terminal(bootloader_t)
+terminal_get_user_terminal_attributes(bootloader_t)
 
 allow bootloader_t bootloader_etc_t:file { getattr read };
 
-define(`initrc_insmod_optional_policy', `
+optional_policy(modutils.te,`
 modutils_insmod_execute(insmod_t)
 ')
 
@@ -116,6 +128,7 @@ bootloader_install_initrd(bootloader_t)
 
 devices_get_random_data(bootloader_t)
 devices_get_pseudorandom_data(bootloader_t)
+
 corecommands_execute_general_programs(bootloader_t)
 corecommands_execute_system_programs(bootloader_t)
 corecommands_execute_shell(bootloader_t)
@@ -144,23 +157,36 @@ optional_policy(`fsadm.te', `
 filesystemtools_execute(bootloader_t)
 ')
 
-################################################################################
+ifdef(`distro_debian', `
+allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
+allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
+allow bootloader_t boot_t:file relabelfrom;
+')
+
+ifdef(`distro_redhat', `
+files_make_mountpoint(bootloader_tmp_t)
+
+# for mke2fs
+mount_transition(bootloader_t)
+allow bootloader_t modules_object_t:lnk_file { getattr read };
+
+# new file system defaults to file_t, granting file_t access is still bad.
+allow bootloader_t self:unix_stream_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow bootloader_t boot_runtime_t:file { read getattr unlink };
+
+# for memlock
+devices_get_zeros(bootloader_t)
+allow bootloader_t self:capability ipc_lock;
+')
+
 ifdef(`TODO',`
 
 # admin runs bootloader:
 domain_auto_trans(sysadm_t, bootloader_exec_t, bootloader_t)
 allow bootloader_t admin_tty_type:chr_file rw_file_perms;
-allow bootloader_t privfd:fd use;
 
-allow bootloader_t { device_type ttyfile }:chr_file getattr;
-allow bootloader_t initctl_t:fifo_file getattr;
-
-# no transition from initrc to bootloader,
-# so why are these rules needed
 role system_r types bootloader_t;
-allow bootloader_t initrc_devpts_t:chr_file rw_file_perms; 
 allow bootloader_t initrc_t:fifo_file { read write };
-allow bootloader_t initrc_t:fd use;
 
 allow bootloader_t lib_t:file { getattr read };
 
@@ -171,17 +197,14 @@ allow bootloader_t var_t:file { getattr read };
 
 # LVM2 / Device Mapper's /dev/mapper/control
 # maybe we should change the labeling for this
-ifdef(`lvm.te', `
+optional_policy(`lvm.te', `
+lvm_transition(bootloader_t)
 allow bootloader_t lvm_control_t:chr_file rw_file_perms;
-domain_auto_trans(bootloader_t, lvm_exec_t, lvm_t)
 allow lvm_t bootloader_tmp_t:file rw_file_perms;
 r_dir_file(bootloader_t, lvm_etc_t)
 ')
 
 ifdef(`distro_debian', `
-allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
-allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
-allow bootloader_t boot_t:file relabelfrom;
 allow bootloader_t { usr_t lib_t fsadm_exec_t }:file relabelto;
 allow bootloader_t { usr_t lib_t fsadm_exec_t }:file create_file_perms;
 allow bootloader_t tmpfs_t:dir r_dir_perms;
@@ -194,21 +217,10 @@ can_exec(bootloader_t, usr_t)
 ')
 
 ifdef(`distro_redhat', `
-# for mke2fs
-domain_auto_trans(bootloader_t, mount_exec_t, mount_t);
-allow mount_t bootloader_tmp_t:dir mounton;
-allow bootloader_t modules_object_t:lnk_file { getattr read };
-
 # new file system defaults to file_t, granting file_t access is still bad.
 allow bootloader_t file_t:dir create_dir_perms;
 allow bootloader_t file_t:{ file blk_file chr_file } create_file_perms;
 allow bootloader_t file_t:lnk_file create_lnk_perms;
-allow bootloader_t self:unix_stream_socket create_socket_perms;
-allow bootloader_t boot_runtime_t:file { read getattr unlink };
-
-# for memlock
-allow bootloader_t zero_device_t:chr_file { getattr read };
-allow bootloader_t self:capability ipc_lock;
 ')
 
 dontaudit bootloader_t selinux_config_t:dir search;
@@ -218,15 +230,3 @@ dontaudit bootloader_t devpts_t:dir create_dir_perms;
 dontaudit bootloader_t var_run_t:dir search;
 
 ') dnl end TODO
-
-########################################
-#
-# Conditional policy logic
-#
-
-ifdef(`monolithic_policy',`
-ifdef(`modutils.te',`initrc_insmod_optional_policy')
-',`
-optional modutils { modutils_insmod_execute_depend }
-ifopt (modutils) { initrc_insmod_optional_policy }
-') dnl end monolithic_policy

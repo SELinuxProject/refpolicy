@@ -21,6 +21,7 @@ allow mount_t mount_tmp_t:file { getattr create read setattr write setattr unlin
 allow mount_t mount_tmp_t:dir { getattr search create read setattr write setattr unlink rmdir };
 
 kernel_read_system_state(mount_t)
+kernel_ignore_use_file_descriptors(mount_t)
 
 devices_get_all_block_device_attributes(mount_t)
 devices_list_device_nodes(mount_t)
@@ -34,13 +35,23 @@ filesystem_get_persistent_filesystem_attributes(mount_t)
 filesystem_mount_all_filesystems(mount_t)
 filesystem_unmount_all_filesystems(mount_t)
 filesystem_remount_all_filesystems(mount_t)
+files_unmount_root_filesystem(mount_t)
 
 terminal_use_console(mount_t)
+
+corenetwork_ignore_bind_tcp_on_all_reserved_ports(mount_t)
+corenetwork_ignore_bind_udp_on_all_reserved_ports(mount_t)
+
+init_use_file_descriptors(mount_t)
+init_script_use_pseudoterminal(mount_t)
+
+domain_use_widely_inheritable_file_descriptors(mount_t)
 
 files_search_all_directories(mount_t)
 files_create_private_tmp_data(mount_t,mount_tmp_t,{ file dir })
 files_read_general_system_config(mount_t)
 files_create_runtime_system_config(mount_t)
+files_mount_on_all_mountpoints(mount_t)
 
 libraries_use_dynamic_loader(mount_t)
 libraries_read_shared_libraries(mount_t)
@@ -54,31 +65,9 @@ logging_send_system_log_message(mount_t)
 miscfiles_read_localization(mount_t)
 
 ifdef(`TODO',`
-
 # Mount, remount and unmount file systems.
-allow mount_t default_t:dir mounton;
-allow mount_t file_t:dir mounton;
-allow mount_t usr_t:dir mounton;
-allow mount_t var_t:dir mounton;
-allow mount_t proc_t:dir mounton;
-allow mount_t root_t:dir mounton;
-allow mount_t home_root_t:dir mounton;
-allow mount_t tmp_t:dir mounton;
-allow mount_t mnt_t:dir { mounton getattr };
-allow mount_t devpts_t:dir mounton;
-allow mount_t usbdevfs_t:dir mounton;
-allow mount_t sysfs_t:dir { mounton search };
-allow mount_t nfs_t:dir { mounton search };
 # nfsv4 has a filesystem to mount for its userspace daemons
 allow mount_t var_lib_nfs_t:dir mounton;
-allow mount_t boot_t:dir mounton;
-allow mount_t device_t:dir mounton;
-# mount binfmt_misc on /proc/sys/fs/binfmt_misc
-allow mount_t sysctl_t:dir { mounton search };
-#TODO: Need macro for unmounting root filesystem
-#allow mount_t root_t:filesystem unmount;
-
-allow mount_t initrc_devpts_t:chr_file { read write };
 
 #domain_auto_trans(initrc_t, mount_exec_t, mount_t)
 
@@ -90,10 +79,6 @@ type sysadm_mount_source_t, file_type, sysadmfile, $1_file_type;
 allow sysadm_t sysadm_mount_source_t:file create_file_perms;
 allow sysadm_t sysadm_mount_source_t:file { relabelto relabelfrom };
 allow mount_t sysadm_mount_source_t:file rw_file_perms;
-
-# TODO: Examine these further; may need macros
-allow mount_t init_t:fd use;
-allow mount_t privfd:fd use;
 
 # TODO: Probably need a macro for reading/unlinking files
 # for when /etc/mtab loses its type
@@ -123,7 +108,6 @@ allow $2_t dosfs_t:filesystem relabelfrom;
 ') dnl end pamconsole.te
 ') dnl end distro_redhat
 
-# TODO: This macro contains an ifdef for rhgb.te
 ifdef(`rhgb.te', `
 allow mount_t rhgb_t:process sigchld;
 allow mount_t rhgb_t:fd use;
@@ -151,9 +135,5 @@ can_udp_send(mount_t, portmap_t)
 can_udp_send(portmap_t, mount_t)
 allow mount_t rpc_pipefs_t:dir search;
 ')
-
-# Dontaudits
-dontaudit mount_t reserved_port_type:{tcp_socket udp_socket} name_bind;
-dontaudit mount_t kernel_t:fd use;
 
 ') dnl endif TODO
