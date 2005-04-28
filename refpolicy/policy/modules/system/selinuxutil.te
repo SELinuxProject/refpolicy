@@ -2,31 +2,20 @@
 
 policy_module(selinux,1.0)
 
+########################################
 #
-# selinux_config_t is the type applied to
-# /etc/selinux/config
+# Declarations
 #
-type selinux_config_t;
-files_make_file(selinux_config_t)
-
-#
-# policy_config_t is the type of /etc/security/selinux/*
-# the security server policy configuration.
-#
-type policy_config_t;
-files_make_file(policy_config_t)
 
 attribute can_write_binary_policy;
 attribute can_relabelto_binary_policy;
-neverallow ~can_relabelto_binary_policy policy_config_t:file relabelto;
-neverallow ~can_write_binary_policy policy_config_t:file { write append };
 
-#
-# policy_src_t is the type of the policy source
-# files.
-#
-type policy_src_t;
-files_make_file(policy_src_t)
+type checkpolicy_t, can_write_binary_policy;
+domain_make_domain(checkpolicy_t)
+role system_r types checkpolicy_t;
+
+type checkpolicy_exec_t;
+domain_make_entrypoint_file(checkpolicy_t,checkpolicy_exec_t)
 
 #
 # default_context_t is the type applied to
@@ -44,8 +33,382 @@ files_make_file(file_context_t)
 
 type load_policy_t;
 domain_make_domain(load_policy_t)
+role system_r types load_policy_t;
 
 type load_policy_exec_t;
 domain_make_entrypoint_file(load_policy_t,load_policy_exec_t)
 
-selinux_read_binary_policy(load_policy_t)
+type newrole_t; #, privrole, privowner, privlog, auth_chkpwd, nscd_client_domain, privfd, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl $2;
+domain_make_domain(newrole_t)
+
+type newrole_exec_t;
+domain_make_entrypoint_file(newrole_t,newrole_exec_t)
+
+#
+# policy_config_t is the type of /etc/security/selinux/*
+# the security server policy configuration.
+#
+type policy_config_t;
+files_make_file(policy_config_t)
+
+neverallow ~can_relabelto_binary_policy policy_config_t:file relabelto;
+neverallow ~can_write_binary_policy policy_config_t:file { write append };
+
+#
+# policy_src_t is the type of the policy source
+# files.
+#
+type policy_src_t;
+files_make_file(policy_src_t)
+
+type restorecon_t, can_relabelto_binary_policy; #, privowner, auth_write, change_context;
+domain_make_domain(restorecon_t)
+role system_r types restorecon_t;
+
+type restorecon_exec_t;
+domain_make_entrypoint_file(restorecon_t,restorecon_exec_t)
+
+#
+# selinux_config_t is the type applied to
+# /etc/selinux/config
+#
+type selinux_config_t;
+files_make_file(selinux_config_t)
+
+type setfiles_t, can_relabelto_binary_policy; # privlog, privowner, auth_write, change_context;
+domain_make_domain(setfiles_t)
+role system_r types setfiles_t;
+
+type setfiles_exec_t;
+domain_make_entrypoint_file(setfiles_t,setfiles_exec_t)
+
+########################################
+#
+# Checkpolicy local policy
+#
+
+allow checkpolicy_t self:capability dac_override;
+
+# able to create and modify binary policy files
+allow checkpolicy_t policy_config_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow checkpolicy_t policy_config_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+
+# only allow read of policy source files
+allow checkpolicy_t policy_src_t:dir { getattr search read };
+allow checkpolicy_t policy_src_t:{ file lnk_file } { getattr read };
+allow checkpolicy_t selinux_config_t:dir search;
+
+filesystem_get_persistent_filesystem_attributes(checkpolicy_t)
+
+terminal_use_console(checkpolicy_t)
+terminal_use_controlling_terminal(checkpolicy_t)
+
+init_use_file_descriptors(checkpolicy_t)
+init_script_use_pseudoterminal(checkpolicy_t)
+
+libraries_use_dynamic_loader(checkpolicy_t)
+libraries_read_shared_libraries(checkpolicy_t)
+
+ifdef(`TODO',`
+role sysadm_r types checkpolicy_t;
+domain_auto_trans(sysadm_t, checkpolicy_exec_t, checkpolicy_t)
+
+# allow test policies to be created in src directories
+file_type_auto_trans(checkpolicy_t, policy_src_t, policy_config_t, file)
+
+# directory search permissions for path to source and binary policy files
+allow checkpolicy_t root_t:dir search;
+allow checkpolicy_t etc_t:dir search;
+
+# Read the devpts root directory.  
+allow checkpolicy_t devpts_t:dir r_dir_perms;
+ifdef(`sshd.te',`allow checkpolicy_t sshd_devpts_t:dir r_dir_perms;')
+
+# Other access
+allow checkpolicy_t admin_tty_type:chr_file { read write ioctl getattr };
+
+allow checkpolicy_t sysadm_tmp_t:file { getattr write } ;
+
+# Allow users to execute checkpolicy without a domain transition
+# so it can be used without privilege to write real binary policy file
+can_exec(unpriv_userdomain, checkpolicy_exec_t)
+
+allow checkpolicy_t { userdomain privfd }:fd use;
+') dnl endif TODO
+
+########################################
+#
+# Load_policy local policy
+#
+
+allow load_policy_t self:capability dac_override;
+
+# only allow read of policy config files
+allow load_policy_t policy_src_t:dir search;
+allow load_policy_t policy_config_t:dir { getattr search read };
+allow load_policy_t policy_config_t:{ file lnk_file sock_file fifo_file } { getattr read };
+
+allow newrole_t selinux_config_t:dir { getattr read search };
+allow newrole_t selinux_config_t:file { read getattr };
+allow newrole_t selinux_config_t:lnk_file { getattr read };
+
+kernel_get_selinuxfs_mount_point(load_policy_t)
+kernel_load_selinux_policy(load_policy_t)
+kernel_set_selinux_boolean(load_policy_t)
+
+filesystem_get_persistent_filesystem_attributes(load_policy_t)
+
+terminal_use_console(load_policy_t)
+terminal_use_controlling_terminal(load_policy_t)
+terminal_list_pseudoterminals(load_policy_t)
+
+init_script_use_file_descriptors(load_policy_t)
+init_script_use_pseudoterminal(load_policy_t)
+
+libraries_use_dynamic_loader(load_policy_t)
+libraries_read_shared_libraries(load_policy_t)
+
+miscfiles_read_localization(load_policy_t)
+
+ifdef(`TODO',`
+role sysadm_r types load_policy_t;
+domain_auto_trans(sysadm_t, load_policy_exec_t, load_policy_t)
+
+# directory search permissions for path to binary policy files
+allow load_policy_t etc_t:dir search;
+
+# Other access
+allow load_policy_t { admin_tty_type }:chr_file { read write ioctl getattr };
+
+allow load_policy_t { userdomain privfd }:fd use;
+
+allow load_policy_t sysadm_tmp_t:file { getattr write } ;
+') dnl endif TODO
+
+########################################
+#
+# Newrole local policy
+#
+
+allow newrole_t self:capability { setuid setgid net_bind_service dac_override };
+
+allow newrole_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow newrole_t self:process setexec;
+allow newrole_t self:fd use;
+allow newrole_t self:fifo_file { read getattr lock ioctl write append };
+allow newrole_t self:unix_dgram_socket sendto;
+allow newrole_t self:unix_stream_socket connectto;
+allow newrole_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow newrole_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow newrole_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow newrole_t self:msg { send receive };
+
+allow newrole_t { selinux_config_t default_context_t }:dir { getattr read search };
+allow newrole_t { selinux_config_t default_context_t }:file { read getattr };
+allow newrole_t { selinux_config_t default_context_t }:lnk_file { getattr read };
+
+kernel_read_system_state(newrole_t)
+kernel_read_kernel_sysctl(newrole_t)
+kernel_get_selinuxfs_mount_point(newrole_t)
+kernel_validate_selinux_context(newrole_t)
+kernel_compute_selinux_av(newrole_t)
+kernel_compute_create(newrole_t)
+kernel_compute_relabel(newrole_t)
+kernel_compute_reachable_user_contexts(newrole_t)
+
+devices_get_pseudorandom_data(newrole_t)
+
+filesystem_get_persistent_filesystem_attributes(newrole_t)
+
+terminal_list_pseudoterminals(newrole_t)
+terminal_use_controlling_terminal(newrole_t)
+
+files_read_general_system_config(newrole_t)
+
+libraries_use_dynamic_loader(newrole_t)
+libraries_read_shared_libraries(newrole_t)
+
+miscfiles_read_localization(newrole_t)
+
+ifdef(`TODO',`
+in_user_role(newrole_t)
+role sysadm_r types newrole_t;
+
+allow newrole_t unpriv_userdomain:fd use;
+can_ypbind(newrole)
+ifdef(`automount.te', `
+allow newrole_t autofs_t:dir { search getattr };
+')
+
+# for when the user types "exec newrole" at the command line
+allow newrole_t privfd:process sigchld;
+
+# Inherit descriptors from the current session.
+allow newrole_t privfd:fd use;
+
+# Execute /sbin/pwdb_chkpwd to check the password.
+allow newrole_t sbin_t:dir r_dir_perms;
+
+# Execute shells
+allow newrole_t bin_t:dir r_dir_perms;
+allow newrole_t bin_t:lnk_file read;
+allow newrole_t shell_exec_t:file r_file_perms;
+
+# Allow newrole_t to transition to user domains.
+bool secure_mode false;
+domain_trans(newrole_t, shell_exec_t, unpriv_userdomain)
+if(!secure_mode)
+{
+	# if we are not in secure mode then we can transition to sysadm_t
+	domain_trans(newrole_t, shell_exec_t, sysadm_t)
+}
+
+# Read /var.
+allow newrole_t var_t:dir r_dir_perms;
+allow newrole_t var_t:notdevfile_class_set r_file_perms;
+
+# Read /dev directories and any symbolic links.
+allow newrole_t device_t:dir r_dir_perms;
+
+# Relabel terminals.
+allow newrole_t { ttyfile ptyfile }:chr_file { relabelfrom relabelto };
+
+# Access terminals.
+allow newrole_t { ttyfile ptyfile }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
+
+# for some PAM modules and for cwd
+dontaudit newrole_t { home_root_t home_type }:dir search;
+
+# for when the network connection is killed
+dontaudit unpriv_userdomain newrole_t:process signal;
+
+# Write to utmp.
+allow newrole_t var_run_t:dir r_dir_perms;
+allow newrole_t initrc_var_run_t:file rw_file_perms;
+') dnl ifdef TODO
+
+########################################
+#
+# Restorecon local policy
+#
+
+allow restorecon_t self:capability { dac_override dac_read_search fowner };
+
+allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:dir { getattr read search };
+allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:file { read getattr };
+allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file { getattr read };
+
+kernel_use_file_descriptors(restorecon_t)
+kernel_read_system_state(restorecon_t)
+kernel_get_selinuxfs_mount_point(restorecon_t)
+kernel_validate_selinux_context(restorecon_t)
+kernel_compute_selinux_av(restorecon_t)
+kernel_compute_create(restorecon_t)
+kernel_compute_relabel(restorecon_t)
+kernel_compute_reachable_user_contexts(restorecon_t)
+
+filesystem_get_persistent_filesystem_attributes(restorecon_t)
+
+init_use_file_descriptors(restorecon_t)
+init_script_use_pseudoterminal(restorecon_t)
+
+files_read_runtime_system_config(restorecon_t)
+files_read_general_system_config(restorecon_t)
+
+libraries_use_dynamic_loader(restorecon_t)
+libraries_read_shared_libraries(restorecon_t)
+
+logging_send_system_log_message(restorecon_t)
+
+# relabeling rules
+files_read_all_directories(restorecon_t)
+kernel_relabel_unlabeled_object(restorecon_t)
+devices_manage_all_devices_labels(restorecon_t)
+files_manage_all_files_labels(restorecon_t)
+
+ifdef(`TODO',`
+allow restorecon_t { tty_device_t admin_tty_type }:chr_file { read write ioctl };
+
+domain_auto_trans(initrc_t, restorecon_exec_t, restorecon_t) 
+domain_audo_trans(sysadm_t, restorecon_exec_t, restorecon_t)
+role sysadm_r types restorecon_t;
+allow restorecon_t { userdomain privfd }:fd use;
+
+# for upgrading glibc and other shared objects - without this the upgrade
+# scripts will put things in a state such that restorecon can not be run!
+allow restorecon_t lib_t:file { read execute };
+
+ifdef(`distro_redhat', `
+allow restorecon_t tmpfs_t:{ chr_file blk_file } { rw_file_perms relabelfrom relabelto };
+')
+
+allow restorecon_t fs_type:dir r_dir_perms;
+
+allow restorecon_t device_t:file { read write };
+allow restorecon_t kernel_t:fifo_file { read write };
+') dnl endif TODO
+
+########################################
+#
+# Setfiles local policy
+#
+
+allow setfiles_t self:capability { dac_override dac_read_search fowner };
+
+allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:dir { getattr read search };
+allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:file { read getattr };
+allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file { getattr read };
+
+kernel_read_system_state(setfiles_t)
+kernel_get_selinuxfs_mount_point(setfiles_t)
+kernel_validate_selinux_context(setfiles_t)
+kernel_compute_selinux_av(setfiles_t)
+kernel_compute_create(setfiles_t)
+kernel_compute_relabel(setfiles_t)
+kernel_compute_reachable_user_contexts(setfiles_t)
+
+filesystem_get_persistent_filesystem_attributes(setfiles_t)
+
+terminal_use_controlling_terminal(setfiles_t)
+
+init_use_file_descriptors(setfiles_t)
+init_script_use_file_descriptors(setfiles_t)
+init_script_use_pseudoterminal(setfiles_t)
+
+libraries_use_dynamic_loader(setfiles_t)
+libraries_read_shared_libraries(setfiles_t)
+
+files_read_runtime_system_config(setfiles_t)
+files_read_general_system_config(setfiles_t)
+
+logging_send_system_log_message(setfiles_t)
+
+miscfiles_read_localization(setfiles_t)
+
+# relabeling rules
+files_read_all_directories(setfiles_t)
+kernel_relabel_unlabeled_object(setfiles_t)
+devices_manage_all_devices_labels(setfiles_t)
+files_manage_all_files_labels(setfiles_t)
+
+ifdef(`TODO',`
+
+allow setfiles_t { ttyfile ptyfile tty_device_t }:chr_file { read write ioctl };
+
+domain_auto_trans(sysadm_t, setfiles_exec_t, setfiles_t)
+role sysadm_r types setfiles_t;
+
+allow setfiles_t { userdomain privfd }:fd use;
+
+# for upgrading glibc and other shared objects - without this the upgrade
+# scripts will put things in a state such that setfiles can not be run!
+allow setfiles_t lib_t:file { read execute };
+
+allow setfiles_t unlabeled_t:dir read;
+
+allow setfiles_t fs_type:dir r_dir_perms;
+
+# for config files in a home directory
+allow setfiles_t home_type:file r_file_perms;
+') dnl endif TODO
