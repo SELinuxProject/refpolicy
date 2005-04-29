@@ -1,0 +1,110 @@
+#DESC Mailman - GNU Mailman mailing list manager
+#
+# Author: Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: mailman
+
+type mailman_data_t, file_type, sysadmfile;
+type mailman_archive_t, file_type, sysadmfile;
+
+type mailman_log_t, file_type, sysadmfile, logfile;
+type mailman_lock_t, file_type, sysadmfile, lockfile;
+
+define(`mailman_domain', `
+type mailman_$1_t, domain, privlog $2;
+type mailman_$1_exec_t, file_type, sysadmfile, exec_type;
+role system_r types mailman_$1_t;
+file_type_auto_trans(mailman_$1_t, var_log_t, mailman_log_t, file)
+allow mailman_$1_t mailman_log_t:dir rw_dir_perms;
+create_dir_file(mailman_$1_t, mailman_data_t)
+uses_shlib(mailman_$1_t)
+can_exec_any(mailman_$1_t)
+read_sysctl(mailman_$1_t)
+allow mailman_$1_t proc_t:dir search;
+allow mailman_$1_t proc_t:file { read getattr };
+allow mailman_$1_t var_lib_t:dir r_dir_perms;
+allow mailman_$1_t var_lib_t:lnk_file read;
+allow mailman_$1_t device_t:dir search;
+allow mailman_$1_t etc_runtime_t:file { read getattr };
+read_locale(mailman_$1_t)
+file_type_auto_trans(mailman_$1_t, var_lock_t, mailman_lock_t, file)
+allow mailman_$1_t mailman_lock_t:dir rw_dir_perms;
+allow mailman_$1_t fs_t:filesystem getattr;
+can_network(mailman_$1_t)
+can_ypbind(mailman_$1_t)
+allow mailman_$1_t self:{ unix_stream_socket unix_dgram_socket } create_socket_perms;
+allow mailman_$1_t var_t:dir r_dir_perms;
+tmp_domain(mailman_$1)
+')
+
+mailman_domain(queue, `, auth_chkpwd, nscd_client_domain')
+can_tcp_connect(mailman_queue_t, mail_server_domain)
+
+can_exec(mailman_queue_t, su_exec_t)
+allow mailman_queue_t self:capability { setgid setuid };
+allow mailman_queue_t self:fifo_file rw_file_perms;
+dontaudit mailman_queue_t var_run_t:dir search;
+allow mailman_queue_t proc_t:lnk_file { getattr read };
+
+# for su
+dontaudit mailman_queue_t selinux_config_t:dir search;
+allow mailman_queue_t self:dir search;
+allow mailman_queue_t self:file { getattr read };
+allow mailman_queue_t self:unix_dgram_socket create_socket_perms;
+allow mailman_queue_t self:lnk_file { getattr read };
+
+# some of the following could probably be changed to dontaudit, someone who
+# knows mailman well should test this out and send the changes
+allow mailman_queue_t sysadm_home_dir_t:dir { getattr search };
+
+mailman_domain(mail)
+dontaudit mailman_mail_t mta_delivery_agent:tcp_socket { read write };
+allow mailman_mail_t mta_delivery_agent:fd use;
+ifdef(`qmail.te', `
+allow mailman_mail_t qmail_spool_t:file { read ioctl getattr };
+# do we really need this?
+allow mailman_mail_t qmail_lspawn_t:fifo_file write;
+')
+
+create_dir_file(mailman_queue_t, mailman_archive_t)
+
+ifdef(`apache.te', `
+mailman_domain(cgi)
+can_tcp_connect(mailman_cgi_t, mail_server_domain)
+
+domain_auto_trans({ httpd_t httpd_suexec_t }, mailman_cgi_exec_t, mailman_cgi_t)
+# should have separate types for public and private archives
+r_dir_file(httpd_t, mailman_archive_t)
+create_dir_file(mailman_cgi_t, mailman_archive_t)
+allow httpd_t mailman_data_t:dir { getattr search };
+
+dontaudit mailman_cgi_t httpd_log_t:file append;
+allow httpd_t mailman_cgi_t:process signal;
+allow mailman_cgi_t httpd_t:process sigchld;
+allow mailman_cgi_t httpd_t:fd use;
+allow mailman_cgi_t httpd_t:fifo_file { getattr read write ioctl };
+allow mailman_cgi_t httpd_sys_script_t:dir search;
+allow mailman_cgi_t devtty_t:chr_file { read write };
+allow mailman_cgi_t self:process { fork sigchld };
+allow mailman_cgi_t var_spool_t:dir search;
+')
+
+allow mta_delivery_agent mailman_data_t:dir search;
+allow mta_delivery_agent mailman_data_t:lnk_file read;
+domain_auto_trans({ mta_delivery_agent initrc_t }, mailman_mail_exec_t, mailman_mail_t)
+ifdef(`direct_sysadm_daemon', `
+domain_auto_trans(sysadm_t, mailman_mail_exec_t, mailman_mail_t)
+')
+allow mailman_mail_t self:unix_dgram_socket create_socket_perms;
+
+system_crond_entry(mailman_queue_exec_t, mailman_queue_t)
+allow mailman_queue_t devtty_t:chr_file { read write };
+allow mailman_queue_t self:process { fork signal sigchld };
+allow mailman_queue_t self:netlink_route_socket r_netlink_socket_perms;
+
+# so MTA can access /var/lib/mailman/mail/wrapper
+allow mta_delivery_agent var_lib_t:dir search;
+
+# Handle mailman log files
+rw_dir_create_file(logrotate_t, mailman_log_t)
+allow logrotate_t mailman_data_t:dir search;
+can_exec(logrotate_t, mailman_mail_exec_t)

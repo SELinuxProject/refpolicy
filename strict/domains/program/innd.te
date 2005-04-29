@@ -1,0 +1,81 @@
+#DESC INN - InterNetNews server
+#
+# Author:  Faye Coker <faye@lurking-grue.org>
+# X-Debian-Packages: inn
+#
+################################
+
+# Types for the server port and news spool.
+#
+type innd_port_t, port_type, reserved_port_type;
+type news_spool_t, file_type, sysadmfile;
+
+
+# need privmail attribute so innd can access system_mail_t
+daemon_domain(innd, `, privmail')
+
+# allow innd to create files and directories of type news_spool_t
+create_dir_file(innd_t, news_spool_t)
+
+# allow user domains to read files and directories these types
+r_dir_file(userdomain, { news_spool_t innd_var_lib_t innd_etc_t })
+
+can_exec(initrc_t, innd_etc_t)
+can_exec(innd_t, { innd_exec_t bin_t shell_exec_t })
+ifdef(`hostname.te', `
+can_exec(innd_t, hostname_exec_t)
+')
+
+allow innd_t var_spool_t:dir { getattr search };
+
+can_network(innd_t)
+can_ypbind(innd_t)
+
+can_unix_send( { innd_t sysadm_t }, { innd_t sysadm_t } )
+allow innd_t self:unix_dgram_socket create_socket_perms;
+allow innd_t self:unix_stream_socket create_stream_socket_perms;
+can_unix_connect(innd_t, self)
+
+allow innd_t self:fifo_file rw_file_perms;
+allow innd_t innd_port_t:tcp_socket name_bind;
+
+allow innd_t self:capability { dac_override kill setgid setuid net_bind_service };
+allow innd_t self:process setsched;
+
+allow innd_t { bin_t sbin_t }:dir search;
+allow innd_t usr_t:lnk_file read;
+allow innd_t usr_t:file { getattr read ioctl };
+allow innd_t lib_t:file ioctl;
+allow innd_t etc_t:file { getattr read };
+allow innd_t { proc_t etc_runtime_t }:file { getattr read };
+allow innd_t urandom_device_t:chr_file read;
+
+allow innd_t innd_var_run_t:sock_file create_file_perms;
+
+# allow innd to read directories of type innd_etc_t (/etc/news/(/.*)? and symbolic links with that type
+etcdir_domain(innd)
+
+# allow innd to create files under /var/log of type innd_log_t and have a directory for its own files that
+# it can write to
+logdir_domain(innd)
+
+# allow innd read-write directory permissions to /var/lib/news.
+var_lib_domain(innd)
+
+ifdef(`crond.te', `
+system_crond_entry(innd_exec_t, innd_t)
+allow system_crond_t innd_etc_t:file { getattr read };
+rw_dir_create_file(system_crond_t, innd_log_t)
+rw_dir_create_file(system_crond_t, innd_var_run_t)
+')
+
+ifdef(`syslogd.te', `
+allow syslogd_t innd_log_t:dir search;
+allow syslogd_t innd_log_t:file create_file_perms;
+')
+
+allow innd_t self:file { getattr read };
+dontaudit innd_t selinux_config_t:dir { search };
+allow system_crond_t innd_etc_t:file { getattr read };
+allow innd_t bin_t:lnk_file { read };
+allow innd_t sbin_t:lnk_file { read };

@@ -1,0 +1,74 @@
+#DESC NSCD - Name service cache daemon cache lookup of user-name
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: nscd
+#
+define(`nscd_socket_domain', `
+can_unix_connect($1, nscd_t)
+allow $1 nscd_var_run_t:sock_file rw_file_perms;
+allow $1 { var_run_t var_t }:dir search;
+allow $1 nscd_t:nscd { getpwd getgrp gethost };
+dontaudit $1 nscd_t:fd use;
+dontaudit $1 nscd_var_run_t:dir { search getattr };
+dontaudit $1 nscd_var_run_t:file { getattr read };
+dontaudit $1 nscd_t:nscd { shmempwd shmemgrp shmemhost };
+')
+#################################
+#
+# Rules for the nscd_t domain.
+#
+# nscd is both the client program and the daemon.
+daemon_domain(nscd, `, userspace_objmgr')
+
+allow nscd_t etc_t:file r_file_perms;
+allow nscd_t etc_t:lnk_file read;
+can_network_client(nscd_t)
+can_ypbind(nscd_t)
+
+file_type_auto_trans(nscd_t, var_run_t, nscd_var_run_t, sock_file)
+
+allow nscd_t self:unix_stream_socket create_stream_socket_perms;
+
+nscd_socket_domain(nscd_client_domain)
+nscd_socket_domain(daemon)
+
+# Clients that are allowed to map the database via a fd obtained from nscd.
+nscd_socket_domain(nscd_shmem_domain)
+allow nscd_shmem_domain nscd_var_run_t:dir r_dir_perms;
+allow nscd_shmem_domain nscd_t:nscd { shmempwd shmemgrp shmemhost };
+# Receive fd from nscd and map the backing file with read access.
+allow nscd_shmem_domain nscd_t:fd use;
+
+# For client program operation, invoked from sysadm_t.
+# Transition occurs to nscd_t due to direct_sysadm_daemon. 
+allow nscd_t self:nscd { admin getstat };
+allow nscd_t admin_tty_type:chr_file rw_file_perms;
+
+read_sysctl(nscd_t)
+allow nscd_t self:process { getattr setsched };
+allow nscd_t self:unix_dgram_socket create_socket_perms;
+allow nscd_t self:fifo_file { read write };
+allow nscd_t self:capability { kill setgid setuid net_bind_service };
+
+# for when /etc/passwd has just been updated and has the wrong type
+allow nscd_t shadow_t:file getattr;
+
+dontaudit nscd_t sysadm_home_dir_t:dir search;
+
+ifdef(`winbind.te', `
+#
+# Handle winbind for samba, Might only be needed for targeted policy
+#
+allow nscd_t winbind_var_run_t:sock_file { read write getattr };
+can_unix_connect(nscd_t, winbind_t)
+allow nscd_t samba_var_t:dir search;
+allow nscd_t winbind_var_run_t:dir { getattr search };
+')
+
+r_dir_file(nscd_t, selinux_config_t)
+can_getsecurity(nscd_t)
+allow nscd_t self:netlink_selinux_socket create_socket_perms;
+allow nscd_t self:netlink_route_socket r_netlink_socket_perms;
+allow nscd_t tmp_t:dir { search getattr };
+allow nscd_t tmp_t:lnk_file read;
+allow nscd_t { urandom_device_t random_device_t }:chr_file { getattr read };

@@ -1,0 +1,134 @@
+#DESC OpenCA - Open Certificate Authority
+#
+# Author:  Brian May <bam@snoopy.apana.org.au>
+# X-Debian-Packages:
+# Depends: apache.te
+#
+
+#################################
+#
+# domain for openCA cgi-bin scripts.
+#
+# Type that system CGI scripts run as
+#
+type openca_ca_t, domain;
+role system_r types openca_ca_t;
+uses_shlib(openca_ca_t)
+
+# Types that system CGI scripts on the disk are 
+# labeled with
+#
+type openca_ca_exec_t, file_type, sysadmfile;
+
+# When the server starts the script it needs to get the proper context
+#
+domain_auto_trans(httpd_t, openca_ca_exec_t, openca_ca_t)
+
+#
+# Allow httpd daemon to search /usr/share/openca
+#
+allow httpd_t openca_usr_share_t:dir { getattr search };
+
+################################################################
+# Allow the web server to run scripts and serve pages
+##############################################################
+allow httpd_t bin_t:file { read execute }; # execute perl
+
+allow httpd_t openca_ca_exec_t:file {execute getattr read};
+allow httpd_t openca_ca_t:process {signal sigkill sigstop};
+allow httpd_t openca_ca_t:process transition;
+allow httpd_t openca_ca_exec_t:dir r_dir_perms;
+
+##################################################################
+# Allow the script to get the file descriptor from the http deamon
+# and send sigchild to http deamon
+#################################################################
+allow openca_ca_t httpd_t:process sigchld;
+allow openca_ca_t httpd_t:fd use;
+allow openca_ca_t httpd_t:fifo_file {getattr write};
+
+############################################
+# Allow scripts to append to http logs
+#########################################
+allow openca_ca_t httpd_log_t:file { append getattr };
+
+#############################################################
+# Allow the script access to the library files so it can run
+#############################################################
+can_exec(openca_ca_t, lib_t)
+
+########################################################################
+# The script needs to inherit the file descriptor and find the script it
+# needs to run
+########################################################################
+allow openca_ca_t initrc_t:fd use;
+allow openca_ca_t init_t:fd use;
+allow openca_ca_t default_t:dir r_dir_perms;
+allow openca_ca_t random_device_t:chr_file r_file_perms;
+
+#######################################################################
+# Allow the script to return its output
+######################################################################
+#allow openca_ca_t httpd_var_run_t: file rw_file_perms;
+allow openca_ca_t null_device_t: chr_file rw_file_perms;
+allow openca_ca_t httpd_cache_t: file rw_file_perms;
+
+###########################################################################
+# Allow the script interpreters to run the scripts.  So
+# the perl executable will be able to run a perl script
+#########################################################################
+can_exec(openca_ca_t, bin_t)
+
+############################################################################
+# Allow the script process to search the cgi directory, and users directory
+##############################################################################
+allow openca_ca_t openca_ca_exec_t:dir search;
+
+#
+# Allow access to writeable files under /etc/openca
+#
+allow openca_ca_t openca_etc_writeable_t:file create_file_perms;
+allow openca_ca_t openca_etc_writeable_t:dir create_dir_perms;
+
+#
+# Allow access to other files under /etc/openca
+#
+allow openca_ca_t openca_etc_t:file r_file_perms;
+allow openca_ca_t openca_etc_t:dir r_dir_perms;
+
+#
+# Allow access to private CA key
+#
+allow openca_ca_t openca_var_lib_keys_t:file create_file_perms;
+allow openca_ca_t openca_var_lib_keys_t:dir create_dir_perms;
+
+#
+# Allow access to other /var/lib/openca files
+#
+allow openca_ca_t openca_var_lib_t:file create_file_perms;
+allow openca_ca_t openca_var_lib_t:dir create_dir_perms;
+
+#
+# Allow access to other /usr/share/openca files
+#
+allow openca_ca_t openca_usr_share_t:file r_file_perms;
+allow openca_ca_t openca_usr_share_t:lnk_file r_file_perms;
+allow openca_ca_t openca_usr_share_t:dir r_dir_perms;
+
+# /etc/openca standard files
+type openca_etc_t, file_type, sysadmfile;
+
+# /etc/openca template files
+type openca_etc_in_t, file_type, sysadmfile;
+
+# /etc/openca writeable (from CGI script) files
+type openca_etc_writeable_t, file_type, sysadmfile;
+
+# /var/lib/openca
+type openca_var_lib_t, file_type, sysadmfile;
+
+# /var/lib/openca/crypto/keys
+type openca_var_lib_keys_t, file_type, sysadmfile;
+
+# /usr/share/openca/crypto/keys
+type openca_usr_share_t, file_type, sysadmfile;

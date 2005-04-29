@@ -1,0 +1,58 @@
+#DESC Scannerdaemon - Virus scanner daemon
+#
+# Author:  Brian May <bam@snoopy.apana.org.au>
+# X-Debian-Packages:
+#
+
+#################################
+#
+# Rules for the scannerdaemon_t domain.
+#
+type scannerdaemon_etc_t, file_type, sysadmfile;
+
+#networking
+daemon_domain(scannerdaemon)
+can_network_server(scannerdaemon_t)
+ifdef(`postfix.te',
+`can_tcp_connect(postfix_bounce_t,scannerdaemon_t);')
+
+# for testing
+can_tcp_connect(sysadm_t,scannerdaemon_t)
+
+# Can create unix sockets
+allow scannerdaemon_t self:unix_stream_socket create_stream_socket_perms;
+
+# Access config files (libc6).
+allow scannerdaemon_t etc_t:file r_file_perms;
+allow scannerdaemon_t etc_t:lnk_file r_file_perms;
+allow scannerdaemon_t proc_t:file r_file_perms;
+allow scannerdaemon_t etc_runtime_t:file r_file_perms;
+
+# Access config files (scannerdaemon).
+allow scannerdaemon_t scannerdaemon_etc_t:file r_file_perms;
+
+# Access signature files.
+ifdef(`oav-update.te',`
+allow scannerdaemon_t oav_update_var_lib_t:dir r_dir_perms;
+allow scannerdaemon_t oav_update_var_lib_t:file r_file_perms;
+')
+
+log_domain(scannerdaemon)
+ifdef(`logrotate.te', `
+allow logrotate_t scannerdaemon_log_t:file create_file_perms;
+')
+
+# Can run kaffe
+# Run helper programs.
+can_exec_any(scannerdaemon_t)
+allow scannerdaemon_t var_lib_t:dir search;
+allow scannerdaemon_t { sbin_t bin_t }:dir search;
+allow scannerdaemon_t bin_t:lnk_file read;
+
+# unknown stuff
+allow scannerdaemon_t self:fifo_file { read write };
+
+# broken stuff
+dontaudit scannerdaemon_t sysadm_home_dir_t:dir search;
+dontaudit scannerdaemon_t devtty_t:chr_file { read write };
+dontaudit scannerdaemon_t shadow_t:file { read getattr };

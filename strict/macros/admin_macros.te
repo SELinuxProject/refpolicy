@@ -1,0 +1,207 @@
+#
+# Macros for all admin domains.
+#
+
+#
+# admin_domain(domain_prefix)
+#
+# Define derived types and rules for an administrator domain.
+#
+# The type declaration and role authorization for the domain must be
+# provided separately.  Likewise, domain transitions into this domain
+# must be specified separately.  If the every_domain() rules are desired,
+# then these rules must also be specified separately.
+#
+undefine(`admin_domain')
+define(`admin_domain',`
+# Type for home directory.
+attribute $1_file_type;
+type $1_home_dir_t, file_type, sysadmfile, home_dir_type, home_type;
+type $1_home_t, file_type, sysadmfile, home_type, $1_file_type;
+
+# Type and access for pty devices.
+can_create_pty($1)
+
+tmp_domain($1, `, $1_file_type', `{ file dir lnk_file sock_file fifo_file }')
+
+# Type for tty devices.
+type $1_tty_device_t, sysadmfile, ttyfile, dev_fs;
+
+# Inherit rules for ordinary users.
+base_user_domain($1)
+
+allow $1_t self:capability setuid;
+
+ifdef(`su.te', `su_domain($1)')
+ifdef(`userhelper.te', `userhelper_domain($1)')
+ifdef(`sudo.te', `sudo_domain($1)')
+
+# Violates the goal of limiting write access to checkpolicy.
+# But presently necessary for installing the file_contexts file.
+create_dir_file($1_t, policy_config_t)
+r_dir_file($1_t, selinux_config_t)
+
+# Let admin stat the shadow file.
+allow $1_t shadow_t:file getattr;
+
+ifdef(`crond.te', `
+allow $1_crond_t var_log_t:file r_file_perms;
+')
+
+# Allow system log read
+allow $1_t kernel_t:system syslog_read;
+
+# Use capabilities other than sys_module.
+allow $1_t self:capability ~sys_module;
+
+# Get security policy decisions.
+can_getsecurity($1_t)
+
+# Use system operations.
+allow $1_t kernel_t:system *;
+
+# Set password information for other users.
+allow $1_t self:passwd { passwd chfn chsh };
+
+# Skip authentication when pam_rootok is specified.
+allow $1_t self:passwd rootok;
+
+# Manipulate other user crontab.
+allow $1_t self:passwd crontab;
+can_getsecurity(sysadm_crontab_t)
+
+# Change system parameters.
+can_sysctl($1_t)
+
+# Create and use all files that have the sysadmfile attribute.
+allow $1_t sysadmfile:{ file sock_file fifo_file } create_file_perms;
+allow $1_t sysadmfile:lnk_file create_lnk_perms;
+allow $1_t sysadmfile:dir create_dir_perms;
+
+# for lsof
+allow $1_t mtrr_device_t:file getattr;
+allow $1_t fs_type:dir getattr;
+
+# Set an exec context, e.g. for runcon.
+can_setexec($1_t)
+
+# Set a context other than the default one for newly created files.
+can_setfscreate($1_t)
+
+# Access removable devices.
+allow $1_t removable_device_t:devfile_class_set rw_file_perms;
+
+# Communicate with the init process.
+allow $1_t initctl_t:fifo_file rw_file_perms;
+
+# Examine all processes.
+can_ps($1_t, domain)
+
+# allow renice
+allow $1_t domain:process setsched;
+
+# Send signals to all processes.
+allow $1_t { domain unlabeled_t }:process signal_perms;
+
+# Access all user terminals.
+allow $1_t tty_device_t:chr_file rw_file_perms;
+allow $1_t ttyfile:chr_file rw_file_perms;
+allow $1_t ptyfile:chr_file rw_file_perms;
+allow $1_t serial_device:chr_file setattr;
+
+# allow setting up tunnels
+allow $1_t tun_tap_device_t:chr_file rw_file_perms;
+
+# run ls -l /dev
+allow $1_t device_t:dir r_dir_perms;
+allow $1_t { device_t device_type }:{ chr_file blk_file } getattr;
+allow $1_t ptyfile:chr_file getattr;
+
+# Run programs from staff home directories.
+# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
+can_exec($1_t, staff_home_t)
+
+# Run programs from /usr/src.
+can_exec($1_t, src_t)
+
+# Run admin programs that require different permissions in their own domain.
+# These rules were moved into the appropriate program domain file.
+
+# added by mayerf@tresys.com
+# The following rules are temporary until such time that a complete
+# policy management infrastructure is in place so that an administrator
+# cannot directly manipulate policy files with arbitrary programs.
+#
+allow $1_t policy_src_t:file create_file_perms;
+allow $1_t policy_src_t:lnk_file create_lnk_perms;
+allow $1_t policy_src_t:dir create_dir_perms;
+
+# Relabel all files.
+# Actually this will not allow relabeling ALL files unless you change
+# sysadmfile to file_type (and change the assertion in assert.te that
+# only auth_write can relabel shadow_t)
+allow $1_t sysadmfile:dir { getattr read search relabelfrom relabelto };
+allow $1_t sysadmfile:notdevfile_class_set { getattr relabelfrom relabelto };
+
+ifdef(`startx.te', `
+ifdef(`xserver.te', `
+# Create files in /tmp/.X11-unix with our X servers derived
+# tmp type rather than user_xserver_tmp_t.
+file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
+')dnl end xserver.te
+')dnl end startx.te
+
+ifdef(`xdm.te', `
+ifdef(`xauth.te', `
+if (xdm_sysadm_login) {
+allow xdm_t $1_home_t:lnk_file read;
+allow xdm_t $1_home_t:dir search;
+}
+allow $1_t xdm_t:fifo_file rw_file_perms;
+')dnl end ifdef xauth.te
+')dnl end ifdef xdm.te
+
+#
+# A user who is authorized for sysadm_t may nonetheless have
+# a home directory labeled with user_home_t if the user is expected
+# to login in either user_t or sysadm_t.  Hence, the derived domains
+# for programs need to be able to access user_home_t.  
+# 
+
+# Allow our gph domain to write to .xsession-errors.
+ifdef(`gnome-pty-helper.te', `
+allow $1_gph_t user_home_dir_type:dir rw_dir_perms;
+allow $1_gph_t user_home_type:file create_file_perms;
+')
+
+# Allow our crontab domain to unlink a user cron spool file.
+ifdef(`crontab.te',
+`allow $1_crontab_t user_cron_spool_t:file unlink;')
+
+# for the administrator to run TCP servers directly
+can_tcp_connect($1_t, $1_t)
+allow $1_t port_t:tcp_socket name_bind;
+
+# Connect data port to ftpd.
+ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
+
+# Connect second port to rshd.
+ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
+
+#
+# Allow sysadm to execute quota commands against filesystems and files.
+#
+allow $1_t fs_type:filesystem quotamod;
+
+# Grant read and write access to /dev/console.
+allow $1_t console_device_t:chr_file rw_file_perms;
+
+# Allow MAKEDEV to work
+allow $1_t device_t:dir rw_dir_perms;
+allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
+allow $1_t device_t:lnk_file { create read };
+
+# for lsof
+allow $1_t domain:socket_class_set getattr;
+allow $1_t eventpollfs_t:file getattr;
+')

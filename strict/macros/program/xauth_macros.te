@@ -1,0 +1,82 @@
+#
+# Macros for xauth domains.
+#
+
+#
+# Author:  Russell Coker <russell@coker.com.au>
+#
+
+#
+# xauth_domain(domain_prefix)
+#
+# Define a derived domain for the xauth program when executed
+# by a user domain.
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/xauth.te. 
+#
+undefine(`xauth_domain')
+ifdef(`xauth.te', `
+define(`xauth_domain',`
+# Derived domain based on the calling user domain and the program.
+type $1_xauth_t, domain;
+
+allow $1_xauth_t self:process signal;
+
+home_domain($1, xauth)
+
+# Transition from the user domain to this domain.
+domain_auto_trans($1_t, xauth_exec_t, $1_xauth_t)
+ifdef(`ssh.te', `
+domain_auto_trans($1_ssh_t, xauth_exec_t, $1_xauth_t)
+allow $1_xauth_t sshd_t:fifo_file { getattr read };
+dontaudit $1_xauth_t $1_ssh_t:tcp_socket { read write };
+allow $1_xauth_t sshd_t:process sigchld;
+')dnl end if ssh
+
+# The user role is authorized for this domain.
+role $1_r types $1_xauth_t;
+
+# Inherit and use descriptors from gnome-pty-helper.
+ifdef(`gnome-pty-helper.te', `
+allow $1_xauth_t $1_gph_t:fd use;
+')
+
+allow $1_xauth_t privfd:fd use;
+allow $1_xauth_t ptmx_t:chr_file { read write };
+
+# allow ps to show xauth
+can_ps($1_t, $1_xauth_t)
+allow $1_t $1_xauth_t:process signal;
+
+uses_shlib($1_xauth_t)
+
+# allow DNS lookups...
+can_resolve($1_xauth_t)
+can_ypbind($1_xauth_t)
+ifdef(`named.te', `
+can_udp_send($1_xauth_t, named_t)
+can_udp_send(named_t, $1_xauth_t)
+')dnl end if named.te
+
+allow $1_xauth_t self:unix_stream_socket create_stream_socket_perms;
+allow $1_xauth_t etc_t:file { getattr read };
+allow $1_xauth_t fs_t:filesystem getattr;
+
+# Write to the user domain tty.
+access_terminal($1_xauth_t, $1)
+
+# Scan /var/run.
+allow $1_xauth_t var_t:dir search;
+allow $1_xauth_t var_run_t:dir search; 
+
+tmp_domain($1_xauth)
+allow $1_xauth_t $1_tmp_t:file { getattr ioctl read };
+
+')dnl end xauth_domain macro
+
+', `
+
+define(`xauth_domain',`')
+
+')dnl end if xauth.te

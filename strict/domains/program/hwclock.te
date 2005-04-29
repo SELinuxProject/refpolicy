@@ -1,0 +1,49 @@
+#DESC Hwclock - Hardware clock manager
+#
+# Author:  David A. Wheeler <dwheeler@ida.org>
+#          Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: util-linux
+#
+
+#################################
+#
+# Rules for the hwclock_t domain.
+# This domain moves time information between the "hardware clock"
+# (which runs when the system is off) and the "system clock",
+# and it stores adjustment values in /etc/adjtime so that errors in the
+# hardware clock are corrected.
+# Note that any errors from this domain are NOT recorded by the system logger,
+# because the system logger isnt running when this domain is active.
+#
+daemon_base_domain(hwclock)
+role sysadm_r types hwclock_t;
+domain_auto_trans(sysadm_t, hwclock_exec_t, hwclock_t)
+type adjtime_t, file_type, sysadmfile;
+ifdef(`apmd.te', `
+domain_auto_trans(apmd_t, hwclock_exec_t, hwclock_t)
+')
+
+allow hwclock_t fs_t:filesystem getattr;
+
+read_locale(hwclock_t)
+
+# Give hwclock the capabilities it requires.  dac_override is a surprise,
+# but hwclock does require it.
+allow hwclock_t self:capability { dac_override sys_rawio sys_time sys_tty_config };
+
+# Allow hwclock to set the hardware clock.
+allow hwclock_t clock_device_t:devfile_class_set { setattr rw_file_perms };
+
+# Allow hwclock to store & retrieve correction factors.
+allow hwclock_t adjtime_t:file { setattr rw_file_perms };
+
+# Read and write console and ttys.
+allow hwclock_t tty_device_t:chr_file rw_file_perms;
+allow hwclock_t ttyfile:chr_file rw_file_perms;
+allow hwclock_t ptyfile:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow hwclock_t sysadm_gph_t:fd use;')
+
+read_locale(hwclock_t)
+
+# for when /usr is not mounted
+dontaudit hwclock_t file_t:dir search;

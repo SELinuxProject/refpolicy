@@ -1,0 +1,110 @@
+#DESC Mount - Filesystem mount utilities
+#
+# Macros for mount
+#
+# Author:  Brian May <bam@snoopy.apana.org.au>
+# X-Debian-Packages: mount
+#
+# based on the work of:
+#          Mark Westerman mark.westerman@csoconline.com
+#
+
+type mount_exec_t, file_type, sysadmfile, exec_type;
+
+mount_domain(sysadm, mount, `, fs_domain, nscd_client_domain')
+mount_loopback_privs(sysadm, mount)
+role sysadm_r types mount_t;
+role system_r types mount_t;
+
+allow mount_t { initrc_devpts_t console_device_t }:chr_file { read write };
+
+domain_auto_trans(initrc_t, mount_exec_t, mount_t)
+allow mount_t init_t:fd use;
+allow mount_t privfd:fd use;
+
+allow mount_t self:capability { ipc_lock dac_override };
+allow mount_t self:process { fork signal_perms };
+
+allow mount_t file_type:dir search;
+
+# Access disk devices.
+allow mount_t fixed_disk_device_t:devfile_class_set rw_file_perms;
+allow mount_t removable_device_t:devfile_class_set rw_file_perms;
+allow mount_t device_t:lnk_file read;
+
+# for when /etc/mtab loses its type
+allow mount_t file_t:file { getattr read unlink };
+
+# Mount, remount and unmount file systems.
+allow mount_t fs_type:filesystem mount_fs_perms;
+allow mount_t default_t:dir mounton;
+allow mount_t file_t:dir mounton;
+allow mount_t usr_t:dir mounton;
+allow mount_t var_t:dir mounton;
+allow mount_t proc_t:dir mounton;
+allow mount_t root_t:dir mounton;
+allow mount_t home_root_t:dir mounton;
+allow mount_t tmp_t:dir mounton;
+allow mount_t mnt_t:dir mounton;
+allow mount_t devpts_t:dir mounton;
+allow mount_t usbdevfs_t:dir mounton;
+allow mount_t sysfs_t:dir mounton;
+allow mount_t nfs_t:dir mounton;
+allow mount_t nfs_t:dir search;
+# nfsv4 has a filesystem to mount for its userspace daemons
+allow mount_t var_lib_nfs_t:dir mounton;
+
+# On some RedHat systems, /boot is a mount point
+allow mount_t boot_t:dir mounton;
+allow mount_t device_t:dir mounton;
+# mount binfmt_misc on /proc/sys/fs/binfmt_misc
+allow mount_t sysctl_t:dir { mounton search };
+
+allow mount_t root_t:filesystem unmount;
+
+ifdef(`portmap.te', `
+# for nfs
+can_network(mount_t)
+can_ypbind(mount_t)
+allow mount_t port_t:{ tcp_socket udp_socket } name_bind;
+allow mount_t reserved_port_t:{ tcp_socket udp_socket } name_bind;
+can_udp_send(mount_t, portmap_t)
+can_udp_send(portmap_t, mount_t)
+allow mount_t rpc_pipefs_t:dir search;
+')
+dontaudit mount_t reserved_port_type:{tcp_socket udp_socket} name_bind;
+
+#
+# required for mount.smbfs
+#
+allow mount_t sbin_t:lnk_file { getattr read };
+
+rhgb_domain(mount_t)
+
+# for localization
+allow mount_t lib_t:file { getattr read };
+allow mount_t autofs_t:dir read;
+allow mount_t fs_t:filesystem relabelfrom;
+#
+# This rule needs to be generalized.  Only admin, initrc should have it.
+#
+allow mount_t file_type:filesystem { unmount mount relabelto };
+
+allow mount_t mnt_t:dir getattr;
+dontaudit mount_t kernel_t:fd use;
+allow mount_t userdomain:fd use;
+can_exec(mount_t, { sbin_t bin_t })
+allow mount_t device_t:dir r_dir_perms;
+ifdef(`distro_redhat', `
+allow mount_t tmpfs_t:chr_file { read write };
+allow mount_t tmpfs_t:dir mounton;
+')
+
+
+# tries to read /init
+dontaudit mount_t root_t:file { getattr read };
+
+allow kernel_t mount_t:tcp_socket { read write };
+allow mount_t self:capability { setgid setuid };
+allow user_t mount_t:tcp_socket write;
+allow mount_t proc_t:lnk_file read;

@@ -1,0 +1,61 @@
+#DESC LoadPolicy - SELinux policy loading utilities
+#
+# Authors:  Frank Mayer, mayerf@tresys.com
+# X-Debian-Packages: policycoreutils
+#
+
+###########################
+# load_policy_t is the domain type for load_policy 
+# load_policy_exec_t is the file type for the executable
+
+
+type load_policy_t, domain;
+role sysadm_r types load_policy_t;
+role system_r types load_policy_t;
+
+type load_policy_exec_t, file_type, exec_type, sysadmfile;
+
+##########################
+# 
+# Rules
+
+domain_auto_trans(sysadm_t, load_policy_exec_t, load_policy_t)
+
+allow load_policy_t console_device_t:chr_file { read write };
+
+# Reload the policy configuration (sysadm_t no longer has this ability)
+can_loadpol(load_policy_t)
+
+# Reset policy boolean values.
+can_setbool(load_policy_t)
+
+
+###########################
+# constrain from where load_policy can load a policy, specifically 
+# policy_config_t files 
+#
+
+# only allow read of policy config files
+allow load_policy_t policy_src_t:dir search;
+allow load_policy_t policy_config_t:dir r_dir_perms;
+allow load_policy_t policy_config_t:notdevfile_class_set r_file_perms;
+
+# directory search permissions for path to binary policy files
+allow load_policy_t root_t:dir search;
+allow load_policy_t etc_t:dir search;
+
+# Read the devpts root directory (needed?)  
+allow load_policy_t devpts_t:dir r_dir_perms;
+
+# Other access
+allow load_policy_t { admin_tty_type initrc_devpts_t devtty_t }:chr_file { read write ioctl getattr };
+uses_shlib(load_policy_t)
+allow load_policy_t self:capability dac_override;
+
+allow load_policy_t { userdomain privfd initrc_t }:fd use;
+
+allow load_policy_t fs_t:filesystem getattr;
+
+allow load_policy_t sysadm_tmp_t:file { getattr write } ;
+read_locale(load_policy_t)
+r_dir_file(load_policy_t, selinux_config_t)

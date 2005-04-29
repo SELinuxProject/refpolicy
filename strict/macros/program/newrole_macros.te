@@ -1,0 +1,96 @@
+# Authors:  Anthony Colatrella (NSA)    Stephen Smalley <sds@epoch.ncsc.mil>
+#           Russell Coker <russell@coker.com.au>
+
+# This macro defines the rules for a newrole like program, it is used by
+# newrole.te and sudo.te, but may be used by other policy at some later time.
+
+define(`newrole_domain', `
+# Rules for the $1_t domain.
+#
+# $1_t is the domain for the program.
+# $1_exec_t is the type of the executable.
+#
+type $1_t, domain, privrole, privowner, privlog, auth_chkpwd, nscd_client_domain, privfd, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl $2;
+in_user_role($1_t)
+role sysadm_r types $1_t;
+
+general_domain_access($1_t);
+
+uses_shlib($1_t)
+read_locale($1_t)
+read_sysctl($1_t)
+
+# for when the user types "exec newrole" at the command line
+allow $1_t privfd:process sigchld;
+
+# Inherit descriptors from the current session.
+allow $1_t privfd:fd use;
+
+# Execute /sbin/pwdb_chkpwd to check the password.
+allow $1_t sbin_t:dir r_dir_perms;
+
+# Execute shells
+allow $1_t bin_t:dir r_dir_perms;
+allow $1_t bin_t:lnk_file read;
+allow $1_t shell_exec_t:file r_file_perms;
+
+allow $1_t urandom_device_t:chr_file { getattr read };
+
+# Allow $1_t to transition to user domains.
+domain_trans($1_t, shell_exec_t, unpriv_userdomain)
+if(!secure_mode)
+{
+	# if we are not in secure mode then we can transition to sysadm_t
+	domain_trans($1_t, shell_exec_t, sysadm_t)
+}
+
+can_setexec($1_t)
+
+allow $1_t autofs_t:dir search;
+
+# Use capabilities.
+allow $1_t self:capability { setuid setgid net_bind_service dac_override };
+
+# Read the devpts root directory.
+allow $1_t devpts_t:dir r_dir_perms;
+
+# Read the /etc/security/default_type file
+r_dir_file($1_t, default_context_t)
+r_dir_file($1_t, selinux_config_t)
+allow $1_t etc_t:file r_file_perms;
+
+# Read /var.
+allow $1_t var_t:dir r_dir_perms;
+allow $1_t var_t:notdevfile_class_set r_file_perms;
+
+# Read /dev directories and any symbolic links.
+allow $1_t device_t:dir r_dir_perms;
+
+# Relabel terminals.
+allow $1_t { ttyfile ptyfile }:chr_file { relabelfrom relabelto };
+
+# Access terminals.
+allow $1_t { ttyfile ptyfile devtty_t }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow $1_t gphdomain:fd use;')
+
+ifdef(`distro_debian', `
+# for /etc/alternatives
+allow $1_t etc_t:lnk_file read;
+')
+
+#
+# Allow newrole to obtain contexts to relabel TTYs
+#
+can_getsecurity($1_t)
+
+allow $1_t fs_t:filesystem getattr;
+
+# for some PAM modules and for cwd
+dontaudit $1_t { home_root_t home_type }:dir search;
+
+allow $1_t proc_t:dir search;
+allow $1_t proc_t:file { getattr read };
+
+# for when the network connection is killed
+dontaudit unpriv_userdomain $1_t:process signal;
+')

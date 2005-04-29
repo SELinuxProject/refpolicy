@@ -1,0 +1,98 @@
+#DESC MRTG - Network traffic graphing
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: mrtg
+#
+
+#################################
+#
+# Rules for the mrtg_t domain.
+#
+# mrtg_exec_t is the type of the mrtg executable.
+#
+daemon_base_domain(mrtg)
+
+allow mrtg_t fs_t:filesystem getattr;
+
+ifdef(`crond.te', `
+system_crond_entry(mrtg_exec_t, mrtg_t)
+allow system_crond_t mrtg_log_t:dir rw_dir_perms;
+allow system_crond_t mrtg_log_t:file { create append getattr };
+')
+
+allow mrtg_t usr_t:{ file lnk_file } { getattr read };
+dontaudit mrtg_t usr_t:file ioctl;
+
+logdir_domain(mrtg)
+etcdir_domain(mrtg)
+typealias mrtg_etc_t alias etc_mrtg_t;
+type var_lib_mrtg_t, file_type, sysadmfile;
+type mrtg_lock_t, file_type, sysadmfile, lockfile;
+r_dir_file(mrtg_t, lib_t)
+
+# Use the network.
+can_network_client(mrtg_t)
+can_ypbind(mrtg_t)
+
+allow mrtg_t self:fifo_file { getattr read write ioctl };
+allow mrtg_t { admin_tty_type devtty_t }:chr_file rw_file_perms;
+allow mrtg_t urandom_device_t:chr_file { getattr read };
+allow mrtg_t self:unix_stream_socket create_socket_perms;
+ifdef(`apache.te', `
+rw_dir_create_file(mrtg_t, httpd_sys_content_t)
+')
+
+can_exec(mrtg_t, { shell_exec_t bin_t sbin_t })
+allow mrtg_t { bin_t sbin_t }:dir { getattr search };
+allow mrtg_t bin_t:lnk_file read;
+allow mrtg_t var_t:dir { getattr search };
+
+ifdef(`snmpd.te', `
+can_udp_send(mrtg_t, snmpd_t)
+can_udp_send(snmpd_t, mrtg_t)
+r_dir_file(mrtg_t, snmpd_var_lib_t)
+')
+
+allow mrtg_t proc_net_t:dir search;
+allow mrtg_t { proc_t proc_net_t }:file { read getattr };
+dontaudit mrtg_t proc_t:file ioctl;
+
+allow mrtg_t { var_lock_t var_lib_t }:dir search;
+rw_dir_create_file(mrtg_t, var_lib_mrtg_t)
+rw_dir_create_file(mrtg_t, mrtg_lock_t)
+ifdef(`distro_redhat', `
+file_type_auto_trans(mrtg_t, mrtg_etc_t, mrtg_lock_t, file)
+')
+
+# read config files
+allow mrtg_t etc_t:file { read getattr };
+dontaudit mrtg_t mrtg_etc_t:dir write;
+dontaudit mrtg_t mrtg_etc_t:file { write ioctl };
+read_locale(mrtg_t)
+
+# for /.autofsck
+dontaudit mrtg_t root_t:file getattr;
+
+dontaudit mrtg_t security_t:dir getattr;
+
+read_sysctl(mrtg_t)
+
+# for uptime
+allow mrtg_t var_run_t:dir search;
+allow mrtg_t initrc_var_run_t:file read;
+dontaudit mrtg_t initrc_var_run_t:file { write lock };
+allow mrtg_t etc_runtime_t:file { getattr read };
+
+allow mrtg_t tmp_t:dir getattr;
+
+# should not need this!
+dontaudit mrtg_t { staff_home_dir_t sysadm_home_dir_t }:dir { search read getattr };
+dontaudit mrtg_t { boot_t device_t file_t lost_found_t }:dir getattr;
+ifdef(`quota.te', `
+dontaudit mrtg_t quota_db_t:file getattr;
+')
+dontaudit mrtg_t root_t:lnk_file getattr;
+
+allow mrtg_t self:capability { setgid setuid };
+can_exec(mrtg_t, hostname_exec_t)
+allow mrtg_t var_spool_t:dir search;

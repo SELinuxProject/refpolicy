@@ -1,0 +1,60 @@
+#DESC Getty - Manage ttys
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+# X-Debian-Packages: util-linux fbgetty mingetty mgetty rungetty
+#
+
+#################################
+#
+# Rules for the getty_t domain.
+#
+init_service_domain(getty, `, privfd')
+
+etcdir_domain(getty)
+typealias getty_etc_t alias etc_getty_t;
+
+allow getty_t console_device_t:chr_file setattr;
+
+tmp_domain(getty)
+log_domain(getty)
+
+allow getty_t { etc_t etc_runtime_t }:file { getattr read };
+allow getty_t etc_t:lnk_file read;
+allow getty_t self:process { getpgid getsession };
+allow getty_t self:unix_dgram_socket create_socket_perms;
+allow getty_t self:unix_stream_socket create_socket_perms;
+
+# to allow w to display everyone...
+bool user_ttyfile_stat false;
+if (user_ttyfile_stat) {
+allow userdomain ttyfile:chr_file getattr;
+}
+
+# Use capabilities.
+allow getty_t self:capability { dac_override chown sys_resource sys_tty_config };
+
+# fbgetty needs fsetid for some reason
+#allow getty_t self:capability fsetid;
+
+read_locale(getty_t)
+
+# Run login in local_login_t domain.
+allow getty_t bin_t:dir search;
+domain_auto_trans(getty_t, login_exec_t, local_login_t)
+
+# Write to /var/run/utmp.
+allow getty_t { var_t var_run_t }:dir search;
+allow getty_t initrc_var_run_t:file rw_file_perms;
+
+# Write to /var/log/wtmp.
+allow getty_t wtmp_t:file rw_file_perms;
+
+# Chown, chmod, read and write ttys.
+allow getty_t tty_device_t:chr_file { setattr rw_file_perms };
+allow getty_t ttyfile:chr_file { setattr rw_file_perms };
+
+# for error condition handling
+allow getty_t fs_t:filesystem getattr;
+
+rw_dir_create_file(getty_t, var_lock_t)
+r_dir_file(getty_t, sysfs_t)

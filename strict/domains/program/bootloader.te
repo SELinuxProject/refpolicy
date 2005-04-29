@@ -1,0 +1,166 @@
+#DESC Bootloader - Lilo boot loader/manager
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: lilo
+#
+
+#################################
+#
+# Rules for the bootloader_t domain.
+#
+# bootloader_exec_t is the type of the bootloader executable.
+#
+type bootloader_t, domain, privlog, privmem, fs_domain, nscd_client_domain ifdef(`direct_sysadm_daemon', `, priv_system_role') ifdef(`distro_debian', `, privowner, admin');
+type bootloader_exec_t, file_type, sysadmfile, exec_type;
+etc_domain(bootloader)
+typealias bootloader_etc_t alias etc_bootloader_t;
+
+role sysadm_r types bootloader_t;
+role system_r types bootloader_t;
+
+allow bootloader_t var_t:dir search;
+create_append_log_file(bootloader_t, var_log_t)
+allow bootloader_t var_log_t:file write;
+
+# for nscd
+dontaudit bootloader_t var_run_t:dir search;
+
+domain_auto_trans(sysadm_t, bootloader_exec_t, bootloader_t)
+allow bootloader_t { initrc_t privfd }:fd use;
+
+tmp_domain(bootloader, `, device_type', { dir file lnk_file chr_file blk_file })
+
+read_locale(bootloader_t)
+
+# for tune2fs
+file_type_auto_trans(bootloader_t, root_t, bootloader_tmp_t, file)
+
+# for /vmlinuz sym link
+allow bootloader_t root_t:lnk_file read;
+
+# lilo would need read access to get BIOS data
+allow bootloader_t proc_kcore_t:file getattr;
+
+allow bootloader_t { etc_t device_t }:dir r_dir_perms;
+allow bootloader_t etc_t:file r_file_perms;
+allow bootloader_t etc_t:lnk_file read;
+allow bootloader_t initctl_t:fifo_file getattr;
+uses_shlib(bootloader_t)
+
+ifdef(`distro_debian', `
+allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
+allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
+allow bootloader_t boot_t:file relabelfrom;
+allow bootloader_t { usr_t lib_t fsadm_exec_t }:file relabelto;
+allow bootloader_t { usr_t lib_t fsadm_exec_t }:file create_file_perms;
+allow bootloader_t usr_t:lnk_file read;
+allow bootloader_t tmpfs_t:dir r_dir_perms;
+allow bootloader_t initrc_var_run_t:dir r_dir_perms;
+allow bootloader_t var_lib_t:dir search;
+allow bootloader_t dpkg_var_lib_t:dir r_dir_perms;
+allow bootloader_t dpkg_var_lib_t:file { getattr read };
+# for /usr/share/initrd-tools/scripts
+can_exec(bootloader_t, usr_t)
+')
+
+allow bootloader_t { fixed_disk_device_t removable_device_t }:blk_file rw_file_perms;
+dontaudit bootloader_t device_t:{ chr_file blk_file } rw_file_perms;
+allow bootloader_t device_t:lnk_file { getattr read };
+
+# LVM2 / Device Mapper's /dev/mapper/control
+# maybe we should change the labeling for this
+ifdef(`lvm.te', `
+allow bootloader_t lvm_control_t:chr_file rw_file_perms;
+domain_auto_trans(bootloader_t, lvm_exec_t, lvm_t)
+allow lvm_t bootloader_tmp_t:file rw_file_perms;
+r_dir_file(bootloader_t, lvm_etc_t)
+')
+
+# uncomment the following line if you use "lilo -p"
+#file_type_auto_trans(bootloader_t, etc_t, bootloader_etc_t, file);
+
+can_exec_any(bootloader_t)
+allow bootloader_t shell_exec_t:lnk_file read;
+allow bootloader_t { bin_t sbin_t }:dir search;
+allow bootloader_t { bin_t sbin_t }:lnk_file read;
+
+allow bootloader_t { modules_dep_t modules_object_t modules_conf_t }:file r_file_perms;
+allow bootloader_t modules_object_t:dir r_dir_perms;
+ifdef(`distro_redhat', `
+allow bootloader_t modules_object_t:lnk_file { getattr read };
+')
+
+# for ldd
+ifdef(`fsadm.te', `
+allow bootloader_t fsadm_exec_t:file { rx_file_perms execute_no_trans };
+')
+ifdef(`modutil.te', `
+allow bootloader_t insmod_exec_t:file { rx_file_perms execute_no_trans };
+')
+
+dontaudit bootloader_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+
+allow bootloader_t boot_t:dir { create rw_dir_perms };
+allow bootloader_t boot_t:file create_file_perms;
+allow bootloader_t boot_t:lnk_file create_lnk_perms;
+
+allow bootloader_t load_policy_exec_t:file { getattr read };
+
+allow bootloader_t random_device_t:chr_file { getattr read };
+
+ifdef(`distro_redhat', `
+# for mke2fs
+domain_auto_trans(bootloader_t, mount_exec_t, mount_t);
+allow mount_t bootloader_tmp_t:dir mounton;
+
+# new file system defaults to file_t, granting file_t access is still bad.
+allow bootloader_t file_t:dir create_dir_perms;
+allow bootloader_t file_t:{ file blk_file chr_file } create_file_perms;
+allow bootloader_t file_t:lnk_file create_lnk_perms;
+allow bootloader_t self:unix_stream_socket create_socket_perms;
+allow bootloader_t boot_runtime_t:file { read getattr unlink };
+
+# for memlock
+allow bootloader_t zero_device_t:chr_file { getattr read };
+allow bootloader_t self:capability ipc_lock;
+')
+
+allow bootloader_t self:capability { dac_read_search fsetid sys_rawio sys_admin mknod chown };
+# allow bootloader to get attributes of any device node
+allow bootloader_t { device_type ttyfile }:chr_file getattr;
+allow bootloader_t device_type:blk_file getattr;
+dontaudit bootloader_t devpts_t:dir create_dir_perms;
+
+allow bootloader_t self:process { fork signal_perms };
+allow bootloader_t self:lnk_file read;
+allow bootloader_t self:dir search;
+allow bootloader_t self:file { getattr read };
+allow bootloader_t self:fifo_file rw_file_perms;
+
+allow bootloader_t fs_t:filesystem getattr;
+
+allow bootloader_t proc_t:dir { getattr search };
+allow bootloader_t proc_t:file r_file_perms;
+allow bootloader_t proc_t:lnk_file { getattr read };
+allow bootloader_t proc_mdstat_t:file r_file_perms;
+allow bootloader_t self:dir { getattr search read };
+read_sysctl(bootloader_t)
+allow bootloader_t etc_runtime_t:file r_file_perms;
+
+allow bootloader_t devtty_t:chr_file rw_file_perms;
+allow bootloader_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+allow bootloader_t initrc_t:fifo_file { read write };
+
+# for reading BIOS data
+allow bootloader_t memory_device_t:chr_file r_file_perms;
+
+allow bootloader_t policy_config_t:dir { search read };
+allow bootloader_t policy_config_t:file { getattr read };
+
+allow bootloader_t lib_t:file { getattr read };
+allow bootloader_t sysfs_t:dir getattr;
+allow bootloader_t urandom_device_t:chr_file read;
+allow bootloader_t { usr_t var_t }:file { getattr read };
+r_dir_file(bootloader_t, src_t)
+dontaudit bootloader_t selinux_config_t:dir search;
+dontaudit bootloader_t sysctl_t:dir search;

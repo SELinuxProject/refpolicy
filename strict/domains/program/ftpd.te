@@ -1,0 +1,116 @@
+#DESC Ftpd - Ftp daemon
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+#           Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: proftpd-common bsd-ftpd ftpd vsftpd
+#
+
+#################################
+#
+# Rules for the ftpd_t domain 
+#
+type ftp_port_t, port_type, reserved_port_type;
+type ftp_data_port_t, port_type, reserved_port_type;
+daemon_domain(ftpd, `, auth_chkpwd')
+etc_domain(ftpd)
+typealias ftpd_etc_t alias etc_ftpd_t;
+
+can_network(ftpd_t)
+allow ftpd_t self:unix_dgram_socket { sendto create_socket_perms };
+allow ftpd_t self:unix_stream_socket create_socket_perms;
+allow ftpd_t self:process { getcap setcap setsched setrlimit };
+allow ftpd_t self:fifo_file rw_file_perms;
+
+allow ftpd_t bin_t:dir search;
+can_exec(ftpd_t, bin_t)
+allow ftpd_t bin_t:lnk_file read;
+read_sysctl(ftpd_t)
+
+allow ftpd_t urandom_device_t:chr_file { getattr read };
+
+ifdef(`crond.te', `
+system_crond_entry(ftpd_exec_t, ftpd_t)
+allow system_crond_t xferlog_t:file r_file_perms;
+can_exec(ftpd_t, { sbin_t shell_exec_t })
+allow ftpd_t usr_t:file { getattr read };
+ifdef(`logrotate.te', `
+can_exec(ftpd_t, logrotate_exec_t)
+')dnl end if logrotate.te
+')dnl end if crond.te
+
+allow ftpd_t ftp_data_port_t:tcp_socket name_bind;
+allow ftpd_t port_t:tcp_socket name_bind;
+
+# Allow ftpd to run directly without inetd.
+bool ftpd_is_daemon false;
+if (ftpd_is_daemon) {
+rw_dir_create_file(ftpd_t, var_lock_t)
+allow ftpd_t ftp_port_t:tcp_socket name_bind;
+can_tcp_connect(userdomain, ftpd_t)
+# Allows it to check exec privs on daemon
+allow inetd_t ftpd_exec_t:file x_file_perms;
+}
+ifdef(`inetd.te', `
+if (!ftpd_is_daemon) {
+ifdef(`tcpd.te', `domain_auto_trans(tcpd_t, ftpd_exec_t, ftpd_t)')
+domain_auto_trans(inetd_t, ftpd_exec_t, ftpd_t)
+
+# Use sockets inherited from inetd.
+allow ftpd_t inetd_t:fd use;
+allow ftpd_t inetd_t:tcp_socket rw_stream_socket_perms;
+
+# Send SIGCHLD to inetd on death.
+allow ftpd_t inetd_t:process sigchld;
+}
+') dnl end inetd.te
+
+# Access shared memory tmpfs instance.
+tmpfs_domain(ftpd)
+
+# Use capabilities.
+allow ftpd_t self:capability { chown fowner fsetid setgid setuid net_bind_service sys_chroot sys_nice sys_resource };
+
+# Append to /var/log/wtmp.
+allow ftpd_t wtmp_t:file { getattr append };
+#kerberized ftp requires the following
+allow ftpd_t wtmp_t:file { write lock };
+
+# Create and modify /var/log/xferlog.
+type xferlog_t, file_type, sysadmfile, logfile;
+file_type_auto_trans(ftpd_t, var_log_t, xferlog_t, file)
+
+# Execute /bin/ls (can comment this out for proftpd)
+# also may need rules to allow tar etc...
+can_exec(ftpd_t, ls_exec_t)
+
+allow initrc_t ftpd_etc_t:file { getattr read };
+allow ftpd_t { etc_t etc_runtime_t }:file { getattr read };
+allow ftpd_t proc_t:file { getattr read };
+
+dontaudit ftpd_t sysadm_home_dir_t:dir getattr;
+dontaudit ftpd_t selinux_config_t:dir search;
+allow ftpd_t autofs_t:dir search;
+allow ftpd_t self:file { getattr read };
+tmp_domain(ftpd)
+
+# Allow ftp to read/write files in the user home directories.
+bool ftp_home_dir false;
+
+if (ftp_home_dir) {
+# allow access to /home
+allow ftpd_t home_root_t:dir { getattr search };
+}
+if (use_nfs_home_dirs && ftp_home_dir) {
+	r_dir_file(ftpd_t, nfs_t)
+}
+if (use_samba_home_dirs && ftp_home_dir) {
+	r_dir_file(ftpd_t, cifs_t)
+}
+dontaudit ftpd_t selinux_config_t:dir search;
+#
+# Type for access to anon ftp
+#
+type ftpd_anon_t, file_type, sysadmfile, customizable;
+r_dir_file(ftpd_t,ftpd_anon_t)
+type ftpd_anon_rw_t, file_type, sysadmfile, customizable;
+create_dir_file(ftpd_t,ftpd_anon_rw_t)

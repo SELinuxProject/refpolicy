@@ -1,0 +1,51 @@
+#DESC Ldconfig - Configure dynamic linker bindings
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: libc6
+#
+
+#################################
+#
+# Rules for the ldconfig_t domain.
+#
+type ldconfig_t, domain, privlog, etc_writer;
+type ldconfig_exec_t, file_type, sysadmfile, exec_type;
+
+role sysadm_r types ldconfig_t;
+role system_r types ldconfig_t;
+
+domain_auto_trans({ sysadm_t initrc_t }, ldconfig_exec_t, ldconfig_t)
+dontaudit ldconfig_t device_t:dir search;
+allow ldconfig_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+allow ldconfig_t privfd:fd use;
+
+uses_shlib(ldconfig_t)
+
+file_type_auto_trans(ldconfig_t, etc_t, ld_so_cache_t, file)
+allow ldconfig_t lib_t:dir rw_dir_perms;
+allow ldconfig_t lib_t:lnk_file create_lnk_perms;
+
+allow ldconfig_t userdomain:fd use;
+# unlink for when /etc/ld.so.cache is mislabeled
+allow ldconfig_t etc_t:file { getattr read unlink };
+allow ldconfig_t etc_t:lnk_file read;
+
+allow ldconfig_t fs_t:filesystem getattr;
+allow ldconfig_t tmp_t:dir search;
+
+ifdef(`apache.te', `
+# dontaudit access to /usr/lib/apache, normal programs cannot read these libs anyway
+dontaudit ldconfig_t httpd_modules_t:dir search;
+')
+
+allow ldconfig_t { var_t var_lib_t }:dir search;
+allow ldconfig_t proc_t:file read;
+ifdef(`hide_broken_symptoms', `
+ifdef(`unconfined.te',`
+dontaudit ldconfig_t unconfined_t:tcp_socket { read write };
+');
+')dnl end hide_broken_symptoms
+ifdef(`targeted_policy', `
+allow ldconfig_t lib_t:file r_file_perms;
+unconfined_domain(ldconfig_t) 
+')

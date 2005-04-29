@@ -1,0 +1,99 @@
+#DESC PPPD - PPP daemon
+#
+# Author:  Russell Coker
+# X-Debian-Packages: ppp
+#
+
+#################################
+#
+# Rules for the pppd_t domain, et al.
+#
+# pppd_t is the domain for the pppd program.
+# pppd_exec_t is the type of the pppd executable.
+# pppd_secret_t is the type of the pap and chap password files
+#
+bool pppd_for_user false;
+
+daemon_domain(pppd, `, privmail')
+type pppd_secret_t, file_type, sysadmfile;
+
+# Define a separate type for /etc/ppp
+etcdir_domain(pppd)
+# Define a separate type for writable files under /etc/ppp
+type pppd_etc_rw_t, file_type, sysadmfile;
+# Automatically label newly created files under /etc/ppp with this type
+file_type_auto_trans(pppd_t, pppd_etc_t, pppd_etc_rw_t, file)
+
+# for SSP
+allow pppd_t urandom_device_t:chr_file read;
+
+allow pppd_t sysfs_t:dir search;
+
+log_domain(pppd)
+
+# Use the network.
+can_network_server(pppd_t)
+can_ypbind(pppd_t)
+
+# Use capabilities.
+allow pppd_t self:capability { net_admin setuid setgid fsetid };
+
+allow pppd_t var_lock_t:dir rw_dir_perms;
+allow pppd_t var_lock_t:file create_file_perms;
+
+# Access secret files
+allow pppd_t pppd_secret_t:file r_file_perms;
+
+ifdef(`postfix.te', `
+allow pppd_t postfix_etc_t:dir search;
+allow pppd_t postfix_etc_t:file r_file_perms;
+allow pppd_t postfix_master_exec_t:file read;
+allow postfix_postqueue_t pppd_t:fd use;
+allow postfix_postqueue_t pppd_t:process sigchld;
+')
+
+# allow running ip-up and ip-down scripts and running chat.
+can_exec(pppd_t, { shell_exec_t bin_t sbin_t etc_t ifconfig_exec_t })
+allow pppd_t { bin_t sbin_t }:dir search;
+allow pppd_t bin_t:lnk_file read;
+
+# Access /dev/ppp.
+allow pppd_t ppp_device_t:chr_file rw_file_perms;
+allow pppd_t devtty_t:chr_file { read write };
+
+allow pppd_t self:unix_dgram_socket create_socket_perms;
+allow pppd_t self:unix_stream_socket create_socket_perms;
+
+allow pppd_t proc_t:dir search;
+allow pppd_t proc_t:{ file lnk_file } r_file_perms;
+
+allow pppd_t etc_runtime_t:file r_file_perms;
+
+allow pppd_t self:socket create_socket_perms;
+
+allow pppd_t tty_device_t:chr_file { setattr rw_file_perms };
+
+allow pppd_t devpts_t:dir search;
+
+# for scripts
+allow pppd_t self:fifo_file rw_file_perms;
+allow pppd_t etc_t:lnk_file read;
+
+# for ~/.ppprc - if it actually exists then you need some policy to read it
+allow pppd_t { sysadm_home_dir_t home_root_t user_home_dir_type }:dir search;
+
+in_user_role(pppd_t)
+if (pppd_for_user)  {
+# Run pppd in pppd_t by default for user
+domain_auto_trans(unpriv_userdomain, pppd_exec_t, pppd_t)
+allow unpriv_userdomain pppd_t:process signal;
+}
+
+# for pppoe
+can_create_pty(pppd)
+allow pppd_t self:file { read getattr };
+allow pppd_t self:capability { fowner net_raw };
+allow pppd_t self:packet_socket create_socket_perms;
+
+file_type_auto_trans(pppd_t, etc_t, net_conf_t, file)
+tmp_domain(pppd)

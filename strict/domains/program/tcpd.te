@@ -1,0 +1,43 @@
+#DESC Tcpd - Access control facilities from internet services
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+#           Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: tcpd
+# Depends: inetd.te
+#
+
+#################################
+#
+# Rules for the tcpd_t domain.
+#
+type tcpd_t, domain, privlog;
+role system_r types tcpd_t;
+uses_shlib(tcpd_t)
+type tcpd_exec_t, file_type, sysadmfile, exec_type;
+domain_auto_trans(inetd_t, tcpd_exec_t, tcpd_t)
+
+allow tcpd_t fs_t:filesystem getattr;
+
+# no good reason for this, probably nscd
+dontaudit tcpd_t var_t:dir search;
+
+can_network_server(tcpd_t)
+can_ypbind(tcpd_t)
+allow tcpd_t self:unix_dgram_socket create_socket_perms;
+allow tcpd_t self:unix_stream_socket create_socket_perms;
+allow tcpd_t etc_t:file { getattr read };
+read_locale(tcpd_t)
+
+tmp_domain(tcpd)
+
+# Use sockets inherited from inetd.
+allow tcpd_t inetd_t:tcp_socket rw_stream_socket_perms;
+
+# Run each daemon with a defined domain in its own domain.
+# These rules have been moved to each target domain .te file.
+
+# Run other daemons in the inetd_child_t domain.
+allow tcpd_t { bin_t sbin_t }:dir search;
+domain_auto_trans(tcpd_t, inetd_child_exec_t, inetd_child_t)
+
+allow tcpd_t device_t:dir search;

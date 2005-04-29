@@ -1,0 +1,69 @@
+#DESC Automount - Automount daemon
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil>
+# Modified by Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: amd am-utils autofs
+#
+
+#################################
+#
+# Rules for the automount_t domain.
+#
+daemon_domain(automount)
+
+etc_domain(automount)
+
+# for SSP
+allow automount_t urandom_device_t:chr_file read;
+
+# for if the mount point is not labelled
+allow automount_t file_t:dir getattr;
+allow automount_t default_t:dir getattr;
+
+allow automount_t autofs_t:dir { create_dir_perms ioctl };
+allow automount_t fs_type:dir getattr;
+
+allow automount_t { etc_t etc_runtime_t }:file { getattr read };
+allow automount_t proc_t:file { getattr read };
+allow automount_t self:process { setpgid setsched };
+allow automount_t self:capability sys_nice;
+allow automount_t self:unix_stream_socket create_socket_perms;
+allow automount_t self:unix_dgram_socket create_socket_perms;
+
+# because config files can be shell scripts
+can_exec(automount_t, { etc_t automount_etc_t })
+
+can_network_server(automount_t)
+can_ypbind(automount_t)
+
+ifdef(`fsadm.te', `
+domain_auto_trans(automount_t, fsadm_exec_t, fsadm_t)
+')
+
+lock_domain(automount)
+
+tmp_domain(automount)
+allow automount_t self:fifo_file rw_file_perms;
+
+# Run mount in the mount_t domain.
+domain_auto_trans(automount_t, mount_exec_t, mount_t)
+allow mount_t autofs_t:dir { search mounton read };
+allow mount_t automount_tmp_t:dir mounton;
+
+ifdef(`apmd.te',
+`domain_auto_trans(apmd_t, automount_exec_t, automount_t)
+can_exec(automount_t, bin_t)')
+
+allow automount_t { bin_t sbin_t }:dir search;
+can_exec(automount_t, mount_exec_t)
+
+allow mount_t autofs_t:dir getattr;
+dontaudit automount_t var_t:dir write;
+
+allow userdomain autofs_t:dir r_dir_perms;
+allow kernel_t autofs_t:dir { getattr ioctl read search };
+
+allow automount_t home_root_t:dir getattr;
+allow automount_t mnt_t:dir { getattr search };
+
+allow initrc_t automount_etc_t:file { getattr read };

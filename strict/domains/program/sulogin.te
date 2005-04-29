@@ -1,0 +1,56 @@
+#DESC sulogin - Single-User login
+#
+# Authors:  Dan Walsh <dwalsh@redhat.com>
+#
+# X-Debian-Packages: sysvinit
+
+#################################
+# 
+# Rules for the sulogin_t domain
+#
+
+type sulogin_t, domain, privrole, privowner, privlog, privfd, privuser, auth;
+type sulogin_exec_t, file_type, exec_type, sysadmfile;
+role system_r types sulogin_t;
+
+general_domain_access(sulogin_t)
+
+domain_auto_trans({ initrc_t init_t }, sulogin_exec_t, sulogin_t)
+allow sulogin_t initrc_t:process getpgid;
+uses_shlib(sulogin_t)
+
+# suse and debian do not use pam with sulogin...
+ifdef(`distro_suse', `
+define(`sulogin_no_pam', `')
+')
+ifdef(`distro_debian', `
+define(`sulogin_no_pam', `')
+')
+
+ifdef(`sulogin_no_pam', `
+domain_auto_trans(sulogin_t, shell_exec_t, sysadm_t)
+allow sulogin_t init_t:process getpgid;
+allow sulogin_t self:capability sys_tty_config;
+', `
+domain_trans(sulogin_t, shell_exec_t, sysadm_t)
+allow sulogin_t shell_exec_t:file r_file_perms;
+
+can_setexec(sulogin_t)
+can_getsecurity(sulogin_t)
+')
+
+r_dir_file(sulogin_t, etc_t)
+
+allow sulogin_t bin_t:dir r_dir_perms;
+r_dir_file(sulogin_t, proc_t)
+allow sulogin_t root_t:dir search;
+
+allow sulogin_t sysadm_devpts_t:chr_file { getattr ioctl read write };
+allow sulogin_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+allow sulogin_t default_context_t:dir search;
+allow sulogin_t default_context_t:file { getattr read };
+
+r_dir_file(sulogin_t, selinux_config_t)
+
+# because file systems are not mounted
+dontaudit sulogin_t file_t:dir search;

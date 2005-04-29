@@ -1,0 +1,99 @@
+#
+# Macros for crontab domains.
+#
+
+#
+# Authors:  Jonathan Crowley (MITRE) <jonathan@mitre.org>
+# Revised by Stephen Smalley <sds@epoch.ncsc.mil>
+#
+
+#
+# crontab_domain(domain_prefix)
+#
+# Define a derived domain for the crontab program when executed by
+# a user domain.  
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/crontab.te. 
+#
+undefine(`crontab_domain')
+define(`crontab_domain',`
+# Derived domain based on the calling user domain and the program.
+type $1_crontab_t, domain, privlog;
+
+# Transition from the user domain to the derived domain.
+domain_auto_trans($1_t, crontab_exec_t, $1_crontab_t)
+
+can_ps($1_t, $1_crontab_t)
+
+# for ^Z
+allow $1_t $1_crontab_t:process signal;
+
+# The user role is authorized for this domain.
+role $1_r types $1_crontab_t;
+
+uses_shlib($1_crontab_t)
+allow $1_crontab_t etc_t:file { getattr read };
+allow $1_crontab_t self:unix_stream_socket create_socket_perms;
+allow $1_crontab_t self:unix_dgram_socket create_socket_perms;
+read_locale($1_crontab_t)
+
+# Use capabilities dac_override is to create the file in the directory
+# under /tmp
+allow $1_crontab_t $1_crontab_t:capability { setuid setgid chown dac_override };
+dontaudit $1_crontab_t proc_t:dir search;
+dontaudit $1_crontab_t selinux_config_t:dir search;
+
+# Type for temporary files.
+file_type_auto_trans($1_crontab_t, tmp_t, $1_tmp_t, { dir file })
+
+# Use the type when creating files in /var/spool/cron.
+allow sysadm_crontab_t $1_cron_spool_t:file { getattr read };
+allow $1_crontab_t { var_t var_spool_t }:dir { getattr search };
+file_type_auto_trans($1_crontab_t, cron_spool_t, $1_cron_spool_t, file)
+allow $1_crontab_t self:process { fork signal_perms };
+ifdef(`fcron.te', `
+# fcron wants an instant update of a crontab change for the administrator
+# also crontab does a security check for crontab -u
+ifelse(`$1', `sysadm', `
+allow $1_crontab_t crond_t:process signal;
+can_setfscreate($1_crontab_t)
+', `
+dontaudit $1_crontab_t crond_t:process signal;
+')dnl end ifelse
+')dnl end ifdef fcron
+
+# for the checks used by crontab -u
+dontaudit $1_crontab_t security_t:dir search;
+
+# crontab signals crond by updating the mtime on the spooldir
+allow $1_crontab_t cron_spool_t:dir setattr;
+# Allow crond to read those crontabs in cron spool.
+allow crond_t $1_cron_spool_t:file r_file_perms;
+
+# Run helper programs as $1_t
+allow $1_crontab_t { bin_t sbin_t }:dir search;
+allow $1_crontab_t bin_t:lnk_file read;
+domain_auto_trans($1_crontab_t, { bin_t sbin_t shell_exec_t }, $1_t)
+
+# Read user crontabs 
+allow $1_crontab_t { $1_home_t $1_home_dir_t }:dir r_dir_perms;  
+allow $1_crontab_t $1_home_t:file r_file_perms;  
+dontaudit $1_crontab_t $1_home_dir_t:dir write;
+
+# Access the cron log file.
+allow $1_crontab_t crond_log_t:file r_file_perms;
+allow $1_crontab_t crond_log_t:file append;
+
+# Access terminals.
+allow $1_crontab_t device_t:dir search;
+access_terminal($1_crontab_t, $1);
+
+allow $1_crontab_t fs_t:filesystem getattr;
+
+# Inherit and use descriptors from gnome-pty-helper.
+ifdef(`gnome-pty-helper.te', `allow $1_crontab_t $1_gph_t:fd use;')
+allow $1_crontab_t privfd:fd use;
+
+dontaudit $1_crontab_t var_run_t:dir search;
+')

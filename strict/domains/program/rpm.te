@@ -1,0 +1,255 @@
+#DESC RPM - Red Hat package management
+#
+# X-Debian-Packages: 
+#################################
+#
+# Rules for running the Redhat Package Manager (RPM) tools.
+#
+# rpm_t is the domain for rpm and related utilities in /usr/lib/rpm
+# rpm_exec_t is the type of the rpm executables.
+# var_log_rpm_t is the type for rpm log files (/var/log/rpmpkgs*)
+# var_lib_rpm_t is the type for rpm files in /var/lib
+#
+type rpm_t, domain, admin, etc_writer, privlog, privowner, privmem, priv_system_role, fs_domain, privfd;
+role system_r types rpm_t;
+uses_shlib(rpm_t)
+type rpm_exec_t, file_type, sysadmfile, exec_type;
+
+general_domain_access(rpm_t)
+can_ps(rpm_t, domain)
+allow rpm_t self:process setrlimit;
+system_crond_entry(rpm_exec_t, rpm_t)
+role sysadm_r types rpm_t;
+domain_auto_trans(sysadm_t, rpm_exec_t, rpm_t)
+
+type rpm_file_t, file_type, sysadmfile;
+
+tmp_domain(rpm)
+
+tmpfs_domain(rpm)
+
+log_domain(rpm)
+
+can_network(rpm_t)
+can_ypbind(rpm_t)
+
+# Allow the rpm domain to execute other programs
+can_exec_any(rpm_t)
+
+# Capabilties needed by rpm utils
+allow rpm_t self:capability { chown dac_override fowner fsetid setgid setuid net_bind_service sys_chroot sys_tty_config mknod };
+
+# Access /var/lib/rpm files
+var_lib_domain(rpm)
+allow userdomain var_lib_t:dir { getattr search };
+r_dir_file(userdomain, rpm_var_lib_t)
+r_dir_file(rpm_t, proc_t)
+
+allow rpm_t sysfs_t:dir r_dir_perms;
+allow rpm_t usbdevfs_t:dir r_dir_perms;
+
+# for installing kernel packages
+allow rpm_t fixed_disk_device_t:blk_file { getattr read };
+
+# Access terminals.
+allow rpm_t admin_tty_type:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow rpm_t sysadm_gph_t:fd use;')
+allow rpm_t privfd:fd use;
+allow rpm_t devtty_t:chr_file rw_file_perms;
+
+domain_auto_trans(rpm_t, ldconfig_exec_t, ldconfig_t)
+domain_auto_trans(rpm_t, initrc_exec_t, initrc_t)
+
+ifdef(`cups.te', `
+r_dir_file(cupsd_t, rpm_var_lib_t)
+allow cupsd_t initrc_exec_t:file { getattr read };
+domain_auto_trans(rpm_script_t, cupsd_exec_t, cupsd_t)
+')
+
+# for a bug in rm
+dontaudit initrc_t pidfile:file write;
+
+# bash tries to access a block device in the initrd
+dontaudit initrc_t unlabeled_t:blk_file getattr;
+
+# bash tries ioctl for some reason
+dontaudit initrc_t pidfile:file ioctl;
+
+allow rpm_t autofs_t:dir { search getattr };
+allow rpm_t autofs_t:filesystem getattr;
+allow rpm_script_t autofs_t:dir { search getattr };
+allow rpm_t devpts_t:dir { setattr r_dir_perms };
+allow rpm_t { devpts_t proc_t usbdevfs_t fs_t }:filesystem getattr;
+dontaudit rpm_t security_t:filesystem getattr;
+can_getcon(rpm_t)
+can_setfscreate(rpm_t)
+can_setexec(rpm_t)
+read_sysctl(rpm_t)
+general_domain_access(rpm_script_t)
+
+# read/write/create any files in the system
+allow rpm_t { file_type -shadow_t }:{ file lnk_file dir fifo_file sock_file } { relabelfrom relabelto };
+allow rpm_t { file_type - shadow_t }:dir create_dir_perms;
+allow rpm_t { file_type - shadow_t }:{ file lnk_file fifo_file sock_file } create_file_perms;
+allow rpm_t sysfs_t:filesystem getattr;
+allow rpm_t tmpfs_t:filesystem getattr;
+dontaudit rpm_t domain:{ socket unix_dgram_socket udp_socket unix_stream_socket tcp_socket fifo_file rawip_socket packet_socket } getattr;
+# needs rw permission to the directory for an rpm package that includes a mount
+# point
+allow rpm_t fs_type:dir { setattr rw_dir_perms };
+allow rpm_t fs_type:filesystem getattr;
+
+# allow compiling and loading new policy
+create_dir_file(rpm_t, { policy_src_t policy_config_t })
+
+can_getsecurity({ rpm_t rpm_script_t })
+dontaudit rpm_t shadow_t:file { getattr read };
+allow rpm_t urandom_device_t:chr_file read;
+allow rpm_t { device_t device_type }:{ chr_file blk_file } { create_file_perms relabelfrom relabelto };
+allow rpm_t ttyfile:chr_file unlink;
+allow rpm_script_t tty_device_t:chr_file getattr;
+allow rpm_script_t devpts_t:dir search;
+allow rpm_script_t {devpts_t devtty_t}:chr_file rw_file_perms;
+
+allow { insmod_t depmod_t } rpm_t:fifo_file rw_file_perms;
+
+type rpm_script_t, domain, admin, etc_writer, privlog, privowner, privmodule, privmem, fs_domain, privfd, priv_system_role;
+# policy for rpm scriptlet
+role system_r types rpm_script_t;
+uses_shlib(rpm_script_t)
+read_locale(rpm_script_t)
+
+can_ps(rpm_script_t, domain)
+
+ifdef(`lpd.te', `
+can_exec(rpm_script_t, printconf_t)
+')
+
+read_sysctl(rpm_script_t)
+
+type rpm_script_exec_t, file_type, sysadmfile, exec_type;
+
+role sysadm_r types rpm_script_t;
+domain_trans(rpm_t, shell_exec_t, rpm_script_t)
+ifdef(`hide_broken_symptoms', `
+ifdef(`pamconsole.te', `
+domain_trans(rpm_t, pam_console_exec_t, rpm_script_t)
+')
+')
+
+tmp_domain(rpm_script)
+
+tmpfs_domain(rpm_script)
+
+# Allow the rpm domain to execute other programs
+can_exec_any(rpm_script_t)
+
+# Capabilties needed by rpm scripts utils
+allow rpm_script_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid ipc_lock sys_chroot sys_nice mknod kill };
+
+# ideally we would not need this
+allow rpm_script_t { file_type - shadow_t }:dir create_dir_perms;
+allow rpm_script_t { file_type - shadow_t }:{ file lnk_file fifo_file sock_file } create_file_perms;
+allow rpm_script_t { device_t device_type }:{ chr_file blk_file } create_file_perms;
+
+# for kernel package installation
+ifdef(`mount.te', `
+allow mount_t rpm_t:fifo_file rw_file_perms;
+')
+
+# Commonly used from postinst scripts
+ifdef(`consoletype.te', `
+allow consoletype_t rpm_t:fifo_file r_file_perms;
+')
+ifdef(`crond.te', `
+allow crond_t rpm_t:fifo_file r_file_perms;
+')
+
+allow rpm_script_t proc_t:dir r_dir_perms;
+allow rpm_script_t proc_t:{ file lnk_file } r_file_perms;
+
+allow rpm_script_t devtty_t:chr_file rw_file_perms;
+allow rpm_script_t devpts_t:dir r_dir_perms;
+allow rpm_script_t admin_tty_type:chr_file rw_file_perms;
+allow rpm_script_t etc_runtime_t:file { getattr read };
+allow rpm_script_t privfd:fd use;
+allow rpm_script_t rpm_tmp_t:file { getattr read ioctl };
+
+allow rpm_script_t urandom_device_t:chr_file read;
+
+ifdef(`ssh-agent.te', `
+domain_auto_trans(rpm_script_t, ssh_agent_exec_t, sysadm_ssh_agent_t)
+')
+
+ifdef(`useradd.te', `
+domain_auto_trans(rpm_script_t, useradd_exec_t, useradd_t)
+domain_auto_trans(rpm_script_t, groupadd_exec_t, groupadd_t)
+role system_r types { useradd_t groupadd_t };
+allow { useradd_t groupadd_t } rpm_t:fd use;
+allow { useradd_t groupadd_t } rpm_t:fifo_file { read write };
+')
+
+domain_auto_trans(rpm_script_t, restorecon_exec_t, restorecon_t)
+
+domain_auto_trans(rpm_script_t, ldconfig_exec_t, ldconfig_t)
+domain_auto_trans(rpm_script_t, depmod_exec_t, depmod_t)
+domain_auto_trans(rpm_script_t, initrc_exec_t, initrc_t)
+ifdef(`bootloader.te', `
+domain_auto_trans(rpm_script_t, bootloader_exec_t, bootloader_t)
+allow bootloader_t rpm_t:fifo_file rw_file_perms;
+')
+
+domain_auto_trans(rpm_script_t, load_policy_exec_t, load_policy_t)
+
+rw_dir_file(rpm_script_t, nfs_t)
+allow rpm_script_t nfs_t:filesystem getattr;
+
+allow rpm_script_t fs_t:filesystem { getattr mount unmount };
+allow rpm_script_t rpm_script_tmp_t:dir mounton;
+can_exec(rpm_script_t, usr_t)
+can_exec(rpm_script_t, sbin_t)
+
+allow rpm_t mount_t:tcp_socket write;
+create_dir_file(rpm_t, nfs_t)
+allow rpm_t { removable_t nfs_t }:filesystem getattr;
+
+allow rpm_script_t userdomain:fd use;
+
+allow domain rpm_t:fifo_file r_file_perms;
+allow domain rpm_t:fd use;
+
+ifdef(`ssh.te', `
+allow sshd_t rpm_script_t:fd use;
+allow sshd_t rpm_t:fd use;
+')
+
+dontaudit rpm_script_t shadow_t:file getattr;
+allow rpm_script_t sysfs_t:dir r_dir_perms;
+
+ifdef(`prelink.te', `
+domain_auto_trans(rpm_t, prelink_exec_t, prelink_t)
+')
+
+allow rpm_t rpc_pipefs_t:dir search;
+allow rpm_script_t init_t:dir search;
+
+type rpmbuild_exec_t, file_type, sysadmfile, exec_type;
+type rpmbuild_t, domain;
+allow rpmbuild_t policy_config_t:dir search;
+allow rpmbuild_t policy_src_t:dir search;
+allow rpmbuild_t policy_src_t:file { getattr read };
+can_getsecurity(rpmbuild_t)
+
+allow rpm_script_t domain:process { signal signull };
+
+# Access /var/lib/rpm.
+allow initrc_t rpm_var_lib_t:dir rw_dir_perms;
+allow initrc_t rpm_var_lib_t:file create_file_perms;
+
+ifdef(`unlimitedRPM', `
+typeattribute rpm_t auth_write;
+unconfined_domain(rpm_t)
+typeattribute rpm_script_t auth_write;
+unconfined_domain(rpm_script_t)
+')
+

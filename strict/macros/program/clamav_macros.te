@@ -1,0 +1,57 @@
+#
+# Macros for clamscan
+#
+# Author:  Brian May <bam@snoopy.apana.org.au>
+#
+
+#
+# can_clamd_connect(domain_prefix)
+#
+# Define a domain that can access clamd
+#
+define(`can_clamd_connect',`
+allow $1_t clamd_var_run_t:dir search;
+allow $1_t clamd_var_run_t:sock_file write;
+can_unix_connect($1_t, clamd_t)
+')
+
+# clamscan_domain(domain_prefix)
+#
+# Define a derived domain for the clamscan program when executed
+#
+define(`clamscan_domain', `
+# Derived domain based on the calling user domain and the program.
+type $1_clamscan_t, domain, privlog;
+
+# Uses shared librarys
+uses_shlib($1_clamscan_t)
+allow $1_clamscan_t fs_t:filesystem getattr;
+r_dir_file($1_clamscan_t, etc_t)
+read_locale($1_clamscan_t)
+
+# Access virus signatures
+allow $1_clamscan_t var_lib_t:dir search;
+r_dir_file($1_clamscan_t, clamav_var_lib_t)
+
+# Allow temp files
+tmp_domain($1_clamscan)
+
+# Why is this required?
+allow $1_clamscan_t proc_t:dir r_dir_perms;
+allow $1_clamscan_t proc_t:file r_file_perms;
+read_sysctl($1_clamscan_t)
+allow $1_clamscan_t self:unix_stream_socket { connect create read write };
+')
+
+define(`user_clamscan_domain',`
+clamscan_domain($1)
+role $1_r types $1_clamscan_t;
+domain_auto_trans($1_t, clamscan_exec_t, $1_clamscan_t)
+access_terminal($1_clamscan_t, $1)
+r_dir_file($1_clamscan_t,$1_home_t);
+r_dir_file($1_clamscan_t,$1_home_dir_t);
+allow $1_clamscan_t $1_home_t:file r_file_perms;
+allow $1_clamscan_t privfd:fd use;
+ifdef(`gnome-pty-helper.te', `allow $1_clamscan_t $1_gph_t:fd use;')
+')
+

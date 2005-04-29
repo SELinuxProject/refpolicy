@@ -1,0 +1,480 @@
+#
+# This file describes the security contexts to be applied to files
+# when the security policy is installed.  The setfiles program
+# reads this file and labels files accordingly.
+#
+# Each specification has the form:
+#       regexp [ -type ] ( context | <<none>> )
+#
+# By default, the regexp is an anchored match on both ends (i.e. a 
+# caret (^) is prepended and a dollar sign ($) is appended automatically).
+# This default may be overridden by using .* at the beginning and/or
+# end of the regular expression.  
+#
+# The optional type field specifies the file type as shown in the mode
+# field by ls, e.g. use -d to match only directories or -- to match only
+# regular files.
+#
+# The value of <<none> may be used to indicate that matching files
+# should not be relabeled.
+#
+# The last matching specification is used.
+#
+# If there are multiple hard links to a file that match
+# different specifications and those specifications indicate
+# different security contexts, then a warning is displayed
+# but the file is still labeled based on the last matching
+# specification other than <<none>>.
+#
+# Some of the files listed here get re-created during boot and therefore
+# need type transition rules to retain the correct type. These files are
+# listed here anyway so that if the setfiles program is used on a running
+# system it does not relabel them to something we do not want. An example of
+# this is /var/run/utmp.
+#
+
+#
+# The security context for all files not otherwise specified.
+#
+/.*				system_u:object_r:default_t
+
+#
+# The root directory.
+#
+/			-d	system_u:object_r:root_t
+
+#
+# Ordinary user home directories.
+# HOME_ROOT expands to all valid home directory prefixes found in /etc/passwd
+# HOME_DIR expands to each user's home directory,
+#                  and to HOME_ROOT/[^/]+ for each HOME_ROOT.
+# ROLE expands to each user's role when role != user_r, and to "user" otherwise.
+#
+HOME_ROOT		-d	system_u:object_r:home_root_t
+HOME_DIR		-d	system_u:object_r:ROLE_home_dir_t
+HOME_DIR/.+			system_u:object_r:ROLE_home_t
+
+/root/\.default_contexts	-- 	system_u:object_r:default_context_t
+
+#
+# Mount points; do not relabel subdirectories, since
+# we don't want to change any removable media by default.
+/mnt(/[^/]*)?		-d	system_u:object_r:mnt_t
+/mnt/[^/]*/.*			<<none>>
+/media(/[^/]*)?		-d	system_u:object_r:mnt_t
+/media/[^/]*/.*			<<none>>
+
+#
+# /var
+#
+/var(/.*)?			system_u:object_r:var_t
+/var/catman(/.*)?		system_u:object_r:catman_t
+/var/cache/man(/.*)?		system_u:object_r:catman_t
+/var/yp(/.*)?			system_u:object_r:var_yp_t
+/var/lib(/.*)?			system_u:object_r:var_lib_t
+/var/lib/nfs(/.*)?		system_u:object_r:var_lib_nfs_t
+/var/lib/texmf(/.*)?		system_u:object_r:tetex_data_t
+/var/cache/fonts(/.*)?		system_u:object_r:tetex_data_t
+/var/lock(/.*)?			system_u:object_r:var_lock_t
+/var/tmp		-d	system_u:object_r:tmp_t
+/var/tmp/.*			<<none>>
+/var/tmp/vi\.recover	-d	system_u:object_r:tmp_t
+/var/lib/nfs/rpc_pipefs(/.*)?	<<none>>
+/var/mailman/bin(/.*)?		system_u:object_r:bin_t
+/var/mailman/pythonlib(/.*)?/.*\.so(\..*)?	-- system_u:object_r:shlib_t
+
+#
+# /var/ftp
+#
+/var/ftp/bin(/.*)?		system_u:object_r:bin_t
+/var/ftp/bin/ls		--	system_u:object_r:ls_exec_t
+/var/ftp/lib(64)?(/.*)?		system_u:object_r:lib_t
+/var/ftp/lib(64)?/ld[^/]*\.so(\.[^/]*)* --	system_u:object_r:ld_so_t
+/var/ftp/lib(64)?/lib[^/]*\.so(\.[^/]*)* --	system_u:object_r:shlib_t
+/var/ftp/etc(/.*)?		system_u:object_r:etc_t
+
+#
+# /bin
+#
+/bin(/.*)?			system_u:object_r:bin_t
+/bin/tcsh		--	system_u:object_r:shell_exec_t
+/bin/bash		--	system_u:object_r:shell_exec_t
+/bin/bash2		--	system_u:object_r:shell_exec_t
+/bin/sash		--	system_u:object_r:shell_exec_t
+/bin/d?ash		--	system_u:object_r:shell_exec_t
+/bin/zsh.*		--	system_u:object_r:shell_exec_t
+/usr/sbin/sesh		--	system_u:object_r:shell_exec_t
+/bin/ls			--	system_u:object_r:ls_exec_t
+
+#
+# /boot
+#
+/boot(/.*)?			system_u:object_r:boot_t
+/boot/System\.map-.*	--	system_u:object_r:system_map_t
+
+#
+# /dev
+#
+/dev(/.*)?			system_u:object_r:device_t
+/dev/pts(/.*)?		<<none>>
+/dev/cpu/.*		-c	system_u:object_r:cpu_device_t
+/dev/microcode	-c	system_u:object_r:cpu_device_t
+/dev/MAKEDEV		--	system_u:object_r:sbin_t
+/dev/null		-c	system_u:object_r:null_device_t
+/dev/full		-c	system_u:object_r:null_device_t
+/dev/zero		-c	system_u:object_r:zero_device_t
+/dev/console		-c	system_u:object_r:console_device_t
+/dev/xconsole		-p	system_u:object_r:xconsole_device_t
+/dev/(kmem|mem|port)	-c	system_u:object_r:memory_device_t
+/dev/nvram		-c	system_u:object_r:memory_device_t
+/dev/random		-c	system_u:object_r:random_device_t
+/dev/urandom		-c	system_u:object_r:urandom_device_t
+/dev/capi.*		-c	system_u:object_r:tty_device_t
+/dev/dcbri[0-9]+	-c	system_u:object_r:tty_device_t
+/dev/irlpt[0-9]+	-c	system_u:object_r:printer_device_t
+/dev/ircomm[0-9]+	-c	system_u:object_r:tty_device_t
+/dev/isdn.*		-c	system_u:object_r:tty_device_t
+/dev/.*tty[^/]*	-c	system_u:object_r:tty_device_t
+/dev/[pt]ty[abcdepqrstuvwxyz][0-9a-f]	-c system_u:object_r:bsdpty_device_t
+/dev/cu.*		-c	system_u:object_r:tty_device_t
+/dev/vcs[^/]*		-c	system_u:object_r:tty_device_t
+/dev/ip2[^/]*		-c	system_u:object_r:tty_device_t
+/dev/hvc.*		-c	system_u:object_r:tty_device_t
+/dev/hvsi.*		-c	system_u:object_r:tty_device_t
+/dev/ttySG.*		-c	system_u:object_r:tty_device_t
+/dev/tty		-c	system_u:object_r:devtty_t
+/dev/lp.*		-c	system_u:object_r:printer_device_t
+/dev/par.*		-c	system_u:object_r:printer_device_t
+/dev/usb/lp.*		-c	system_u:object_r:printer_device_t
+/dev/usblp.*		-c	system_u:object_r:printer_device_t
+ifdef(`distro_redhat', `
+/dev/root		-b	system_u:object_r:fixed_disk_device_t
+')
+/dev/[shmx]d[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/dm-[0-9]+	-b	system_u:object_r:fixed_disk_device_t
+/dev/sg[0-9]+		-c	system_u:object_r:scsi_generic_device_t
+/dev/rd.*		-b	system_u:object_r:fixed_disk_device_t
+/dev/i2o/hd[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/ubd[^/]*		-b	system_u:object_r:fixed_disk_device_t
+/dev/cciss/[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/ida/[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/dasd[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/flash[^/]*	-b	system_u:object_r:fixed_disk_device_t
+/dev/nb[^/]+		-b	system_u:object_r:fixed_disk_device_t
+/dev/ataraid/.*	-b	system_u:object_r:fixed_disk_device_t
+/dev/loop.*		-b	system_u:object_r:fixed_disk_device_t
+/dev/net/.*		-c	system_u:object_r:tun_tap_device_t
+/dev/ram.*		-b	system_u:object_r:fixed_disk_device_t
+/dev/rawctl		-c	system_u:object_r:fixed_disk_device_t
+/dev/raw/raw[0-9]+	-c	system_u:object_r:fixed_disk_device_t
+/dev/scramdisk/.*	-b	system_u:object_r:fixed_disk_device_t
+/dev/initrd		-b	system_u:object_r:fixed_disk_device_t
+/dev/jsfd		-b	system_u:object_r:fixed_disk_device_t
+/dev/js.*		-c	system_u:object_r:mouse_device_t
+/dev/jsflash		-c	system_u:object_r:fixed_disk_device_t
+/dev/s(cd|r)[^/]*	-b	system_u:object_r:removable_device_t
+/dev/usb/rio500	-c	system_u:object_r:removable_device_t
+/dev/fd[^/]+		-b	system_u:object_r:removable_device_t
+# I think a parallel port disk is a removable device...
+/dev/pd[a-d][^/]*	-b	system_u:object_r:removable_device_t
+/dev/p[fg][0-3]	-b	system_u:object_r:removable_device_t
+/dev/aztcd		-b	system_u:object_r:removable_device_t
+/dev/bpcd		-b	system_u:object_r:removable_device_t
+/dev/gscd		-b	system_u:object_r:removable_device_t
+/dev/hitcd		-b	system_u:object_r:removable_device_t
+/dev/pcd[0-3]		-b	system_u:object_r:removable_device_t
+/dev/mcdx?		-b	system_u:object_r:removable_device_t
+/dev/cdu.*		-b	system_u:object_r:removable_device_t
+/dev/cm20.*		-b	system_u:object_r:removable_device_t
+/dev/optcd		-b	system_u:object_r:removable_device_t
+/dev/sbpcd.*		-b	system_u:object_r:removable_device_t
+/dev/sjcd		-b	system_u:object_r:removable_device_t
+/dev/sonycd		-b	system_u:object_r:removable_device_t
+# parallel port ATAPI generic device
+/dev/pg[0-3]		-c	system_u:object_r:removable_device_t
+/dev/rtc		-c	system_u:object_r:clock_device_t
+/dev/psaux		-c	system_u:object_r:mouse_device_t
+/dev/atibm		-c	system_u:object_r:mouse_device_t
+/dev/logibm		-c	system_u:object_r:mouse_device_t
+/dev/.*mouse.*	-c	system_u:object_r:mouse_device_t
+/dev/input/.*mouse.*	-c	system_u:object_r:mouse_device_t
+/dev/input/event.*	-c	system_u:object_r:event_device_t
+/dev/input/mice	-c	system_u:object_r:mouse_device_t
+/dev/input/js.*	-c	system_u:object_r:mouse_device_t
+/dev/ptmx		-c	system_u:object_r:ptmx_t
+/dev/sequencer	-c	system_u:object_r:misc_device_t
+/dev/fb[0-9]*		-c	system_u:object_r:framebuf_device_t
+/dev/apm_bios		-c	system_u:object_r:apm_bios_t
+/dev/cpu/mtrr		-c	system_u:object_r:mtrr_device_t
+/dev/pmu		-c	system_u:object_r:power_device_t
+/dev/(radio|video|vbi|vtx).* -c	system_u:object_r:v4l_device_t
+/dev/winradio.	-c	system_u:object_r:v4l_device_t
+/dev/vttuner		-c	system_u:object_r:v4l_device_t
+/dev/tlk[0-3]		-c	system_u:object_r:v4l_device_t
+/dev/adsp		-c	system_u:object_r:sound_device_t
+/dev/mixer.*		-c	system_u:object_r:sound_device_t
+/dev/dsp.*		-c	system_u:object_r:sound_device_t
+/dev/audio.*		-c	system_u:object_r:sound_device_t
+/dev/r?midi.*		-c	system_u:object_r:sound_device_t
+/dev/sequencer2	-c	system_u:object_r:sound_device_t
+/dev/smpte.*		-c	system_u:object_r:sound_device_t
+/dev/sndstat		-c	system_u:object_r:sound_device_t
+/dev/beep		-c	system_u:object_r:sound_device_t
+/dev/patmgr[01]	-c	system_u:object_r:sound_device_t
+/dev/mpu401.*		-c	system_u:object_r:sound_device_t
+/dev/srnd[0-7]	-c	system_u:object_r:sound_device_t
+/dev/aload.*		-c	system_u:object_r:sound_device_t
+/dev/amidi.*		-c	system_u:object_r:sound_device_t
+/dev/amixer.*		-c	system_u:object_r:sound_device_t
+/dev/snd/.*		-c	system_u:object_r:sound_device_t
+/dev/n?[hs]t[0-9].*	-c	system_u:object_r:tape_device_t
+/dev/n?(raw)?[qr]ft[0-3] -c	system_u:object_r:tape_device_t
+/dev/n?z?qft[0-3]	-c	system_u:object_r:tape_device_t
+/dev/n?tpqic[12].*	-c	system_u:object_r:tape_device_t
+/dev/ht[0-1]		-b	system_u:object_r:tape_device_t
+/dev/n?osst[0-3].*	-c	system_u:object_r:tape_device_t
+/dev/n?pt[0-9]+	-c	system_u:object_r:tape_device_t
+/dev/tape.*		-c	system_u:object_r:tape_device_t
+ifdef(`distro_suse', `
+/dev/usbscanner	-c	system_u:object_r:scanner_device_t
+')
+/dev/usb/scanner.*	-c	system_u:object_r:scanner_device_t
+/dev/usb/dc2xx.*	-c	system_u:object_r:scanner_device_t
+/dev/usb/mdc800.*	-c	system_u:object_r:scanner_device_t
+/dev/usb/tty.*	-c	system_u:object_r:usbtty_device_t
+/dev/mmetfgrab	-c	system_u:object_r:scanner_device_t
+/dev/nvidia.*		-c	system_u:object_r:xserver_misc_device_t
+/dev/dri/.+		-c	system_u:object_r:dri_device_t
+/dev/radeon		-c	system_u:object_r:dri_device_t
+/dev/agpgart		-c	system_u:object_r:agp_device_t
+
+#
+# Misc
+#
+/proc(/.*)?			<<none>>
+/sys(/.*)?			<<none>>
+/selinux(/.*)?			<<none>>
+
+#
+# /opt
+#
+/opt(/.*)?			system_u:object_r:usr_t
+/opt/.*/lib(64)?(/.*)?				system_u:object_r:lib_t
+/opt/.*/lib(64)?/.*\.so(\.[^/]*)*	--	system_u:object_r:shlib_t
+/opt/.*/libexec(/.*)?	system_u:object_r:bin_t
+/opt/.*/bin(/.*)?		system_u:object_r:bin_t
+/opt/.*/sbin(/.*)?		system_u:object_r:sbin_t
+/opt/.*/man(/.*)?		system_u:object_r:man_t
+/opt/.*/var/lib(64)?(/.*)?		system_u:object_r:var_lib_t
+
+#
+# /etc
+#
+/etc(/.*)?			system_u:object_r:etc_t
+/var/db/.*\.db		--	system_u:object_r:etc_t
+/etc/\.pwd\.lock	--	system_u:object_r:shadow_t
+/etc/passwd\.lock	--	system_u:object_r:shadow_t
+/etc/group\.lock	--	system_u:object_r:shadow_t
+/etc/shadow.*		--	system_u:object_r:shadow_t
+/etc/gshadow.*		--	system_u:object_r:shadow_t
+/var/db/shadow.*	--	system_u:object_r:shadow_t
+/etc/blkid\.tab.*	--	system_u:object_r:etc_runtime_t
+/etc/fstab\.REVOKE	--	system_u:object_r:etc_runtime_t
+/etc/\.fstab\.hal\..+	--	system_u:object_r:etc_runtime_t
+/etc/HOSTNAME		--	system_u:object_r:etc_runtime_t
+/etc/ioctl\.save	--	system_u:object_r:etc_runtime_t
+/etc/mtab		--	system_u:object_r:etc_runtime_t
+/etc/motd		--	system_u:object_r:etc_runtime_t
+/etc/issue		--	system_u:object_r:etc_runtime_t
+/etc/issue\.net		--	system_u:object_r:etc_runtime_t
+/etc/sysconfig/hwconf	--	system_u:object_r:etc_runtime_t
+/etc/sysconfig/iptables\.save -- system_u:object_r:etc_runtime_t
+/etc/sysconfig/firstboot --	system_u:object_r:etc_runtime_t
+/etc/asound\.state	--	system_u:object_r:etc_runtime_t
+/etc/ptal/ptal-printd-like -- 	system_u:object_r:etc_runtime_t
+ifdef(`distro_gentoo', `
+/etc/profile\.env	--	system_u:object_r:etc_runtime_t
+/etc/csh\.env		--	system_u:object_r:etc_runtime_t
+/etc/env\.d/.*		--	system_u:object_r:etc_runtime_t
+')
+/etc/ld\.so\.cache	--	system_u:object_r:ld_so_cache_t
+/etc/ld\.so\.preload	--	system_u:object_r:ld_so_cache_t
+/etc/yp\.conf.*		--	system_u:object_r:net_conf_t
+/etc/resolv\.conf.*	--	system_u:object_r:net_conf_t
+
+/etc/selinux(/.*)?		system_u:object_r:selinux_config_t
+/etc/selinux/([^/]*/)?policy(/.*)?	system_u:object_r:policy_config_t
+/etc/selinux/([^/]*/)?src(/.*)?	system_u:object_r:policy_src_t
+/etc/selinux/([^/]*/)?contexts(/.*)?	system_u:object_r:default_context_t
+/etc/selinux/([^/]*/)?contexts/files(/.*)? system_u:object_r:file_context_t
+
+
+#
+# /lib(64)?
+#
+/lib(64)?(/.*)?					system_u:object_r:lib_t
+/lib(64)?/.*\.so(\.[^/]*)*		--	system_u:object_r:shlib_t
+/lib(64)?(/.*)?/ld-[^/]*\.so(\.[^/]*)*	--	system_u:object_r:ld_so_t
+
+#
+# /sbin
+#
+/sbin(/.*)?			system_u:object_r:sbin_t
+
+#
+# /tmp
+#
+/tmp			-d	system_u:object_r:tmp_t
+/tmp/.*				<<none>>
+
+#
+# /usr
+#
+/usr(/.*)?			system_u:object_r:usr_t
+/usr(/.*)?/lib(64)?(/.*)?	system_u:object_r:lib_t
+/usr(/.*)?/lib(64)?/.*\.so(\.[^/]*)*	--	system_u:object_r:shlib_t
+/usr/lib/win32/.*	--	system_u:object_r:shlib_t
+/usr(/.*)?/java/.*\.so(\.[^/]*)*	--	system_u:object_r:texrel_shlib_t
+/usr(/.*)?/java/.*\.jar	--	system_u:object_r:shlib_t
+/usr(/.*)?/java/.*\.jsa	--	system_u:object_r:shlib_t
+/usr(/.*)?/HelixPlayer/.*\.so(\.[^/]*)*	--	system_u:object_r:texrel_shlib_t
+/usr(/.*)?/lib(64)?(/.*)?/ld-[^/]*\.so(\.[^/]*)* system_u:object_r:ld_so_t
+/usr(/.*)?/bin(/.*)?		system_u:object_r:bin_t
+/usr(/.*)?/Bin(/.*)?		system_u:object_r:bin_t
+/usr(/.*)?/sbin(/.*)?		system_u:object_r:sbin_t
+/usr/etc(/.*)?			system_u:object_r:etc_t
+/usr/inclu.e(/.*)?		system_u:object_r:usr_t
+/usr/libexec(/.*)?		system_u:object_r:bin_t
+/usr/src(/.*)?			system_u:object_r:src_t
+/usr/tmp		-d	system_u:object_r:tmp_t
+/usr/tmp/.*			<<none>>
+/usr/man(/.*)?			system_u:object_r:man_t
+/usr/share/man(/.*)?		system_u:object_r:man_t
+/usr/share/mc/extfs/.*	--	system_u:object_r:bin_t
+/usr/share(/.*)?/lib(64)?(/.*)?	system_u:object_r:usr_t
+
+# nvidia share libraries
+/usr(/.*)?/nvidia/.*\.so(\..*)?	-- system_u:object_r:texrel_shlib_t
+/usr/X11R6/lib/libXvMCNVIDIA\.so.* 	-- system_u:object_r:texrel_shlib_t
+
+# libGL
+/usr/X11R6/lib/libGL\.so.* 	-- system_u:object_r:texrel_shlib_t
+
+ifdef(`distro_debian', `
+/usr/share/selinux(/.*)?	system_u:object_r:policy_src_t
+')
+ifdef(`distro_gentoo', `
+/usr/.*-.*-linux-gnu/gcc-bin/.*(/.*)?	system_u:object_r:bin_t
+')
+
+#
+# /usr/lib(64)?
+#
+/usr/lib(64)?/perl5/man(/.*)?	system_u:object_r:man_t
+/usr/lib(64)?/selinux(/.*)?		system_u:object_r:policy_src_t
+/usr/lib(64)?/emacsen-common/.*	system_u:object_r:bin_t
+
+#
+# /usr/local
+#
+/usr/local/etc(/.*)?		system_u:object_r:etc_t
+/usr/local/src(/.*)?		system_u:object_r:src_t
+/usr/local/man(/.*)?		system_u:object_r:man_t
+
+#
+# /usr/X11R6/man
+#
+/usr/X11R6/man(/.*)?		system_u:object_r:man_t
+
+#
+# Fonts dir
+#
+/usr/X11R6/lib/X11/fonts(/.*)?		system_u:object_r:fonts_t
+ifdef(`distro_debian', `
+/var/lib/msttcorefonts(/.*)?		system_u:object_r:fonts_t
+')
+/usr/share/fonts(/.*)?			system_u:object_r:fonts_t
+/usr/share/ghostscript/fonts(/.*)?	system_u:object_r:fonts_t
+/usr/local/share/fonts(/.*)?		system_u:object_r:fonts_t
+
+#
+# /var/run
+#
+/var/run(/.*)?			system_u:object_r:var_run_t
+/var/run/.*\.*pid		<<none>>
+
+#
+# /var/spool
+#
+/var/spool(/.*)?		system_u:object_r:var_spool_t
+/var/spool/texmf(/.*)?		system_u:object_r:tetex_data_t
+/var/spool/(client)?mqueue(/.*)?	system_u:object_r:mqueue_spool_t
+
+# 
+# /var/log
+#
+/var/log(/.*)?			system_u:object_r:var_log_t
+/var/log/wtmp.*		--	system_u:object_r:wtmp_t
+/var/log/btmp.*		--	system_u:object_r:faillog_t
+/var/log/faillog	--	system_u:object_r:faillog_t
+/var/log/ksyms.*	--	system_u:object_r:var_log_ksyms_t
+/var/log/dmesg		--	system_u:object_r:var_log_t
+/var/log/lastlog	--	system_u:object_r:lastlog_t
+/var/log/ksymoops(/.*)?		system_u:object_r:var_log_ksyms_t
+/var/log/syslog		--	system_u:object_r:var_log_t
+
+#
+# Journal files
+#
+/\.journal			<<none>>
+/usr/\.journal			<<none>>
+/boot/\.journal			<<none>>
+HOME_ROOT/\.journal		<<none>>
+/var/\.journal			<<none>>
+/tmp/\.journal			<<none>>
+/usr/local/\.journal		<<none>>
+
+#
+# Lost and found directories.
+#
+/lost\+found(/.*)?		system_u:object_r:lost_found_t
+/usr/lost\+found(/.*)?		system_u:object_r:lost_found_t
+/boot/lost\+found(/.*)?		system_u:object_r:lost_found_t
+HOME_ROOT/lost\+found(/.*)?	system_u:object_r:lost_found_t
+/var/lost\+found(/.*)?		system_u:object_r:lost_found_t
+/tmp/lost\+found(/.*)?		system_u:object_r:lost_found_t
+/usr/local/lost\+found(/.*)?	system_u:object_r:lost_found_t
+
+#
+# system localization
+#
+/usr/share/zoneinfo(/.*)?	system_u:object_r:locale_t
+/usr/share/locale(/.*)?		system_u:object_r:locale_t
+/usr/lib/locale(/.*)?		system_u:object_r:locale_t
+/etc/localtime		--	system_u:object_r:locale_t
+/etc/localtime		-l	system_u:object_r:etc_t
+
+#
+# Gnu Cash
+#
+/usr/share/gnucash/finance-quote-check -- system_u:object_r:bin_t
+/usr/share/gnucash/finance-quote-helper -- system_u:object_r:bin_t
+
+#
+# initrd mount point, only used during boot
+#
+/initrd			-d	system_u:object_r:root_t
+
+#
+#  The krb5.conf file is always being tested for writability, so
+#  we defined a type to dontaudit
+#
+/etc/krb5\.conf		--	system_u:object_r:krb5_conf_t
+
+#
+# Thunderbird
+#
+/usr/lib(64)?/[^/]*thunderbird[^/]*/thunderbird --      system_u:object_r:bin_t
+/usr/lib(64)?/[^/]*thunderbird[^/]*/thunderbird-bin -- system_u:object_r:bin_t
+/usr/lib(64)?/[^/]*thunderbird[^/]*/run-mozilla\.sh -- system_u:object_r:bin_t
+/usr/lib(64)?/[^/]*thunderbird[^/]*/mozilla-xremote-client -- system_u:object_r:bin_t

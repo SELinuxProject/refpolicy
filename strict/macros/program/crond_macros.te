@@ -1,0 +1,125 @@
+#
+# Macros for crond domains.
+#
+
+#
+# Authors:  Jonathan Crowley (MITRE) <jonathan@mitre.org>,
+#	    Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser
+#           Russell Coker <rcoker@redhat.com>
+#
+
+#
+# crond_domain(domain_prefix)
+#
+# Define a derived domain for cron jobs executed by crond on behalf 
+# of a user domain.  These domains are separate from the top-level domain
+# defined for the crond daemon and the domain defined for system cron jobs,
+# which are specified in domains/program/crond.te.
+#
+undefine(`crond_domain')
+define(`crond_domain',`
+# Derived domain for user cron jobs, user user_crond_domain if not system
+ifelse(`system', `$1', `
+type $1_crond_t, domain, privlog, privmail, nscd_client_domain;
+', `
+type $1_crond_t, domain, user_crond_domain;
+
+# Access user files and dirs.
+allow $1_crond_t home_root_t:dir search;
+file_type_auto_trans($1_crond_t, $1_home_dir_t, $1_home_t)
+
+# Run scripts in user home directory and access shared libs.
+can_exec($1_crond_t, $1_home_t)
+
+file_type_auto_trans($1_crond_t, tmp_t, $1_tmp_t)
+')
+r_dir_file($1_crond_t, selinux_config_t)
+
+# Type of user crontabs once moved to cron spool.
+type $1_cron_spool_t, file_type, sysadmfile;
+
+ifdef(`fcron.te', `
+allow crond_t $1_cron_spool_t:file create_file_perms;
+')
+
+allow $1_crond_t urandom_device_t:chr_file { getattr read };
+
+allow $1_crond_t usr_t:file { getattr ioctl read };
+allow $1_crond_t usr_t:lnk_file read;
+
+# Permit a transition from the crond_t domain to this domain.
+# The transition is requested explicitly by the modified crond 
+# via execve_secure.  There is no way to set up an automatic
+# transition, since crontabs are configuration files, not executables.
+domain_trans(crond_t, shell_exec_t, $1_crond_t)
+
+ifdef(`mta.te', `
+domain_auto_trans($1_crond_t, sendmail_exec_t, $1_mail_t)
+allow $1_crond_t sendmail_exec_t:lnk_file { getattr read };
+
+# $1_mail_t should only be reading from the cron fifo not needing to write
+dontaudit $1_mail_t crond_t:fifo_file write;
+allow mta_user_agent $1_crond_t:fd use;
+')
+
+# The user role is authorized for this domain.
+role $1_r types $1_crond_t;
+
+# This domain is granted permissions common to most domains.
+can_network($1_crond_t)
+can_ypbind($1_crond_t)
+r_dir_file($1_crond_t, self)
+allow $1_crond_t self:fifo_file rw_file_perms;
+allow $1_crond_t self:unix_stream_socket create_stream_socket_perms;
+allow $1_crond_t self:unix_dgram_socket create_socket_perms;
+allow $1_crond_t etc_runtime_t:file { getattr read };
+allow $1_crond_t self:process { fork signal_perms setsched };
+allow $1_crond_t proc_t:dir r_dir_perms;
+allow $1_crond_t proc_t:file { getattr read ioctl };
+read_locale($1_crond_t)
+read_sysctl($1_crond_t)
+allow $1_crond_t var_spool_t:dir search;
+allow $1_crond_t fs_type:filesystem getattr;
+
+allow $1_crond_t devtty_t:chr_file { read write };
+allow $1_crond_t var_t:dir r_dir_perms;
+allow $1_crond_t var_t:file { getattr read ioctl };
+allow $1_crond_t var_log_t:dir search;
+
+# Use capabilities.
+allow $1_crond_t self:capability dac_override;
+
+# Inherit and use descriptors from initrc - I think this is wrong
+#allow $1_crond_t initrc_t:fd use;
+
+# 
+# Since crontab files are not directly executed,
+# crond must ensure that the crontab file has
+# a type that is appropriate for the domain of
+# the user cron job.  It performs an entrypoint
+# permission check for this purpose.
+#
+allow $1_crond_t $1_cron_spool_t:file entrypoint;
+
+# Run helper programs.
+can_exec_any($1_crond_t)
+
+# ps does not need to access /boot when run from cron
+dontaudit $1_crond_t boot_t:dir search;
+# quiet other ps operations
+dontaudit $1_crond_t domain:dir { getattr search };
+# for nscd
+dontaudit $1_crond_t var_run_t:dir search;
+')
+
+# When system_crond_t domain executes a type $1 executable then transition to
+# domain $2, allow $2 to interact with crond_t as well.
+define(`system_crond_entry', `
+ifdef(`crond.te', `
+domain_auto_trans(system_crond_t, $1, $2)
+allow $2 crond_t:fifo_file { getattr read write ioctl };
+# a rule for privfd may make this obsolete
+allow $2 crond_t:fd use;
+allow $2 crond_t:process sigchld;
+')dnl end ifdef
+')dnl end system_crond_entry

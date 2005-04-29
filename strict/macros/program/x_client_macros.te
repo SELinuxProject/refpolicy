@@ -1,0 +1,161 @@
+#
+# Macros for X client programs ($2 etc)
+#
+
+#
+# Author: Russell Coker <russell@coker.com.au>
+# Based on the work of Stephen Smalley <sds@epoch.ncsc.mil>
+# and Timothy Fraser 
+#
+
+define(`xsession_domain', `
+
+# Connect to xserver
+can_unix_connect($1_t, $2_xserver_t)
+
+# /tmp/.ICE_unix
+allow $1_t $2_xserver_tmp_t:dir search;
+allow $1_t $2_xserver_tmp_t:sock_file rw_file_perms;
+
+# Stat /tmp/.X0-lock
+allow $1_t $2_xserver_tmp_t:file getattr;
+
+# Signal Xserver
+allow $1_t $2_xserver_t:process signal;
+
+# Use file descriptors created by each other.
+allow $1_t $2_xserver_t:fd use;
+allow $2_xserver_t $1_t:fd use;
+
+# Xserver read/write parent shm
+allow $2_xserver_t $1_t:shm rw_shm_perms;
+allow $2_xserver_t $1_tmpfs_t:file rw_file_perms;
+
+# Parent read xserver shm
+allow $1_t $2_xserver_t:shm r_shm_perms;
+allow $1_t $2_xserver_tmpfs_t:file r_file_perms;
+')
+
+#
+# x_client_domain(domain_prefix)
+#
+# Define a derived domain for an X program when executed by
+# a user domain.  
+#
+# The type declaration for the executable type for this program ($2_exec_t)
+# must be provided separately!
+#
+# The first parameter is the base name for the domain/role (EG user or sysadm)
+# The second parameter is the program name (EG $2)
+# The third parameter is the attributes for the domain (if any)
+#
+define(`x_client_domain',`
+# Derived domain based on the calling user domain and the program.
+type $1_$2_t, domain, nscd_client_domain $3;
+
+ifelse(index(`$3', `transitionbool'), -1, `
+domain_auto_trans($1_t, $2_exec_t, $1_$2_t)
+can_exec($1_$2_t, $2_exec_t)
+', `
+# Only do it once
+ifelse($1, user, `
+bool disable_$2 false;
+')
+# Transition from the user domain to the derived domain.
+if (! disable_$2) {
+domain_auto_trans($1_t, $2_exec_t, $1_$2_t)
+can_exec($1_$2_t, $2_exec_t)
+}
+')
+
+# The user role is authorized for this domain.
+role $1_r types $1_$2_t;
+
+# This domain is granted permissions common to most domains (including can_net)
+can_network($1_$2_t)
+can_ypbind($1_$2_t)
+allow $1_$2_t self:process { fork signal_perms getsched };
+allow $1_$2_t self:unix_dgram_socket create_socket_perms;
+allow $1_$2_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow $1_$2_t self:fifo_file rw_file_perms;
+allow $1_$2_t etc_runtime_t:file { getattr read };
+allow $1_$2_t etc_t:lnk_file read;
+allow $1_$2_t fs_t:filesystem getattr;
+access_terminal($1_$2_t, $1)
+read_locale($1_$2_t)
+r_dir_file($1_$2_t, readable_t)
+allow $1_$2_t proc_t:dir search;
+allow $1_$2_t proc_t:lnk_file read;
+allow $1_$2_t self:dir search;
+allow $1_$2_t self:lnk_file read;
+read_sysctl($1_$2_t)
+
+ifdef(`xauth.te',`
+allow $1_$2_t $1_xauth_home_t:file { getattr read };
+')
+
+# Allow the user domain to send any signal to the $2 process.
+allow $1_t $1_$2_t:process signal_perms;
+
+# Allow the user domain to read the /proc/PID directory for 
+# the $2 process.
+allow $1_t $1_$2_t:dir r_dir_perms;
+allow $1_t $1_$2_t:notdevfile_class_set r_file_perms;
+
+# Allow use of /dev/zero by ld.so.
+allow $1_$2_t device_t:dir search;
+allow $1_$2_t zero_device_t:chr_file rw_file_perms;
+allow $1_$2_t zero_device_t:chr_file x_file_perms;
+
+# allow using shared libraries and running programs
+uses_shlib($1_$2_t)
+allow $1_$2_t { bin_t sbin_t }:dir search;
+allow $1_$2_t bin_t:lnk_file read;
+can_exec($1_$2_t, { shell_exec_t bin_t })
+allow $1_$2_t etc_t:file { getattr read };
+
+# Inherit and use descriptors from gnome-pty-helper.
+ifdef(`gnome-pty-helper.te', `allow $1_$2_t $1_gph_t:fd use;')
+allow $1_$2_t privfd:fd use;
+
+# for .xsession-errors
+dontaudit $1_$2_t $1_home_t:file write;
+
+# for X over a ssh tunnel
+ifdef(`ssh.te', `
+can_tcp_connect($1_$2_t, sshd_t)
+')
+
+# Read the home directory, e.g. for .Xauthority and to get to config files
+allow $1_$2_t home_root_t:dir { search getattr };
+
+# Use a separate type for tmpfs/shm pseudo files.
+tmpfs_domain($1_$2)
+
+allow $1_$2_t self:shm create_shm_perms;
+
+# allow X client to read all font files
+r_dir_file($1_$2_t, fonts_t)
+
+# Allow connections to X server.
+ifdef(`xserver.te', `
+allow $1_$2_t tmp_t:dir search;
+
+ifdef(`xdm.te', `
+xsession_domain($1_$2, xdm)
+
+# for when /tmp/.X11-unix is created by the system
+allow $1_$2_t xdm_t:fifo_file rw_file_perms;
+allow $1_$2_t xdm_tmp_t:dir search;
+allow $1_$2_t xdm_tmp_t:sock_file { read write };
+allow $1_$2_t xdm_t:fd use;
+dontaudit $1_$2_t xdm_t:tcp_socket { read write };
+')
+
+ifdef(`startx.te', `
+xsession_domain($1_$2, $1)
+')dnl end startx
+
+')dnl end xserver
+
+')dnl end x_client macro
