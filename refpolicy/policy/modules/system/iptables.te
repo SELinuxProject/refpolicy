@@ -1,0 +1,82 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+########################################
+#
+# Declarations
+#
+
+type iptables_t;
+type iptables_exec_t;
+domain_make_daemon_domain(iptables_t,iptables_exec_t)
+
+type iptables_tmp_t;
+files_make_file(iptables_tmp_t)
+
+type iptables_var_run_t; #, pidfile;
+files_make_file(iptables_t)
+
+########################################
+#
+# Iptables local policy
+#
+
+allow iptables_t self:capability { net_admin net_raw };
+allow iptables_t self:process { sigkill sigstop signull signal };
+
+allow iptables_t iptables_var_run_t:dir { ioctl read getattr lock write append };
+
+allow iptables_t iptables_exec_t:file { getattr read execute execute_no_trans };
+
+allow iptables_t iptables_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow iptables_t iptables_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(iptables_t, iptables_tmp_t, { file dir })
+
+allow iptables_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+kernel_read_modprobe_sysctl(iptables_t)
+kernel_use_file_descriptors(iptables_t)
+kernel_read_system_state(iptables_t)
+kernel_read_network_state(iptables_t)
+
+filesystem_get_persistent_filesystem_attributes(iptables_t)
+
+files_read_general_system_config(iptables_t)
+
+logging_send_system_log_message(iptables_t)
+# system-config-network appends to /var/log
+#logging_append_system_logs(iptables_t)
+
+miscfiles_read_localization(iptables_t)
+
+optional_policy(`modutils.te', `
+modutils_insmod_transition(iptables_t)
+')
+
+ifdef(`TODO',`
+daemon_base_domain(iptables, `, privmodule')
+
+domain_auto_trans(sysadm_t, iptables_exec_t, iptables_t)
+role sysadm_r types iptables_t;
+
+# to allow rules to be saved on reboot
+allow iptables_t initrc_tmp_t:file rw_file_perms;
+
+domain_auto_trans(iptables_t, ifconfig_exec_t, ifconfig_t)
+
+file_type_auto_trans(iptables_t, var_run_t, iptables_var_run_t, $2)
+allow iptables_t var_t:dir search;
+
+# for iptables -L
+can_resolve(iptables_t)
+can_ypbind(iptables_t)
+
+allow iptables_t userdomain:fd use;
+
+# Access terminals.
+allow iptables_t { sysadm_tty_device_t sysadm_devpts_t }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow iptables_t sysadm_gph_t:fd use;')
+
+ifdef(`firstboot.te', `
+allow iptables_t firstboot_t:fifo_file write;
+')
+') dnl ifdef TODO
