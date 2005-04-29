@@ -228,6 +228,26 @@
 
 ########################################
 #
+# Attributes
+#
+
+#
+# file_type: complete
+#
+files_make_file($1)
+
+#
+# privlog: complete
+logging_send_system_log_message($1)
+
+#
+# privmodule: complete
+#
+modutils_insmod_transition($1)
+
+
+########################################
+#
 # Access macros
 #
 
@@ -335,17 +355,17 @@ can_create_internal($1,$2,$i)
 #
 # can_create_internal($1,$2,dir):
 #
-allow $1 $2:$3 create_dir_perms;
+allow $1 $2:$3 { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
 
 #
 # can_create_internal($1,$2,lnk_file):
 #
-allow $1 $2:$3 create_lnk_perms;
+allow $1 $2:$3 { create read getattr setattr link unlink rename };
 
 #
 # can_create_internal($1,$2,[file,chr_file,blk_file,sock_file,fifo_file]):
 #
-allow $1 $2:$3 create_file_perms;
+allow $1 $2:$3 { create ioctl read getattr lock write setattr append link unlink rename };
 
 #
 # can_create_other_pty(): complete
@@ -386,7 +406,7 @@ allow $1 proc_t:{ file lnk_file } read;
 allow $1 self:process getattr;
 
 #
-# can_getsecurity():
+# can_getsecurity(): complete
 #
 kernel_get_selinuxfs_mount_point($1)
 kernel_validate_selinux_context($1)
@@ -485,41 +505,44 @@ kernel_get_selinuxfs_mount_point($1)
 kernel_set_selinux_boolean($1)
 
 #
-# can_setcon():
+# can_setcon(): complete
+#
+# get mount point is due to libselinux init
 #
 allow $1 self:process setcurrent;
-allow $1 proc_t:dir search;
-allow $1 proc_t:{ file lnk_file } read;
-
+kernel_get_selinuxfs_mount_point($1)
 
 #
 # can_setenforce(): complete
+#
+# get mount point is due to libselinux init
 #
 kernel_get_selinuxfs_mount_point($1)
 kernel_set_selinux_enforcement_mode($1)
 
 #
-# can_setexec():
+# can_setexec(): complete
+#
+# get mount point is due to libselinux init
 #
 allow $1 self:process setexec;
-allow $1 proc_t:dir search;
-allow $1 proc_t:{ file lnk_file } read;
+kernel_get_selinuxfs_mount_point($1)
 
 #
-# can_setfscreate():
+# can_setfscreate(): complete
+#
+# get mount point is due to libselinux init
 #
 allow $1 self:process setfscreate;
-allow $1 proc_t:dir search;
-allow $1 proc_t:{ file lnk_file } read;
+kernel_get_selinuxfs_mount_point($1)
 
 #
-# can_setsecparam():
+# can_setsecparam(): complete
+#
+# get mount point is due to libselinux init
 #
 kernel_get_selinuxfs_mount_point($1)
-allow $1 security_t:dir { read search getattr };
-allow $1 security_t:file { getattr read write };
-allow $1 security_t:security setsecparam;
-auditallow $1 security_t:security setsecparam;
+kernel_setsecparam($1)
 
 #
 # can_sysctl(): complete
@@ -555,6 +578,25 @@ allow $1 $2:unix_stream_socket connectto;
 allow $1 $2:unix_dgram_socket sendto;
 
 #
+# can_ypbind():
+#
+optional_policy(`ypbind.te', `
+if (allow_ypbind) {
+can_network($1)
+r_dir_file($1,var_yp_t)
+corenetwork_bind_tcp_on_general_port($1)
+corenetwork_bind_udp_on_general_port($1)
+corenetwork_bind_tcp_on_reserved_port($1)
+corenetwork_bind_udp_on_reserved_port($1)
+corenetwork_ignore_bind_tcp_on_all_reserved_ports($1)
+corenetwork_ignore_bind_udp_on_all_reserved_ports($1)
+dontaudit $1 self:capability net_bind_service;
+} else {
+dontaudit $1 var_yp_t:dir search;
+}
+') dnl end ypbind optional_policy
+
+#
 # create_append_log_file():
 #
 allow $1 $2:dir { read getattr search add_name write };
@@ -563,16 +605,58 @@ allow $1 $2:file { create ioctl getattr setattr append link };
 #
 # create_dir_file():
 #
-allow $1 $2:dir create_dir_perms;
-allow $1 $2:file create_file_perms;
-allow $1 $2:lnk_file create_lnk_perms;
+allow $1 $2:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow $1 $2:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
 
 #
 # create_dir_notdevfile():
 #
-allow $1 $2:dir create_dir_perms;
-allow $1 $2:{ file sock_file fifo_file } create_file_perms;
-allow $1 $2:lnk_file create_lnk_perms;
+allow $1 $2:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow $1 $2:{ file sock_file fifo_file } { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
+
+#
+# daemon_base_domain():
+#
+type $1_t;
+type $1_exec_t;
+domain_make_daemon_domain($1_t,$1_exec_t)
+role system_r types $1_t;
+dontaudit $1_t self:capability sys_tty_config;
+allow $1_t self:process { sigchld sigkill sigstop signull signal };
+kernel_read_kernel_sysctl($1_t)
+kernel_read_hardware_state($1_t)
+devices_discard_data_stream($1_t)
+terminal_ignore_use_console($1_t)
+init_use_file_descriptors($1_t)
+init_script_use_pseudoterminal($1_t)
+domain_use_widely_inheritable_file_descriptors($1_t)
+libraries_use_dynamic_loader($1_t)
+libraries_read_shared_libraries($1_t)
+logging_send_system_log_message($1_t)
+allow $1_t { self proc_t }:dir r_dir_perms;
+allow $1_t { self proc_t }:lnk_file read;
+ifdef(`rhgb.te', `
+allow $1_t rhgb_t:process sigchld;
+allow $1_t rhgb_t:fd use;
+allow $1_t rhgb_t:fifo_file { read write };
+')
+optional_policy(`udev.te', `
+udev_read_database($1_t)
+')
+allow $1_t null_device_t:chr_file r_file_perms;
+dontaudit $1_t unpriv_userdomain:fd use;
+allow $1_t autofs_t:dir { search getattr };
+ifdef(`targeted_policy', `
+dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
+dontaudit $1_t root_t:file { getattr read };
+')dnl end if targeted_policy
+ifdef(`direct_sysadm_daemon', `
+dontaudit $1_t admin_tty_type:chr_file rw_file_perms;
+')
+ifdef(`newrole.te', `allow $1_t newrole_t:process sigchld;')
+
 
 #
 # daemon_domain():
@@ -584,59 +668,39 @@ type $1_var_run_t;
 files_make_file($1_var_run_t)
 allow $1_t $1_var_run_t:file { getattr create read write append setattr unlink };
 files_create_daemon_runtime_data($1_t,$1_var_run_t)
-logging_send_system_log_message($1_t)
 dontaudit $1_t self:capability sys_tty_config;
-allow $1_t init_t:fd use;
+kernel_read_kernel_sysctl($1_t)
+kernel_read_hardware_state($1_t)
+devices_discard_data_stream($1_t)
+filesystem_get_all_filesystem_attributes($1_t)
+terminal_use_controlling_terminal($1_t)
+terminal_ignore_use_console($1_t)
+init_use_file_descriptors($1_t)
+init_script_use_pseudoterminal($1_t)
+domain_use_widely_inheritable_file_descriptors($1_t)
+logging_send_system_log_message($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
+miscfiles_read_localization($1_t)
 allow $1_t proc_t:dir r_dir_perms;
 allow $1_t proc_t:lnk_file read;
-ifdef(`udev.te', `
-allow $1_t udev_tdb_t:file r_file_perms;
-')dnl end if udev.te
-devices_discard_data_stream($1_t)
+optional_policy(`udev.te', `
+udev_read_database($1_t)
+')
 allow $1_t null_device_t:chr_file r_file_perms;
-dontaudit $1_t console_device_t:chr_file rw_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
-kernel_read_hardware_state($1_t)
 allow $1_t autofs_t:dir { search getattr };
 ifdef(`targeted_policy', `
 dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
 dontaudit $1_t root_t:file { getattr read };
 ')dnl end if targeted_policy
-terminal_use_controlling_terminal($1_t)
 dontaudit $1_t sysadm_home_dir_t:dir search;
-filesystem_get_all_filesystem_attributes($1_t)
-miscfiles_read_localization($1_t)
-rhgb_domain($1_t)
-kernel_read_kernel_sysctl($1_t)
-ifdef(`direct_sysadm_daemon', `
-dontaudit $1_t admin_tty_type:chr_file rw_file_perms;
+ifdef(`rhgb.te', `
+allow $1_t rhgb_t:process sigchld;
+allow $1_t rhgb_t:fd use;
+allow $1_t rhgb_t:fifo_file { read write };
 ')
-ifelse(index(`$2',`transitionbool'), -1, `', `
-bool $1_disable_trans false;
-if ($1_disable_trans) {
-can_exec(initrc_t, $1_exec_t)
-can_exec(sysadm_t, $1_exec_t)
-} else {
-') dnl transitionbool
-domain_auto_trans(initrc_t, $1_exec_t, $1_t)
-allow initrc_t $1_t:process { noatsecure siginh rlimitinh };
-ifdef(`direct_sysadm_daemon', `
-ifelse(`$3', `nosysadm', `', `
-domain_auto_trans(sysadm_t, $1_exec_t, $1_t)
-allow sysadm_t $1_t:process { noatsecure siginh rlimitinh };
-')dnl end direct_sysadm_daemon
-')dnl end nosysadm
-ifelse(index(`$2', `transitionbool'), -1, `', `}') dnl end transitionbool
-ifdef(`direct_sysadm_daemon', `
-ifelse(`$3', `nosysadm', `', `
-role_transition sysadm_r $1_exec_t system_r;
-')dnl end nosysadm
-')dnl end direct_sysadm_daemon
-allow $1_t privfd:fd use;
 ifdef(`newrole.te', `allow $1_t newrole_t:process sigchld;')
-allow $1_t initrc_devpts_t:chr_file rw_file_perms;
 
 #
 # daemon_sub_domain():
@@ -675,11 +739,11 @@ allow $1_t $1_etc_t:lnk_file { getattr read };
 #
 # file_type_auto_trans():
 #
-allow $1 $2:dir rw_dir_perms;
-allow $1 $2:file create_file_perms;
-allow $1 $2:lnk_file create_lnk_perms;
-allow $1 $2:sock_file create_file_perms;
-allow $1 $2:fifo_file create_file_perms;
+allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 $2:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
+allow $1 $2:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $2:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
 type_transition $1 $2:dir $3;
 type_transition $1 $2:{ file lnk_file sock_file fifo_file } $3;
 
@@ -687,25 +751,25 @@ type_transition $1 $2:{ file lnk_file sock_file fifo_file } $3;
 # file_type_auto_trans($1,$2,$3,$4):
 #
 # for each i in $4
-allow $1 $2:dir rw_dir_perms;
+allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
 can_create_internal($1,$2,$4)
 type_transition $1 $2:$4 $3;
 
 #
 # file_type_trans($1,$2,$3):
 #
-allow $1 $3:dir rw_dir_perms;
-allow $1 $3:file create_file_perms;
-allow $1 $3:lnk_file create_lnk_perms;
-allow $1 $3:sock_file create_file_perms;
-allow $1 $3:fifo_file create_file_perms;
+allow $1 $3:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 $3:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $3:lnk_file { create read getattr setattr link unlink rename };
+allow $1 $3:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $3:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
 type_transition $1 $2:{ dir file lnk_file sock_file fifo_file } $3;
 
 #
 # file_type_trans($1,$2,$3,$4):
 #
 # for each i in $4
-allow $1 $2:dir rw_dir_perms;
+allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
 can_create_internal($1,$2,$3,$4)
 type_transition $1 $2:$i $3;
 
@@ -771,21 +835,21 @@ role staff_r types $1;
 type $1_t;
 type $1_exec_t;
 domain_make_daemon_domain($1_t,$1_exec_t)
+dontaudit $1_t self:capability sys_tty_config;
 kernel_read_hardware_state($1_t)
-logging_send_system_log_message($1_t)
+terminal_ignore_use_console($1_t)
+init_use_file_descriptors($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
+logging_send_system_log_message($1_t)
 devices_discard_data_stream($1_t)
-dontaudit $1_t self:capability sys_tty_config;
-allow $1_t init_t:fd use;
 allow $1_t proc_t:dir r_dir_perms;
 allow $1_t proc_t:lnk_file read;
-ifdef(`udev.te', `
-allow $1_t udev_tdb_t:file r_file_perms;
-')dnl end if udev.te
+optional_policy(`udev.te', `
+udev_read_database($1_t)
+')
 allow $1_t null_device_t:chr_file r_file_perms;
 allow $1_t autofs_t:dir { search getattr };
-dontaudit $1_t console_device_t:chr_file rw_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
 ifdef(`targeted_policy', `
 dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
@@ -806,17 +870,19 @@ type $1_lock_t, file_type, sysadmfile, lockfile;
 file_type_auto_trans($1_t, var_lock_t, $1_lock_t, file)
 
 #
-# log_domain():
+# log_domain(): complete
 #
-type $1_log_t, file_type, sysadmfile, logfile;
-file_type_auto_trans($1_t, var_log_t, $1_log_t, file)
+type $1_log_t;
+logging_make_log_file($1,$1_log_t)
+allow $1_t $1_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 
 #
-# logdir_domain():
+# logdir_domain(): complete
 #
-type $1_log_t, file_type, sysadmfile, logfile;
-file_type_auto_trans($1_t, var_log_t, $1_log_t, file)
-allow $1_t $1_log_t:dir { setattr rw_dir_perms };
+type $1_log_t;
+logging_make_log_file($1,$1_log_t)
+allow $1_t $1_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_log_t:dir { getattr search read lock ioctl add_name remove_name write setattr };
 
 #
 # mini_user_domain():
@@ -827,7 +893,7 @@ allow $1_t $1_log_t:dir { setattr rw_dir_perms };
 #
 create_dir_file($1, $2)
 can_exec($1, $2)
-allow $1 $2:{ sock_file fifo_file } create_file_perms;
+allow $1 $2:{ sock_file fifo_file } { create ioctl read getattr lock write setattr append link unlink rename };
 
 #
 # pty_slave_label():
@@ -840,8 +906,8 @@ allow $1_t $1_devpts_t:chr_file { setattr rw_file_perms };
 #
 # r_dir_file():
 #
-allow $1 $2:dir r_dir_perms;
-allow $1 $2:file r_file_perms;
+allow $1 $2:dir { getattr read search };
+allow $1 $2:file { read getattr };
 allow $1 $2:lnk_file { getattr read };
 
 #
@@ -885,14 +951,14 @@ allow $1 rhgb_t:fifo_file { read write };
 #
 # rw_dir_create_file():
 #
-allow $1 $2:dir rw_dir_perms;
-allow $1 $2:file create_file_perms;
-allow $1 $2:lnk_file create_lnk_perms;
+allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 $2:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
 
 #
 # rw_dir_file():
 #
-allow $1 $2:dir rw_dir_perms;
+allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
 allow $1 $2:file rw_file_perms;
 allow $1 $2:lnk_file { getattr read };
 
@@ -920,6 +986,16 @@ files_create_private_tmp_data($1_t, $1_tmp_t, { file dir })
 # class specified:
 files_create_private_tmp_data($1_t, $1_tmp_t, $3)
 # $3 manage object perms here
+
+#
+# tmp_domain($1,$2,$3): complete
+#
+# $2 may need more handling
+#
+type $1_tmp_t $2;
+files_make_file($1_tmp_t)
+files_create_private_tmp_data($1_t, $1_tmp_t, $3)
+allow $1_t $1_tmp_t:$3 manage_obj_perms;
 
 #
 # tmpfs_domain():
@@ -968,7 +1044,7 @@ libraries_read_shared_libraries($1)
 type $1_var_lib_t, file_type, sysadmfile;
 typealias $1_var_lib_t alias var_lib_$1_t;
 file_type_auto_trans($1_t, var_lib_t, $1_var_lib_t, file)
-allow $1_t $1_var_lib_t:dir rw_dir_perms;
+allow $1_t $1_var_lib_t:dir { read getattr lock search ioctl add_name remove_name write };
 
 #
 # var_run_domain($1):
@@ -976,7 +1052,7 @@ allow $1_t $1_var_lib_t:dir rw_dir_perms;
 type $1_var_run_t, file_type, sysadmfile, pidfile;
 file_type_auto_trans($1_t, var_run_t, $1_var_run_t, file)
 allow $1_t var_t:dir search;
-allow $1_t $1_var_run_t:dir rw_dir_perms;
+allow $1_t $1_var_run_t:dir { read getattr lock search ioctl add_name remove_name write };
 
 #
 # var_run_domain($1,$2):
@@ -984,4 +1060,4 @@ allow $1_t $1_var_run_t:dir rw_dir_perms;
 type $1_var_run_t, file_type, sysadmfile, pidfile;
 file_type_auto_trans($1_t, var_run_t, $1_var_run_t, $2)
 allow $1_t var_t:dir search;
-allow $1_t $1_var_run_t:dir rw_dir_perms;
+allow $1_t $1_var_run_t:dir { read getattr lock search ioctl add_name remove_name write };
