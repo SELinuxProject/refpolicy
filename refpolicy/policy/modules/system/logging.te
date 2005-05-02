@@ -120,11 +120,13 @@ filesystem_get_all_filesystems_attributes(syslogd_t)
 init_use_file_descriptors(syslogd_t)
 init_script_use_pseudoterminal(syslogd_t)
 
+domain_use_widely_inheritable_file_descriptors(syslogd_t)
+
 files_read_general_system_config(syslogd_t)
 files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
 files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
 files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
-ifdef(`distro_suse', `
+tunable_policy(`distro_suse', `
 # suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
 file_type_auto_trans(syslogd_t, var_lib_t, devlog_t, sock_file)
 ')
@@ -153,9 +155,19 @@ kernel_clear_ring_buffer(syslogd_t)
 kernel_change_ring_buffer_level(syslogd_t)
 ')
 
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(syslogd_t)
+')
+
 optional_policy(`udev.te', `
 udev_read_database(syslogd_t)
-')dnl end if udev.te
+')
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(syslogd_t)
+terminal_ignore_use_general_pseudoterminal(syslogd_t)
+files_ignore_read_rootfs_file(syslogd_t)
+')
 
 ifdef(`TODO',`
 allow syslogd_t proc_t:dir r_dir_perms;
@@ -163,19 +175,13 @@ allow syslogd_t proc_t:lnk_file read;
 allow syslogd_t null_device_t:chr_file r_file_perms;
 dontaudit syslogd_t unpriv_userdomain:fd use;
 allow syslogd_t autofs_t:dir { search getattr };
-allow syslogd_t privfd:fd use;
 dontaudit syslogd_t sysadm_home_dir_t:dir search;
-ifdef(`newrole.te', `allow syslogd_t newrole_t:process sigchld;')
-ifdef(`rhgb.te', `
+optional_policy(`rhgb.te', `
 allow syslogd_t rhgb_t:process sigchld;
 allow syslogd_t rhgb_t:fd use;
 allow syslogd_t rhgb_t:fifo_file { read write };
 ')
-ifdef(`targeted_policy', `
-dontaudit syslogd_t { tty_device_t devpts_t }:chr_file { read write };
-dontaudit syslogd_t root_t:file { getattr read };
-')dnl end if targeted_policy
-ifdef(`direct_sysadm_daemon', `
+tunable_policy(`direct_sysadm_daemon',`
 dontaudit syslogd_t admin_tty_type:chr_file rw_file_perms;
 ')
 
