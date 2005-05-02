@@ -1,0 +1,108 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(consoletype, 1.0)
+
+########################################
+#
+# Declarations
+#
+
+type consoletype_t;
+domain_make_domain(consoletype_t)
+role system_r types consoletype_t;
+
+type consoletype_exec_t;
+domain_make_entrypoint_file(consoletype_t,consoletype_exec_t)
+
+########################################
+#
+# Local declarations
+#
+
+allow consoletype_t self:capability sys_admin;
+
+allow consoletype_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow consoletype_t self:fd use;
+allow consoletype_t self:fifo_file { read getattr lock ioctl write append };
+allow consoletype_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow consoletype_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow consoletype_t self:unix_dgram_socket sendto;
+allow consoletype_t self:unix_stream_socket connectto;
+allow consoletype_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow consoletype_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow consoletype_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow consoletype_t self:msg { send receive };
+
+kernel_use_file_descriptors(consoletype_t)
+kernel_ignore_read_system_state(consoletype_t)
+
+filesystem_get_all_filesystems_attributes(consoletype_t)
+
+terminal_ignore_use_console(consoletype_t)
+terminal_use_general_physical_terminal(consoletype_t)
+
+init_use_file_descriptors(consoletype_t)
+init_script_use_pseudoterminal(consoletype_t)
+init_script_use_file_descriptors(consoletype_t)
+
+domain_use_widely_inheritable_file_descriptors(consoletype_t)
+
+files_ignore_read_rootfs_file(consoletype_t)
+
+libraries_use_dynamic_loader(consoletype_t)
+libraries_read_shared_libraries(consoletype_t)
+
+optional_policy(`authlogin.te', `
+authlogin_read_pam_runtime_data(consoletype_t)
+')
+
+ifdef(`TODO',`
+
+allow consoletype_t unpriv_userdomain:fd use;
+allow consoletype_t sysadm_t:fd use;
+allow consoletype_t { sysadm_tty_device_t sysadm_devpts_t }:chr_file rw_file_perms;
+allow consoletype_t sysadm_t:fifo_file rw_file_perms;
+
+allow consoletype_t initrc_t:fifo_file write;
+allow consoletype_t nfs_t:file write;
+
+allow consoletype_t crond_t:fifo_file { read getattr ioctl };
+allow consoletype_t system_crond_t:fd use;
+
+optional_policy(`ypbind.te', `
+if (allow_ypbind) {
+can_network(consoletype_t)
+r_dir_file(consoletype_t,var_yp_t)
+corenetwork_bind_tcp_on_general_port(consoletype_t)
+corenetwork_bind_udp_on_general_port(consoletype_t)
+corenetwork_bind_tcp_on_reserved_port(consoletype_t)
+corenetwork_bind_udp_on_reserved_port(consoletype_t)
+corenetwork_ignore_bind_tcp_on_all_reserved_ports(consoletype_t)
+corenetwork_ignore_bind_udp_on_all_reserved_ports(consoletype_t)
+dontaudit consoletype_t self:capability net_bind_service;
+} else {
+dontaudit consoletype_t var_yp_t:dir search;
+}
+') dnl end ypbind optional_policy
+
+optional_policy(`automount.te', `
+allow consoletype_t autofs_t:dir { search getattr };
+')
+
+optional_policy(`xdm.te', `
+domain_auto_trans(xdm_t, consoletype_exec_t, consoletype_t)
+allow consoletype_t xdm_tmp_t:file { read write };
+')
+
+optional_policy(`lpd.te', `
+allow consoletype_t printconf_t:file { getattr read };
+')
+
+tunable_policy(`distro_redhat', `
+allow consoletype_t tmpfs_t:chr_file rw_file_perms;
+')
+
+optional_policy(`firstboot.te', `
+allow consoletype_t firstboot_t:fifo_file write;
+')
+') dnl end TODO
