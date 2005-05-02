@@ -225,13 +225,16 @@ devices_read_sound_mixer_levels(initrc_t)
 devices_write_sound_mixer_levels(initrc_t)
 devices_set_all_character_device_attributes(initrc_t)
 
+storage_get_fixed_disk_attributes(initrc_t)
 storage_set_fixed_disk_attributes(initrc_t)
 storage_set_removable_device_attributes(initrc_t)
 
 terminal_use_all_terminals(initrc_t)
-terminal_reset_labels(initrc_t)
+terminal_reset_physical_terminal_labels(initrc_t)
 
 bootloader_read_kernel_symbol_table(initrc_t)
+
+domain_use_widely_inheritable_file_descriptors(initrc_t)
 
 libraries_modify_dynamic_loader_cache(initrc_t)
 libraries_use_dynamic_loader(initrc_t)
@@ -256,7 +259,6 @@ corecommands_execute_shell(initrc_t)
 logging_send_system_log_message(initrc_t)
 
 selinux_read_config(initrc_t)
-selinux_read_default_contexts(run_init_t)
 
 sysnetwork_read_network_config(initrc_t)
 
@@ -270,6 +272,10 @@ miscfiles_read_localization(initrc_t)
 logging_modify_system_logs(initrc_t)
 logging_read_all_logs(initrc_t)
 logging_append_all_logs(initrc_t)
+
+optional_policy(`consoletype.te',`
+consoletype_transition(initrc_t)
+')
 
 ifdef(`distro_redhat',`
 kernel_set_selinux_enforcement_mode(initrc_t)
@@ -287,11 +293,6 @@ allow initrc_t { file_t default_t }:dir { read search getattr mounton };
 
 allow initrc_t var_spool_t:file rw_file_perms;
 
-allow initrc_t privfd:fd use;
-
-# for cryptsetup
-allow initrc_t fixed_disk_device_t:blk_file getattr;
-
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
 
@@ -307,7 +308,14 @@ allow initrc_t home_type:file r_file_perms;
 allow initrc_t udev_runtime_t:file rw_file_perms;
 
 # for lsof in shutdown scripts
-can_kerberos(initrc_t)
+ifdef(`kerberos.te',`
+if (allow_kerberos) {
+can_network_client(initrc_t, `kerberos_port_t')
+can_resolve(initrc_t)
+}
+') dnl kerberos.te
+dontaudit initrc_t krb5_conf_t:file write;
+allow initrc_t krb5_conf_t:file { getattr read };
 
 #
 # Wants to remove udev.tbl
@@ -381,6 +389,7 @@ libraries_use_dynamic_loader(run_init_t)
 libraries_read_shared_libraries(run_init_t)
 
 selinux_read_config(run_init_t)
+selinux_read_default_contexts(run_init_t)
 
 authlogin_ignore_read_shadow_passwords(run_init_t)
 
@@ -406,6 +415,12 @@ dontaudit run_init_t self:capability { dac_override dac_read_search };
 
 devices_ignore_list_device_nodes(run_init_t)
 terminal_ignore_list_pseudoterminals(run_init_t)
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+files_ignore_search_all_directories(run_init_t)
+
 ') dnl end ifdef targeted policy
 
 
@@ -427,11 +442,6 @@ allow run_init_t admin_tty_type:chr_file rw_file_perms;
 
 allow run_init_t privfd:fd use;
 allow run_init_t lib_t:file { getattr read };
-
-# often the administrator runs such programs from a directory that is owned
-# by a different user or has restrictive SE permissions, do not want to audit
-# the failed access to the current directory
-dontaudit run_init_t file_type:dir search;
 
 ') dnl endif targeted policy
 
