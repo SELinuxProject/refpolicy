@@ -59,7 +59,7 @@ type run_init_t;
 domain_make_domain(run_init_t)
 
 type run_init_exec_t;
-files_make_file(run_init_exec_t)
+domain_make_entrypoint_file(run_init_t,run_init_exec_t)
 
 ########################################
 #
@@ -192,6 +192,8 @@ kernel_read_all_sysctl(initrc_t)
 kernel_modify_all_sysctl(initrc_t)
 kernel_get_selinux_enforcement_mode(initrc_t)
 kernel_list_usb_hardware(initrc_t)
+# for lsof which is used by alsa shutdown:
+kernel_ignore_get_message_interface_attributes(initrc_t)
 
 filesystem_register_binary_executable_type(initrc_t)
 # cjp: not sure why these are here; should use mount policy
@@ -367,7 +369,7 @@ dontaudit initrc_t mail_spool_t:lnk_file read;
 
 # for lsof which is used by alsa shutdown
 dontaudit initrc_t domain:{ udp_socket tcp_socket fifo_file unix_dgram_socket } getattr;
-dontaudit initrc_t proc_kmsg_t:file getattr;
+kernel_ignore_get_message_interface_attributes(initrc_t)
 ') dnl end TODO
 
 #################################
@@ -378,25 +380,6 @@ dontaudit initrc_t proc_kmsg_t:file getattr;
 tunable_policy(`targeted_policy',`
 # targeted/unconfined stuff
 ',`
-corecommands_execute_general_programs(run_init_t)
-corecommands_execute_shell(run_init_t)
-
-filesystem_get_persistent_filesystem_attributes(run_init_t)
-
-files_read_general_system_config(run_init_t)
-
-libraries_use_dynamic_loader(run_init_t)
-libraries_read_shared_libraries(run_init_t)
-
-selinux_read_config(run_init_t)
-selinux_read_default_contexts(run_init_t)
-
-authlogin_ignore_read_shadow_passwords(run_init_t)
-
-miscfiles_read_localization(run_init_t)
-
-logging_send_system_log_message(run_init_t)
-
 allow run_init_t initrc_t:process transition;
 allow run_init_t initrc_exec_t:file { getattr read execute };
 
@@ -412,15 +395,32 @@ allow run_init_t self:fifo_file { getattr read write };
 # by a different user or has restrictive SE permissions, do not want to audit
 # the failed access to the current directory
 dontaudit run_init_t self:capability { dac_override dac_read_search };
-
-devices_ignore_list_device_nodes(run_init_t)
-terminal_ignore_list_pseudoterminals(run_init_t)
-
-# often the administrator runs such programs from a directory that is owned
-# by a different user or has restrictive SE permissions, do not want to audit
-# the failed access to the current directory
 files_ignore_search_all_directories(run_init_t)
 
+filesystem_get_persistent_filesystem_attributes(run_init_t)
+
+devices_ignore_list_device_nodes(run_init_t)
+
+terminal_ignore_list_pseudoterminals(run_init_t)
+
+domain_use_widely_inheritable_file_descriptors(run_init_t)
+
+corecommands_execute_general_programs(run_init_t)
+corecommands_execute_shell(run_init_t)
+
+files_read_general_system_config(run_init_t)
+
+libraries_use_dynamic_loader(run_init_t)
+libraries_read_shared_libraries(run_init_t)
+
+selinux_read_config(run_init_t)
+selinux_read_default_contexts(run_init_t)
+
+authlogin_ignore_read_shadow_passwords(run_init_t)
+
+miscfiles_read_localization(run_init_t)
+
+logging_send_system_log_message(run_init_t)
 ') dnl end ifdef targeted policy
 
 
@@ -440,7 +440,6 @@ domain_auto_trans(run_init_t, chkpwd_exec_t, sysadm_chkpwd_t)
 # for utmp
 allow run_init_t admin_tty_type:chr_file rw_file_perms;
 
-allow run_init_t privfd:fd use;
 allow run_init_t lib_t:file { getattr read };
 
 ') dnl endif targeted policy
@@ -448,6 +447,6 @@ allow run_init_t lib_t:file { getattr read };
 tunable_policy(`distro_gentoo', `
 # Gentoo integrated run_init+open_init_pty-runscript:
 domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
+domain_make_entrypoint_file(run_init_t,initrc_exec_t)
 ')
-
 ') dnl end TODO
