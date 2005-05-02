@@ -1,6 +1,13 @@
 # Copyright (C) 2005 Tresys Technology, LLC
 
-type udev_t; # nscd_client_domain, privmem, privfd, privowner
+policy_module(udev,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type udev_t; # nscd_client_domain, privfd, privowner
 type udev_exec_t;
 type udev_helper_exec_t;
 domain_make_daemon_domain(udev_t,udev_exec_t)
@@ -11,6 +18,15 @@ files_make_file(udev_etc_t)
 
 type udev_tbl_t alias udev_tdb_t;
 files_make_file(udev_tbl_t)
+devices_create_dev_entry(udev_t,udev_tbl_t,file)
+
+type udev_var_run_t;
+files_make_file(udev_var_run_t)
+
+########################################
+#
+# Local policy
+#
 
 allow udev_t self:capability { chown dac_override dac_read_search fowner fsetid sys_admin mknod net_raw net_admin };
 allow udev_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
@@ -32,8 +48,10 @@ allow udev_t udev_helper_exec_t:dir { read getattr lock search ioctl };
 allow udev_t udev_etc_t:file { read getattr lock ioctl };
 
 # create udev database in /dev/.udevdb
-devices_create_dev_entry(udev_t,udev_tbl_t,file)
 allow udev_t udev_tbl_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+
+allow udev_t udev_var_run_t : dir { read getattr lock search ioctl add_name remove_name write };
+allow udev_t udev_var_run_t : file { create ioctl read getattr lock write setattr append link unlink rename };
 
 kernel_read_system_state(udev_t)
 kernel_get_core_interface_attributes(udev_t)
@@ -49,6 +67,9 @@ kernel_compute_selinux_av(udev_t)
 kernel_compute_create(udev_t)
 kernel_compute_relabel(udev_t)
 kernel_compute_reachable_user_contexts(udev_t)
+kernel_transition_from(udev_t,udev_exec_t)
+
+devices_manage_device_nodes(udev_t)
 
 files_read_runtime_system_config(udev_t)
 files_read_general_system_config(udev_t)
@@ -62,6 +83,7 @@ domain_execute_all_entrypoint_programs(udev_t)
 selinux_read_config(udev_t)
 selinux_read_default_contexts(udev_t)
 selinux_read_file_contexts(udev_t)
+selinux_restorecon_transition(udev_t)
 
 modutils_insmod_transition(udev_t)
 
@@ -78,18 +100,11 @@ allow udev_t var_lock_t:file getattr;
 # TODO: Need macro for reading daemon runtime data.
 allow udev_t initrc_var_run_t:file r_file_perms;
 
-# Devices
-allow udev_t device_t:dir { relabelfrom relabelto create_dir_perms };
-file_type_auto_trans(udev_t, device_t, udev_tbl_t, file)
-
 # Mount
 allow udev_t mnt_t:dir search;
 
 allow udev_t devpts_t:dir { getattr search };
 allow udev_t sysadm_tty_device_t:chr_file { read write };
-allow udev_t device_t:sock_file create_file_perms;
-allow udev_t device_t:lnk_file create_lnk_perms;
-allow udev_t { device_t device_type }:{ chr_file blk_file } { relabelfrom relabelto create_file_perms };
 
 # Dontaudits
 dontaudit udev_t initrc_var_run_t:file write;
@@ -98,9 +113,6 @@ dontaudit udev_t file_t:dir search;
 dontaudit udev_t domain:dir r_dir_perms;
 dontaudit udev_t ttyfile:chr_file unlink;
 
-domain_auto_trans(initrc_t, udev_exec_t, udev_t)
-domain_auto_trans(kernel_t, udev_exec_t, udev_t)
-domain_auto_trans(udev_t, restorecon_exec_t, restorecon_t)
 domain_auto_trans(udev_t, ifconfig_exec_t, ifconfig_t)
 
 allow udev_t kernel_t:unix_dgram_socket { sendto ioctl read write };
