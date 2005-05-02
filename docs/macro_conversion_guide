@@ -232,6 +232,11 @@
 #
 
 #
+# admin_tty_type: complete
+#
+{ sysadm_tty_device_t sysadm_devpts_t }
+
+#
 # file_type: complete
 #
 files_make_file($1)
@@ -414,6 +419,18 @@ kernel_compute_selinux_av($1)
 kernel_compute_create($1)
 kernel_compute_relabel($1)
 kernel_compute_reachable_user_contexts($1)
+
+#
+# can_kerberos():
+#
+ifdef(`kerberos.te',`
+if (allow_kerberos) {
+can_network_client($1, `kerberos_port_t')
+can_resolve($1)
+}
+') dnl kerberos.te
+dontaudit $1 krb5_conf_t:file write;
+allow $1 krb5_conf_t:file { getattr read };
 
 #
 # can_ldap():
@@ -635,9 +652,14 @@ domain_use_widely_inheritable_file_descriptors($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 logging_send_system_log_message($1_t)
-allow $1_t { self proc_t }:dir r_dir_perms;
-allow $1_t { self proc_t }:lnk_file read;
-ifdef(`rhgb.te', `
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal($1_t)
+terminal_ignore_use_general_pseudoterminal($1_t)
+files_ignore_read_rootfs_file($1_t)
+')dnl end targeted_policy tunable
+allow $1_t proc_t:dir r_dir_perms;
+allow $1_t proc_t:lnk_file read;
+optional_policy(`rhgb.te', `
 allow $1_t rhgb_t:process sigchld;
 allow $1_t rhgb_t:fd use;
 allow $1_t rhgb_t:fifo_file { read write };
@@ -648,14 +670,12 @@ udev_read_database($1_t)
 allow $1_t null_device_t:chr_file r_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
 allow $1_t autofs_t:dir { search getattr };
-ifdef(`targeted_policy', `
-dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
-dontaudit $1_t root_t:file { getattr read };
-')dnl end if targeted_policy
-ifdef(`direct_sysadm_daemon', `
+tunable_policy(`direct_sysadm_daemon', `
 dontaudit $1_t admin_tty_type:chr_file rw_file_perms;
 ')
-ifdef(`newrole.te', `allow $1_t newrole_t:process sigchld;')
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld($1_t)
+')
 
 
 #
@@ -682,25 +702,28 @@ logging_send_system_log_message($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 miscfiles_read_localization($1_t)
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
 optional_policy(`udev.te', `
 udev_read_database($1_t)
 ')
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal($1_t)
+terminal_ignore_use_general_pseudoterminal($1_t)
+files_ignore_read_rootfs_file($1_t)
+')dnl end targeted_policy tunable
+allow $1_t proc_t:dir r_dir_perms;
+allow $1_t proc_t:lnk_file read;
 allow $1_t null_device_t:chr_file r_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
 allow $1_t autofs_t:dir { search getattr };
-ifdef(`targeted_policy', `
-dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
-dontaudit $1_t root_t:file { getattr read };
-')dnl end if targeted_policy
 dontaudit $1_t sysadm_home_dir_t:dir search;
-ifdef(`rhgb.te', `
+optional_policy(`rhgb.te', `
 allow $1_t rhgb_t:process sigchld;
 allow $1_t rhgb_t:fd use;
 allow $1_t rhgb_t:fifo_file { read write };
 ')
-ifdef(`newrole.te', `allow $1_t newrole_t:process sigchld;')
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld($1_t)
+')
 
 #
 # daemon_sub_domain():
@@ -843,6 +866,11 @@ libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 logging_send_system_log_message($1_t)
 devices_discard_data_stream($1_t)
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal($1_t)
+terminal_ignore_use_general_pseudoterminal($1_t)
+files_ignore_read_rootfs_file($1_t)
+')dnl end targeted_policy tunable
 allow $1_t proc_t:dir r_dir_perms;
 allow $1_t proc_t:lnk_file read;
 optional_policy(`udev.te', `
@@ -851,10 +879,6 @@ udev_read_database($1_t)
 allow $1_t null_device_t:chr_file r_file_perms;
 allow $1_t autofs_t:dir { search getattr };
 dontaudit $1_t unpriv_userdomain:fd use;
-ifdef(`targeted_policy', `
-dontaudit $1_t { tty_device_t devpts_t }:chr_file { read write };
-dontaudit $1_t root_t:file { getattr read };
-')dnl end if targeted_policy
 
 #
 # legacy_domain(): complete
