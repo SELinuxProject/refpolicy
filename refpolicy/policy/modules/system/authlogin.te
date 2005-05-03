@@ -25,8 +25,9 @@ domain_make_domain(pam_console_t)
 type pam_console_exec_t;
 domain_make_entrypoint_file(pam_console_t,pam_console_exec_t)
 
-type pam_t;
+type pam_t; #, nscd_client_domain;
 domain_make_domain(pam_t)
+role system_r types pam_t;
 
 type pam_exec_t;
 domain_make_entrypoint_file(pam_t,pam_exec_t)
@@ -47,7 +48,7 @@ attribute can_write_shadow_passwords;
 neverallow ~can_read_shadow_passwords shadow_t:file read;
 neverallow ~can_write_shadow_passwords shadow_t:file write;
 
-type utempter_t;
+type utempter_t; #, nscd_client_domain;
 domain_make_domain(utempter_t)
 
 type utempter_exec_t;
@@ -58,7 +59,102 @@ logging_make_log_file(wtmp_t)
 
 ########################################
 #
-# Local policy
+# PAM local policy
 #
-#dontaudit system_chkpwd_t { user_tty_type tty_device_t }:chr_file rw_file_perms;
-#dontaudit system_chkpwd_t privfd:fd use;
+
+allow pam_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+dontaudit pam_t self:capability sys_tty_config;
+
+allow pam_t self:fd use;
+allow pam_t self:fifo_file { read getattr lock ioctl write append };
+allow pam_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow pam_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow pam_t self:unix_dgram_socket sendto;
+allow pam_t self:unix_stream_socket connectto;
+allow pam_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow pam_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow pam_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow pam_t self:msg { send receive };
+
+allow pam_t pam_var_run_t:dir { search getattr read write remove_name };
+allow pam_t pam_var_run_t:file { getattr read unlink };
+
+allow pam_t pam_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow pam_t pam_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(pam_t, pam_tmp_t, { file dir })
+
+kernel_read_system_state(pam_t)
+
+terminal_use_controlling_terminal(pam_t)
+terminal_use_all_users_physical_terminals(pam_t)
+terminal_use_all_users_pseudoterminals(pam_t)
+
+init_script_ignore_modify_runtime_data(pam_t)
+
+files_read_general_system_config(pam_t)
+files_read_runtime_data_directory(pam_t)
+
+libraries_use_dynamic_loader(pam_t)
+libraries_read_shared_libraries(pam_t)
+
+logging_send_system_log_message(pam_t)
+
+optional_policy(`locallogin.te',`
+locallogin_use_file_descriptors(pam_t)
+')
+
+ifdef(`TODO',`
+allow pam_t unpriv_userdomain:fd use;
+can_ypbind(pam_t)
+ifdef(`automount.te', `
+allow pam_t autofs_t:dir { search getattr };
+')
+
+in_user_role(pam_t)
+domain_auto_trans(userdomain, pam_exec_t, pam_t)
+ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
+') dnl endif TODO
+
+########################################
+#
+# Utempter local policy
+#
+
+allow utempter_t self:capability setgid;
+allow utempter_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+
+allow utempter_t wtmp_t:file { ioctl read getattr lock write append };
+
+terminal_get_all_users_physical_terminal_attributes(utempter_t)
+terminal_get_all_users_pseudoterminal_attributes(utempter_t)
+terminal_ignore_use_all_users_physical_terminals(utempter_t)
+terminal_ignore_use_all_users_pseudoterminals(utempter_t)
+
+init_script_modify_runtime_data(utempter_t)
+
+files_read_general_system_config(utempter_t)
+
+domain_use_widely_inheritable_file_descriptors(utempter_t)
+
+libraries_use_dynamic_loader(utempter_t)
+libraries_read_shared_libraries(utempter_t)
+
+logging_search_system_log_directory(utempter_t)
+
+ifdef(`TODO',`
+in_user_role(utempter_t)
+role sysadm_r types utempter_t;
+domain_auto_trans(userdomain, utempter_exec_t, utempter_t)
+
+# dontaudit access to /dev/ptmx.
+dontaudit utempter_t ptmx_t:chr_file rw_file_perms;
+
+# Allow utemper to write to /tmp/.xses-*
+allow utempter_t user_tmpfile:file { getattr write append };
+
+ifdef(`xdm.te', `
+allow utempter_t xdm_t:fd use;
+allow utempter_t xdm_t:fifo_file { write getattr };
+')
+
+') dnl endif TODO
