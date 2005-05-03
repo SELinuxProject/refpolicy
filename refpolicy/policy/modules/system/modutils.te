@@ -75,7 +75,12 @@ files_read_general_system_config(insmod_t)
 files_read_general_application_resources(insmod_t)
 files_execute_system_config_script(insmod_t)
 
+init_use_file_descriptors(insmod_t)
+init_script_use_file_descriptors(insmod_t)
+init_script_use_pseudoterminal(insmod_t)
+
 domain_signal_all_domains(insmod_t)
+domain_use_widely_inheritable_file_descriptors(insmod_t)
 
 libraries_use_dynamic_loader(insmod_t)
 libraries_read_shared_libraries(insmod_t)
@@ -92,21 +97,12 @@ optional_policy(`mount.te',`
 mount_transition(insmod_t)
 ')
 
-#
-#
-# TODO rules:
-#
-#
-ifdef(`TODO_list',`
+ifdef(`TODO',`
 
-# for loading modules at boot time
-allow insmod_t { init_t initrc_t }:fd use;
 allow insmod_t initrc_t:fifo_file { getattr read write };
 
 allow insmod_t lib_t:file { getattr read };
 allow insmod_t { var_t var_log_t }:dir search;
-
-allow insmod_t privfd:fd use;
 
 allow insmod_t apm_bios_t:chr_file { read write };
 
@@ -120,8 +116,7 @@ allow insmod_t sysfs_t:dir search;
 allow insmod_t usbfs_t:dir search;
 allow insmod_t usbfs_t:filesystem mount;
 
-allow insmod_t { initrc_devpts_t admin_tty_type }:chr_file { getattr read write };
-allow insmod_t devpts_t:dir { getattr search };
+allow insmod_t admin_tty_type:chr_file { getattr read write };
 
 # for when /var is not mounted early in the boot
 dontaudit insmod_t file_t:dir search;
@@ -129,7 +124,7 @@ dontaudit insmod_t file_t:dir search;
 # for nscd
 dontaudit insmod_t var_run_t:dir search;
 
-') dnl if TODO_list
+') dnl if TODO
 
 ########################################
 #
@@ -142,10 +137,9 @@ allow depmod_t depmod_exec_t:file { getattr read execute execute_no_trans };
 allow depmod_t modules_conf_t:file { getattr read };
 
 allow depmod_t modules_dep_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+bootloader_create_private_module_dir_entry(depmod_t,modules_dep_t)
 
 kernel_read_system_state(depmod_t)
-
-bootloader_create_private_module_dir_entry(depmod_t,modules_dep_t)
 
 filesystem_get_persistent_filesystem_attributes(depmod_t)
 
@@ -154,28 +148,27 @@ terminal_use_console(depmod_t)
 bootloader_read_kernel_symbol_table(depmod_t)
 bootloader_read_kernel_modules(depmod_t)
 
+init_use_file_descriptors(depmod_t)
+init_script_use_file_descriptors(depmod_t)
+init_script_use_pseudoterminal(depmod_t)
+
+domain_use_widely_inheritable_file_descriptors(depmod_t)
+
 files_read_runtime_system_config(depmod_t)
 files_read_general_system_config(depmod_t)
+files_read_system_source_code(depmod_t)
 
 libraries_use_dynamic_loader(depmod_t)
 libraries_read_shared_libraries(depmod_t)
 
 ifdef(`TODO',`
-r_dir_file(depmod_t, src_t)
 
-domain_auto_trans(initrc_t, depmod_exec_t, depmod_t)
 allow depmod_t { bin_t sbin_t }:dir search;
 
 domain_auto_trans(sysadm_t, depmod_exec_t, depmod_t)
 
-# Inherit and use descriptors from init and login programs.
-allow depmod_t { init_t privfd }:fd use;
-
-# read system.map
-allow depmod_t boot_t:file { getattr read };
-
 # Access terminals.
-allow depmod_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+allow depmod_t admin_tty_type:chr_file rw_file_perms;
 ifdef(`gnome-pty-helper.te', `allow depmod_t sysadm_gph_t:fd use;')
 
 # Read System.map from home directories.
@@ -195,9 +188,12 @@ allow update_modules_t modules_dep_t:file { getattr read write };
 allow update_modules_t insmod_exec_t:file { getattr read execute execute_no_trans };
 allow update_modules_t update_modules_exec_t:file { getattr read execute execute_no_trans };
 
-bootloader_create_private_module_dir_entry(update_modules_t,modules_conf_t)
+# manage module loading configuration
 allow update_modules_t modules_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+bootloader_create_private_module_dir_entry(update_modules_t,modules_conf_t)
+files_create_private_config(update_modules_t,modules_conf_t)
 
+# transition to depmod
 allow update_modules_t depmod_exec_t:file { getattr read execute };
 type_transition update_modules_t depmod_exec_t:process depmod_t;
 
@@ -213,6 +209,12 @@ filesystem_get_persistent_filesystem_attributes(update_modules_t)
 
 terminal_use_console(update_modules_t)
 terminal_use_controlling_terminal(update_modules_t)
+
+init_use_file_descriptors(depmod_t)
+init_script_use_file_descriptors(depmod_t)
+init_script_use_pseudoterminal(depmod_t)
+
+domain_use_widely_inheritable_file_descriptors(depmod_t)
 
 files_read_runtime_system_config(update_modules_t)
 files_read_general_system_config(update_modules_t)
@@ -232,18 +234,9 @@ miscfiles_read_localization(update_modules_t)
 
 ifdef(`TODO',`
 role sysadm_r types update_modules_t;
-
-domain_auto_trans({ initrc_t sysadm_t }, update_modules_exec_t, update_modules_t)
-allow update_modules_t privfd:fd use;
-allow update_modules_t init_t:fd use;
-
-allow update_modules_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
-allow update_modules_t devpts_t:dir search;
-
+domain_auto_trans(sysadm_t, update_modules_exec_t, update_modules_t)
+allow update_modules_t admin_tty_type:chr_file rw_file_perms;
 dontaudit update_modules_t sysadm_home_dir_t:dir search;
 
 allow update_modules_t lib_t:file { getattr read };
-
-file_type_auto_trans(update_modules_t, etc_t, modules_conf_t, file)
-
 ') dnl endif TODO
