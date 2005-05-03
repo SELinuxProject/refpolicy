@@ -20,9 +20,10 @@ type login_exec_t;
 files_make_file(login_exec_t)
 
 type pam_console_t;
-domain_make_domain(pam_console_t)
-
 type pam_console_exec_t;
+domain_make_daemon_domain(pam_console_t,pam_console_exec_t)
+role system_r types pam_console_t;
+
 domain_make_entrypoint_file(pam_console_t,pam_console_exec_t)
 
 type pam_t; #, nscd_client_domain;
@@ -35,7 +36,7 @@ domain_make_entrypoint_file(pam_t,pam_exec_t)
 type pam_tmp_t;
 files_make_file(pam_tmp_t)
 
-type pam_var_console_t;
+type pam_var_console_t; #, nscd_client_domain
 files_make_file(pam_var_console_t)
 
 type pam_var_run_t;
@@ -113,6 +114,112 @@ allow pam_t autofs_t:dir { search getattr };
 in_user_role(pam_t)
 domain_auto_trans(userdomain, pam_exec_t, pam_t)
 ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
+') dnl endif TODO
+
+########################################
+#
+# PAM console local policy
+#
+
+allow pam_console_t self:capability { chown fowner fsetid };
+dontaudit pam_console_t self:capability sys_tty_config;
+
+allow pam_console_t self:process { sigchld sigkill sigstop signull signal };
+
+# for /var/run/console.lock checking
+allow pam_console_t pam_var_console_t:dir { getattr read search };
+allow pam_console_t pam_var_console_t:file { read getattr };
+allow pam_console_t pam_var_console_t:lnk_file { getattr read };
+
+kernel_read_kernel_sysctl(pam_console_t)
+kernel_read_system_state(pam_console_t)
+kernel_read_hardware_state(pam_console_t)
+kernel_use_file_descriptors(pam_console_t)
+
+devices_discard_data_stream(pam_console_t)
+
+# Allow to set attributes on /dev entries
+storage_get_fixed_disk_attributes(pam_console_t)
+storage_set_fixed_disk_attributes(pam_console_t)
+storage_get_removable_device_attributes(pam_console_t)
+storage_set_removable_device_attributes(pam_console_t)
+
+terminal_use_console(pam_console_t)
+
+init_use_file_descriptors(pam_console_t)
+init_use_file_descriptors(pam_console_t)
+init_script_use_pseudoterminal(pam_console_t)
+
+domain_use_widely_inheritable_file_descriptors(pam_console_t)
+
+files_read_general_system_config(pam_console_t)
+files_search_runtime_data_directory(pam_console_t)
+
+libraries_use_dynamic_loader(pam_console_t)
+libraries_read_shared_libraries(pam_console_t)
+
+logging_send_system_log_message(pam_console_t)
+
+selinux_read_file_contexts(pam_console_t)
+
+tunable_policy(`direct_sysadm_daemon', `
+dontaudit pam_console_t admin_tty_type:chr_file rw_file_perms;
+')
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(pam_console_t)
+terminal_ignore_use_general_pseudoterminal(pam_console_t)
+files_ignore_read_rootfs_file(pam_console_t)
+')
+
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(pam_console_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(pam_console_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te', `
+allow pam_console_t rhgb_t:process sigchld;
+allow pam_console_t rhgb_t:fd use;
+allow pam_console_t rhgb_t:fifo_file { read write };
+')
+allow pam_console_t null_device_t:chr_file r_file_perms;
+dontaudit pam_console_t unpriv_userdomain:fd use;
+allow pam_console_t autofs_t:dir { search getattr };
+
+allow pam_console_t { 
+framebuf_device_t
+v4l_device_t
+apm_bios_t
+sound_device_t
+misc_device_t
+tty_device_t
+scanner_device_t
+mouse_device_t
+power_device_t
+removable_device_t
+scsi_generic_device_t
+}:chr_file { getattr setattr };
+
+allow pam_console_t mnt_t:dir r_dir_perms;
+
+ifdef(`gpm.te', `
+allow pam_console_t gpmctl_t:sock_file { getattr setattr };
+')
+
+optional_policy(`hotplug.te', `
+dontaudit pam_console_t hotplug_etc_t:dir search;
+hotplug_use_file_descriptors(pam_console_t)
+')
+
+ifdef(`xdm.te', `
+allow pam_console_t xdm_var_run_t:file { getattr read };
+')
+
+allow initrc_t pam_var_console_t:dir r_dir_perms;
 ') dnl endif TODO
 
 ########################################
