@@ -2,5 +2,308 @@
 
 policy_module(sysnetwork,1.0)
 
+########################################
+#
+# Declarations
+#
+
+type dhcpc_t;
+type dhcpc_exec_t;
+domain_make_daemon_domain(dhcpc_t,dhcpc_exec_t)
+
+type dhcpc_state_t;
+files_make_file(dhcpc_state_t)
+
+type dhcpc_tmp_t;
+files_make_file(dhcpc_tmp_t)
+
+type dhcpc_var_run_t;
+files_make_file(dhcpc_var_run_t)
+
+type ifconfig_t;
+domain_make_domain(ifconfig_t)
+role system_r types ifconfig_t;
+
+type ifconfig_exec_t;
+domain_make_entrypoint_file(ifconfig_t, ifconfig_exec_t)
+
 type net_conf_t alias resolv_conf_t;
 files_make_file(net_conf_t)
+
+########################################
+#
+# DHCP client local policy
+#
+allow dhcpc_t self:capability { dac_override fsetid net_admin net_raw net_bind_service sys_resource sys_tty_config };
+dontaudit dhcpc_t self:capability sys_tty_config;
+# for access("/etc/bashrc", X_OK) on Red Hat
+dontaudit dhcpc_t self:capability { dac_read_search sys_module };
+
+# create pid file
+allow dhcpc_t dhcpc_var_run_t:file { getattr create read write append setattr unlink };
+files_create_daemon_runtime_data(dhcpc_t,dhcpc_var_run_t)
+
+# transition to ifconfig
+allow dhcpc_t ifconfig_exec_t:file { getattr read execute };
+allow dhcpc_t ifconfig_t:process transition;
+dontaudit dhcpc_t ifconfig_t:process { noatsecure siginh rlimitinh };
+
+# Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
+# in /etc created by dhcpcd will be labelled net_conf_t.
+allow dhcpc_t net_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_config(dhcpc_t,net_conf_t,file)
+
+# create temp files
+allow dhcpc_t dhcpc_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow dhcpc_t dhcpc_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(dhcpc_t, dhcpc_tmp_t, { file dir })
+
+# Allow dhcpc_t to use packet sockets
+allow dhcpc_t self:packet_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+allow dhcpc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
+
+allow dhcpc_t self:fifo_file { ioctl read getattr lock write append };
+
+allow dhcpc_t dhcpc_exec_t:file { getattr read execute execute_no_trans };
+
+kernel_read_system_state(dhcpc_t)
+kernel_read_network_state(dhcpc_t)
+kernel_read_kernel_sysctl(dhcpc_t)
+kernel_read_hardware_state(dhcpc_t)
+kernel_use_file_descriptors(dhcpc_t)
+
+corenetwork_network_tcp_on_all_interfaces(dhcpc_t)
+corenetwork_network_raw_on_all_interfaces(dhcpc_t)
+corenetwork_network_udp_on_all_interfaces(dhcpc_t)
+corenetwork_network_tcp_on_all_nodes(dhcpc_t)
+corenetwork_network_raw_on_all_nodes(dhcpc_t)
+corenetwork_network_udp_on_all_nodes(dhcpc_t)
+corenetwork_network_tcp_on_all_ports(dhcpc_t)
+corenetwork_network_udp_on_all_ports(dhcpc_t)
+corenetwork_bind_tcp_on_all_nodes(dhcpc_t)
+corenetwork_bind_udp_on_all_nodes(dhcpc_t)
+corenetwork_bind_udp_on_dhcpc_port(dhcpc_t)
+
+devices_discard_data_stream(dhcpc_t)
+# for SSP
+devices_get_pseudorandom_data(dhcpc_t)
+
+filesystem_get_all_filesystems_attributes(dhcpc_t)
+
+terminal_use_controlling_terminal(dhcpc_t)
+terminal_ignore_use_console(dhcpc_t)
+terminal_ignore_use_all_users_physical_terminals(dhcpc_t)
+terminal_ignore_use_all_users_pseudoterminals(dhcpc_t)
+terminal_ignore_use_general_physical_terminal(dhcpc_t)
+
+init_use_file_descriptors(dhcpc_t)
+init_script_use_pseudoterminal(dhcpc_t)
+init_script_modify_runtime_data(dhcpc_t)
+
+domain_use_widely_inheritable_file_descriptors(dhcpc_t)
+
+files_read_general_system_config(dhcpc_t)
+files_read_runtime_system_config(dhcpc_t)
+
+corecommands_execute_general_programs(dhcpc_t)
+corecommands_execute_system_programs(dhcpc_t)
+corecommands_execute_shell(dhcpc_t)
+
+logging_send_system_log_message(dhcpc_t)
+
+libraries_use_dynamic_loader(dhcpc_t)
+libraries_read_shared_libraries(dhcpc_t)
+
+modutils_insmod_transition(dhcpc_t)
+
+miscfiles_read_localization(dhcpc_t)
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(dhcpc_t)
+terminal_ignore_use_general_pseudoterminal(dhcpc_t)
+files_ignore_read_rootfs_file(dhcpc_t)
+')
+
+optional_policy(`consoletype.te',`
+consoletype_transition(dhcpc_t)
+')
+
+optional_policy(`hostname.te',`
+hostname_transition(dhcpc_t)
+')
+
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(dhcpc_t)
+')
+
+optional_policy(`udev.te',`
+udev_read_database(dhcpc_t)
+')
+
+#
+# dhclient sometimes starts ypbind and ntdp
+#
+init_script_execute(dhcpc_t)
+optional_policy(`ypbind.te',`
+ypbind_transition(dhcpc_t)
+')
+optional_policy(`ntpd.te',`
+ntpd_transition(dhcpc_t)
+')
+
+ifdef(`TODO',`
+allow dhcpc_t null_device_t:chr_file r_file_perms;
+allow dhcpc_t autofs_t:dir { search getattr };
+dontaudit dhcpc_t sysadm_home_dir_t:dir search;
+optional_policy(`rhgb.te', `
+allow dhcpc_t rhgb_t:process sigchld;
+allow dhcpc_t rhgb_t:fd use;
+allow dhcpc_t rhgb_t:fifo_file { read write };
+')
+
+can_ypbind(dhcpc_t)
+
+allow dhcpc_t devpts_t:dir search;
+
+# for localization
+allow dhcpc_t lib_t:file { getattr read };
+
+ifdef(`nscd.te', `
+domain_auto_trans(dhcpc_t, nscd_exec_t, nscd_t)
+')
+ifdef(`cardmgr.te', `
+domain_auto_trans(cardmgr_t, dhcpc_exec_t, dhcpc_t)
+allow cardmgr_t dhcpc_var_run_t:file { getattr read };
+allow cardmgr_t dhcpc_t:process signal_perms;
+')
+ifdef(`hotplug.te', `
+domain_auto_trans(hotplug_t, dhcpc_exec_t, dhcpc_t)
+allow hotplug_t dhcpc_t:process signal_perms;
+allow hotplug_t dhcpc_var_run_t:file { getattr read };
+allow hotplug_t dhcp_etc_t:file rw_file_perms;
+allow dhcpc_t hotplug_etc_t:dir { getattr search };
+tunable_policy(`distro_redhat', `
+logging_syslogd_transition(dhcpc_t)
+')
+')dnl end hotplug.te
+
+# for the dhcp client to run ping to check IP addresses
+ifdef(`ping.te', `
+domain_auto_trans(dhcpc_t, ping_exec_t, ping_t)
+ifdef(`hotplug.te',`
+allow ping_t hotplug_t:fd use;
+') dnl end if hotplug
+ifdef(`cardmgr.te', `
+allow ping_t cardmgr_t:fd use;
+') dnl end if cardmgr
+') dnl end if ping
+
+ifdef(`dhcpd.te', `', `
+type dhcp_state_t, file_type, sysadmfile;
+type dhcp_etc_t, file_type, sysadmfile, usercanread; 
+typealias dhcp_etc_t alias { etc_dhcp_t etc_dhcpc_t etc_dhcpd_t };
+')
+
+allow dhcpc_t dhcp_etc_t:dir { getattr read search };
+allow dhcpc_t dhcp_etc_t:file { read getattr };
+allow dhcpc_t dhcp_etc_t:lnk_file { getattr read };
+allow dhcpc_t dhcp_etc_t:file { getattr read execute execute_no_trans };
+
+allow dhcpc_t userdomain:fd use;
+
+ifdef(`distro_redhat', `
+files_execute_system_config_script(dhcpc_t)
+allow initrc_t dhcp_etc_t:file rw_file_perms;
+')
+
+allow dhcpc_t var_lib_t:dir search;
+file_type_auto_trans(dhcpc_t, dhcp_state_t, dhcpc_state_t, file)
+
+allow dhcpc_t home_root_t:dir search;
+allow initrc_t dhcpc_state_t:file { getattr read };
+dontaudit dhcpc_t var_lock_t:dir search;
+dontaudit dhcpc_t selinux_config_t:dir search;
+dontaudit dhcpc_t domain:dir getattr;
+') dnl endif TODO
+
+########################################
+#
+# Ifconfig local policy
+#
+
+allow ifconfig_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow ifconfig_t self:capability net_admin;
+dontaudit ifconfig_t self:capability sys_module;
+
+allow ifconfig_t self:fd use;
+allow ifconfig_t self:fifo_file { read getattr lock ioctl write append };
+allow ifconfig_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow ifconfig_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow ifconfig_t self:unix_dgram_socket sendto;
+allow ifconfig_t self:unix_stream_socket connectto;
+allow ifconfig_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow ifconfig_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow ifconfig_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow ifconfig_t self:msg { send receive };
+
+# Create UDP sockets, necessary when called from dhcpc
+allow ifconfig_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+# for /sbin/ip
+allow ifconfig_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+allow ifconfig_t self:tcp_socket { create ioctl };
+files_read_general_system_config(ifconfig_t);
+
+kernel_use_file_descriptors(ifconfig_t)
+kernel_read_system_state(ifconfig_t)
+kernel_read_network_state(ifconfig_t)
+
+filesystem_get_persistent_filesystem_attributes(ifconfig_t)
+
+init_use_file_descriptors(ifconfig_t)
+init_script_use_pseudoterminal(ifconfig_t)
+init_run_init_use_file_descriptors(ifconfig_t)
+
+domain_use_widely_inheritable_file_descriptors(ifconfig_t)
+
+files_ignore_read_rootfs_file(ifconfig_t)
+
+libraries_use_dynamic_loader(ifconfig_t)
+libraries_read_shared_libraries(ifconfig_t)
+
+logging_send_system_log_message(ifconfig_t)
+
+miscfiles_read_localization(ifconfig_t)
+
+ifdef(`TODO',`
+
+can_ypbind(ifconfig_t)
+ifdef(`automount.te', `
+allow ifconfig_t autofs_t:dir { search getattr };
+')
+
+domain_auto_trans(sysadm_t, ifconfig_exec_t, ifconfig_t)
+role sysadm_r types ifconfig_t;
+allow ifconfig_t userdomain:fd use;
+
+# Access terminals.
+allow ifconfig_t { user_tty_type admin_tty_type }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow ifconfig_t sysadm_gph_t:fd use;')
+
+allow ifconfig_t tun_tap_device_t:chr_file { read write };
+
+# ifconfig attempts to search some sysctl entries.
+# Do not audit those attempts; comment out these rules if it is desired to
+# see the denials.
+dontaudit ifconfig_t { sysctl_t sysctl_net_t }:dir search;
+
+allow ifconfig_t lib_t:file { getattr read };
+
+optional_policy(`rhgb.te', `
+allow ifconfig_t rhgb_t:process sigchld;
+allow ifconfig_t rhgb_t:fd use;
+allow ifconfig_t rhgb_t:fifo_file { read write };
+')
+
+') dnl endif TODO
