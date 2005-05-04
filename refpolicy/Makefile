@@ -134,7 +134,9 @@ load: tmp/load
 # Construct a monolithic policy.conf
 #
 policy.conf: $(POLICY_SECTIONS)
-	$(QUIET) m4 $(M4PARAM) $^ > tmp/$@.tmp
+	$(QUIET) # checkpolicy can use the #line directives provided by m4 -s
+	$(QUIET) # for error reporting:
+	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
 	$(QUIET) # the ordering of these ocontexts matters:
 	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
@@ -157,7 +159,7 @@ tmp/generated_definitions.conf: $(ALL_MODULES) $(ALL_TE_FILES) $(BASE_MODULE)/co
 		echo "define(\`$$i')" >> $@ ;\
 	done
 	$(QUIET) m4 $(M4PARAM) -D interface_pass $(BASE_MODULE)/global.if $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te \
-		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarstwo/\$$2/g' >> $@
+		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 tmp/all_interfaces.conf: $(ALL_INTERFACES)
 	@test -d tmp || mkdir -p tmp
