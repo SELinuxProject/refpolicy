@@ -3,9 +3,10 @@
 # Declarations
 #
 
-type local_login_t; #, privuser, privrole, auth_chkpwd, privowner, privfd, nscd_client_domain;
+type local_login_t; #, privuser, privrole, auth_chkpwd, privowner, nscd_client_domain;
 domain_make_domain(local_login_t)
 authlogin_make_login_program_entrypoint(local_login_t)
+domain_make_file_descriptors_widely_inheritable(local_login_t)
 role system_r types local_login_t;
 
 type local_login_tmp_t;
@@ -34,6 +35,10 @@ kernel_compute_reachable_user_contexts(local_login_t)
 # for SSP/ProPolice
 devices_get_pseudorandom_data(local_login_t)
 
+terminal_use_all_users_physical_terminals(local_login_t)
+terminal_use_general_physical_terminal(local_login_t)
+
+init_script_modify_runtime_data(local_login_t)
 init_ignore_use_file_descriptors(local_login_t)
 
 files_read_general_system_config(local_login_t)
@@ -50,6 +55,8 @@ selinux_read_default_contexts(local_login_t)
 authlogin_ignore_read_shadow_passwords(local_login_t)
 authlogin_modify_login_records(local_login_t)
 authlogin_modify_last_login_log(local_login_t)
+authlogin_pam_execute(local_login_t)
+authlogin_pam_console_manage_runtime_data(local_login_t)
 
 miscfiles_read_localization(local_login_t)
 
@@ -75,11 +82,6 @@ allow local_login_t exec_type:{ file lnk_file } r_file_perms;
 # Read /dev directories and any symbolic links.
 allow local_login_t device_t:lnk_file r_file_perms;
 
-optional_policy(`authlogin.te',`
-can_exec(local_login_t, pam_exec_t)
-rw_dir_create_file(local_login_t, pam_var_console_t)
-')
-
 dontaudit local_login_t sysfs_t:dir search;
 
 allow local_login_t autofs_t:dir { search read getattr };
@@ -97,13 +99,6 @@ allow local_login_t crack_db_t:file r_file_perms;
 # Permit login to search the user home directories.
 allow local_login_t home_root_t:dir search;
 allow local_login_t home_dir_type:dir search;
-
-# Write to /var/run/utmp.
-allow local_login_t var_run_t:dir search;
-allow local_login_t initrc_var_run_t:file rw_file_perms;
-
-# Write to /var/log/wtmp.
-allow local_login_t var_log_t:dir search;
 
 # Write to /var/log/btmp
 allow local_login_t faillog_t:file { append read write };
@@ -143,12 +138,12 @@ allow local_login_t var_lock_t:dir rw_dir_perms;
 allow local_login_t var_lock_t:file create_file_perms;
 
 # Read and write ttys.
-allow local_login_t tty_device_t:chr_file { setattr rw_file_perms };
-allow local_login_t ttyfile:chr_file { setattr rw_file_perms };
+allow local_login_t tty_device_t:chr_file setattr;
+allow local_login_t ttyfile:chr_file setattr;
 
 # Relabel ttys.
-allow local_login_t tty_device_t:chr_file { getattr relabelfrom relabelto };
-allow local_login_t ttyfile:chr_file { getattr relabelfrom relabelto };
+allow local_login_t tty_device_t:chr_file { relabelfrom relabelto };
+allow local_login_t ttyfile:chr_file { relabelfrom relabelto };
 
 optional_policy(`gpm.te',`
 allow local_login_t gpmctl_t:sock_file { getattr setattr };

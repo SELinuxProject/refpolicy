@@ -10,6 +10,7 @@ policy_module(iptables, 1.0)
 type iptables_t;
 type iptables_exec_t;
 domain_make_daemon_domain(iptables_t,iptables_exec_t)
+role system_r types iptables_t;
 
 type iptables_tmp_t;
 files_make_file(iptables_tmp_t)
@@ -23,9 +24,11 @@ files_make_file(iptables_t)
 #
 
 allow iptables_t self:capability { net_admin net_raw };
-allow iptables_t self:process { sigkill sigstop signull signal };
+dontaudit iptables_t self:capability sys_tty_config;
+allow iptables_t self:process { sigchld sigkill sigstop signull signal };
 
 allow iptables_t iptables_var_run_t:dir { ioctl read getattr lock write append };
+files_create_daemon_runtime_data(iptables_t,iptables_var_run_t)
 
 allow iptables_t iptables_exec_t:file { getattr read execute execute_no_trans };
 
@@ -35,14 +38,28 @@ files_create_private_tmp_data(iptables_t, iptables_tmp_t, { file dir })
 
 allow iptables_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
 
-kernel_read_modprobe_sysctl(iptables_t)
-kernel_use_file_descriptors(iptables_t)
 kernel_read_system_state(iptables_t)
 kernel_read_network_state(iptables_t)
+kernel_read_hardware_state(iptables_t)
+kernel_read_kernel_sysctl(iptables_t)
+kernel_read_modprobe_sysctl(iptables_t)
+kernel_use_file_descriptors(iptables_t)
 
 filesystem_get_persistent_filesystem_attributes(iptables_t)
 
+devices_discard_data_stream(iptables_t)
+
+terminal_ignore_use_console(iptables_t)
+
+init_use_file_descriptors(iptables_t)
+init_script_use_pseudoterminal(iptables_t)
+
+domain_use_widely_inheritable_file_descriptors(iptables_t)
+
 files_read_general_system_config(iptables_t)
+
+libraries_use_dynamic_loader(iptables_t)
+libraries_read_shared_libraries(iptables_t)
 
 logging_send_system_log_message(iptables_t)
 # system-config-network appends to /var/log
@@ -50,23 +67,45 @@ logging_send_system_log_message(iptables_t)
 
 miscfiles_read_localization(iptables_t)
 
+sysnetwork_ifconfig_transition(iptables_t)
+
 optional_policy(`modutils.te', `
 modutils_insmod_transition(iptables_t)
 ')
 
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(iptables_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(iptables_t)
+')
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(iptables_t)
+terminal_ignore_use_general_pseudoterminal(iptables_t)
+files_ignore_read_rootfs_file(iptables_t)
+')
+
 ifdef(`TODO',`
-daemon_base_domain(iptables, `, privmodule')
+
+optional_policy(`rhgb.te', `
+allow iptables_t rhgb_t:process sigchld;
+allow iptables_t rhgb_t:fd use;
+allow iptables_t rhgb_t:fifo_file { read write };
+')
+allow iptables_t null_device_t:chr_file r_file_perms;
+dontaudit iptables_t unpriv_userdomain:fd use;
+allow iptables_t autofs_t:dir { search getattr };
+tunable_policy(`direct_sysadm_daemon', `
+dontaudit iptables_t admin_tty_type:chr_file rw_file_perms;
+')
 
 domain_auto_trans(sysadm_t, iptables_exec_t, iptables_t)
 role sysadm_r types iptables_t;
 
 # to allow rules to be saved on reboot
 allow iptables_t initrc_tmp_t:file rw_file_perms;
-
-domain_auto_trans(iptables_t, ifconfig_exec_t, ifconfig_t)
-
-file_type_auto_trans(iptables_t, var_run_t, iptables_var_run_t, $2)
-allow iptables_t var_t:dir search;
 
 # for iptables -L
 can_resolve(iptables_t)
