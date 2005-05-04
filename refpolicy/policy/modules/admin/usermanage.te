@@ -1,0 +1,558 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(usermanage,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type admin_passwd_exec_t;
+files_make_file(admin_passwd_exec_t)
+
+type chfn_t; #, auth_chkpwd, privowner
+domain_make_domain(chfn_t)
+role system_r types chfn_t;
+
+type chfn_exec_t;
+domain_make_entrypoint_file(chfn_t,chfn_exec_t)
+
+type crack_t;
+role system_r types crack_t;
+
+type crack_exec_t;
+domain_make_entrypoint_file(crack_t,crack_exec_t)
+
+type crack_db_t; #, usercanread;
+files_make_file(crack_db_t)
+
+type crack_tmp_t;
+files_make_file(crack_tmp_t)
+
+type groupadd_t; #, privowner, nscd_client_domain;
+domain_make_domain(groupadd_t)
+role system_r types groupadd_t;
+
+type groupadd_exec_t;
+domain_make_entrypoint_file(groupadd_t,groupadd_exec_t)
+
+type passwd_t; #,auth_write, privowner;
+domain_make_domain(passwd_t)
+role system_r types passwd_t;
+
+type passwd_exec_t;
+domain_make_entrypoint_file(passwd_t,passwd_exec_t)
+
+type sysadm_passwd_t; #, auth_write, privowner;
+domain_make_domain(sysadm_passwd_t)
+domain_make_entrypoint_file(sysadm_passwd_t,admin_passwd_exec_t)
+
+type sysadm_passwd_tmp_t;
+files_make_file(sysadm_passwd_tmp_t)
+
+type useradd_t; #, privowner, nscd_client_domain;
+domain_make_domain(useradd_t)
+role system_r types useradd_t;
+
+type useradd_exec_t;
+domain_make_entrypoint_file(useradd_t,useradd_exec_t)
+
+########################################
+#
+# Chfn local policy
+#
+
+allow chfn_t self:capability { chown dac_override fsetid setuid setgid sys_resource };
+allow chfn_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow chfn_t self:process { setrlimit setfscreate };
+allow chfn_t self:fd use;
+allow chfn_t self:fifo_file { read getattr lock ioctl write append };
+allow chfn_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow chfn_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow chfn_t self:unix_dgram_socket sendto;
+allow chfn_t self:unix_stream_socket connectto;
+allow chfn_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow chfn_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow chfn_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow chfn_t self:msg { send receive };
+
+kernel_read_system_state(chfn_t)
+kernel_get_selinuxfs_mount_point(chfn_t)
+kernel_validate_selinux_context(chfn_t)
+kernel_compute_selinux_av(chfn_t)
+kernel_compute_create(chfn_t)
+kernel_compute_relabel(chfn_t)
+kernel_compute_reachable_user_contexts(chfn_t)
+
+terminal_use_all_users_physical_terminals(chfn_t)
+terminal_use_all_users_pseudoterminals(chfn_t)
+terminal_use_controlling_terminal(chfn_t)
+
+filesystem_get_persistent_filesystem_attributes(chfn_t)
+
+# for SSP
+devices_get_pseudorandom_data(chfn_t)
+
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_script_ignore_modify_runtime_data(chfn_t)
+
+domain_use_widely_inheritable_file_descriptors(chfn_t)
+
+files_manage_general_system_config(chfn_t)
+files_read_runtime_system_config(chfn_t)
+
+libraries_use_dynamic_loader(chfn_t)
+libraries_read_shared_libraries(chfn_t)
+
+miscfiles_read_localization(chfn_t)
+
+logging_send_system_log_message(chfn_t)
+
+authlogin_ignore_read_shadow_passwords(chfn_t)
+
+ifdef(`TODO',`
+role sysadm_r types chfn_t;
+in_user_role(chfn_t)
+
+domain_auto_trans({ userdomain ifdef(`firstboot.te', `firstboot_t') }, chfn_exec_t, chfn_t)
+
+dontaudit chfn_t var_t:dir search;
+
+allow chfn_t unpriv_userdomain:fd use;
+can_ypbind(chfn_t)
+ifdef(`automount.te', `
+allow chfn_t autofs_t:dir { search getattr };
+')
+
+ifdef(`gnome-pty-helper.te', `allow chfn_t gphdomain:fd use;')
+
+# allow checking if a shell is executable
+allow chfn_t shell_exec_t:file execute;
+
+# user generally runs this from their home directory, so do not audit a search
+# on user home dir
+dontaudit chfn_t { user_home_dir_type user_home_type }:dir search;
+
+# can exec /sbin/unix_chkpwd
+allow chfn_t { bin_t sbin_t }:dir search;
+
+# uses unix_chkpwd for checking passwords
+dontaudit chfn_t selinux_config_t:dir search;
+') dnl endif TODO
+
+########################################
+#
+# Crack local policy
+#
+
+allow crack_t self:process { sigkill sigstop signull signal };
+allow crack_t self:fifo_file { read write getattr };
+
+allow crack_t crack_db_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow crack_t crack_db_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow crack_t crack_db_t:lnk_file { create read getattr setattr link unlink rename };
+files_search_system_state_data_directory(crack_t)
+
+allow crack_t crack_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow crack_t crack_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(crack_t, crack_tmp_t, { file dir })
+
+kernel_read_system_state(crack_t)
+
+# for SSP
+devices_get_pseudorandom_data(crack_t)
+
+filesystem_get_persistent_filesystem_attributes(crack_t)
+
+terminal_use_controlling_terminal(crack_t)
+
+files_read_general_system_config(crack_t)
+files_read_runtime_system_config(crack_t)
+# for dictionaries
+files_read_general_application_resources(crack_t)
+
+corecommands_execute_general_programs(crack_t)
+
+libraries_use_dynamic_loader(crack_t)
+libraries_read_shared_libraries(crack_t)
+
+logging_send_system_log_message(crack_t)
+
+ifdef(`TODO',`
+ifdef(`crond.te', `
+domain_auto_trans(system_crond_t, crack_exec_t, crack_t)
+allow crack_t crond_t:fifo_file { getattr read write ioctl };
+# a rule for privfd may make this obsolete
+allow crack_t crond_t:fd use;
+allow crack_t crond_t:process sigchld;
+')
+
+dontaudit crack_t sysadm_home_dir_t:dir { getattr search };
+') dnl endif TODO
+
+########################################
+#
+# Groupadd local policy
+#
+
+allow groupadd_t self:capability { dac_override chown kill setuid sys_resource };
+dontaudit groupadd_t self:capability fsetid;
+allow groupadd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow groupadd_t self:process { setrlimit setfscreate };
+allow groupadd_t self:fd use;
+allow groupadd_t self:fifo_file { read getattr lock ioctl write append };
+allow groupadd_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow groupadd_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow groupadd_t self:unix_dgram_socket sendto;
+allow groupadd_t self:unix_stream_socket connectto;
+allow groupadd_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow groupadd_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow groupadd_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow groupadd_t self:msg { send receive };
+
+# Allow access to context for shadow file
+kernel_get_selinuxfs_mount_point(groupadd_t)
+kernel_validate_selinux_context(groupadd_t)
+kernel_compute_selinux_av(groupadd_t)
+kernel_compute_create(groupadd_t)
+kernel_compute_relabel(groupadd_t)
+kernel_compute_reachable_user_contexts(groupadd_t)
+
+filesystem_get_persistent_filesystem_attributes(groupadd_t)
+
+terminal_use_all_users_physical_terminals(groupadd_t)
+terminal_use_all_users_pseudoterminals(groupadd_t)
+
+init_use_file_descriptors(groupadd_t)
+init_script_read_runtime_data(groupadd_t)
+
+domain_use_widely_inheritable_file_descriptors(groupadd_t)
+
+files_manage_general_system_config(groupadd_t)
+
+libraries_use_dynamic_loader(groupadd_t)
+libraries_read_shared_libraries(groupadd_t)
+
+# Execute /usr/bin/{passwd,chfn,chsh} and /usr/sbin/{useradd,vipw}.
+corecommands_execute_general_programs(groupadd_t)
+corecommands_execute_system_programs(groupadd_t)
+
+logging_send_system_log_message(groupadd_t)
+
+miscfiles_read_localization(groupadd_t)
+
+authlogin_modify_last_login_log(groupadd_t)
+
+selinux_read_config(groupadd_t)
+
+ifdef(`TODO',`
+domain_auto_trans(initrc_t, groupadd_exec_t, groupadd_t)
+
+role sysadm_r types groupadd_t;
+domain_auto_trans(sysadm_t, groupadd_exec_t, groupadd_t)
+
+allow groupadd_t unpriv_userdomain:fd use;
+can_ypbind(groupadd_t)
+ifdef(`automount.te', `
+allow groupadd_t autofs_t:dir { search getattr };
+')
+
+# Update /etc/shadow and /etc/passwd
+file_type_auto_trans(groupadd_t, etc_t, shadow_t, file)
+
+allow groupadd_t { etc_t shadow_t }:file { relabelfrom relabelto };
+
+# useradd/userdel request read/write for /var/log/lastlog, and read of /dev, 
+# but will operate without them.
+dontaudit groupadd_t device_t:dir search;
+
+# Access terminals.
+ifdef(`gnome-pty-helper.te', `allow groupadd_t gphdomain:fd use;')
+
+# for when /root is the cwd
+dontaudit groupadd_t sysadm_home_dir_t:dir search;
+dontaudit groupadd_t initrc_var_run_t:file write;
+') dnl end TODO
+
+########################################
+#
+# Passwd local policy
+#
+
+allow passwd_t self:capability { chown dac_override fsetid setuid setgid sys_resource };
+allow passwd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow passwd_t self:process { setrlimit setfscreate };
+allow passwd_t self:fd use;
+allow passwd_t self:fifo_file { read getattr lock ioctl write append };
+allow passwd_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow passwd_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow passwd_t self:unix_dgram_socket sendto;
+allow passwd_t self:unix_stream_socket connectto;
+allow passwd_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow passwd_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow passwd_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow passwd_t self:msg { send receive };
+
+kernel_get_selinuxfs_mount_point(passwd_t)
+kernel_validate_selinux_context(passwd_t)
+kernel_compute_selinux_av(passwd_t)
+kernel_compute_create(passwd_t)
+kernel_compute_relabel(passwd_t)
+kernel_compute_reachable_user_contexts(passwd_t)
+
+# for SSP
+devices_get_pseudorandom_data(passwd_t)
+
+filesystem_get_persistent_filesystem_attributes(passwd_t)
+
+terminal_use_all_users_physical_terminals(passwd_t)
+terminal_use_all_users_pseudoterminals(passwd_t)
+terminal_use_controlling_terminal(passwd_t)
+
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_script_ignore_modify_runtime_data(passwd_t)
+
+domain_use_widely_inheritable_file_descriptors(passwd_t)
+
+files_read_runtime_system_config(passwd_t)
+files_manage_general_system_config(passwd_t)
+
+libraries_use_dynamic_loader(passwd_t)
+libraries_read_shared_libraries(passwd_t)
+
+logging_send_system_log_message(passwd_t)
+
+miscfiles_read_localization(passwd_t)
+
+ifdef(`TODO',`
+role sysadm_r types passwd_t;
+
+# Update /etc/shadow and /etc/passwd
+file_type_auto_trans(passwd_t, etc_t, shadow_t, file)
+allow passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
+
+allow passwd_t unpriv_userdomain:fd use;
+can_ypbind(passwd_t)
+ifdef(`automount.te', `
+allow passwd_t autofs_t:dir { search getattr };
+')
+
+# Inherit and use descriptors from login.
+ifdef(`gnome-pty-helper.te', `allow passwd_t gphdomain:fd use;')
+
+# allow checking if a shell is executable
+allow passwd_t shell_exec_t:file execute;
+
+# user generally runs this from their home directory, so do not audit a search
+# on user home dir
+dontaudit passwd_t { user_home_dir_type user_home_type }:dir search;
+in_user_role(passwd_t)
+# make sure that getcon succeeds
+allow passwd_t userdomain:dir search;
+allow passwd_t userdomain:file read;
+allow passwd_t userdomain:process getattr;
+
+dontaudit passwd_t selinux_config_t:dir search;
+
+ifdef(`crack.te', `
+allow passwd_t var_t:dir search;
+dontaudit passwd_t var_run_t:dir search;
+allow passwd_t crack_db_t:dir r_dir_perms;
+allow passwd_t crack_db_t:file r_file_perms;
+', `
+dontaudit passwd_t var_t:dir search;
+')
+domain_auto_trans({ userdomain ifdef(`firstboot.te', `firstboot_t') }, passwd_exec_t, passwd_t)
+') dnl endif TODO
+
+########################################
+#
+# Password admin local policy
+#
+
+allow sysadm_passwd_t self:capability { chown dac_override fsetid setuid setgid sys_resource };
+allow sysadm_passwd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow sysadm_passwd_t self:process { setrlimit setfscreate };
+allow sysadm_passwd_t self:fd use;
+allow sysadm_passwd_t self:fifo_file { read getattr lock ioctl write append };
+allow sysadm_passwd_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow sysadm_passwd_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow sysadm_passwd_t self:unix_dgram_socket sendto;
+allow sysadm_passwd_t self:unix_stream_socket connectto;
+allow sysadm_passwd_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow sysadm_passwd_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow sysadm_passwd_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow sysadm_passwd_t self:msg { send receive };
+
+# allow vipw to create temporary files under /var/tmp/vi.recover
+allow sysadm_passwd_t sysadm_passwd_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow sysadm_passwd_t sysadm_passwd_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(sysadm_passwd_t, sysadm_passwd_tmp_t, { file dir })
+files_search_system_state_data_directory(sysadm_passwd_t)
+
+kernel_get_selinuxfs_mount_point(sysadm_passwd_t)
+kernel_validate_selinux_context(sysadm_passwd_t)
+kernel_compute_selinux_av(sysadm_passwd_t)
+kernel_compute_create(sysadm_passwd_t)
+kernel_compute_relabel(sysadm_passwd_t)
+kernel_compute_reachable_user_contexts(sysadm_passwd_t)
+# for /proc/meminfo
+kernel_read_system_state(sysadm_passwd_t)
+
+# for SSP
+devices_get_pseudorandom_data(sysadm_passwd_t)
+
+filesystem_get_persistent_filesystem_attributes(sysadm_passwd_t)
+
+terminal_use_all_users_physical_terminals(sysadm_passwd_t)
+terminal_use_all_users_pseudoterminals(sysadm_passwd_t)
+terminal_use_controlling_terminal(sysadm_passwd_t)
+
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_script_ignore_modify_runtime_data(sysadm_passwd_t)
+
+domain_use_widely_inheritable_file_descriptors(sysadm_passwd_t)
+
+files_manage_general_system_config(sysadm_passwd_t)
+files_read_runtime_system_config(sysadm_passwd_t)
+
+# allow vipw to exec the editor
+corecommands_execute_general_programs(sysadm_passwd_t)
+corecommands_execute_shell(sysadm_passwd_t)
+files_read_general_application_resources(sysadm_passwd_t)
+
+libraries_use_dynamic_loader(sysadm_passwd_t)
+libraries_read_shared_libraries(sysadm_passwd_t)
+
+miscfiles_read_localization(sysadm_passwd_t)
+
+logging_send_system_log_message(sysadm_passwd_t)
+
+ifdef(`TODO',`
+role sysadm_r types sysadm_passwd_t;
+domain_auto_trans(sysadm_t, admin_passwd_exec_t, sysadm_passwd_t)
+
+allow sysadm_passwd_t unpriv_userdomain:fd use;
+can_ypbind(sysadm_passwd_t)
+ifdef(`automount.te', `
+allow sysadm_passwd_t autofs_t:dir { search getattr };
+')
+
+# Inherit and use descriptors from login.
+ifdef(`gnome-pty-helper.te', `allow sysadm_passwd_t gphdomain:fd use;')
+
+# allow checking if a shell is executable
+allow sysadm_passwd_t shell_exec_t:file execute;
+
+# user generally runs this from their home directory, so do not audit a search
+# on user home dir
+dontaudit sysadm_passwd_t { user_home_dir_type user_home_type }:dir search;
+
+# Update /etc/shadow and /etc/passwd
+file_type_auto_trans(sysadm_passwd_t, etc_t, shadow_t, file)
+allow sysadm_passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
+
+# for vipw - vi looks in the root home directory for config
+dontaudit sysadm_passwd_t sysadm_home_dir_t:dir { getattr search };
+
+# for nscd lookups
+dontaudit sysadm_passwd_t var_run_t:dir search;
+
+dontaudit sysadm_passwd_t selinux_config_t:dir search;
+') dnl endif TODO
+
+########################################
+#
+# Useradd local policy
+#
+
+allow useradd_t self:capability { dac_override chown kill fowner fsetid setuid sys_resource };
+allow useradd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow useradd_t self:process setfscreate;
+allow useradd_t self:fd use;
+allow useradd_t self:fifo_file { read getattr lock ioctl write append };
+allow useradd_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow useradd_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow useradd_t self:unix_dgram_socket sendto;
+allow useradd_t self:unix_stream_socket connectto;
+allow useradd_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow useradd_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow useradd_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow useradd_t self:msg { send receive };
+
+# Allow access to context for shadow file
+kernel_get_selinuxfs_mount_point(useradd_t)
+kernel_validate_selinux_context(useradd_t)
+kernel_compute_selinux_av(useradd_t)
+kernel_compute_create(useradd_t)
+kernel_compute_relabel(useradd_t)
+kernel_compute_reachable_user_contexts(useradd_t)
+# for getting the number of groups
+kernel_read_kernel_sysctl(useradd_t)
+
+filesystem_get_persistent_filesystem_attributes(useradd_t)
+
+terminal_use_all_users_physical_terminals(useradd_t)
+terminal_use_all_users_pseudoterminals(useradd_t)
+
+init_use_file_descriptors(useradd_t)
+init_script_modify_runtime_data(useradd_t)
+
+domain_use_widely_inheritable_file_descriptors(useradd_t)
+
+files_manage_general_system_config(useradd_t)
+
+libraries_use_dynamic_loader(useradd_t)
+libraries_read_shared_libraries(useradd_t)
+
+corecommands_execute_shell(useradd_t)
+# Execute /usr/bin/{passwd,chfn,chsh} and /usr/sbin/{useradd,vipw}.
+corecommands_execute_general_programs(useradd_t)
+corecommands_execute_system_programs(useradd_t)
+
+miscfiles_read_localization(useradd_t)
+
+selinux_read_config(useradd_t)
+
+logging_send_system_log_message(useradd_t)
+
+authlogin_modify_last_login_log(useradd_t)
+
+ifdef(`TODO',`
+
+domain_auto_trans(initrc_t, useradd_exec_t, useradd_t)
+
+role sysadm_r types useradd_t;
+domain_auto_trans(sysadm_t, useradd_exec_t, useradd_t)
+
+allow useradd_t unpriv_userdomain:fd use;
+can_ypbind(useradd_t)
+ifdef(`automount.te', `
+allow useradd_t autofs_t:dir { search getattr };
+')
+
+# Update /etc/shadow and /etc/passwd
+file_type_auto_trans(useradd_t, etc_t, shadow_t, file)
+
+allow useradd_t { etc_t shadow_t }:file { relabelfrom relabelto };
+
+# Access terminals.
+ifdef(`gnome-pty-helper.te', `allow useradd_t gphdomain:fd use;')
+
+# for when /root is the cwd
+dontaudit useradd_t sysadm_home_dir_t:dir search;
+
+# Add/remove user home directories
+file_type_auto_trans(useradd_t, home_root_t, user_home_dir_t, dir)
+file_type_auto_trans(useradd_t, user_home_dir_t, user_home_t)
+
+# create/delete mail spool file in /var/mail
+allow useradd_t var_spool_t:dir search;
+allow useradd_t mail_spool_t:dir { search write add_name remove_name };
+allow useradd_t mail_spool_t:file create_file_perms;
+# /var/mail is a link to /var/spool/mail
+allow useradd_t mail_spool_t:lnk_file read;
+') dnl end TODO
