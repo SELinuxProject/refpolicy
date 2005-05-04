@@ -7,14 +7,20 @@ policy_module(udev,1.0)
 # Declarations
 #
 
-type udev_t; # nscd_client_domain, privfd, privowner
+type udev_t; # nscd_client_domain, privowner
 type udev_exec_t;
 type udev_helper_exec_t;
 domain_make_daemon_domain(udev_t,udev_exec_t)
 domain_make_entrypoint_file(udev_t,udev_helper_exec_t)
+domain_make_file_descriptors_widely_inheritable(udev_t)
 
 type udev_etc_t alias etc_udev_t;
 files_make_file(udev_etc_t)
+
+# udev_runtime_t is the type of the udev table file
+# cjp: this is probably a copy of udev_tbl_t and can be removed
+type udev_runtime_t;
+files_make_file(udev_runtime_t)
 
 type udev_tbl_t alias udev_tdb_t;
 files_make_file(udev_tbl_t)
@@ -71,6 +77,8 @@ kernel_transition_from(udev_t,udev_exec_t)
 
 devices_manage_device_nodes(udev_t)
 
+init_script_read_runtime_data(udev_t)
+
 files_read_runtime_system_config(udev_t)
 files_read_general_system_config(udev_t)
 
@@ -89,7 +97,7 @@ modutils_insmod_transition(udev_t)
 
 logging_send_system_log_message(udev_t)
 
-optional_policy(`consoletype.te', `
+optional_policy(`consoletype.te',`
 consoletype_execute(udev_t)
 ')
 
@@ -97,8 +105,6 @@ ifdef(`TODO',`
 allow udev_t var_log_t:dir search;
 allow udev_t var_lock_t:dir search;
 allow udev_t var_lock_t:file getattr;
-# TODO: Need macro for reading daemon runtime data.
-allow udev_t initrc_var_run_t:file r_file_perms;
 
 # Mount
 allow udev_t mnt_t:dir search;
@@ -120,7 +126,7 @@ allow udev_t kernel_t:unix_dgram_socket { sendto ioctl read write };
 dbusd_client(system, udev)
 
 # Ifdefs
-tunable_policy(`distro_redhat', `
+tunable_policy(`distro_redhat',`
 allow udev_t tmpfs_t:dir rw_dir_perms;
 allow udev_t tmpfs_t:sock_file create_file_perms;
 allow udev_t tmpfs_t:lnk_file create_lnk_perms;
@@ -131,26 +137,26 @@ allow udev_t tmpfs_t:dir search;
 domain_auto_trans(udev_t, netutils_exec_t, netutils_t)
 ') dnl end ifdef distro_redhat
 
-tunable_policy(`hide_broken_symptoms', `
+tunable_policy(`hide_broken_symptoms',`
 dontaudit restorecon_t udev_t:unix_dgram_socket { read write };
 dontaudit ifconfig_t udev_t:unix_dgram_socket { read write };
 ')
 
-optional_policy(`xdm.te', `
+optional_policy(`xdm.te',`
 allow udev_t xdm_var_run_t:file { getattr read };
 ')
 
-optional_policy(`hotplug.te', `
+optional_policy(`hotplug.te',`
 r_dir_file(udev_t, hotplug_etc_t)
 ')
 
-optional_policy(`authlogin.te', `
+optional_policy(`authlogin.te',`
 allow udev_t pam_var_console_t:dir search;
 allow udev_t pam_var_console_t:file { getattr read };
 authlogin_pam_console_transition(udev_t)
 ')
 
-optional_policy(`sysnetwork.te', `
+optional_policy(`sysnetwork.te',`
 domain_auto_trans(udev_t, dhcpc_exec_t, dhcpc_t)
 ')
 ') dnl endif TODO
