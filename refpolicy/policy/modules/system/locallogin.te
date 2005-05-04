@@ -18,13 +18,25 @@ files_make_file(local_login_tmp_t)
 #
 
 allow local_login_t self:capability { dac_override chown fowner fsetid kill setgid setuid net_bind_service sys_nice sys_resource sys_tty_config };
+allow local_login_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
 allow local_login_t self:process { setrlimit setexec };
+allow local_login_t self:fd use;
+allow local_login_t self:fifo_file { read getattr lock ioctl write append };
+allow local_login_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow local_login_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow local_login_t self:unix_dgram_socket sendto;
+allow local_login_t self:unix_stream_socket connectto;
+allow local_login_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow local_login_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow local_login_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow local_login_t self:msg { send receive };
 
 allow local_login_t local_login_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
 allow local_login_t local_login_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_private_tmp_data(local_login_t, local_login_tmp_t, { file dir })
 
 kernel_read_system_state(local_login_t)
+kernel_read_kernel_sysctl(local_login_t)
 kernel_get_selinuxfs_mount_point(local_login_t)
 kernel_validate_selinux_context(local_login_t)
 kernel_compute_selinux_av(local_login_t)
@@ -41,8 +53,12 @@ terminal_use_general_physical_terminal(local_login_t)
 init_script_modify_runtime_data(local_login_t)
 init_ignore_use_file_descriptors(local_login_t)
 
+domain_read_all_entrypoint_programs(local_login_t)
+
 files_read_general_system_config(local_login_t)
 files_read_runtime_system_config(local_login_t)
+files_list_home_directories(local_login_t)
+files_read_general_application_resources(local_login_t)
 
 libraries_use_dynamic_loader(local_login_t)
 libraries_read_shared_libraries(local_login_t)
@@ -61,9 +77,20 @@ authlogin_pam_console_manage_runtime_data(local_login_t)
 miscfiles_read_localization(local_login_t)
 
 ifdef(`TODO',`
-general_domain_access(local_login_t)
+allow local_login_t unpriv_userdomain:fd use;
+can_ypbind(local_login_t)
+ifdef(`automount.te', `
+allow local_login_t autofs_t:dir { search getattr };
+')
 
-base_file_read_access(local_login_t)
+allow local_login_t bin_t:dir r_dir_perms;
+allow local_login_t bin_t:notdevfile_class_set r_file_perms;
+allow local_login_t sbin_t:dir r_dir_perms;
+allow local_login_t sbin_t:notdevfile_class_set r_file_perms;
+if (read_default_t) {
+allow local_login_t default_t:dir r_dir_perms;
+allow local_login_t default_t:notdevfile_class_set r_file_perms;
+}
 
 # Read directories and files with the readable_t type.
 # This type is a general type for "world"-readable files.
@@ -75,9 +102,6 @@ allow local_login_t { var_t var_spool_t }:dir search;
 
 # for when /var/mail is a sym-link
 allow local_login_t var_t:lnk_file read;
-
-# Read executable types.
-allow local_login_t exec_type:{ file lnk_file } r_file_perms;
 
 # Read /dev directories and any symbolic links.
 allow local_login_t device_t:lnk_file r_file_perms;
