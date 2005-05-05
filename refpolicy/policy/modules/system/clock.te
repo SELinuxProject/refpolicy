@@ -1,0 +1,97 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(clock,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type adjtime_t;
+files_make_file(adjtime_t)
+
+type hwclock_t;
+type hwclock_exec_t;
+domain_make_system_domain(hwclock_t,hwclock_exec_t)
+role system_r types hwclock_t;
+
+########################################
+#
+# Local policy
+#
+
+allow hwclock_t self:process { sigchld sigkill sigstop signull signal };
+
+# Give hwclock the capabilities it requires.  dac_override is a surprise,
+# but hwclock does require it.
+allow hwclock_t self:capability { dac_override sys_rawio sys_time sys_tty_config };
+dontaudit hwclock_t self:capability sys_tty_config;
+
+# Allow hwclock to store & retrieve correction factors.
+allow hwclock_t adjtime_t:file { setattr ioctl read getattr lock write append };
+
+kernel_read_kernel_sysctl(hwclock_t)
+kernel_read_hardware_state(hwclock_t)
+
+devices_discard_data_stream(hwclock_t)
+devices_modify_realtime_clock(hwclock_t)
+
+filesystem_get_persistent_filesystem_attributes(hwclock_t)
+
+terminal_ignore_use_console(hwclock_t)
+terminal_use_general_physical_terminal(hwclock_t)
+terminal_use_all_users_physical_terminals(hwclock_t)
+terminal_use_all_users_pseudoterminals(hwclock_t)
+
+init_use_file_descriptors(hwclock_t)
+init_script_use_pseudoterminal(hwclock_t)
+
+domain_use_widely_inheritable_file_descriptors(hwclock_t)
+
+libraries_use_dynamic_loader(hwclock_t)
+libraries_read_shared_libraries(hwclock_t)
+
+logging_send_system_log_message(hwclock_t)
+
+miscfiles_read_localization(hwclock_t)
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(hwclock_t)
+terminal_ignore_use_general_pseudoterminal(hwclock_t)
+files_ignore_read_rootfs_file(hwclock_t)
+')
+
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(hwclock_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(hwclock_t)
+')
+
+ifdef(`TODO',`
+
+allow hwclock_t proc_t:dir r_dir_perms;
+allow hwclock_t proc_t:lnk_file read;
+
+optional_policy(`rhgb.te', `
+allow hwclock_t rhgb_t:process sigchld;
+allow hwclock_t rhgb_t:fd use;
+allow hwclock_t rhgb_t:fifo_file { read write };
+')
+
+allow hwclock_t null_device_t:chr_file { read getattr lock ioctl };
+dontaudit hwclock_t unpriv_userdomain:fd use;
+allow hwclock_t autofs_t:dir { search getattr };
+
+domain_auto_trans(sysadm_t, hwclock_exec_t, hwclock_t)
+optional_policy(`gnome-pty-helper.te', `allow hwclock_t sysadm_gph_t:fd use;')
+
+optional_policy(`apmd.te', `
+domain_auto_trans(apmd_t, hwclock_exec_t, hwclock_t)
+')
+
+# for when /usr is not mounted
+dontaudit hwclock_t file_t:dir search;
+
+') dnl end TODO
