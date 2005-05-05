@@ -2,6 +2,11 @@
 
 policy_module(init,1.0)
 
+########################################
+#
+# Declarations
+#
+
 #
 # init_t is the domain of the init process.
 #
@@ -30,7 +35,6 @@ devices_create_dev_entry(init_t,initctl_t,fifo_file)
 #
 type init_var_run_t;
 files_make_file(init_var_run_t)
-files_create_daemon_runtime_data(init_t,init_var_run_t)
 
 type initrc_t;
 domain_make_domain(initrc_t)
@@ -53,7 +57,6 @@ files_make_file(initrc_state_t)
 
 type initrc_tmp_t;
 files_make_file(initrc_tmp_t)
-files_create_private_tmp_data(initrc_t,initrc_tmp_t)
 
 type run_init_t;
 domain_make_domain(run_init_t)
@@ -71,6 +74,7 @@ allow init_t init_exec_t:file { getattr read execute execute_no_trans };
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
+files_create_daemon_runtime_data(init_t,init_var_run_t)
 
 # Run init scripts.  this is ok since initrc
 # is also in this module
@@ -140,21 +144,13 @@ allow init_t self:capability ~sys_module;
 # Modify utmp.
 allow init_t initrc_var_run_t:file { getattr read write setattr };
 
-optional_policy(`consoletype.te',`
-consoletype_execute(init_t,optional)
-')
-
-########################################
-#
-# the following still need to be converted over
-#
-
+ifdef(`TODO',`
 # something other then static libs
 allow init_t lib_t:file { getattr read };
 
 # for mount points
 allow init_t file_t:dir search;
-
+') dnl end TODO
 
 ########################################
 #
@@ -178,6 +174,10 @@ allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rena
 
 allow initrc_t self:tcp_socket { connect listen accept create ioctl read getattr write setattr append bind getopt setopt shutdown };
 allow initrc_t self:udp_socket { connect create ioctl read getattr write setattr append bind getopt setopt shutdown };
+
+allow initrc_t initrc_tmp_t : file { create ioctl read getattr lock write setattr append link unlink rename };
+allow initrc_t initrc_tmp_t : dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+files_create_private_tmp_data(initrc_t,initrc_tmp_t, { file dir })
 
 kernel_read_system_state(initrc_t)
 kernel_read_software_raid_state(initrc_t)
@@ -278,23 +278,6 @@ logging_append_all_logs(initrc_t)
 optional_policy(`authlogin.te',`
 authlogin_pam_read_runtime_data(initrc_t)
 authlogin_pam_remove_runtime_data(initrc_t)
-')
-
-optional_policy(`consoletype.te',`
-consoletype_transition(initrc_t)
-')
-
-optional_policy(`modutils.te',`
-modutils_depmod_transition(initrc_t)
-modutils_update_modules_transition(initrc_t)
-')
-
-optional_policy(`mount.te',`
-mount_transition(initrc_t)
-')
-
-optional_policy(`sysnetwork.te',`
-sysnetwork_ifconfig_transition(initrc_t)
 ')
 
 tunable_policy(`distro_redhat',`
