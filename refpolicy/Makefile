@@ -150,7 +150,7 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 tmp/generated_definitions.conf: $(ALL_MODULES) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
-	$(QUIET) for i in $(ALL_MODULES); do \
+	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_TE_FILES))); do \
 		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$1'")')" \
 			>> $@ ;\
 	done
