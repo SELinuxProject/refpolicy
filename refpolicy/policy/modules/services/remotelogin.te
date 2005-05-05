@@ -1,0 +1,178 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(authlogin,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type remote_login_t; #, privuser, privrole, privlog, auth_chkpwd, privowner, nscd_client_domain;
+domain_make_domain(remote_login_t)
+domain_make_file_descriptors_widely_inheritable(remote_login_t)
+authlogin_make_login_program_entrypoint(remote_login_t)
+role system_r types remote_login_t;
+
+type remote_login_tmp_t;
+files_make_file(remote_login_tmp_t)
+
+########################################
+#
+# Remote login remote policy
+#
+
+allow remote_login_t self:capability { dac_override chown fowner fsetid kill setgid setuid net_bind_service sys_nice sys_resource sys_tty_config };
+allow remote_login_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow remote_login_t self:process { setrlimit setexec };
+allow remote_login_t self:fd use;
+allow remote_login_t self:fifo_file { read getattr lock ioctl write append };
+allow remote_login_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow remote_login_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow remote_login_t self:unix_dgram_socket sendto;
+allow remote_login_t self:unix_stream_socket connectto;
+allow remote_login_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow remote_login_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow remote_login_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow remote_login_t self:msg { send receive };
+
+allow remote_login_t remote_login_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow remote_login_t remote_login_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(remote_login_t, remote_login_tmp_t, { file dir })
+
+kernel_read_system_state(remote_login_t)
+kernel_read_kernel_sysctl(remote_login_t)
+kernel_get_selinuxfs_mount_point(remote_login_t)
+kernel_validate_selinux_context(remote_login_t)
+kernel_compute_selinux_av(remote_login_t)
+kernel_compute_create(remote_login_t)
+kernel_compute_relabel(remote_login_t)
+kernel_compute_reachable_user_contexts(remote_login_t)
+
+# for SSP/ProPolice
+devices_get_pseudorandom_data(remote_login_t)
+
+filesystem_get_persistent_filesystem_attributes(remote_login_t)
+
+init_script_modify_runtime_data(remote_login_t)
+
+domain_read_all_entrypoint_programs(remote_login_t)
+
+files_read_general_system_config(remote_login_t)
+files_read_runtime_system_config(remote_login_t)
+files_list_home_directories(remote_login_t)
+files_read_general_application_resources(remote_login_t)
+
+libraries_use_dynamic_loader(remote_login_t)
+libraries_read_shared_libraries(remote_login_t)
+
+selinux_read_config(remote_login_t)
+selinux_read_default_contexts(remote_login_t)
+
+authlogin_ignore_read_shadow_passwords(remote_login_t)
+authlogin_modify_login_records(remote_login_t)
+authlogin_modify_last_login_log(remote_login_t)
+authlogin_pam_execute(remote_login_t)
+authlogin_pam_console_manage_runtime_data(remote_login_t)
+
+miscfiles_read_localization(remote_login_t)
+
+ifdef(`TODO',`
+allow remote_login_t unpriv_userdomain:fd use;
+can_ypbind(remote_login_t)
+ifdef(`automount.te', `
+allow remote_login_t autofs_t:dir { search getattr };
+')
+
+allow remote_login_t bin_t:dir r_dir_perms;
+allow remote_login_t bin_t:notdevfile_class_set r_file_perms;
+allow remote_login_t sbin_t:dir r_dir_perms;
+allow remote_login_t sbin_t:notdevfile_class_set r_file_perms;
+if (read_default_t) {
+allow remote_login_t default_t:dir r_dir_perms;
+allow remote_login_t default_t:notdevfile_class_set r_file_perms;
+}
+
+# Read directories and files with the readable_t type.
+# This type is a general type for "world"-readable files.
+allow remote_login_t readable_t:dir r_dir_perms;
+allow remote_login_t readable_t:notdevfile_class_set r_file_perms;
+
+# Read /var, /var/spool
+allow remote_login_t { var_t var_spool_t }:dir search;
+
+# for when /var/mail is a sym-link
+allow remote_login_t var_t:lnk_file read;
+
+# Read /dev directories and any symbolic links.
+allow remote_login_t device_t:lnk_file r_file_perms;
+
+dontaudit remote_login_t sysfs_t:dir search;
+
+allow remote_login_t autofs_t:dir { search read getattr };
+allow remote_login_t mnt_t:dir r_dir_perms;
+
+if (use_nfs_home_dirs) {
+r_dir_file(remote_login_t, nfs_t)
+}
+
+if (use_samba_home_dirs) {
+r_dir_file(remote_login_t, cifs_t)
+}
+
+# FIXME: what is this for?
+ifdef(`xdm.te', `
+allow xdm_t remote_login_t:process signull;
+')
+
+ifdef(`crack.te', `
+allow remote_login_t crack_db_t:file r_file_perms;
+')
+
+# Permit login to search the user home directories.
+allow remote_login_t home_dir_type:dir search;
+
+# Write to /var/log/btmp
+allow remote_login_t faillog_t:file { append read write };
+
+# Search for mail spool file.
+allow remote_login_t mail_spool_t:dir r_dir_perms;
+allow remote_login_t mail_spool_t:file getattr;
+allow remote_login_t mail_spool_t:lnk_file read;
+
+
+allow remote_login_t mouse_device_t:chr_file { getattr setattr };
+
+ifdef(`targeted_policy',`
+unconfined_domain(remote_login_t)
+domain_auto_trans(remote_login_t, shell_exec_t, unconfined_t)
+')
+
+# Only permit unprivileged user domains to be entered via rlogin,
+# since very weak authentication is used.
+login_spawn_domain(remote_login, unpriv_userdomain)
+
+allow remote_login_t devpts_t:dir search;
+allow remote_login_t userpty_type:chr_file { setattr write };
+
+# Use the pty created by rlogind.
+ifdef(`rlogind.te', `
+allow remote_login_t rlogind_devpts_t:chr_file { setattr rw_file_perms };
+
+# Relabel ptys created by rlogind.
+allow remote_login_t rlogind_devpts_t:chr_file { relabelfrom relabelto };
+')
+
+# Use the pty created by telnetd.
+ifdef(`telnetd.te', `
+allow remote_login_t telnetd_devpts_t:chr_file { setattr rw_file_perms };
+
+# Relabel ptys created by telnetd.
+allow remote_login_t telnetd_devpts_t:chr_file { relabelfrom relabelto };
+')
+
+allow remote_login_t ptyfile:chr_file { getattr relabelfrom relabelto ioctl };
+
+# Allow remote login to resolve host names (passed in via the -h switch)
+can_resolve(remote_login_t)
+
+') dnl endif TODO
