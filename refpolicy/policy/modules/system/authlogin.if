@@ -9,7 +9,7 @@
 define(`authlogin_per_userdomain_template',`
 requires_block_template(`$0'_depend)
 
-type $1_chkpwd_t;     # , nscd_client_domain;
+type $1_chkpwd_t, can_read_shadow_passwords; # , nscd_client_domain;
 domain_make_domain($1_chkpwd_t)
 domain_make_entrypoint_file($1_chkpwd_t,chkpwd_exec_t)
 role $1_r types $1_chkpwd_t;
@@ -18,21 +18,44 @@ role $1_r types system_chkpwd_t;
 allow $1_chkpwd_t self:capability setuid;
 allow $1_chkpwd_t self:process getattr;
 
-authlogin_read_shadow_passwords($1_chkpwd_t)
-logging_send_system_log_message($1_chkpwd_t)
-
-libraries_use_dynamic_loader($1_chkpwd_t)
-libraries_read_shared_libraries($1_chkpwd_t)
-files_read_general_system_config($1_chkpwd_t)
-miscfiles_read_localization($1_chkpwd_t)
-selinux_read_config($1_chkpwd_t)
-filesystem_ignore_get_persistent_filesystem_attributes($1_chkpwd_t)
+# FIXME: read etc_t dir
+allow $1_chkpwd_t shadow_t:file { getattr read };
 
 # is_selinux_enabled
 kernel_read_system_state($1_chkpwd_t)
+
+filesystem_ignore_get_persistent_filesystem_attributes($1_chkpwd_t)
+
+domain_use_widely_inheritable_file_descriptors($1_chkpwd_t)
+
+libraries_use_dynamic_loader($1_chkpwd_t)
+libraries_read_shared_libraries($1_chkpwd_t)
+
+files_read_general_system_config($1_chkpwd_t)
+# for nscd
+files_ignore_search_system_state_data_directory($1_chkpwd_t)
+
+logging_send_system_log_message($1_chkpwd_t)
+
+miscfiles_read_localization($1_chkpwd_t)
+
+selinux_read_config($1_chkpwd_t)
+
 #can_ypbind($1_chkpwd_t)
 #can_kerberos($1_chkpwd_t)
 #can_ldap($1_chkpwd_t)
+
+# Transition from the user domain to this domain.
+allow $1_t chkpwd_exec_t:file { getattr read execute };
+allow $1_t $1_chkpwd_t:process transition;
+type_transition $1_t chkpwd_exec_t:process $1_chkpwd_t;
+
+# Write to the user domain tty.
+#userdomain_use_$1_terminal($1_chkpwd_t)
+#userdomain_use_$1_pty($1_chkpwd_t)
+
+# Inherit and use descriptors from gnome-pty-helper.
+#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
 
 tunable_policy(`use_dns',`
 allow $1_chkpwd_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
@@ -43,42 +66,17 @@ corenetwork_network_raw_on_all_nodes($1_chkpwd_t)
 corenetwork_bind_udp_on_all_nodes($1_chkpwd_t)
 corenetwork_network_udp_on_dns_port($1_chkpwd_t)
 sysnetwork_read_network_config($1_chkpwd_t)
-') dnl end use_dns
-
-# for nscd
-files_ignore_search_system_state_data_directory($1_chkpwd_t)
-
-# Transition from the user domain to this domain.
-ifelse($1, system, `
-#dontaudit $1_chkpwd_t user_tty_type:chr_file rw_file_perms;
-terminal_use_general_physical_terminal($1_chkpwd_t)
-', `
-# Transition from the user domain to this domain.
-allow $1_t chkpwd_exec_t:file { getattr read execute };
-allow $1_t $1_chkpwd_t:process transition;
-type_transition $1_t chkpwd_exec_t:process $1_chkpwd_t;
-
-#allow $1_t sbin_t:dir search;
-
-# Write to the user domain tty.
-#userdomain_use_$1_terminal($1_chkpwd_t)
-#userdomain_use_$1_pty($1_chkpwd_t)
-
-domain_use_widely_inheritable_file_descriptors($1_chkpwd_t)
-
-# Inherit and use descriptors from gnome-pty-helper.
-#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
+')
 
 optional_policy(`selinux.te',`
 selinux_newrole_use_file_descriptors($1_chkpwd_t)
 ')
 
-') dnl ifelse system
-
 ') dnl end authlogin_per_userdomain_template
 
 define(`authlogin_per_userdomain_template_depend',`
-type chkpwd_exec_t, system_chkpwd_t;
+attribute can_read_shadow_passwords;
+type chkpwd_exec_t, system_chkpwd_t, shadow_t;
 class file { getattr read execute };
 class process { getattr transition };
 class capability setuid;
