@@ -230,11 +230,22 @@
 #
 # Attributes
 #
+# $1 is the type this attribute is on
 
 #
 # admin_tty_type: complete
 #
 { sysadm_tty_device_t sysadm_devpts_t }
+
+#
+# auth: complete
+#
+authlogin_read_shadow_passwords($1)
+
+#
+# auth_chkpwd: complete
+#
+authlogin_check_password_transition($1)
 
 #
 # file_type: complete
@@ -250,6 +261,20 @@ logging_send_system_log_message($1)
 #
 modutils_insmod_transition($1)
 
+#
+# privowner: complete
+#
+kernel_make_object_identity_change_constraint_exception($1)
+
+#
+# privrole: complete
+#
+kernel_make_role_change_constraint_exception($1)
+
+#
+# privuser: complete
+#
+kernel_make_process_identity_change_constraint_exception($1)
 
 ########################################
 #
@@ -327,7 +352,7 @@ sysnetwork_read_network_config($1)
 # base_file_read_access():
 #
 files_list_home_directories($1)
-files_read_general_shared_resources($1)
+files_read_general_application_resources($1)
 allow $1 bin_t:dir r_dir_perms;
 allow $1 bin_t:notdevfile_class_set r_file_perms;
 allow $1 sbin_t:dir r_dir_perms;
@@ -406,9 +431,8 @@ can_exec($1, ld_so_t)
 #
 # can_getcon():
 #
-allow $1 proc_t:dir search;
-allow $1 proc_t:{ file lnk_file } read;
 allow $1 self:process getattr;
+kernel_read_system_state($1)
 
 #
 # can_getsecurity(): complete
@@ -511,8 +535,15 @@ allow $2 $1:process sigchld;
 #
 # can_resolve():
 #
-ifdef(`use_dns',`
-can_network_udp($1, `dns_port_t')
+tunable_policy(`use_dns',`
+allow $1 self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+corenetwork_network_udp_on_all_interfaces($1)
+corenetwork_network_raw_on_all_interfaces($1)
+corenetwork_network_udp_on_all_nodes($1)
+corenetwork_network_raw_on_all_nodes($1)
+corenetwork_bind_udp_on_all_nodes($1)
+corenetwork_network_udp_on_dns_port($1)
+sysnetwork_read_network_config($1)
 ')
 
 #
@@ -597,21 +628,6 @@ allow $1 $2:unix_dgram_socket sendto;
 #
 # can_ypbind():
 #
-optional_policy(`ypbind.te', `
-if (allow_ypbind) {
-can_network($1)
-r_dir_file($1,var_yp_t)
-corenetwork_bind_tcp_on_general_port($1)
-corenetwork_bind_udp_on_general_port($1)
-corenetwork_bind_tcp_on_reserved_port($1)
-corenetwork_bind_udp_on_reserved_port($1)
-corenetwork_ignore_bind_tcp_on_all_reserved_ports($1)
-corenetwork_ignore_bind_udp_on_all_reserved_ports($1)
-dontaudit $1 self:capability net_bind_service;
-} else {
-dontaudit $1 var_yp_t:dir search;
-}
-') dnl end ypbind optional_policy
 
 #
 # create_append_log_file():
@@ -644,7 +660,6 @@ dontaudit $1_t self:capability sys_tty_config;
 allow $1_t self:process { sigchld sigkill sigstop signull signal };
 kernel_read_kernel_sysctl($1_t)
 kernel_read_hardware_state($1_t)
-devices_discard_data_stream($1_t)
 terminal_ignore_use_console($1_t)
 init_use_file_descriptors($1_t)
 init_script_use_pseudoterminal($1_t)
@@ -667,7 +682,6 @@ allow $1_t rhgb_t:fifo_file { read write };
 optional_policy(`udev.te', `
 udev_read_database($1_t)
 ')
-allow $1_t null_device_t:chr_file r_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
 allow $1_t autofs_t:dir { search getattr };
 tunable_policy(`direct_sysadm_daemon', `
@@ -691,9 +705,7 @@ files_create_daemon_runtime_data($1_t,$1_var_run_t)
 dontaudit $1_t self:capability sys_tty_config;
 kernel_read_kernel_sysctl($1_t)
 kernel_read_hardware_state($1_t)
-devices_discard_data_stream($1_t)
 filesystem_get_all_filesystems_attributes($1_t)
-terminal_use_controlling_terminal($1_t)
 terminal_ignore_use_console($1_t)
 init_use_file_descriptors($1_t)
 init_script_use_pseudoterminal($1_t)
@@ -712,7 +724,6 @@ files_ignore_read_rootfs_file($1_t)
 ')dnl end targeted_policy tunable
 allow $1_t proc_t:dir r_dir_perms;
 allow $1_t proc_t:lnk_file read;
-allow $1_t null_device_t:chr_file r_file_perms;
 dontaudit $1_t unpriv_userdomain:fd use;
 allow $1_t autofs_t:dir { search getattr };
 dontaudit $1_t sysadm_home_dir_t:dir search;
@@ -748,7 +759,7 @@ allow $2_t device_t:dir getattr;
 #
 type $1_etc_t; #, usercanread;
 files_make_file($1_etc_t)
-allow $1_t $1_etc_t:file r_file_perms;
+allow $1_t $1_etc_t:file { getattr read };
 
 #
 # etcdir_domain():
@@ -779,7 +790,7 @@ can_create_internal($1,$2,$4)
 type_transition $1 $2:$4 $3;
 
 #
-# file_type_trans($1,$2,$3):
+# file_type_auto_trans($1,$2,$3):
 #
 allow $1 $3:dir { read getattr lock search ioctl add_name remove_name write };
 allow $1 $3:file { create ioctl read getattr lock write setattr append link unlink rename };
@@ -789,7 +800,7 @@ allow $1 $3:fifo_file { create ioctl read getattr lock write setattr append link
 type_transition $1 $2:{ dir file lnk_file sock_file fifo_file } $3;
 
 #
-# file_type_trans($1,$2,$3,$4):
+# file_type_auto_trans($1,$2,$3,$4):
 #
 # for each i in $4
 allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
@@ -865,7 +876,6 @@ init_use_file_descriptors($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 logging_send_system_log_message($1_t)
-devices_discard_data_stream($1_t)
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal($1_t)
 terminal_ignore_use_general_pseudoterminal($1_t)
@@ -876,7 +886,6 @@ allow $1_t proc_t:lnk_file read;
 optional_policy(`udev.te', `
 udev_read_database($1_t)
 ')
-allow $1_t null_device_t:chr_file r_file_perms;
 allow $1_t autofs_t:dir { search getattr };
 dontaudit $1_t unpriv_userdomain:fd use;
 
