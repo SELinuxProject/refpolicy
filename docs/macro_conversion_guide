@@ -174,7 +174,7 @@
 #
 # rw_file_perms
 #
-{ ioctl read getattr lock write append }
+{ getattr read write append ioctl lock  }
 
 #
 # rw_msgq_perms
@@ -251,6 +251,18 @@ authlogin_check_password_transition($1)
 # file_type: complete
 #
 files_make_file($1)
+
+#
+# fs_domain: complete
+#
+# one or both of these:
+storage_raw_read_fixed_disk($1)
+storage_raw_write_fixed_disk($1)
+
+#
+# privfd: complete
+#
+domain_make_file_descriptors_widely_inheritable($1)
 
 #
 # privlog: complete
@@ -667,29 +679,29 @@ domain_use_widely_inheritable_file_descriptors($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 logging_send_system_log_message($1_t)
+allow $1_t proc_t:dir r_dir_perms;
+allow $1_t proc_t:lnk_file read;
+tunable_policy(`direct_sysadm_daemon', `
+dontaudit $1_t admin_tty_type:chr_file rw_file_perms;
+')
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal($1_t)
 terminal_ignore_use_general_pseudoterminal($1_t)
 files_ignore_read_rootfs_file($1_t)
-')dnl end targeted_policy tunable
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
+')
 optional_policy(`rhgb.te', `
 allow $1_t rhgb_t:process sigchld;
 allow $1_t rhgb_t:fd use;
 allow $1_t rhgb_t:fifo_file { read write };
+')
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld($1_t)
 ')
 optional_policy(`udev.te', `
 udev_read_database($1_t)
 ')
 dontaudit $1_t unpriv_userdomain:fd use;
 allow $1_t autofs_t:dir { search getattr };
-tunable_policy(`direct_sysadm_daemon', `
-dontaudit $1_t admin_tty_type:chr_file rw_file_perms;
-')
-optional_policy(`selinux.te',`
-selinux_newrole_sigchld($1_t)
-')
 
 
 #
@@ -699,7 +711,7 @@ type $1_t;
 type $1_exec_t;
 domain_make_daemon_domain($1_t,$1_exec_t)
 type $1_var_run_t;
-files_make_file($1_var_run_t)
+files_make_daemon_runtime_file($1_var_run_t)
 allow $1_t $1_var_run_t:file { getattr create read write append setattr unlink };
 files_create_daemon_runtime_data($1_t,$1_var_run_t)
 dontaudit $1_t self:capability sys_tty_config;
@@ -714,19 +726,11 @@ logging_send_system_log_message($1_t)
 libraries_use_dynamic_loader($1_t)
 libraries_read_shared_libraries($1_t)
 miscfiles_read_localization($1_t)
-optional_policy(`udev.te', `
-udev_read_database($1_t)
-')
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal($1_t)
 terminal_ignore_use_general_pseudoterminal($1_t)
 files_ignore_read_rootfs_file($1_t)
-')dnl end targeted_policy tunable
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
-dontaudit $1_t unpriv_userdomain:fd use;
-allow $1_t autofs_t:dir { search getattr };
-dontaudit $1_t sysadm_home_dir_t:dir search;
+')
 optional_policy(`rhgb.te', `
 allow $1_t rhgb_t:process sigchld;
 allow $1_t rhgb_t:fd use;
@@ -735,6 +739,14 @@ allow $1_t rhgb_t:fifo_file { read write };
 optional_policy(`selinux.te',`
 selinux_newrole_sigchld($1_t)
 ')
+optional_policy(`udev.te', `
+udev_read_database($1_t)
+')
+allow $1_t proc_t:dir r_dir_perms;
+allow $1_t proc_t:lnk_file read;
+dontaudit $1_t unpriv_userdomain:fd use;
+allow $1_t autofs_t:dir { search getattr };
+dontaudit $1_t sysadm_home_dir_t:dir search;
 
 #
 # daemon_sub_domain():
@@ -906,16 +918,18 @@ file_type_auto_trans($1_t, var_lock_t, $1_lock_t, file)
 # log_domain(): complete
 #
 type $1_log_t;
-logging_make_log_file($1,$1_log_t)
+logging_make_log_file($1_log_t)
 allow $1_t $1_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+logging_create_private_log($1_t,$1_log_t)
 
 #
 # logdir_domain(): complete
 #
 type $1_log_t;
-logging_make_log_file($1,$1_log_t)
+logging_make_log_file($1_log_t)
 allow $1_t $1_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 allow $1_t $1_log_t:dir { getattr search read lock ioctl add_name remove_name write setattr };
+logging_create_private_log($1_t,$1_log_t,{ file dir })
 
 #
 # mini_user_domain():
@@ -1014,7 +1028,7 @@ allow $1_t etc_t:dir r_dir_perms;
 # $2 may need more handling
 #
 type $1_tmp_t $2;
-files_make_file($1_tmp_t)
+files_make_temporary_file($1_tmp_t)
 # no class specified:
 allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
 allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
@@ -1029,7 +1043,7 @@ files_create_private_tmp_data($1_t, $1_tmp_t, $3)
 # $2 may need more handling
 #
 type $1_tmp_t $2;
-files_make_file($1_tmp_t)
+files_make_temporary_file($1_tmp_t)
 files_create_private_tmp_data($1_t, $1_tmp_t, $3)
 allow $1_t $1_tmp_t:$3 manage_obj_perms;
 
