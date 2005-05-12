@@ -41,12 +41,18 @@ allow $1_crond_t self:unix_dgram_socket { create ioctl read getattr write setatt
 # for this purpose.
 allow $1_crond_t $1_cron_spool_t:file entrypoint;
 
-ifdef(`fcron.te', `
-allow crond_t $1_cron_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-')
+# Permit a transition from the crond_t domain to this domain.
+# The transition is requested explicitly by the modified crond 
+# via setexeccon.  There is no way to set up an automatic
+# transition, since crontabs are configuration files, not executables.
+allow crond_t $1_crond_t:process transition;
+dontaudit crond_t $1_crond_t:process { noatsecure siginh rlimitinh };
 
 kernel_read_system_state($1_crond_t)
 kernel_read_kernel_sysctl($1_crond_t)
+
+# ps does not need to access /boot when run from cron
+bootloader_ignore_search_bootloader_data_directory($1_crond_t)
 
 corenetwork_network_tcp_on_all_interfaces($1_crond_t)
 corenetwork_network_raw_on_all_interfaces($1_crond_t)
@@ -67,6 +73,8 @@ domain_execute_all_entrypoint_programs($1_crond_t)
 
 files_read_general_application_resources($1_crond_t)
 files_execute_system_config_script($1_crond_t)
+# for nscd:
+files_ignore_search_runtime_data_directory($1_crond_t)
 
 corecommands_execute_general_programs($1_crond_t)
 corecommands_execute_system_programs($1_crond_t)
@@ -74,12 +82,19 @@ corecommands_execute_system_programs($1_crond_t)
 libraries_use_dynamic_loader($1_crond_t)
 libraries_read_shared_libraries($1_crond_t)
 libraries_execute_library_scripts($1_crond_t)
+libraries_execute_dynamic_loader($1_crond_t)
 
 files_read_runtime_system_config($1_crond_t)
+
+logging_search_system_log_directory($1_crond_t)
 
 selinux_read_config($1_crond_t)
 
 miscfiles_read_localization($1_crond_t)
+
+tunable_policy(`fcron_crond', `
+allow crond_t $1_cron_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+')
 
 ifdef(`TODO',`
 # Access user files and dirs.
@@ -90,12 +105,6 @@ file_type_auto_trans($1_crond_t, $1_home_dir_t, $1_home_t)
 can_exec($1_crond_t, $1_home_t)
 
 file_type_auto_trans($1_crond_t, tmp_t, $1_tmp_t)
-
-# Permit a transition from the crond_t domain to this domain.
-# The transition is requested explicitly by the modified crond 
-# via execve_secure.  There is no way to set up an automatic
-# transition, since crontabs are configuration files, not executables.
-domain_trans(crond_t, shell_exec_t, $1_crond_t)
 
 ifdef(`mta.te', `
 domain_auto_trans($1_crond_t, sendmail_exec_t, $1_mail_t)
@@ -111,17 +120,9 @@ can_ypbind($1_crond_t)
 allow $1_crond_t var_spool_t:dir search;
 allow $1_crond_t var_t:dir r_dir_perms;
 allow $1_crond_t var_t:file { getattr read ioctl };
-allow $1_crond_t var_log_t:dir search;
 
-can_exec($1_crond_t, ld_so_t)
-
-# ps does not need to access /boot when run from cron
-dontaudit $1_crond_t boot_t:dir search;
 # quiet other ps operations
 dontaudit $1_crond_t domain:dir { getattr search };
-# for nscd
-dontaudit $1_crond_t var_run_t:dir search;
-
 ') dnl endif TODO
 
 ##############################
@@ -138,6 +139,11 @@ allow crond_t $1_cron_spool_t:file { getattr read };
 # dac_override is to create the file in the directory under /tmp
 allow $1_crontab_t self:capability { setuid setgid chown dac_override };
 allow $1_crontab_t self:process { sigkill sigstop signull signal };
+
+# create files in /var/spool/cron
+allow $1_crontab_t $1_cron_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_crontab_t cron_spool_t:dir { getattr search read write add_name remove_name };
+type_transition $1_crontab_t $1_cron_spool_t:file system_crond_tmp_t;
 
 # crontab signals crond by updating the mtime on the spooldir
 allow $1_crontab_t cron_spool_t:dir setattr;
@@ -174,10 +180,8 @@ file_type_auto_trans($1_crontab_t, tmp_t, $1_tmp_t, { dir file })
 
 # Use the type when creating files in /var/spool/cron.
 allow sysadm_crontab_t $1_cron_spool_t:file { getattr read };
-allow $1_crontab_t { var_t var_spool_t }:dir { getattr search };
-file_type_auto_trans($1_crontab_t, cron_spool_t, $1_cron_spool_t, file)
 
-ifdef(`fcron.te', `
+tunable_policy(`fcron_crond', `
 # fcron wants an instant update of a crontab change for the administrator
 # also crontab does a security check for crontab -u
 ifelse(`$1', `sysadm', `
@@ -199,7 +203,9 @@ allow $1_crontab_t $1_home_t:file r_file_perms;
 dontaudit $1_crontab_t $1_home_dir_t:dir write;
 
 # Access terminals.
-access_terminal($1_crontab_t, $1);
+allow $1_crontab_t devpts_t:dir { read search getattr };
+allow $1_crontab_t $1_tty_device_t:chr_file { read write getattr ioctl };
+allow $1_crontab_t $1_devpts_t:chr_file { read write getattr ioctl };
 
 # Inherit and use descriptors from gnome-pty-helper.
 ifdef(`gnome-pty-helper.te', `allow $1_crontab_t $1_gph_t:fd use;')

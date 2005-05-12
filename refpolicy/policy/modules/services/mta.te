@@ -2,6 +2,11 @@
 
 policy_module(mta,1.0)
 
+########################################
+#
+# Declarations
+#
+
 type etc_aliases_t;
 files_make_file(etc_aliases_t)
 
@@ -13,3 +18,180 @@ files_make_file(mqueue_spool_t)
 
 type mail_spool_t;
 files_make_file(mail_spool_t)
+
+type sendmail_exec_t;
+files_make_file(sendmail_exec_t)
+
+type system_mail_t; #, user_mail_domain, nscd_client_domain;
+domain_make_domain(system_mail_t)
+role system_r types system_mail_t;
+
+########################################
+#
+# System mail local policy
+#
+
+allow system_mail_t self:capability { setuid setgid chown };
+allow system_mail_t self:process { sigkill sigstop signull signal setrlimit };
+
+allow system_mail_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+
+# re-exec itself
+allow system_mail_t sendmail_exec_t:file { getattr read execute execute_no_trans };
+allow system_mail_t sendmail_exec_t:lnk_file { getattr read };
+
+kernel_read_kernel_sysctl(system_mail_t)
+kernel_read_system_state(system_mail_t)
+kernel_read_network_state(system_mail_t)
+
+corenetwork_network_tcp_on_all_interfaces(system_mail_t)
+corenetwork_network_raw_on_all_interfaces(system_mail_t)
+corenetwork_network_tcp_on_all_nodes(system_mail_t)
+corenetwork_network_raw_on_all_nodes(system_mail_t)
+corenetwork_bind_tcp_on_all_nodes(system_mail_t)
+corenetwork_network_tcp_on_all_ports(system_mail_t)
+
+devices_get_pseudorandom_data(system_mail_t)
+
+filesystem_get_persistent_filesystem_attributes(system_mail_t)
+
+init_script_use_pseudoterminal(system_mail_t)
+
+files_read_runtime_system_config(system_mail_t)
+files_read_general_system_config(system_mail_t)
+# It wants to check for nscd
+files_ignore_search_runtime_data_directory(system_mail_t)
+
+corecommands_execute_general_programs(system_mail_t)
+
+libraries_use_dynamic_loader(system_mail_t)
+libraries_read_shared_libraries(system_mail_t)
+
+logging_send_system_log_message(system_mail_t)
+
+miscfiles_read_localization(system_mail_t)
+
+sysnetwork_read_network_config(system_mail_t)
+
+tunable_policy(`use_dns',`
+allow system_mail_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+corenetwork_network_udp_on_all_interfaces(system_mail_t)
+corenetwork_network_udp_on_all_nodes(system_mail_t)
+corenetwork_bind_udp_on_all_nodes(system_mail_t)
+corenetwork_network_udp_on_dns_port(system_mail_t)
+')
+
+optional_policy(`procmail.te',`
+procmail_execute(system_mail_t)
+')
+
+ifdef(`TODO',`
+
+
+
+can_ypbind(system_mail_t)
+
+allow system_mail_t device_t:dir search;
+allow system_mail_t { var_t var_spool_t }:dir search;
+allow system_mail_t sbin_t:dir search;
+
+# Transition from a system domain to the derived domain.
+domain_auto_trans(privmail, sendmail_exec_t, system_mail_t)
+allow privmail sendmail_exec_t:lnk_file { getattr read };
+
+ifdef(`crond.te', `
+# Read cron temporary files.
+allow system_mail_t system_crond_tmp_t:file { read getattr ioctl };
+allow mta_user_agent system_crond_tmp_t:file { read getattr };
+')
+
+ifdef(`qmail.te', `
+allow system_mail_t qmail_etc_t:dir search;
+allow system_mail_t qmail_etc_t:{ file lnk_file } read;
+')dnl end if qmail
+
+ifdef(`targeted_policy', `
+# rules are currently defined in sendmail.te, but it is not included in 
+# targeted policy.  We could move these rules permanantly here.
+
+ifdef(`postfix.te', `', `
+domain_execute_all_entrypoint_programs(system_mail_t)
+files_execute_system_config_script(system_mail_t)
+corecommands_execute_general_programs(system_mail_t)
+corecommands_execute_system_programs(system_mail_t)
+libraries_use_dynamic_loader(system_mail_t)
+libraries_read_shared_libraries(system_mail_t)
+libraries_execute_dynamic_loader(system_mail_t)
+libraries_execute_library_scripts(system_mail_t)
+')
+
+allow system_mail_t { var_t var_spool_t }:dir getattr;
+
+allow system_mail_t mqueue_spool_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow system_mail_t mqueue_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow system_mail_t mqueue_spool_t:lnk_file { create read getattr setattr link unlink rename };
+
+allow system_mail_t mail_spool_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow system_mail_t mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow system_mail_t mail_spool_t:lnk_file { create read getattr setattr link unlink rename };
+
+allow system_mail_t mail_spool_t:fifo_file rw_file_perms;
+allow system_mail_t etc_mail_t:file { getattr read };
+', ` dnl if not targeted policy:
+ifdef(`sendmail.te', `
+# sendmail has an ugly design, the one process parses input from the user and
+# then does system things with it.
+domain_auto_trans(initrc_t, sendmail_exec_t, sendmail_t)
+', `
+domain_auto_trans(initrc_t, sendmail_exec_t, system_mail_t)
+') dnl end if sendmail.te
+
+# allow the sysadmin to do "mail someone < /home/user/whatever"
+allow sysadm_mail_t user_home_dir_type:dir search;
+r_dir_file(sysadm_mail_t, user_home_type)
+') dnl end ifdef targeted_policy
+
+# for a mail server process that does things in response to a user command
+allow mta_user_agent userdomain:process sigchld;
+allow mta_user_agent { userdomain privfd }:fd use;
+ifdef(`crond.te', `
+allow mta_user_agent crond_t:process sigchld;
+')
+allow mta_user_agent sysadm_t:fifo_file { read write };
+
+allow { system_mail_t mta_user_agent } privmail:fd use;
+allow { system_mail_t mta_user_agent } privmail:process sigchld;
+allow { system_mail_t mta_user_agent } privmail:fifo_file { read write };
+allow { system_mail_t mta_user_agent } admin_tty_type:chr_file { read write };
+
+ifdef(`arpwatch.te', `
+# why is mail delivered to a directory of type arpwatch_data_t?
+allow mta_delivery_agent arpwatch_data_t:dir search;
+allow { system_mail_t mta_user_agent } arpwatch_tmp_t:file rw_file_perms;
+ifdef(`hide_broken_symptoms', `
+dontaudit { system_mail_t mta_user_agent } arpwatch_t:packet_socket { read write };
+')
+')dnl end if arpwatch.te
+
+allow mta_delivery_agent home_root_t:dir { getattr search };
+
+# for /var/spool/mail
+ra_dir_create_file(mta_delivery_agent, mail_spool_t)
+
+# for piping mail to a command
+can_exec(mta_delivery_agent, shell_exec_t)
+allow mta_delivery_agent bin_t:dir search;
+allow mta_delivery_agent bin_t:lnk_file read;
+allow mta_delivery_agent { etc_runtime_t proc_t }:file { getattr read };
+
+# Transition from a system domain to the derived domain.
+domain_auto_trans(privmail, sendmail_exec_t, system_mail_t)
+allow privmail sendmail_exec_t:lnk_file { getattr read };
+
+ifdef(`crond.te', `
+# Read cron temporary files.
+allow system_mail_t system_crond_tmp_t:file { read getattr ioctl };
+allow mta_user_agent system_crond_tmp_t:file { read getattr };
+')
+
+') dnl end TODO

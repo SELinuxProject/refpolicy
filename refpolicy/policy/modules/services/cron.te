@@ -2,9 +2,6 @@
 
 policy_module(consoletype, 1.0)
 
-# NB The constraints file has some entries for crond_t, this makes it
-# different from all other domains...
-
 ########################################
 #
 # Declarations
@@ -19,7 +16,7 @@ bool cron_can_relabel false;
 type cron_spool_t;
 files_make_file(cron_spool_t)
 
-type crond_t; #, privmail, privfd, nscd_client_domain
+type crond_t; #, privmail, nscd_client_domain
 type crond_exec_t;
 domain_make_daemon_domain(crond_t,crond_exec_t)
 domain_make_file_descriptors_widely_inheritable(crond_t)
@@ -41,6 +38,9 @@ type system_crond_t; #, privmail, nscd_client_domain;
 domain_make_daemon_domain(system_crond_t,anacron_exec_t)
 corecommands_make_shell_entrypoint(system_crond_t)
 role system_r types system_crond_t;
+
+type system_crond_lock_t;
+files_make_lock_file(system_crond_lock_t)
 
 type system_crond_tmp_t;
 files_make_temporary_file(system_crond_tmp_t)
@@ -74,6 +74,9 @@ allow crond_t crond_tmp_t:dir { create read getattr lock setattr ioctl link unli
 allow crond_t crond_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_private_tmp_data(crond_t, crond_tmp_t, { file dir })
 
+allow crond_t system_cron_spool_t:dir { getattr search read };
+allow crond_t system_cron_spool_t:file { getattr read };
+
 kernel_read_kernel_sysctl(crond_t)
 kernel_read_hardware_state(crond_t)
 kernel_get_selinuxfs_mount_point(crond_t)
@@ -96,6 +99,9 @@ domain_use_widely_inheritable_file_descriptors(crond_t)
 
 files_read_general_system_config(crond_t)
 
+corecommands_execute_shell(crond_t)
+corecommands_read_system_programs_directory(crond_t)
+
 libraries_use_dynamic_loader(crond_t)
 libraries_read_shared_libraries(crond_t)
 
@@ -110,6 +116,10 @@ miscfiles_read_localization(crond_t)
 # need auth_chkpwd to check for locked accounts.
 authlogin_check_password_transition(crond_t)
 
+tunable_policy(`fcron_crond', `
+allow crond_t system_cron_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+')
+
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal(crond_t)
 terminal_ignore_use_general_pseudoterminal(crond_t)
@@ -121,28 +131,23 @@ udev_read_database(crond_t)
 ')
 
 ifdef(`TODO',`
-allow crond_t proc_t:dir r_dir_perms;
-allow crond_t proc_t:lnk_file read;
-dontaudit crond_t unpriv_userdomain:fd use;
+# NB The constraints file has some entries for crond_t, this makes it
+# different from all other domains...
+
+allow crond_t unpriv_userdomain:fd use;
 allow crond_t autofs_t:dir { search getattr };
 dontaudit crond_t sysadm_home_dir_t:dir search;
+
 optional_policy(`rhgb.te', `
 allow crond_t rhgb_t:process sigchld;
 allow crond_t rhgb_t:fd use;
 allow crond_t rhgb_t:fifo_file { read write };
 ')
 
-
-allow crond_t unpriv_userdomain:fd use;
 can_ypbind(crond_t)
 ifdef(`automount.te', `
 allow crond_t autofs_t:dir { search getattr };
 ')
-
-
-# for finding binaries and /bin/sh
-allow crond_t { bin_t sbin_t }:dir search;
-allow crond_t { bin_t sbin_t }:lnk_file read;
 
 # Read from /var/spool/cron.
 allow crond_t var_lib_t:dir search;
@@ -158,9 +163,6 @@ allow crond_t sysadm_home_dir_t:dir r_dir_perms;
 # to search /home
 allow crond_t home_root_t:dir { getattr search };
 allow crond_t user_home_dir_type:dir r_dir_perms;
-
-# Run a shell.
-can_exec(crond_t, shell_exec_t)
 
 ifdef(`distro_redhat', `
 # Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -199,9 +201,39 @@ allow system_crond_t system_cron_spool_t:file entrypoint;
 
 allow system_crond_t system_cron_spool_t:file { getattr read };
 
+# Permit a transition from the crond_t domain to this domain.
+# The transition is requested explicitly by the modified crond 
+# via setexeccon.  There is no way to set up an automatic
+# transition, since crontabs are configuration files, not executables.
+allow crond_t system_crond_t:process transition;
+dontaudit crond_t system_crond_t:process { noatsecure siginh rlimitinh };
+
+# Write /var/lock/makewhatis.lock.
+allow system_crond_t system_crond_lock_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_lock_file(system_crond_t,system_crond_lock_t)
+
+# write temporary files
+allow system_crond_t system_crond_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(system_crond_t,system_crond_tmp_t)
+
+# write temporary files in crond tmp dir:
+allow system_crond_t crond_tmp_t:dir { getattr search read write add_name remove_name };
+type_transition system_crond_t crond_tmp_t:file system_crond_tmp_t;
+
+# Read from /var/spool/cron.
+allow system_crond_t cron_spool_t:dir { getattr search read };
+allow system_crond_t cron_spool_t:file { getattr read };
+
+# Access crond log files
+allow system_crond_t crond_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+logging_create_private_log(system_crond_t,crond_log_t)
+
 kernel_read_kernel_sysctl(system_crond_t)
 kernel_read_system_state(system_crond_t)
 kernel_read_software_raid_state(system_crond_t)
+
+# ps does not need to access /boot when run from cron
+bootloader_ignore_search_bootloader_data_directory(system_crond_t)
 
 corenetwork_network_tcp_on_all_interfaces(system_crond_t)
 corenetwork_network_raw_on_all_interfaces(system_crond_t)
@@ -219,6 +251,7 @@ devices_get_all_character_device_attributes(system_crond_t)
 devices_get_pseudorandom_data(system_crond_t)
 
 filesystem_get_all_filesystems_attributes(system_crond_t)
+filesystem_get_all_file_attributes(system_crond_t)
 
 init_use_file_descriptors(system_crond_t)
 init_script_use_file_descriptors(system_crond_t)
@@ -234,6 +267,8 @@ files_read_runtime_system_config(system_crond_t)
 files_read_all_directories(system_crond_t)
 files_get_all_file_attributes(system_crond_t)
 files_read_general_application_resources(system_crond_t)
+# for nscd:
+files_ignore_search_runtime_data_directory(system_crond_t)
 
 corecommands_execute_general_programs(system_crond_t)
 corecommands_execute_system_programs(system_crond_t)
@@ -241,6 +276,7 @@ corecommands_execute_system_programs(system_crond_t)
 libraries_use_dynamic_loader(system_crond_t)
 libraries_read_shared_libraries(system_crond_t)
 libraries_execute_library_scripts(system_crond_t)
+libraries_execute_dynamic_loader(system_crond_t)
 
 logging_read_system_logs(system_crond_t)
 logging_send_system_log_message(system_crond_t)
@@ -265,16 +301,6 @@ selinux_read_file_contexts(system_crond_t)
 
 ifdef(`TODO',`
 
-ifdef(`fcron.te', `
-allow crond_t system_cron_spool_t:file create_file_perms;
-')
-
-# Permit a transition from the crond_t domain to this domain.
-# The transition is requested explicitly by the modified crond 
-# via execve_secure.  There is no way to set up an automatic
-# transition, since crontabs are configuration files, not executables.
-domain_trans(crond_t, shell_exec_t, system_crond_t)
-
 ifdef(`mta.te', `
 domain_auto_trans(system_crond_t, sendmail_exec_t, system_mail_t)
 allow system_crond_t sendmail_exec_t:lnk_file { getattr read };
@@ -286,54 +312,24 @@ allow mta_user_agent system_crond_t:fd use;
 r_dir_file(system_mail_t, crond_tmp_t)
 ')
 
-# This domain is granted permissions common to most domains.
-
 can_ypbind(system_crond_t)
 allow system_crond_t var_spool_t:dir search;
 
 allow system_crond_t var_t:dir r_dir_perms;
 allow system_crond_t var_t:file { getattr read ioctl };
 
-can_exec(system_crond_t, ld_so_t)
-
-# ps does not need to access /boot when run from cron
-dontaudit system_crond_t boot_t:dir search;
 # quiet other ps operations
 dontaudit system_crond_t domain:dir { getattr search };
-# for nscd
-dontaudit system_crond_t var_run_t:dir search;
-
-allow system_crond_t proc_t:filesystem getattr;
-allow system_crond_t usbdevfs_t:filesystem getattr;
 
 allow system_crond_t { sysfs_t rpc_pipefs_t }:dir getattr;
-
-# Access log files
-file_type_auto_trans(system_crond_t, var_log_t, crond_log_t, file)
-
-allow crond_t system_cron_spool_t:dir r_dir_perms;
-allow crond_t system_cron_spool_t:file r_file_perms;
-
-# Read from /var/spool/cron.
-allow system_crond_t cron_spool_t:dir r_dir_perms;
-allow system_crond_t cron_spool_t:file r_file_perms;
 
 # Write to /var/lib/slocate.db.
 allow system_crond_t var_lib_t:dir rw_dir_perms;
 allow system_crond_t var_lib_t:file create_file_perms;
 
-# Write /var/lock/makewhatis.lock.
-lock_domain(system_crond)
-
 # for if /var/mail is a symlink
 allow { system_crond_t crond_t } mail_spool_t:lnk_file read;
 allow crond_t mail_spool_t:dir search;
-
-# Stat any file and search any directory for find.
-allow system_crond_t fs_type:notdevfile_class_set getattr;
-
-# Create temporary files.
-file_type_auto_trans(system_crond_t, { tmp_t crond_tmp_t }, system_crond_tmp_t)
 
 # Access other spool directories like
 # /var/spool/anacron and /var/spool/slrnpull.
@@ -343,14 +339,6 @@ allow system_crond_t var_spool_t:dir rw_dir_perms;
 # Do not audit attempts to search unlabeled directories (e.g. slocate).
 dontaudit system_crond_t unlabeled_t:dir r_dir_perms;
 dontaudit system_crond_t unlabeled_t:file r_file_perms;
-
-#
-# reading /var/spool/cron/mailman
-#
-allow system_crond_t devpts_t:filesystem getattr;
-allow system_crond_t sysfs_t:filesystem getattr;
-allow system_crond_t tmpfs_t:filesystem getattr;
-allow system_crond_t rpc_pipefs_t:filesystem getattr;
 
 #
 #  These rules are here to allow system cron jobs to su
@@ -366,13 +354,17 @@ allow system_crond_su_t crond_t:fifo_file ioctl;
 #
 allow system_crond_t initctl_t:fifo_file write;
 dontaudit userdomain system_crond_t:fd use;
-
-allow system_crond_t removable_t:filesystem { getattr };
 #
 # Required for webalizer
 #
 ifdef(`apache.te', `
 allow system_crond_t httpd_log_t:file { getattr read };
+')
+
+tunable_policy(`distro_redhat', `
+optional_policy(`rpm.te', `
+allow system_crond_t rpm_log_t:file create_file_perms;
+')
 ')
 
 ') dnl end TODO
