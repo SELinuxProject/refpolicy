@@ -1,0 +1,184 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(lvm,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type lvm_t;
+type lvm_exec_t;
+domain_make_system_domain(lvm_t,lvm_exec_t)
+# needs privowner because it assigns the identity system_u to device nodes
+# but runs as the identity of the sysadmin
+kernel_make_object_identity_change_constraint_exception(lvm_t)
+role system_r types lvm_t;
+
+type lvm_tmp_t;
+files_make_temporary_file(lvm_tmp_t)
+
+type lvm_metadata_t;
+files_make_file(lvm_metadata_t)
+
+type lvm_etc_t;
+files_make_file(lvm_etc_t)
+
+type lvm_lock_t;
+files_make_lock_file(lvm_lock_t)
+
+########################################
+#
+# Local policy
+#
+
+# DAC overrides and mknod for modifying /dev entries (vgmknodes)
+allow lvm_t self:capability { dac_override ipc_lock sys_admin sys_nice mknod };
+dontaudit lvm_t self:capability sys_tty_config;
+
+allow lvm_t self:process { sigchld sigkill sigstop signull signal };
+# LVM will complain a lot if it cannot set its priority.
+allow lvm_t self:process setsched;
+
+allow lvm_t self:file { read getattr lock ioctl };
+allow lvm_t self:fifo_file { ioctl read getattr lock write append };
+allow lvm_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+allow lvm_t lvm_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow lvm_t lvm_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(lvm_t, lvm_tmp_t, { file dir })
+
+# /lib/lvm-<version> holds the actual LVM binaries (and symlinks)
+allow lvm_t lvm_exec_t:dir search;
+allow lvm_t lvm_exec_t:{ file lnk_file } { read getattr lock ioctl };
+
+# LVM is split into many individual binaries
+allow lvm_t lvm_exec_t:file { getattr read execute execute_no_trans };
+
+# Creating lock files
+allow lvm_t lvm_lock_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow lvm_t lvm_lock_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_lock_file(lvm_t,lvm_lock_t)
+
+allow lvm_t lvm_etc_t:file { read getattr lock ioctl };
+allow lvm_t lvm_etc_t:lnk_file { getattr read };
+# Write to /etc/lvm, /etc/lvmtab, /etc/lvmtab.d
+allow lvm_t lvm_etc_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow lvm_t lvm_metadata_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow lvm_t lvm_metadata_t:dir { read getattr lock search ioctl add_name remove_name write };
+type_transition lvm_t lvm_etc_t:file lvm_metadata_t;
+files_create_private_config(lvm_t,lvm_metadata_t,file)
+
+kernel_read_system_state(lvm_t)
+kernel_get_selinuxfs_mount_point(lvm_t)
+kernel_validate_selinux_context(lvm_t)
+kernel_compute_selinux_av(lvm_t)
+kernel_compute_create(lvm_t)
+kernel_compute_relabel(lvm_t)
+kernel_compute_reachable_user_contexts(lvm_t)
+kernel_read_kernel_sysctl(lvm_t)
+kernel_read_hardware_state(lvm_t)
+# Read /sys/block. Device mapper metadata is kept there.
+kernel_read_hardware_state(sysfs_t)
+# Read system variables in /proc/sys
+kernel_read_kernel_sysctl(lvm_t)
+# it has no reason to need this
+kernel_ignore_get_core_interface_attributes(lvm_t)
+
+devices_get_random_data(lvm_t)
+devices_get_pseudorandom_data(lvm_t)
+devices_use_lvm_control_channel(lvm_t)
+devices_manage_dev_symbolic_links(lvm_t)
+
+# LVM (vgscan) scans for devices by stating every file in /dev and applying a regex...
+devices_ignore_get_all_character_device_attributes(lvm_t)
+devices_ignore_get_all_block_device_attributes(lvm_t)
+devices_ignore_get_generic_character_device_attributes(lvm_t)
+devices_ignore_get_generic_block_device_attributes(lvm_t)
+terminal_ignore_get_all_users_physical_terminal_attributes(lvm_t)
+
+filesystem_get_persistent_filesystem_attributes(lvm_t)
+
+corecommands_search_system_programs_directory(lvm_t)
+
+domain_use_widely_inheritable_file_descriptors(lvm_t)
+
+files_search_system_state_data_directory(lvm_t)
+files_read_general_system_config(lvm_t)
+files_read_runtime_system_config(lvm_t)
+
+init_script_use_pseudoterminal(lvm_t)
+init_use_file_descriptors(lvm_t)
+
+libraries_use_dynamic_loader(lvm_t)
+libraries_read_shared_libraries(lvm_t)
+
+logging_send_system_log_message(lvm_t)
+
+miscfiles_read_localization(lvm_t)
+
+selinux_read_config(lvm_t)
+selinux_read_file_contexts(lvm_t)
+selinux_newrole_sigchld(lvm_t)
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(lvm_t)
+terminal_ignore_use_general_pseudoterminal(lvm_t)
+files_ignore_read_rootfs_file(lvm_t)
+')dnl end targeted_policy tunable
+
+optional_policy(`bootloader.te',`
+bootloader_modify_temporary_data(lvm_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(lvm_t)
+')
+
+ifdef(`TODO',`
+
+role sysadm_r types lvm_t;
+allow lvm_t autofs_t:dir { search getattr };
+
+# LVM creates block devices in /dev/mapper or /dev/<vg>
+# depending on its version
+# LVM(2) needs to create directores (/dev/mapper, /dev/<vg>)
+# and links from /dev/<vg> to /dev/mapper/<vg>-<lv>
+allow lvm_t device_t:blk_file { create ioctl read getattr lock write setattr append link unlink rename };
+type_transition lvm_t device_t:blk_file fixed_disk_device_t;
+
+# Access raw devices and old /dev/lvm (c 109,0).  Is this needed?
+allow lvm_t fixed_disk_device_t:chr_file { create ioctl read getattr lock write setattr append link unlink rename };
+
+allow lvm_t default_context_t:dir search;
+allow lvm_t fixed_disk_device_t:blk_file { relabelfrom relabelto };
+allow lvm_t device_t:lnk_file { relabelfrom relabelto };
+
+# Access terminals.
+allow lvm_t admin_tty_type:chr_file { ioctl read getattr lock write append };
+
+# LVM (vgscan) scans for devices by stating every file in /dev and applying a regex...
+dontaudit lvm_t device_t:fifo_file getattr;
+
+dontaudit lvm_t initctl_t:fifo_file getattr;
+dontaudit lvm_t sbin_t:file getattr;
+dontaudit lvm_t var_run_t:dir getattr;
+
+# for when /usr is not mounted
+dontaudit lvm_t file_t:dir search;
+
+optional_policy(`gnome-pty-helper.te', `
+allow lvm_t sysadm_gph_t:fd use;
+')
+
+optional_policy(`gpm.te', `
+dontaudit lvm_t gpmctl_t:sock_file getattr;
+')
+
+optional_policy(`rhgb.te', `
+allow $1_t rhgb_t:process sigchld;
+allow $1_t rhgb_t:fd use;
+allow $1_t rhgb_t:fifo_file { read write };
+')
+
+') dnl end TODO
