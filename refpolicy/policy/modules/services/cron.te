@@ -74,6 +74,8 @@ allow crond_t crond_tmp_t:dir { create read getattr lock setattr ioctl link unli
 allow crond_t crond_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_private_tmp_data(crond_t, crond_tmp_t, { file dir })
 
+allow crond_t cron_spool_t:dir { getattr search read };
+allow crond_t cron_spool_t:file { getattr read };
 allow crond_t system_cron_spool_t:dir { getattr search read };
 allow crond_t system_cron_spool_t:file { getattr read };
 
@@ -152,16 +154,18 @@ allow crond_t autofs_t:dir { search getattr };
 # Read from /var/spool/cron.
 allow crond_t var_lib_t:dir search;
 allow crond_t var_spool_t:dir r_dir_perms;
-allow crond_t cron_spool_t:dir r_dir_perms;
-allow crond_t cron_spool_t:file r_file_perms;
+allow crond_t var_spool_t:file { getattr read };
+allow crond_t mail_spool_t:dir search;
 
 allow crond_t default_t:dir search;
 
 # crond tries to search /root.  Not sure why.
 allow crond_t sysadm_home_dir_t:dir r_dir_perms;
 
+# for if /var/mail is a symlink
+allow crond_t mail_spool_t:lnk_file read;
+
 # to search /home
-allow crond_t home_root_t:dir { getattr search };
 allow crond_t user_home_dir_type:dir r_dir_perms;
 
 ifdef(`distro_redhat', `
@@ -174,10 +178,6 @@ system_crond_entry(rpm_exec_t, rpm_t)
 allow system_crond_t rpm_log_t:file create_file_perms;
 ')
 ')
-
-allow crond_t var_spool_t:file { getattr read };
-
-
 ') dnl endif TODO
 
 ########################################
@@ -301,44 +301,36 @@ selinux_read_file_contexts(system_crond_t)
 
 ifdef(`TODO',`
 
-ifdef(`mta.te', `
-domain_auto_trans(system_crond_t, sendmail_exec_t, system_mail_t)
-allow system_crond_t sendmail_exec_t:lnk_file { getattr read };
-
-# system_mail_t should only be reading from the cron fifo not needing to write
-dontaudit system_mail_t crond_t:fifo_file write;
-allow mta_user_agent system_crond_t:fd use;
-allow mta_user_agent system_crond_t:fd use;
-r_dir_file(system_mail_t, crond_tmp_t)
-')
-
 can_ypbind(system_crond_t)
-allow system_crond_t var_spool_t:dir search;
 
-allow system_crond_t var_t:dir r_dir_perms;
-allow system_crond_t var_t:file { getattr read ioctl };
+dontaudit userdomain system_crond_t:fd use;
 
 # quiet other ps operations
 dontaudit system_crond_t domain:dir { getattr search };
 
+# Do not audit attempts to search unlabeled directories (e.g. slocate).
+dontaudit system_crond_t unlabeled_t:dir r_dir_perms;
+dontaudit system_crond_t unlabeled_t:file r_file_perms;
+
 allow system_crond_t { sysfs_t rpc_pipefs_t }:dir getattr;
+
+# prelink tells init to restart it self, we either need to allow or dontaudit
+allow system_crond_t initctl_t:fifo_file write;
+
+allow system_crond_t var_t:dir r_dir_perms;
+allow system_crond_t var_t:file { getattr read ioctl };
 
 # Write to /var/lib/slocate.db.
 allow system_crond_t var_lib_t:dir rw_dir_perms;
 allow system_crond_t var_lib_t:file create_file_perms;
 
-# for if /var/mail is a symlink
-allow { system_crond_t crond_t } mail_spool_t:lnk_file read;
-allow crond_t mail_spool_t:dir search;
-
 # Access other spool directories like
 # /var/spool/anacron and /var/spool/slrnpull.
 allow system_crond_t var_spool_t:file create_file_perms;
 allow system_crond_t var_spool_t:dir rw_dir_perms;
+# for if /var/mail is a symlink
+allow system_crond_t mail_spool_t:lnk_file read;
 
-# Do not audit attempts to search unlabeled directories (e.g. slocate).
-dontaudit system_crond_t unlabeled_t:dir r_dir_perms;
-dontaudit system_crond_t unlabeled_t:file r_file_perms;
 
 #
 #  These rules are here to allow system cron jobs to su
@@ -350,11 +342,6 @@ allow system_crond_su_t crond_t:fifo_file ioctl;
 ')
 
 #
-# prelink tells init to restart it self, we either need to allow or dontaudit
-#
-allow system_crond_t initctl_t:fifo_file write;
-dontaudit userdomain system_crond_t:fd use;
-#
 # Required for webalizer
 #
 ifdef(`apache.te', `
@@ -365,6 +352,16 @@ tunable_policy(`distro_redhat', `
 optional_policy(`rpm.te', `
 allow system_crond_t rpm_log_t:file create_file_perms;
 ')
+')
+
+ifdef(`mta.te', `
+mta_send_mail_transition(system_crond_t)
+
+# system_mail_t should only be reading from the cron fifo not needing to write
+dontaudit system_mail_t crond_t:fifo_file write;
+allow mta_user_agent system_crond_t:fd use;
+allow mta_user_agent system_crond_t:fd use;
+r_dir_file(system_mail_t, crond_tmp_t)
 ')
 
 ') dnl end TODO

@@ -140,31 +140,46 @@ define(`mta_per_userdomain_template_depend',`
 #
 # mta_make_mailserver_domain(domain,entrypointtype)
 #
-define(`mta_execute',`
+define(`mta_make_mailserver_domain',`
 requires_block_template(`$0'_depend)
 domain_make_daemon_domain($1,$2)
 typeattribute $1 mailserver_domain;
 ')
 
-define(`mta_execute_depend',`
+define(`mta_make_mailserver_domain_depend',`
 attribute mailserver_domain;
 ')
 
 #######################################
 #
-# mta_transition(domain)
+# mta_make_sendmail_mailserver_domain(domain,entrypointtype)
 #
-define(`mta_transition',`
+define(`mta_make_sendmail_mailserver_domain',`
 requires_block_template(`$0'_depend)
+mta_make_mailserver_domain($1,sendmail_exec_t)
+')
+
+define(`mta_make_sendmail_mailserver_domain_depend',`
+type sendmail_exec_t;
+')
+
+#######################################
+#
+# mta_send_mail_transition(domain)
+#
+define(`mta_send_mail_transition',`
+requires_block_template(`$0'_depend)
+allow $1 sendmail_exec_t:lnk_file { getattr read };
 allow $1 sendmail_exec_t:file { getattr read execute };
 allow $1 system_mail_t:process transition;
-type_transition $1 sendmail_exec_t:file hwmta_t;
+type_transition $1 sendmail_exec_t:file system_mail_t;
 dontaudit $1 system_mail_t:process { noatsecure siginh rlimitinh };
 ')
 
-define(`mta_transition_depend',`
+define(`mta_send_mail_transition_depend',`
 type system_mail_t, sendmail_exec_t;
 class file { getattr read execute };
+class lnk_file { getattr read };
 class process { transition noatsecure siginh rlimitinh };
 ')
 
@@ -180,4 +195,50 @@ allow $1 sendmail_exec_t:file { getattr read execute execute_no_trans };
 define(`mta_execute_depend',`
 type sendmail_exec_t;
 class file { getattr read execute execute_no_trans };
+')
+
+#######################################
+#
+# mta_modify_mail_aliases(domain)
+#
+define(`mta_modify_mail_aliases',`
+requires_block_template(`$0'_depend)
+allow sendmail_t etc_aliases_t:file { getattr read write append setattr };
+')
+
+define(`mta_modify_mail_aliases_depend',`
+type etc_aliases_t;
+class file { getattr read write append setattr };
+')
+
+#######################################
+#
+# mta_manage_mail_spool(domain)
+#
+define(`mta_manage_mail_spool',`
+requires_block_template(`$0'_depend)
+allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+')
+
+define(`mta_manage_mail_spool_depend',`
+type mail_spool_t;
+class dir { read getattr lock search ioctl add_name remove_name write };
+class file { create ioctl read getattr lock write setattr append link unlink rename };
+')
+
+#######################################
+#
+# mta_manage_mail_queue(domain)
+#
+define(`mta_manage_mail_queue',`
+requires_block_template(`$0'_depend)
+allow $1 mqueue_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 mqueue_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+')
+
+define(`mta_manage_mail_queue_depend',`
+type mqueue_spool_t;
+class dir { read getattr lock search ioctl add_name remove_name write };
+class file { create ioctl read getattr lock write setattr append link unlink rename }
 ')
