@@ -2,27 +2,87 @@
 
 ########################################
 #
-# terminal_make_pseudoterminal(domain,ptytype)
+# terminal_make_pseudoterminal(type)
 #
 define(`terminal_make_pseudoterminal',`
 requires_block_template(`$0'_depend)
-devices_list_device_nodes($1,optional)
-allow $1 ptmx_t:chr_file { getattr read write };
-allow $1 devpts_t:dir { getattr search read };
-allow $1 devpts_t:filesystem getattr;
-allow $2 devpts_t:filesystem associate;
-dontaudit $1 bsdpty_device_t:chr_file { getattr read write };
-type_transition $1 devpts_t:chr_file $2;
-typeattribute $2 ptynode;
+allow $1 devpts_t:filesystem associate;
+typeattribute $1 ptynode;
 ')
 
 define(`terminal_make_pseudoterminal_depend',`
 attribute ptynode;
+type devpts_t;
+class filesystem associate;
+')
+
+########################################
+#
+# terminal_make_user_pseudoterminal(domain,type)
+#
+define(`terminal_make_user_pseudoterminal',`
+requires_block_template(`$0'_depend)
+terminal_make_pseudoterminal($1)
+type_change $1 server_ptynode:chr_file $2;
+')
+
+define(`terminal_make_user_pseudoterminal_depend',`
+attribute server_ptynode;
+')
+
+########################################
+#
+# terminal_make_service_pseudoterminal(type)
+#
+define(`terminal_make_service_pseudoterminal',`
+requires_block_template(`$0'_depend)
+terminal_make_pseudoterminal($1)
+typeattribute $1 server_ptynode;
+')
+
+define(`terminal_make_service_pseudoterminal_depend',`
+attribute server_ptynode;
+')
+
+########################################
+#
+# terminal_make_physical_terminal(domain,type)
+#
+define(`terminal_make_physical_terminal',`
+requires_block_template(`$0'_depend)
+typeattribute $2 ttynode;
+type_change $1 tty_device_t:chr_file $2;
+# Debian login is from shadow utils and does not allow resetting the perms.
+# have to fix this!
+tunable_policy(`distro_debian',`
+type_change $1 ttyfile:chr_file $2;
+')
+')
+
+define(`terminal_make_physical_terminal_depend',`
+attribute ttynode;
+type tty_device_t;
+')
+
+########################################
+#
+# terminal_create_private_pseudoterminal(domain,ptytype)
+#
+define(`terminal_create_private_pseudoterminal',`
+requires_block_template(`$0'_depend)
+devices_list_device_nodes($1)
+allow $1 ptmx_t:chr_file { getattr read write };
+allow $1 devpts_t:dir { getattr search read };
+allow $1 devpts_t:filesystem getattr;
+dontaudit $1 bsdpty_device_t:chr_file { getattr read write };
+type_transition $1 devpts_t:chr_file $2;
+')
+
+define(`terminal_create_pseudoterminal_depend',`
 type ptmx_t, devpts_t;
-class filesystem { getattr associate };
+class filesystem getattr;
 class dir { getattr search read };
 class chr_file { getattr read write };
-devices_list_device_nodes_depend
 ')
 
 ########################################
@@ -179,16 +239,16 @@ class chr_file { getattr read write };
 
 ########################################
 #
-# terminal_get_all_users_pseudoterminal_attributes(domain)
+# terminal_get_all_private_pseudoterminal_attributes(domain)
 #
-define(`terminal_get_all_users_pseudoterminal_attributes',`
+define(`terminal_get_all_private_pseudoterminal_attributes',`
 requires_block_template(`$0'_depend)
 devices_list_device_nodes($1)
 allow $1 devpts_t:dir { getattr search read };
 allow $1 ptynode:chr_file getattr;
 ')
 
-define(`terminal_get_all_users_pseudoterminal_attributes_depend',`
+define(`terminal_get_all_private_pseudoterminal_attributes_depend',`
 attribute ptynode;
 class dir { getattr search read };
 class chr_file getattr;
@@ -196,16 +256,16 @@ class chr_file getattr;
 
 ########################################
 #
-# terminal_use_all_users_pseudoterminals(domain)
+# terminal_use_all_private_pseudoterminals(domain)
 #
-define(`terminal_use_all_users_pseudoterminals',`
+define(`terminal_use_all_private_pseudoterminals',`
 requires_block_template(`$0'_depend)
 devices_list_device_nodes($1)
 allow $1 devpts_t:dir { getattr read search };
 allow $1 ptynode:chr_file { read write };
 ')
 
-define(`terminal_use_all_users_pseudoterminals_depend',`
+define(`terminal_use_all_private_pseudoterminals_depend',`
 attribute ptynode;
 class dir { getattr search read };
 class chr_file { read write };
@@ -213,14 +273,14 @@ class chr_file { read write };
 
 ########################################
 #
-# terminal_ignore_use_all_users_pseudoterminals(domain)
+# terminal_ignore_use_all_private_pseudoterminals(domain)
 #
-define(`terminal_ignore_use_all_users_pseudoterminals',`
+define(`terminal_ignore_use_all_private_pseudoterminals',`
 requires_block_template(`$0'_depend)
 dontaudit $1 ptynode:chr_file { read write };
 ')
 
-define(`terminal_ignore_use_all_users_pseudoterminals_depend',`
+define(`terminal_ignore_use_all_private_pseudoterminals_depend',`
 attribute ptynode;
 class chr_file { read write };
 ')
@@ -304,58 +364,58 @@ class chr_file { read write };
 
 ########################################
 #
-# terminal_get_all_users_physical_terminal_attributes(domain)
+# terminal_get_all_private_physical_terminal_attributes(domain)
 #
-define(`terminal_get_all_users_physical_terminal_attributes',`
+define(`terminal_get_all_private_physical_terminal_attributes',`
 requires_block_template(`$0'_depend)
 devices_list_device_nodes($1)
 allow $1 ttynode:chr_file getattr;
 ')
 
-define(`terminal_get_all_users_physical_terminal_attributes_depend',`
+define(`terminal_get_all_private_physical_terminal_attributes_depend',`
 attribute ttynode;
 class chr_file getattr;
 ')
 
 ########################################
 #
-# terminal_ignore_get_all_users_physical_terminal_attributes(domain)
+# terminal_ignore_get_all_private_physical_terminal_attributes(domain)
 #
-define(`terminal_ignore_get_all_users_physical_terminal_attributes',`
+define(`terminal_ignore_get_all_private_physical_terminal_attributes',`
 requires_block_template(`$0'_depend)
 dontaudit $1 ttynode:chr_file getattr;
 ')
 
-define(`terminal_ignore_get_all_users_physical_terminal_attributes_depend',`
+define(`terminal_ignore_get_all_private_physical_terminal_attributes_depend',`
 attribute ttynode;
 class chr_file getattr;
 ')
 
 ########################################
 #
-# terminal_use_all_users_physical_terminals(domain)
+# terminal_use_all_private_physical_terminals(domain)
 #
-define(`terminal_use_all_users_physical_terminals',`
+define(`terminal_use_all_private_physical_terminals',`
 requires_block_template(`$0'_depend)
 devices_list_device_nodes($1)
 allow $1 ttynode:chr_file { read write };
 ')
 
-define(`terminal_use_all_users_physical_terminals_depend',`
+define(`terminal_use_all_private_physical_terminals_depend',`
 attribute ttynode;
 class chr_file { read write };
 ')
 
 ########################################
 #
-# terminal_ignore_use_all_users_physical_terminals(domain)
+# terminal_ignore_use_all_private_physical_terminals(domain)
 #
-define(`terminal_ignore_use_all_users_physical_terminals',`
+define(`terminal_ignore_use_all_private_physical_terminals',`
 requires_block_template(`$0'_depend)
 dontaudit $1 ttynode:chr_file { read write };
 ')
 
-define(`terminal_ignore_use_all_users_physical_terminals_depend',`
+define(`terminal_ignore_use_all_private_physical_terminals_depend',`
 attribute ttynode;
 class chr_file { read write };
 ')

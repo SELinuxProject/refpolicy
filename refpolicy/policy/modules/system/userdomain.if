@@ -1,0 +1,562 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+########################################
+#
+# Base user domain template
+#
+# This is common to user and admin domain
+
+define(`base_user_domain',`
+
+role $1_r types $1_t;
+allow system_r $1_r;
+
+allow $1_t self:capability { setgid chown fowner };
+dontaudit $1_t self:capability { sys_nice fsetid };
+allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow $1_t self:process { ptrace setfscreate };
+allow $1_t self:fd use;
+allow $1_t self:fifo_file { read getattr lock ioctl write append };
+allow $1_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow $1_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow $1_t self:unix_dgram_socket sendto;
+allow $1_t self:unix_stream_socket connectto;
+allow $1_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow $1_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow $1_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow $1_t self:msg { send receive };
+dontaudit $1_t self:socket create;
+# Irrelevant until we have labeled networking.
+#allow $1_t self:udp_socket { sendto recvfrom };
+
+# evolution and gnome-session try to create a netlink socket
+dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+
+# execute files in the home directory
+allow $1_t $1_home_t:file { getattr read execute execute_no_trans };
+
+# full control of the home directory
+allow $1_t $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+allow $1_t $1_home_t:lnk_file { create read getattr setattr link unlink rename relabelfrom relabelto };
+allow $1_t $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+allow $1_t $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+allow $1_t $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+allow $1_t $1_home_dir_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+type_transition $1_t $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+
+allow $1_t $1_tmp_t:file { getattr read execute execute_no_trans };
+
+# Bind to a Unix domain socket in /tmp.
+# cjp: this is combination is not checked and should be removed
+allow $1_t $1_tmp_t:unix_stream_socket name_bind;
+
+allow $1_t $1_tty_device_t:chr_file { setattr getattr read write append ioctl lock };
+
+allow $1_t unpriv_userdomain:fd use;
+
+# Instantiate derived domains for a number of programs.
+# These derived domains encode both information about the calling
+# user domain and the program, and allow us to maintain separation
+# between different instances of the program being run by different
+# user domains.
+per_userdomain_templates($1)
+
+kernel_read_kernel_sysctl($1_t)
+kernel_get_selinuxfs_mount_point($1_t)
+# Very permissive allowing every domain to see every type.
+kernel_get_sysvipc_info($1_t)
+# Find CDROM devices
+kernel_read_device_sysctl($1_t)
+
+corenetwork_network_tcp_on_all_interfaces($1_t)
+corenetwork_network_raw_on_all_interfaces($1_t)
+corenetwork_network_udp_on_all_interfaces($1_t)
+corenetwork_network_tcp_on_all_nodes($1_t)
+corenetwork_network_raw_on_all_nodes($1_t)
+corenetwork_network_udp_on_all_nodes($1_t)
+corenetwork_network_tcp_on_all_ports($1_t)
+corenetwork_network_udp_on_all_ports($1_t)
+corenetwork_bind_tcp_on_all_nodes($1_t)
+corenetwork_bind_udp_on_all_nodes($1_t)
+# allow port_t name binding for UDP because it is not very usable otherwise
+corenetwork_bind_udp_on_general_port($1_t)
+
+devices_get_input_event($1_t)
+devices_read_misc($1_t)
+devices_write_misc($1_t)
+devices_play_sound($1_t)
+devices_record_sound_input($1_t)
+devices_read_sound_mixer_levels($1_t)
+devices_write_sound_mixer_levels($1_t)
+devices_get_random_data($1_t)
+devices_get_pseudorandom_data($1_t)
+# open office is looking for the following
+devices_get_direct_rendering_interface_attributes($1_t)
+devices_ignore_use_direct_rendering_interface($1_t)
+
+filesystem_get_all_filesystems_quotas($1_t)
+filesystem_get_all_filesystems_attributes($1_t)
+
+# for eject
+storage_get_fixed_disk_attributes($1_t)
+
+authlogin_read_login_records($1_t)
+authlogin_ignore_write_login_records($1_t)
+
+corecommands_execute_general_programs($1_t)
+corecommands_execute_system_programs($1_t)
+
+domain_execute_all_entrypoint_programs($1_t)
+domain_use_widely_inheritable_file_descriptors($1_t)
+
+files_execute_system_config_script($1_t)
+files_read_system_source_code($1_t)
+
+# Caused by su - init scripts
+init_script_ignore_use_pseudoterminal($1_t)
+
+libraries_use_dynamic_loader($1_t)
+libraries_read_shared_libraries($1_t)
+libraries_execute_dynamic_loader($1_t)
+libraries_execute_library_scripts($1_t)
+
+logging_ignore_get_all_logs_attributes($1_t)
+
+miscfiles_read_localization($1_t)
+miscfiles_manage_man_page_cache($1_t)
+
+mta_modify_mail_spool($1_t)
+
+if (allow_execmem) {
+# Allow loading DSOs that require executable stack.
+allow $1_t self:process execmem;
+}
+
+if (use_nfs_home_dirs) {
+filesystem_manage_nfs_directories($1_t)
+filesystem_manage_nfs_files($1_t)
+filesystem_manage_nfs_symbolic_links($1_t)
+filesystem_manage_nfs_named_sockets($1_t)
+filesystem_manage_nfs_named_pipes($1_t)
+filesystem_execute_nfs_files($1_t)
+}
+
+if (use_samba_home_dirs) {
+filesystem_manage_windows_network_directories($1_t)
+filesystem_manage_windows_network_files($1_t)
+filesystem_manage_windows_network_symbolic_links($1_t)
+filesystem_manage_windows_network_named_sockets($1_t)
+filesystem_manage_windows_network_named_pipes($1_t)
+filesystem_execute_windows_network_files($1_t)
+}
+
+if (user_direct_mouse) {
+devices_get_mouse_input($1_t)
+}
+
+if (user_ttyfile_stat) {
+terminal_get_all_private_physical_terminal_attributes($1_t)
+}
+
+ifdef(`TODO',`
+
+# When the user domain runs ps, there will be a number of access
+# denials when ps tries to search /proc.  Do not audit these denials.
+dontaudit $1_t domain:dir r_dir_perms;
+dontaudit $1_t domain:notdevfile_class_set r_file_perms;
+dontaudit $1_t domain:process { getattr getsession };
+#
+# Cups daemon running as user tries to write /etc/printcap
+#
+dontaudit $1_t usr_t:file setattr;
+
+# Access the power device.
+allow $1_t power_device_t:chr_file { getattr read write ioctl };
+
+# Check to see if cdrom is mounted
+allow $1_t mnt_t:dir { getattr search };
+
+#
+# Added to allow reading of cdrom
+#
+allow $1_t rpc_pipefs_t:dir getattr;
+allow $1_t nfsd_fs_t:dir getattr;
+allow $1_t binfmt_misc_fs_t:dir getattr;
+
+# /initrd is left mounted, various programs try to look at it
+dontaudit $1_t ramfs_t:dir getattr;
+
+if (read_default_t) {
+allow $1_t default_t:dir r_dir_perms;
+allow $1_t default_t:notdevfile_class_set r_file_perms;
+}
+
+#
+# Running ifconfig as a user generates the following
+#
+dontaudit $1_t sysctl_net_t:dir search;
+
+dontaudit $1_t default_context_t:dir search;
+
+r_dir_file($1_t, usercanread)
+
+can_ypbind($1_t)
+
+if (allow_execmod) {
+# Allow text relocations on system shared libraries, e.g. libGL.
+allow $1_t texrel_shlib_t:file execmod;
+}
+
+allow $1_t fs_type:dir getattr;
+
+# old "file_browse_domain":
+# Regular files/directories that are not security sensitive
+dontaudit $1_t file_type - secure_file_type:dir_file_class_set getattr;
+dontaudit $1_t file_type - secure_file_type:dir { read search };
+# /dev
+dontaudit $1_t dev_fs:dir_file_class_set getattr;
+dontaudit $1_t dev_fs:dir { read search };
+# /proc
+dontaudit $1_t sysctl_t:dir_file_class_set getattr;
+dontaudit $1_t proc_fs:dir { read search };
+
+allow $1_t autofs_t:dir { search getattr };
+
+can_exec($1_t, { removable_t noexattrfile } )
+if (user_rw_noexattrfile) {
+create_dir_file($1_t, noexattrfile)
+create_dir_file($1_t, removable_t)
+# Write floppies 
+allow $1_t removable_device_t:blk_file rw_file_perms;
+allow $1_t usbtty_device_t:chr_file write;
+} else {
+r_dir_file($1_t, noexattrfile)
+r_dir_file($1_t, removable_t)
+allow $1_t removable_device_t:blk_file r_file_perms;
+}
+allow $1_t usbtty_device_t:chr_file read;
+
+# GNOME checks for usb and other devices
+rw_dir_file($1_t,usbfs_t)
+
+can_exec($1_t, noexattrfile)
+
+# for running TeX programs
+r_dir_file($1_t, tetex_data_t)
+can_exec($1_t, tetex_data_t)
+
+type $1_tmpfs_t, file_type, sysadmfile, tmpfsfile;
+file_type_auto_trans($1_t, tmpfs_t, $1_tmpfs_t)
+allow $1_tmpfs_t tmpfs_t:filesystem associate;
+
+# Run programs developed by other users in the same domain.
+
+can_resmgrd_connect($1_t)
+
+can_ypbind($1_t)
+
+allow $1_t var_lock_t:dir search;
+
+# Grant permissions to access the system DBus
+ifdef(`dbusd.te', `
+dbusd_client(system, $1)
+can_network_server_tcp($1_dbusd_t)
+allow $1_dbusd_t reserved_port_t:tcp_socket name_bind;
+
+allow $1_t system_dbusd_t:dbus { send_msg acquire_svc };
+dbusd_client($1, $1)
+allow $1_t $1_dbusd_t:dbus { send_msg acquire_svc };
+dbusd_domain($1)
+ifdef(`hald.te', `
+allow $1_t hald_t:dbus send_msg;
+allow hald_t $1_t:dbus send_msg;
+') dnl end ifdef hald.te
+') dnl end ifdef dbus.te
+
+# Gnome pannel binds to the following
+ifdef(`cups.te', `
+allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file { read getattr };
+')
+
+# Connect to inetd.
+ifdef(`inetd.te', `
+can_tcp_connect($1_t, inetd_t)
+can_udp_send($1_t, inetd_t)
+can_udp_send(inetd_t, $1_t)
+')
+
+# Connect to portmap.
+ifdef(`portmap.te', `can_tcp_connect($1_t, portmap_t)')
+
+# Inherit and use sockets from inetd
+ifdef(`inetd.te', `
+allow $1_t inetd_t:fd use;
+allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
+')
+
+ifdef(`xserver.te', `
+# for /tmp/.ICE-unix
+file_type_auto_trans($1_t, xdm_xserver_tmp_t, $1_tmp_t, sock_file)
+allow $1_t xserver_misc_device_t:{ chr_file blk_file } rw_file_perms;
+')
+
+ifdef(`xdm.te', `
+# Connect to the X server run by the X Display Manager.
+can_unix_connect($1_t, xdm_t)
+allow $1_t xdm_tmp_t:sock_file rw_file_perms;
+allow $1_t xdm_tmp_t:dir r_dir_perms;
+allow $1_t xdm_tmp_t:file { getattr read };
+allow $1_t xdm_xserver_tmp_t:sock_file { read write };
+allow $1_t xdm_xserver_tmp_t:dir search;
+allow $1_t xdm_xserver_t:unix_stream_socket connectto;
+# certain apps want to read xdm.pid file
+r_dir_file($1_t, xdm_var_run_t)
+allow $1_t xdm_var_lib_t:file { getattr read };
+allow xdm_t $1_home_dir_t:dir getattr;
+ifdef(`xauth.te', `
+file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
+')
+
+# for shared memory
+allow xdm_xserver_t $1_tmpfs_t:file { read write };
+
+')dnl end ifdef xdm.te
+
+ifdef(`rpcd.te', `
+create_dir_file($1_t, nfsd_rw_t)
+')
+
+ifdef(`cardmgr.te', `
+# to allow monitoring of pcmcia status
+allow $1_t cardmgr_var_run_t:file { getattr read };
+')
+
+#
+# Allow graphical boot to check battery lifespan
+#
+ifdef(`apmd.te', `
+allow $1_t apmd_t:unix_stream_socket connectto;
+allow $1_t apmd_var_run_t:sock_file write;
+')
+
+ifdef(`automount.te', `
+allow $1_t autofs_t:dir { search getattr };
+')
+
+ifdef(`pamconsole.te', `
+allow $1_t pam_var_console_t:dir search;
+')
+
+') dnl endif TODO
+
+')dnl end base_user_domain macro
+
+########################################
+#
+# User domain template
+#
+
+define(`user_domain_template', `
+
+##############################
+#
+# Declarations
+#
+
+attribute $1_file_type;
+
+type $1_t, userdomain, unpriv_userdomain; #, web_client_domain, nscd_client_domain;
+domain_make_domain($1_t)
+domain_make_file_descriptors_widely_inheritable($1_t)
+
+type $1_devpts_t; # userpty_type, user_tty_type;
+terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
+
+# Type for home directory.
+type $1_home_dir_t; #, home_dir_type, home_type, user_home_dir_type;
+files_make_file($1_home_dir_t)
+
+# Type for files and directories in the home directory
+type $1_home_t, $1_file_type; #, home_type, user_home_type;
+files_make_file($1_home_t)
+
+type $1_tmp_t, $1_file_type; #, user_tmpfile
+files_make_temporary_file($1_tmp_t)
+
+type $1_tty_device_t; #, sysadmfile, ttyfile, user_tty_type, dev_fs;
+terminal_make_physical_terminal($1_t,$1_tty_device_t)
+ 
+##############################
+#
+# Local policy
+#
+
+base_user_domain($1)
+
+allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
+terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
+
+# Rules used to associate a homedir as a mountpoint
+allow $1_home_t self:filesystem associate;
+allow $1_file_type $1_home_t:filesystem associate;
+
+# user temporary files
+allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmp_t:lnk_file { create read getattr setattr link unlink rename };
+allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data($1_t, $1_tmp_t, { file lnk_file dir sock_file fifo_file })
+
+# privileged home directory writers
+allow privhome $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow privhome $1_home_t:lnk_file { create read getattr setattr link unlink rename };
+allow privhome $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow privhome $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow privhome $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+type_transition privhome $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+
+kernel_read_system_state($1_t)
+kernel_read_network_state($1_t)
+kernel_read_hardware_state($1_t)
+
+# cjp: why?
+bootloader_read_kernel_symbol_table($1_t)
+
+# port access is audited even if dac would not have allowed it, so dontaudit it here
+corenetwork_ignore_bind_tcp_on_all_reserved_ports($1_t)
+
+files_read_general_system_config($1_t)
+files_list_home_directories($1_t)
+files_read_general_application_resources($1_t)
+
+init_script_read_runtime_data($1_t)
+# The library functions always try to open read-write first,
+# then fall back to read-only if it fails. 
+init_script_ignore_write_runtime_data($1_t)
+
+selinux_read_config($1_t)
+
+if (user_dmesg) {
+kernel_read_ring_buffer($1_t)
+} else {
+kernel_ignore_read_ring_buffer($1_t)
+}
+
+# Allow users to run TCP servers (bind to ports and accept connection from
+# the same domain and outside users)  disabling this forces FTP passive mode
+# and may change other protocols
+if (user_tcp_server) {
+corenetwork_bind_tcp_on_general_port($1_t)
+}
+
+# Need the following rule to allow users to run vpnc
+optional_policy(`xserver.te', `
+corenetwork_bind_tcp_on_xserver_port($1_t)
+')
+
+ifdef(`TODO',`
+
+dontaudit $1_t boot_t:lnk_file read;
+dontaudit $1_t boot_t:file read;
+
+can_kerberos($1_t)
+
+# do not audit read on disk devices
+dontaudit $1_t { removable_device_t fixed_disk_device_t }:blk_file read;
+
+ifdef(`xdm.te', `
+allow xdm_t $1_home_t:lnk_file read;
+allow xdm_t $1_home_t:dir search;
+#
+# Changing this to dontaudit should cause the .xsession-errors file to be written to /tmp
+# 
+dontaudit xdm_t $1_home_t:file rw_file_perms;
+')dnl end ifdef xdm.te
+
+ifdef(`ftpd.te', `
+if (ftp_home_dir) {
+file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
+}
+')dnl end ifdef ftpd
+
+if (read_default_t) {
+allow $1 default_t:dir r_dir_perms;
+allow $1 default_t:notdevfile_class_set r_file_perms;
+}
+
+can_exec($1_t, usr_t)
+
+# Read directories and files with the readable_t type.
+# This type is a general type for "world"-readable files.
+allow $1_t readable_t:dir r_dir_perms;
+allow $1_t readable_t:notdevfile_class_set r_file_perms;
+
+# Stat lost+found.
+allow $1_t lost_found_t:dir getattr;
+
+# Read /var, /var/spool, /var/run.
+allow $1_t var_t:dir r_dir_perms;
+allow $1_t var_t:notdevfile_class_set r_file_perms;
+allow $1_t var_spool_t:dir r_dir_perms;
+allow $1_t var_spool_t:notdevfile_class_set r_file_perms;
+allow $1_t var_run_t:dir r_dir_perms;
+allow $1_t var_run_t:{ file lnk_file } r_file_perms;
+allow $1_t var_lib_t:dir r_dir_perms;
+allow $1_t var_lib_t:file { getattr read };
+
+# for running depmod as part of the kernel packaging process
+allow $1_t modules_conf_t:file { getattr read };
+
+# Read man directories and files.
+allow $1_t man_t:dir r_dir_perms;
+allow $1_t man_t:notdevfile_class_set r_file_perms;
+
+# Allow users to rw usb devices
+if (user_rw_usb) {
+rw_dir_create_file($1_t,usbdevfs_t)
+} else {
+r_dir_file($1_t,usbdevfs_t)
+}
+
+# Read /dev directories and any symbolic links.
+allow $1_t device_t:dir r_dir_perms;
+allow $1_t device_t:lnk_file r_file_perms;
+
+# Do not audit write denials to /etc/ld.so.cache.
+dontaudit $1_t ld_so_cache_t:file write;
+
+dontaudit $1_t sysadm_home_t:file { read append };
+
+ifdef(`syslogd.te', `
+# Some programs that are left in $1_t will try to connect
+# to syslogd, but we do not want to let them generate log messages.
+# Do not audit.
+dontaudit $1_t devlog_t:sock_file { read write };
+dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
+')
+
+# Stop warnings about access to /dev/console
+dontaudit $1_t init_t:fd use;
+dontaudit $1_t initrc_t:fd use;
+allow $1_t initrc_t:fifo_file write;
+ifdef(`user_can_mount', `
+#
+#  Allow users to mount file systems like floppies and cdrom
+#
+mount_domain($1, $1_mount, `, fs_domain')
+r_dir_file($1_t, mnt_t)
+allow $1_mount_t device_t:lnk_file read;
+allow $1_mount_t removable_device_t:blk_file read;
+allow $1_mount_t iso9660_t:filesystem relabelfrom;
+allow $1_mount_t removable_t:filesystem { mount relabelto };
+allow $1_mount_t removable_t:dir mounton;
+ifdef(`xdm.te', `
+allow $1_mount_t xdm_t:fd use;
+allow $1_mount_t xdm_t:fifo_file { read write };
+')
+')
+
+') dnl end TODO
+')
