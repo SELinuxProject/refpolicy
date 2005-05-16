@@ -1,0 +1,153 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(sendmail,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type sendmail_t; # , nscd_client_domain, mta_delivery_agent, mail_server_sender', nosysadm)
+mta_make_sendmail_mailserver_domain(sendmail_t)
+
+type sendmail_log_t;
+logging_make_log_file(sendmail_log_t)
+
+type sendmail_tmp_t;
+files_make_temporary_file(sendmail_tmp_t)
+
+type sendmail_var_run_t;
+files_make_daemon_runtime_file(sendmail_var_run_t)
+
+########################################
+#
+# Sendmail local policy
+#
+
+allow sendmail_t self:capability { setuid setgid net_bind_service sys_nice chown sys_tty_config };
+allow sendmail_t self:fifo_file { getattr read write append ioctl lock  };
+allow sendmail_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow sendmail_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+
+allow sendmail_t sendmail_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow sendmail_t sendmail_log_t:dir { getattr search read lock ioctl add_name remove_name write setattr };
+logging_create_private_log(sendmail_t,sendmail_log_t,{ file dir })
+
+allow sendmail_t sendmail_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow sendmail_t sendmail_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(sendmail_t, sendmail_tmp_t, { file dir })
+
+allow sendmail_t sendmail_var_run_t:file { getattr create read write append setattr unlink };
+files_create_daemon_runtime_data(sendmail_t,sendmail_var_run_t)
+
+kernel_read_kernel_sysctl(sendmail_t)
+kernel_read_hardware_state(sendmail_t)
+
+corenetwork_network_tcp_on_all_interfaces(sendmail_t)
+corenetwork_network_raw_on_all_interfaces(sendmail_t)
+corenetwork_network_udp_on_all_interfaces(sendmail_t)
+corenetwork_network_tcp_on_all_nodes(sendmail_t)
+corenetwork_network_raw_on_all_nodes(sendmail_t)
+corenetwork_network_udp_on_all_nodes(sendmail_t)
+corenetwork_network_tcp_on_all_ports(sendmail_t)
+corenetwork_network_udp_on_all_ports(sendmail_t)
+corenetwork_bind_tcp_on_all_nodes(sendmail_t)
+corenetwork_bind_udp_on_all_nodes(sendmail_t)
+corenetwork_bind_tcp_on_smtp_port(sendmail_t)
+
+devices_get_pseudorandom_data(sendmail_t)
+
+filesystem_get_all_filesystems_attributes(sendmail_t)
+
+terminal_ignore_use_console(sendmail_t)
+
+init_use_file_descriptors(sendmail_t)
+init_script_use_pseudoterminal(sendmail_t)
+# sendmail wants to read /var/run/utmp if the controlling tty is /dev/console
+init_script_read_runtime_data(sendmail_t)
+init_script_ignore_write_runtime_data(sendmail_t)
+
+domain_use_widely_inheritable_file_descriptors(sendmail_t)
+
+files_read_general_system_config(sendmail_t)
+files_search_system_spool_directory(sendmail_t)
+
+logging_send_system_log_message(sendmail_t)
+
+libraries_use_dynamic_loader(sendmail_t)
+libraries_read_shared_libraries(sendmail_t)
+# Read /usr/lib/sasl2/.*
+libraries_read_library_resources(sendmail_t)
+
+miscfiles_read_localization(sendmail_t)
+
+# Write to /etc/aliases and /etc/mail.
+mta_modify_mail_aliases(sendmail_t)
+# Write to /var/spool/mail and /var/spool/mqueue.
+mta_manage_mail_queue(sendmail_t)
+mta_manage_mail_spool(sendmail_t)
+
+sysnetwork_read_network_config(sendmail_t)
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(sendmail_t)
+terminal_ignore_use_general_pseudoterminal(sendmail_t)
+files_ignore_read_rootfs_file(sendmail_t)
+')
+
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(sendmail_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(sendmail_t)
+')
+
+ifdef(`TODO',`
+
+optional_policy(`rhgb.te', `
+allow sendmail_t rhgb_t:process sigchld;
+allow sendmail_t rhgb_t:fd use;
+allow sendmail_t rhgb_t:fifo_file { read write };
+')
+allow sendmail_t proc_t:dir r_dir_perms;
+allow sendmail_t proc_t:lnk_file read;
+dontaudit sendmail_t unpriv_userdomain:fd use;
+allow sendmail_t autofs_t:dir { search getattr };
+dontaudit sendmail_t sysadm_home_dir_t:dir search;
+
+can_ypbind(sendmail_t)
+
+#
+#  Need this transition to create /etc/aliases.db 
+#
+ifdef(`distro_redhat', `
+ifdef(`rpm.te', `
+domain_auto_trans(rpm_script_t, sendmail_exec_t, system_mail_t)
+')
+')
+
+allow sendmail_t etc_mail_t:dir rw_dir_perms;
+allow sendmail_t etc_mail_t:file create_file_perms;
+# for the start script to run make -C /etc/mail
+allow initrc_t etc_mail_t:dir rw_dir_perms;
+allow initrc_t etc_mail_t:file create_file_perms;
+allow system_mail_t initrc_t:fd use;
+allow system_mail_t initrc_t:fifo_file write;
+
+# When sendmail runs as user_mail_domain, it needs some extra permissions
+# to update /etc/mail/statistics.
+allow user_mail_domain etc_mail_t:file rw_file_perms;
+
+# Silently deny attempts to access /root.
+dontaudit system_mail_t { staff_home_dir_t sysadm_home_dir_t}:dir { getattr search };
+
+# Run procmail in its own domain, if defined.
+ifdef(`procmail.te',`
+corecommands_search_general_programs_directory(sendmail_t)
+procmail_transition(sendmail_t)
+domain_auto_trans(system_mail_t, procmail_exec_t, procmail_t)
+')
+
+dontaudit sendmail_t admin_tty_type:chr_file { getattr ioctl };
+') dnl end TODO
