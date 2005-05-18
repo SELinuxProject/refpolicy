@@ -70,6 +70,12 @@ kernel_make_object_identity_change_constraint_exception(restorecon_t)
 init_make_system_domain(restorecon_t,restorecon_exec_t)
 role system_r types restorecon_t;
 
+type run_init_t;
+domain_make_domain(run_init_t)
+
+type run_init_exec_t;
+domain_make_entrypoint_file(run_init_t,run_init_exec_t)
+
 #
 # selinux_config_t is the type applied to
 # /etc/selinux/config
@@ -352,6 +358,84 @@ allow restorecon_t fs_type:dir r_dir_perms;
 allow restorecon_t device_t:file { read write };
 allow restorecon_t kernel_t:fifo_file { read write };
 ') dnl endif TODO
+
+#################################
+#
+# Run_init local policy
+#
+
+kernel_get_selinuxfs_mount_point(run_init_t)
+kernel_validate_selinux_context(run_init_t)
+kernel_compute_selinux_access_vector(run_init_t)
+kernel_compute_selinux_create_context(run_init_t)
+kernel_compute_selinux_relabel_context(run_init_t)
+kernel_compute_selinux_reachable_user_contexts(run_init_t)
+
+tunable_policy(`targeted_policy',`
+# targeted/unconfined stuff
+',`
+
+allow run_init_t self:process setexec;
+allow run_init_t self:capability setuid;
+
+allow run_init_t self:fifo_file { getattr read write };
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_init_t self:capability { dac_override dac_read_search };
+
+filesystem_get_persistent_filesystem_attributes(run_init_t)
+
+devices_ignore_list_device_nodes(run_init_t)
+
+terminal_ignore_list_pseudoterminals(run_init_t)
+
+authlogin_ignore_read_shadow_passwords(run_init_t)
+
+corecommands_execute_general_programs(run_init_t)
+corecommands_execute_shell(run_init_t)
+
+domain_use_widely_inheritable_file_descriptors(run_init_t)
+
+files_read_general_system_config(run_init_t)
+files_ignore_search_all_directories(run_init_t)
+
+init_script_transition(run_init_t)
+# for utmp
+init_script_modify_runtime_data(run_init_t)
+
+libraries_use_dynamic_loader(run_init_t)
+libraries_use_shared_libraries(run_init_t)
+
+selinux_read_config(run_init_t)
+selinux_read_default_contexts(run_init_t)
+
+miscfiles_read_localization(run_init_t)
+
+logging_send_system_log_message(run_init_t)
+') dnl end ifdef targeted policy
+
+ifdef(`TODO',`
+
+tunable_policy(`targeted_policy', `
+domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
+allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
+allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
+domain_trans(initrc_t, shell_exec_t, unconfined_t)
+', `
+domain_auto_trans(sysadm_t, run_init_exec_t, run_init_t)
+role sysadm_r types run_init_t;
+domain_auto_trans(run_init_t, chkpwd_exec_t, sysadm_chkpwd_t)
+allow run_init_t admin_tty_type:chr_file rw_file_perms;
+') dnl endif targeted policy
+
+tunable_policy(`distro_gentoo', `
+# Gentoo integrated run_init+open_init_pty-runscript:
+domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
+domain_make_entrypoint_file(run_init_t,initrc_exec_t)
+')
+') dnl end TODO
 
 ########################################
 #
