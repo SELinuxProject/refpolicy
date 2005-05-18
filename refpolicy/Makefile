@@ -185,14 +185,6 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 
 ########################################
 #
-# Construct file_contexts
-#
-$(FC): $(ALL_FC_FILES)
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) m4 $(M4PARAM) $^ > $@
-
-########################################
-#
 # Remove the dontaudit rules from the policy.conf
 #
 enableaudit: policy.conf
@@ -200,6 +192,14 @@ enableaudit: policy.conf
 	@echo "Removing dontaudit rules from policy.conf"
 	$(QUIET) grep -v dontaudit policy.conf > tmp/policy.audit
 	$(QUIET) mv tmp/policy.audit policy.conf
+
+########################################
+#
+# Construct file_contexts
+#
+$(FC): kernel/global.if $(ALL_FC_FILES)
+	@test -d tmp || mkdir -p tmp
+	$(QUIET) m4 $(M4PARAM) $^ > $@
 
 ########################################
 #
@@ -228,8 +228,21 @@ relabel:  $(FC) $(SETFILES)
 	fi
 	$(QUIET) $(SETFILES) $(FC) $(FILESYSTEMS)
 
+########################################
+#
+# Documentation generation
+#
+
+xml: policy.xml
+
+policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
+	echo "<policy>" > $@
+	grep -h -E "^##[[:space:]]" $^ | sed -e 's/^##[[:space:]]//g' >> $@
+	echo "</policy>" >> $@
+
 clean:
 	rm -fR tmp
+	rm -f policy.xml
 	rm -f policy.conf
 	rm -f policy.$(PV)
 	rm -f $(FC)
