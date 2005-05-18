@@ -392,6 +392,7 @@ terminal_make_physical_terminal($1_t,$1_tty_device_t)
 # Local policy
 #
 
+# Inherit rules for ordinary users.
 base_user_domain($1)
 
 allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
@@ -559,4 +560,234 @@ allow $1_mount_t xdm_t:fifo_file { read write };
 ')
 
 ') dnl end TODO
+')
+
+########################################
+#
+# Admin domain template
+#
+define(`admin_domain_template',`
+
+##############################
+#
+# Declarations
+#
+
+attribute $1_file_type;
+
+type $1_t, userdomain, privhome; #, admin, web_client_domain, nscd_client_domain;
+kernel_make_object_identity_change_constraint_exception($1_t)
+domain_make_domain($1_t)
+role system_r types $1_t;
+
+#ifdef(`direct_sysadm_daemon', `, priv_system_role')
+#; dnl end of sysadm_t type declaration
+
+# Type and access for pty devices.
+type $1_devpts_t;
+terminal_make_pseudoterminal($1_devpts_t)
+
+type $1_home_t, $1_file_type; #, home_type;
+files_make_file($1_home_t)
+
+type $1_home_dir_t; #, home_dir_type, home_type;
+files_make_file($1_home_t)
+
+type $1_tmp_t, $1_file_type;
+files_make_temporary_file($1_tmp_t)
+
+type $1_tty_device_t;
+terminal_make_physical_terminal($1_t,$1_tty_device_t)
+
+##############################
+#
+# $1_t local policy
+#
+
+# Inherit rules for ordinary users.
+base_user_domain($1)
+
+allow $1_t self:capability ~sys_module;
+allow $1_t self:process { setexec setfscreate };
+
+# Set password information for other users.
+allow $1_t self:passwd { passwd chfn chsh };
+
+# Skip authentication when pam_rootok is specified.
+allow $1_t self:passwd rootok;
+
+# Manipulate other users crontab.
+allow $1_t self:passwd crontab;
+
+# for the administrator to run TCP servers directly
+allow $1_t self:tcp_socket { acceptfrom connectto recvfrom };
+
+allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
+terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
+
+allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmp_t:lnk_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data($1_t, $1_tmp_t, { file dir lnk_file sock_file fifo_file })
+
+kernel_read_system_state($1_t)
+kernel_read_network_state($1_t)
+kernel_read_software_raid_state($1_t)
+kernel_get_core_interface_attributes($1_t)
+kernel_get_message_interface_attributes($1_t)
+kernel_change_ring_buffer_level($1_t)
+kernel_clear_ring_buffer($1_t)
+kernel_read_ring_buffer($1_t)
+kernel_get_sysvipc_info($1_t)
+kernel_modify_all_sysctl($1_t)
+kernel_set_selinux_enforcement_mode($1_t)
+kernel_set_selinux_boolean($1_t)
+kernel_set_selinux_security_parameters($1_t)
+# Get security policy decisions:
+kernel_get_selinuxfs_mount_point($1_t)
+kernel_validate_selinux_context($1_t)
+kernel_compute_selinux_access_vector($1_t)
+kernel_compute_selinux_create_context($1_t)
+kernel_compute_selinux_relabel_context($1_t)
+kernel_compute_selinux_reachable_user_contexts($1_t)
+
+corenetwork_bind_tcp_on_general_port($1_t)
+
+devices_get_generic_block_device_attributes($1_t)
+devices_get_generic_character_device_attributes($1_t)
+devices_get_all_block_device_attributes($1_t)
+devices_get_all_character_device_attributes($1_t)
+
+filesystem_get_all_filesystems_attributes($1_t)
+filesystem_set_all_filesystems_quotas($1_t)
+
+storage_raw_read_removable_device($1_t)
+storage_raw_write_removable_device($1_t)
+
+terminal_use_console($1_t)
+terminal_use_general_physical_terminal($1_t)
+terminal_use_all_private_pseudoterminals($1_t)
+terminal_use_all_private_physical_terminals($1_t)
+
+domain_set_all_domains_priorities($1_t)
+
+init_use_control_channel($1_t)
+
+logging_send_system_log_message($1_t)
+
+modutils_insmod_transition($1_t)
+
+selinux_read_config($1_t)
+# The following rule is temporary until such time that a complete
+# policy management infrastructure is in place so that an administrator
+# cannot directly manipulate policy files with arbitrary programs.
+selinux_manage_source_policy($1_t)
+# Violates the goal of limiting write access to checkpolicy.
+# But presently necessary for installing the file_contexts file.
+selinux_manage_binary_policy($1_t)
+
+ifdef(`TODO',`
+
+# Let admin stat the shadow file.
+allow $1_t shadow_t:file getattr;
+
+# Create and use all files that have the sysadmfile attribute.
+allow $1_t sysadmfile:{ file sock_file fifo_file } create_file_perms;
+allow $1_t sysadmfile:lnk_file create_lnk_perms;
+allow $1_t sysadmfile:dir create_dir_perms;
+
+# Relabel all files.
+# Actually this will not allow relabeling ALL files unless you change
+# sysadmfile to file_type (and change the assertion in assert.te that
+# only auth_write can relabel shadow_t)
+allow $1_t sysadmfile:dir { getattr read search relabelfrom relabelto };
+allow $1_t sysadmfile:notdevfile_class_set { getattr relabelfrom relabelto };
+
+# for lsof
+allow $1_t mtrr_device_t:file getattr;
+
+# Examine all processes.
+can_ps($1_t, domain)
+
+# Send signals to all processes.
+allow $1_t { domain unlabeled_t }:process signal_perms;
+
+allow $1_t serial_device:chr_file setattr;
+
+# allow setting up tunnels
+allow $1_t tun_tap_device_t:chr_file rw_file_perms;
+
+allow $1_t ptyfile:chr_file getattr;
+
+# Run programs from staff home directories.
+# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
+can_exec($1_t, staff_home_t)
+
+# Run programs from /usr/src.
+can_exec($1_t, src_t)
+
+# Run admin programs that require different permissions in their own domain.
+# These rules were moved into the appropriate program domain file.
+
+ifdef(`startx.te', `
+ifdef(`xserver.te', `
+# Create files in /tmp/.X11-unix with our X servers derived
+# tmp type rather than user_xserver_tmp_t.
+file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
+')dnl end xserver.te
+')dnl end startx.te
+
+ifdef(`xdm.te', `
+ifdef(`xauth.te', `
+if (xdm_sysadm_login) {
+allow xdm_t $1_home_t:lnk_file read;
+allow xdm_t $1_home_t:dir search;
+}
+allow $1_t xdm_t:fifo_file rw_file_perms;
+')dnl end ifdef xauth.te
+')dnl end ifdef xdm.te
+
+#
+# A user who is authorized for sysadm_t may nonetheless have
+# a home directory labeled with user_home_t if the user is expected
+# to login in either user_t or sysadm_t.  Hence, the derived domains
+# for programs need to be able to access user_home_t.  
+# 
+
+# Allow our gph domain to write to .xsession-errors.
+ifdef(`gnome-pty-helper.te', `
+allow $1_gph_t user_home_dir_type:dir rw_dir_perms;
+allow $1_gph_t user_home_type:file create_file_perms;
+')
+
+# Manipulate other users crontab.
+can_getsecurity(sysadm_crontab_t)
+
+ifdef(`crond.te', `
+allow $1_crond_t var_log_t:file r_file_perms;
+')
+
+# Allow our crontab domain to unlink a user cron spool file.
+ifdef(`crontab.te',`allow $1_crontab_t user_cron_spool_t:file unlink;')
+
+# for the administrator to run TCP servers directly
+allow $1_t kernel_t:tcp_socket recvfrom;
+
+# Connect data port to ftpd.
+ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
+
+# Connect second port to rshd.
+ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
+
+# Allow MAKEDEV to work
+allow $1_t device_t:dir rw_dir_perms;
+allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
+allow $1_t device_t:lnk_file { create read };
+
+# for lsof
+allow $1_t domain:socket_class_set getattr;
+allow $1_t eventpollfs_t:file getattr;
+') dnl endif TODO
 ')
