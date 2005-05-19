@@ -222,6 +222,37 @@ class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
+## <interface name="init_script_read_process_state">
+##	<description>
+##		Read the process state (/proc/pid) of the init scripts.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
+#
+define(`init_script_read_process_state',`
+requires_block_template(`$0'_depend)
+allow $1 initrc_t:dir { search getattr read };
+allow $1 initrc_t:{ file lnk_file } { read getattr };
+allow $1 initrc_t:process getattr;
+# We need to suppress this denial because procps tries to access
+# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+# running in a privileged domain.
+dontaudit $1 initrc_t:process ptrace;
+')
+
+define(`init_script_read_process_state_depend',`
+type initrc_t;
+class dir { search getattr read };
+class file { read getattr };
+class lnk_file { read getattr };
+class process { getattr ptrace };
+')
+
+########################################
 #
 # init_script_direct_admin_transition(role,domain)
 #
@@ -257,6 +288,20 @@ class fd use;
 
 ########################################
 #
+# init_script_ignore_use_file_descriptors(domain)
+#
+define(`init_script_ignore_use_file_descriptors',`
+requires_block_template(`$0'_depend)
+dontaudit $1 initrc_t:fd use;
+')
+
+define(`init_script_ignore_use_file_descriptors_depend',`
+type initrc_t;
+class fd use;
+')
+
+########################################
+#
 # init_script_get_process_group(domain)
 #
 define(`init_script_get_process_group',`
@@ -275,6 +320,7 @@ class process getpgid;
 #
 define(`init_script_use_pseudoterminal',`
 requires_block_template(`$0'_depend)
+terminal_list_pseudoterminals($1)
 allow $1 initrc_devpts_t:chr_file { getattr read write ioctl };
 ')
 
@@ -295,6 +341,28 @@ allow $1 initrc_devpts_t:chr_file { read write ioctl };
 define(`init_script_ignore_use_pseudoterminal_depend',`
 type initrc_devpts_t;
 class chr_file { read write ioctl };
+')
+
+########################################
+## <interface name="init_script_modify_temporary_data">
+##	<description>
+##		Read and write init script temporary data.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
+#
+define(`init_script_modify_temporary_data',`
+requires_block_template(`$0'_depend)
+# FIXME: read tmp_t
+allow $1 initrc_tmp_t:file { getattr read write };
+')
+
+define(`init_script_modify_temporary_data_depend',`
+type initrc_var_run_t;
+class file { getattr read write };
 ')
 
 ########################################

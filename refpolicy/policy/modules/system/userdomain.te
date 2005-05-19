@@ -7,6 +7,15 @@ policy_module(userdomain,1.0)
 # Declarations
 #
 
+# admin users terminals (tty and pty)
+attribute admin_terminal;
+
+# users home directory
+attribute home_dir_type;
+
+# users home directory contents
+attribute home_type;
+
 # The privhome attribute identifies every domain that can create files under
 # regular user home directories in the regular context (IE act on behalf of
 # a user in writing regular files)
@@ -66,7 +75,6 @@ bool user_tcp_server false;
 # Allow w to display everyone
 bool user_ttyfile_stat false;
 
-admin_domain_template(sysadm)
 user_domain_template(staff)
 user_domain_template(user)
 
@@ -77,8 +85,51 @@ user_domain_template(user)
 
 #allow privhome home_root_t:dir { getattr search };
 
+# Add/remove user home directories
+#file_type_auto_trans(sysadm_t, home_root_t, user_home_dir_t, dir)
+
+########################################
+#
+# Sysadm local policy
+#
+
+admin_domain_template(sysadm)
+
 # for su
 allow sysadm_t userdomain:fd use;
 
-# Add/remove user home directories
-#file_type_auto_trans(sysadm_t, home_root_t, user_home_dir_t, dir)
+optional_policy(`iptables.te',`
+iptables_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`lvm.te',`
+lvm_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`modutils.te',`
+modutils_depmod_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+modutils_insmod_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+modutils_update_modules_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`mount.te',`
+mount_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`selinux.te',`
+selinux_checkpolicy_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+selinux_load_policy_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+selinux_restorecon_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+selinux_setfiles_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+optional_policy(`targeted_policy',`',`
+selinux_run_init_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+')
+
+optional_policy(`sysnetwork.te',`
+sysnetwork_ifconfig_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`clock.te',`
+clock_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')

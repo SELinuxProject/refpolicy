@@ -117,6 +117,9 @@ terminal_use_console(checkpolicy_t)
 
 domain_use_widely_inheritable_file_descriptors(checkpolicy_t)
 
+# directory search permissions for path to source and binary policy files
+files_search_general_system_config_directory(checkpolicy_t)
+
 init_use_file_descriptors(checkpolicy_t)
 init_script_use_pseudoterminal(checkpolicy_t)
 
@@ -126,20 +129,8 @@ libraries_use_shared_libraries(checkpolicy_t)
 userdomain_use_all_users_file_descriptors(checkpolicy_t)
 
 ifdef(`TODO',`
-role sysadm_r types checkpolicy_t;
-domain_auto_trans(sysadm_t, checkpolicy_exec_t, checkpolicy_t)
-allow checkpolicy_t admin_tty_type:chr_file { read write ioctl getattr };
-allow checkpolicy_t sysadm_tmp_t:file { getattr write };
-
-# directory search permissions for path to source and binary policy files
-allow checkpolicy_t etc_t:dir search;
-
 # Read the devpts root directory.  
 ifdef(`sshd.te',`allow checkpolicy_t sshd_devpts_t:dir r_dir_perms;')
-
-# Allow users to execute checkpolicy without a domain transition
-# so it can be used without privilege to write real binary policy file
-can_exec(unpriv_userdomain, checkpolicy_exec_t)
 ') dnl endif TODO
 
 ########################################
@@ -180,10 +171,6 @@ miscfiles_read_localization(load_policy_t)
 userdomain_use_all_users_file_descriptors(load_policy_t)
 
 ifdef(`TODO',`
-role sysadm_r types load_policy_t;
-domain_auto_trans(sysadm_t, load_policy_exec_t, load_policy_t)
-allow load_policy_t sysadm_tmp_t:file { getattr write };
-allow load_policy_t admin_tty_type:chr_file { read write ioctl getattr };
 
 # directory search permissions for path to binary policy files
 allow load_policy_t etc_t:dir search;
@@ -227,10 +214,12 @@ filesystem_get_persistent_filesystem_attributes(newrole_t)
 terminal_use_all_private_physical_terminals(newrole_t)
 terminal_use_all_private_pseudoterminals(newrole_t)
 
-# Write to utmp.
-init_script_modify_runtime_data(newrole_t)
+authlogin_check_password_transition(newrole_t)
 
 domain_use_widely_inheritable_file_descriptors(newrole_t)
+
+# Write to utmp.
+init_script_modify_runtime_data(newrole_t)
 
 files_read_general_system_config(newrole_t)
 
@@ -241,13 +230,10 @@ logging_send_system_log_message(newrole_t)
 
 miscfiles_read_localization(newrole_t)
 
-authlogin_check_password_transition(newrole_t)
+userdomain_use_all_unprivileged_users_file_descriptors(newrole_t)
 
 ifdef(`TODO',`
-in_user_role(newrole_t)
-role sysadm_r types newrole_t;
 
-allow newrole_t unpriv_userdomain:fd use;
 can_ypbind(newrole)
 ifdef(`automount.te', `
 allow newrole_t autofs_t:dir { search getattr };
@@ -283,10 +269,6 @@ ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
 
 # for some PAM modules and for cwd
 dontaudit newrole_t { home_root_t home_type }:dir search;
-
-# for when the network connection is killed
-dontaudit unpriv_userdomain newrole_t:process signal;
-
 ') dnl ifdef TODO
 
 ########################################
@@ -340,17 +322,20 @@ files_read_all_directories(restorecon_t)
 # this is to satisfy the assertion:
 authlogin_relabel_to_shadow_passwords(restorecon_t)
 
+tunable_policy(`distro_redhat', `
+filesystem_use_tmpfs_character_devices(restorecon_t)
+filesystem_use_tmpfs_block_devices(restorecon_t)
+')
+
 ifdef(`TODO',`
-allow restorecon_t admin_tty_type:chr_file { read write ioctl };
-domain_audo_trans(sysadm_t, restorecon_exec_t, restorecon_t)
-role sysadm_r types restorecon_t;
 
 # for upgrading glibc and other shared objects - without this the upgrade
 # scripts will put things in a state such that restorecon can not be run!
 allow restorecon_t lib_t:file { read execute };
 
 tunable_policy(`distro_redhat', `
-allow restorecon_t tmpfs_t:{ chr_file blk_file } { rw_file_perms relabelfrom relabelto };
+allow restorecon_t tmpfs_t:chr_file { relabelfrom relabelto };
+allow restorecon_t tmpfs_t:blk_file { relabelfrom relabelto };
 ')
 
 allow restorecon_t fs_type:dir r_dir_perms;
@@ -391,6 +376,7 @@ devices_ignore_list_device_nodes(run_init_t)
 
 terminal_ignore_list_pseudoterminals(run_init_t)
 
+authlogin_check_password_transition(run_init_t)
 authlogin_ignore_read_shadow_passwords(run_init_t)
 
 corecommands_execute_general_programs(run_init_t)
@@ -423,11 +409,6 @@ domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
 allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
 allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
 domain_trans(initrc_t, shell_exec_t, unconfined_t)
-', `
-domain_auto_trans(sysadm_t, run_init_exec_t, run_init_t)
-role sysadm_r types run_init_t;
-domain_auto_trans(run_init_t, chkpwd_exec_t, sysadm_chkpwd_t)
-allow run_init_t admin_tty_type:chr_file rw_file_perms;
 ') dnl endif targeted policy
 
 tunable_policy(`distro_gentoo', `
@@ -479,6 +460,8 @@ logging_send_system_log_message(setfiles_t)
 miscfiles_read_localization(setfiles_t)
 
 userdomain_use_all_users_file_descriptors(setfiles_t)
+# for config files in a home directory
+userdomain_read_all_users_data(setfiles_t)
 
 # relabeling rules
 kernel_relabel_unlabeled_object(setfiles_t)
@@ -489,10 +472,6 @@ files_manage_all_files_labels(setfiles_t)
 authlogin_relabel_to_shadow_passwords(setfiles_t)
 
 ifdef(`TODO',`
-
-domain_auto_trans(sysadm_t, setfiles_exec_t, setfiles_t)
-role sysadm_r types setfiles_t;
-
 # for upgrading glibc and other shared objects - without this the upgrade
 # scripts will put things in a state such that setfiles can not be run!
 allow setfiles_t lib_t:file { read execute };
@@ -501,6 +480,4 @@ allow setfiles_t unlabeled_t:dir read;
 
 allow setfiles_t fs_type:dir r_dir_perms;
 
-# for config files in a home directory
-allow setfiles_t home_type:file r_file_perms;
 ') dnl endif TODO

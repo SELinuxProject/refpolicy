@@ -128,6 +128,8 @@ logging_ignore_get_all_logs_attributes($1_t)
 miscfiles_read_localization($1_t)
 miscfiles_manage_man_page_cache($1_t)
 
+selinux_newrole_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+
 mta_modify_mail_spool($1_t)
 
 if (allow_execmem) {
@@ -376,11 +378,11 @@ type $1_devpts_t; # userpty_type, user_tty_type;
 terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
 
 # Type for home directory.
-type $1_home_dir_t; #, home_dir_type, home_type, user_home_dir_type;
+type $1_home_dir_t, home_dir_type, home_type; #, user_home_dir_type;
 files_make_file($1_home_dir_t)
 
 # Type for files and directories in the home directory
-type $1_home_t, $1_file_type; #, home_type, user_home_type;
+type $1_home_t, $1_file_type, home_type; #, user_home_type;
 files_make_file($1_home_t)
 
 type $1_tmp_t, $1_file_type; #, user_tmpfile
@@ -438,8 +440,16 @@ init_script_read_runtime_data($1_t)
 # The library functions always try to open read-write first,
 # then fall back to read-only if it fails. 
 init_script_ignore_write_runtime_data($1_t)
+# Stop warnings about access to /dev/console
+init_ignore_use_file_descriptors($1_t)
+init_script_ignore_use_file_descriptors($1_t)
+
+miscfiles_read_man_pages($1_t)
 
 selinux_read_config($1_t)
+# Allow users to execute checkpolicy without a domain transition
+# so it can be used without privilege to write real binary policy file
+selinux_checkpolicy_execute($1_t)
 
 if (user_dmesg) {
 kernel_read_ring_buffer($1_t)
@@ -453,6 +463,16 @@ kernel_ignore_read_ring_buffer($1_t)
 if (user_tcp_server) {
 corenetwork_bind_tcp_on_general_port($1_t)
 }
+
+# for running depmod as part of the kernel packaging process
+optional_policy(`modutils.te',`
+modutils_read_kernel_module_loading_config($1_t)
+')
+
+optional_policy(`selinux.te',`
+# for when the network connection is killed
+selinux_newrole_ignore_signal($1_t)
+')
 
 # Need the following rule to allow users to run vpnc
 optional_policy(`xserver.te', `
@@ -509,23 +529,12 @@ allow $1_t var_run_t:{ file lnk_file } r_file_perms;
 allow $1_t var_lib_t:dir r_dir_perms;
 allow $1_t var_lib_t:file { getattr read };
 
-# for running depmod as part of the kernel packaging process
-allow $1_t modules_conf_t:file { getattr read };
-
-# Read man directories and files.
-allow $1_t man_t:dir r_dir_perms;
-allow $1_t man_t:notdevfile_class_set r_file_perms;
-
 # Allow users to rw usb devices
 if (user_rw_usb) {
 rw_dir_create_file($1_t,usbdevfs_t)
 } else {
 r_dir_file($1_t,usbdevfs_t)
 }
-
-# Read /dev directories and any symbolic links.
-allow $1_t device_t:dir r_dir_perms;
-allow $1_t device_t:lnk_file r_file_perms;
 
 # Do not audit write denials to /etc/ld.so.cache.
 dontaudit $1_t ld_so_cache_t:file write;
@@ -540,10 +549,8 @@ dontaudit $1_t devlog_t:sock_file { read write };
 dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
 ')
 
-# Stop warnings about access to /dev/console
-dontaudit $1_t init_t:fd use;
-dontaudit $1_t initrc_t:fd use;
 allow $1_t initrc_t:fifo_file write;
+
 ifdef(`user_can_mount', `
 #
 #  Allow users to mount file systems like floppies and cdrom
@@ -586,7 +593,7 @@ role system_r types $1_t;
 #; dnl end of sysadm_t type declaration
 
 # Type and access for pty devices.
-type $1_devpts_t;
+type $1_devpts_t, admin_terminal;
 terminal_make_pseudoterminal($1_devpts_t)
 
 type $1_home_t, $1_file_type; #, home_type;
@@ -598,7 +605,7 @@ files_make_file($1_home_t)
 type $1_tmp_t, $1_file_type;
 files_make_temporary_file($1_tmp_t)
 
-type $1_tty_device_t;
+type $1_tty_device_t, admin_terminal;
 terminal_make_physical_terminal($1_t,$1_tty_device_t)
 
 ##############################
@@ -675,6 +682,8 @@ terminal_use_all_private_physical_terminals($1_t)
 
 domain_set_all_domains_priorities($1_t)
 
+files_execute_system_source_code_scripts($1_t)
+
 init_use_control_channel($1_t)
 
 logging_send_system_log_message($1_t)
@@ -689,6 +698,10 @@ selinux_manage_source_policy($1_t)
 # Violates the goal of limiting write access to checkpolicy.
 # But presently necessary for installing the file_contexts file.
 selinux_manage_binary_policy($1_t)
+
+optional_policy(`cron.te',`
+cron_admin_template($1)
+')
 
 ifdef(`TODO',`
 
@@ -727,9 +740,6 @@ allow $1_t ptyfile:chr_file getattr;
 # Not ideal, but typical if users want to login as both sysadm_t or staff_t.
 can_exec($1_t, staff_home_t)
 
-# Run programs from /usr/src.
-can_exec($1_t, src_t)
-
 # Run admin programs that require different permissions in their own domain.
 # These rules were moved into the appropriate program domain file.
 
@@ -764,16 +774,6 @@ allow $1_gph_t user_home_dir_type:dir rw_dir_perms;
 allow $1_gph_t user_home_type:file create_file_perms;
 ')
 
-# Manipulate other users crontab.
-can_getsecurity(sysadm_crontab_t)
-
-ifdef(`crond.te', `
-allow $1_crond_t var_log_t:file r_file_perms;
-')
-
-# Allow our crontab domain to unlink a user cron spool file.
-ifdef(`crontab.te',`allow $1_crontab_t user_cron_spool_t:file unlink;')
-
 # for the administrator to run TCP servers directly
 allow $1_t kernel_t:tcp_socket recvfrom;
 
@@ -794,7 +794,55 @@ allow $1_t eventpollfs_t:file getattr;
 ') dnl endif TODO
 ')
 
+########################################
+## <interface name="userdomain_use_admin_terminals">
+##	<description>
+##		Read and write administrative users
+##		physical and pseudo terminals.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
 #
+define(`userdomain_use_admin_terminals',`
+requires_block_template(`$0'_depend)
+devices_list_device_nodes($1)
+terminal_list_pseudoterminals($1)
+allow $1 admin_terminal:chr_file { getattr read write ioctl };
+')
+
+define(`userdomain_use_admin_terminals_depend',`
+attribute admin_terminal;
+class chr_file { getattr read write ioctl };
+')
+
+########################################
+## <interface name="userdomain_read_all_users_data">
+##	<description>
+##		Inherit the file descriptors from all user domains
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="1"/>
+## </interface>
+#
+define(`userdomain_read_all_users_data',`
+requires_block_template(`$0'_depend)
+files_list_home_directories($1)
+allow $1 home_type:dir { getattr search read };
+allow $1 home_type:file { getattr read };
+')
+
+define(`userdomain_read_all_users_data_depend',`
+attribute home_type;
+class dir { getattr search read };
+class file { getattr read };
+')
+
+########################################
 ## <interface name="userdomain_use_all_users_file_descriptors">
 ##	<description>
 ##		Inherit the file descriptors from all user domains
@@ -812,6 +860,49 @@ allow $1 userdomain:fd use;
 
 define(`userdomain_use_all_users_file_descriptors_depend',`
 attribute userdomain;
+class fd use;
+')
+
+########################################
+## <interface name="userdomain_use_all_unprivileged_users_file_descriptors">
+##	<description>
+##		Inherit the file descriptors from all user domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="1"/>
+## </interface>
+#
+define(`userdomain_use_all_unprivileged_users_file_descriptors',`
+requires_block_template(`$0'_depend)
+allow $1 unpriv_userdomain:fd use;
+')
+
+define(`userdomain_use_all_unprivileged_users_file_descriptors_depend',`
+attribute unpriv_userdomain;
+class fd use;
+')
+
+########################################
+## <interface name="userdomain_ignore_use_all_unprivileged_users_file_descriptors">
+##	<description>
+##		Do not audit attempts to inherit the
+##		file descriptors from all user domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="1"/>
+## </interface>
+#
+define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors',`
+requires_block_template(`$0'_depend)
+dontaudit $1 unpriv_userdomain:fd use;
+')
+
+define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors_depend',`
+attribute unpriv_userdomain;
 class fd use;
 ')
 

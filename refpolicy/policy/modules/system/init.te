@@ -187,12 +187,7 @@ kernel_list_usb_hardware(initrc_t)
 # for lsof which is used by alsa shutdown:
 kernel_ignore_get_message_interface_attributes(initrc_t)
 
-filesystem_register_binary_executable_type(initrc_t)
-# cjp: not sure why these are here; should use mount policy
-filesystem_mount_all_filesystems(initrc_t)
-filesystem_unmount_all_filesystems(initrc_t)
-filesystem_remount_all_filesystems(initrc_t)
-filesystem_get_all_filesystems_attributes(initrc_t)
+bootloader_read_kernel_symbol_table(initrc_t)
 
 corenetwork_network_tcp_on_all_interfaces(initrc_t)
 corenetwork_network_raw_on_all_interfaces(initrc_t)
@@ -215,6 +210,13 @@ devices_read_sound_mixer_levels(initrc_t)
 devices_write_sound_mixer_levels(initrc_t)
 devices_set_all_character_device_attributes(initrc_t)
 
+filesystem_register_binary_executable_type(initrc_t)
+# cjp: not sure why these are here; should use mount policy
+filesystem_mount_all_filesystems(initrc_t)
+filesystem_unmount_all_filesystems(initrc_t)
+filesystem_remount_all_filesystems(initrc_t)
+filesystem_get_all_filesystems_attributes(initrc_t)
+
 storage_get_fixed_disk_attributes(initrc_t)
 storage_set_fixed_disk_attributes(initrc_t)
 storage_set_removable_device_attributes(initrc_t)
@@ -222,16 +224,13 @@ storage_set_removable_device_attributes(initrc_t)
 terminal_use_all_terminals(initrc_t)
 terminal_reset_physical_terminal_labels(initrc_t)
 
-bootloader_read_kernel_symbol_table(initrc_t)
+corecommands_execute_general_programs(initrc_t)
+corecommands_execute_system_programs(initrc_t)
+corecommands_execute_shell(initrc_t)
 
 domain_kill_all_domains(initrc_t)
 domain_read_all_domains_process_state(initrc_t)
 domain_use_widely_inheritable_file_descriptors(initrc_t)
-
-libraries_modify_dynamic_loader_cache(initrc_t)
-libraries_use_dynamic_loader(initrc_t)
-libraries_use_shared_libraries(initrc_t)
-libraries_execute_library_scripts(initrc_t)
 
 files_get_all_file_attributes(initrc_t)
 files_remove_all_tmp_data(initrc_t)
@@ -244,9 +243,10 @@ files_execute_system_config_script(initrc_t)
 files_read_general_application_resources(initrc_t)
 files_manage_pseudorandom_saved_seed(initrc_t)
 
-corecommands_execute_general_programs(initrc_t)
-corecommands_execute_system_programs(initrc_t)
-corecommands_execute_shell(initrc_t)
+libraries_modify_dynamic_loader_cache(initrc_t)
+libraries_use_dynamic_loader(initrc_t)
+libraries_use_shared_libraries(initrc_t)
+libraries_execute_library_scripts(initrc_t)
 
 logging_send_system_log_message(initrc_t)
 
@@ -267,14 +267,29 @@ logging_append_all_logs(initrc_t)
 
 udev_modify_database(initrc_t)
 
+userdomain_read_all_users_data(initrc_t)
+# Allow access to the sysadm TTYs. Note that this will give access to the 
+# TTYs to any process in the initrc_t domain. Therefore, daemons and such
+# started from init should be placed in their own domain.
+userdomain_use_admin_terminals(initrc_t)
+
+tunable_policy(`distro_debian', `
+filesystem_tmpfs_associate(initrc_var_run_t)
+')
+
 tunable_policy(`distro_redhat',`
 kernel_set_selinux_enforcement_mode(initrc_t)
-
-files_create_boot_flag(initrc_t)
 
 # Create and read /boot/kernel.h and /boot/System.map.
 # Redhat systems typically create this file at boot time.
 bootloader_create_runtime_data(initrc_t)
+
+filesystem_use_tmpfs_character_devices(initrc_t)
+
+files_create_boot_flag(initrc_t)
+
+# readahead asks for these
+mta_read_mail_aliases(initrc_t)
 ') dnl end distro_redhat
 
 optional_policy(`authlogin.te',`
@@ -282,7 +297,15 @@ authlogin_pam_read_runtime_data(initrc_t)
 authlogin_pam_remove_runtime_data(initrc_t)
 ')
 
+optional_policy(`hotplug.te',`
+kernel_read_usb_hardware_state(initrc_t)
+# init scripts run /etc/hotplug/usb.rc
+hotplug_read_config(initrc_t)
+modutils_read_kernel_module_dependencies(initrc_t)
+')
+
 ifdef(`TODO',`
+
 # Mount and unmount file systems.
 allow initrc_t { file_t default_t }:dir { read search getattr mounton };
 
@@ -290,15 +313,6 @@ allow initrc_t var_spool_t:file rw_file_perms;
 
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
-
-# Allow access to the sysadm TTYs. Note that this will give access to the 
-# TTYs to any process in the initrc_t domain. Therefore, daemons and such
-# started from init should be placed in their own domain.
-allow initrc_t admin_tty_type:chr_file rw_file_perms;
-
-# Read user home directories.
-allow initrc_t { home_root_t home_type }:dir r_dir_perms;
-allow initrc_t home_type:file r_file_perms;
 
 # for lsof in shutdown scripts
 can_kerberos(initrc_t)
@@ -326,7 +340,6 @@ allow initrc_t { etc_t device_t }:dir setattr;
 allow initrc_t tmpfs_t:dir setattr;
 file_type_auto_trans(initrc_t, tmpfs_t, initrc_var_run_t, dir)
 file_type_auto_trans(initrc_t, tmpfs_t, fixed_disk_device_t, blk_file)
-allow { initrc_var_run_t fixed_disk_device_t } tmpfs_t:filesystem associate;
 ')dnl end distro_debian
 
 tunable_policy(`distro_redhat', `
@@ -334,22 +347,13 @@ tunable_policy(`distro_redhat', `
 # Redhat systems typically create this file at boot time.
 allow initrc_t boot_t:lnk_file rw_file_perms;
 
-allow initrc_t tmpfs_t:chr_file rw_file_perms;
-allow initrc_t tmpfs_t:dir r_dir_perms;
-
-#
 # readahead asks for these
-#
-allow initrc_t etc_aliases_t:file { getattr read };
 allow initrc_t var_lib_nfs_t:file { getattr read };
-
 ')dnl end distro_redhat
 
 #
 # Shutting down xinet causes these
 #
-# Fam
-dontaudit initrc_t device_t:dir { read write };
 # Rsync
 dontaudit initrc_t mail_spool_t:lnk_file read;
 

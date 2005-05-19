@@ -21,6 +21,9 @@ allow mount_t mount_tmp_t:dir { getattr search create read setattr write setattr
 kernel_read_system_state(mount_t)
 kernel_ignore_use_file_descriptors(mount_t)
 
+corenetwork_ignore_bind_tcp_on_all_reserved_ports(mount_t)
+corenetwork_ignore_bind_udp_on_all_reserved_ports(mount_t)
+
 devices_get_all_block_device_attributes(mount_t)
 devices_list_device_nodes(mount_t)
 
@@ -37,11 +40,9 @@ files_unmount_root_filesystem(mount_t)
 
 terminal_use_console(mount_t)
 
-corenetwork_ignore_bind_tcp_on_all_reserved_ports(mount_t)
-corenetwork_ignore_bind_udp_on_all_reserved_ports(mount_t)
-
-init_use_file_descriptors(mount_t)
-init_script_use_pseudoterminal(mount_t)
+# required for mount.smbfs
+corecommands_execute_system_programs(mount_t)
+corecommands_execute_general_programs(mount_t)
 
 domain_use_widely_inheritable_file_descriptors(mount_t)
 
@@ -51,21 +52,55 @@ files_read_general_system_config(mount_t)
 files_create_runtime_system_config(mount_t)
 files_mount_on_all_mountpoints(mount_t)
 
+init_use_file_descriptors(mount_t)
+init_script_use_pseudoterminal(mount_t)
+
 libraries_use_dynamic_loader(mount_t)
 libraries_use_shared_libraries(mount_t)
-
-# required for mount.smbfs
-corecommands_execute_system_programs(mount_t)
-corecommands_execute_general_programs(mount_t)
 
 logging_send_system_log_message(mount_t)
 
 miscfiles_read_localization(mount_t)
 
+userdomain_use_all_users_file_descriptors(mount_t)
+
+tunable_policy(`distro_redhat',`
+filesystem_use_tmpfs_character_devices(mount_t)
+allow mount_t tmpfs_t:dir mounton;
+
+optional_policy(`authlogin.te',`
+authlogin_pam_console_read_runtime_data(mount_t)
+# mount config by default sets fscontext=removable_t
+allow mount_t dosfs_t:filesystem relabelfrom;
+') dnl end authlogin
+
+') dnl end distro_redhat
+
+optional_policy(`portmap.te', `
+# for nfs
+#can_ypbind(mount_t)
+#allow portmap_t mount_t:udp_socket { sendto recvfrom };
+#allow mount_t portmap_t:udp_socket { sendto recvfrom };
+#allow mount_t rpc_pipefs_t:dir search;
+corenetwork_network_tcp_on_all_interfaces(mount_t)
+corenetwork_network_raw_on_all_interfaces(mount_t)
+corenetwork_network_udp_on_all_interfaces(mount_t)
+corenetwork_network_tcp_on_all_nodes(mount_t)
+corenetwork_network_raw_on_all_nodes(mount_t)
+corenetwork_network_udp_on_all_nodes(mount_t)
+corenetwork_network_tcp_on_all_ports(mount_t)
+corenetwork_network_udp_on_all_ports(mount_t)
+corenetwork_bind_tcp_on_all_nodes(mount_t)
+corenetwork_bind_udp_on_all_nodes(mount_t)
+corenetwork_bind_tcp_on_general_port(mount_t)
+corenetwork_bind_udp_on_general_port(mount_t)
+corenetwork_bind_tcp_on_reserved_port(mount_t)
+corenetwork_bind_udp_on_reserved_port(mount_t)
+')
+
 ifdef(`TODO',`
-# Mount, remount and unmount file systems.
-# nfsv4 has a filesystem to mount for its userspace daemons
-allow mount_t var_lib_nfs_t:dir mounton;
+# this goes to the nfs/rpc module
+files_make_mountpoint(var_lib_nfs_t)
 
 # TODO: Need to examine this further. Not sure how to handle this
 #type sysadm_mount_source_t, file_type, sysadmfile, $1_file_type;
@@ -83,23 +118,9 @@ allow mount_t fs_t:filesystem relabelfrom;
 # This rule needs to be generalized.  Only admin, initrc should have it.
 allow mount_t file_type:filesystem { unmount mount relabelto };
 
-allow mount_t userdomain:fd use;
-
-domain_auto_trans(sysadm_t, mount_exec_t, mount_t)
-role sysadm_r types mount_t;
-allow mount_t sysadm_tty_device_t:chr_file { getattr read write ioctl };
-allow mount_t sysadm_devpts_t:chr_file { getattr read write };
 ifdef(`gnome-pty-helper.te', `
 allow mount_t sysadm_gph_t:fd use;
 ')
-
-tunable_policy(`distro_redhat',`
-optional_policy(`authlogin.te',`
-r_dir_file($2_t,pam_var_console_t)
-# mount config by default sets fscontext=removable_t
-allow $2_t dosfs_t:filesystem relabelfrom;
-') dnl end authlogin
-') dnl end distro_redhat
 
 optional_policy(`rhgb.te', `
 allow mount_t rhgb_t:process sigchld;
@@ -107,35 +128,8 @@ allow mount_t rhgb_t:fd use;
 allow mount_t rhgb_t:fifo_file { read write };
 ')
 
-tunable_policy(`distro_redhat', `
-allow mount_t tmpfs_t:chr_file { read write };
-allow mount_t tmpfs_t:dir mounton;
-')
-
 optional_policy(`automount.te', `
 allow mount_t autofs_t:dir read;
-')
-
-optional_policy(`portmap.te', `
-# for nfs
-can_ypbind(mount_t)
-can_udp_send(mount_t, portmap_t)
-can_udp_send(portmap_t, mount_t)
-allow mount_t rpc_pipefs_t:dir search;
-corenetwork_network_tcp_on_all_interfaces(mount_t)
-corenetwork_network_raw_on_all_interfaces(mount_t)
-corenetwork_network_udp_on_all_interfaces(mount_t)
-corenetwork_network_tcp_on_all_nodes(mount_t)
-corenetwork_network_raw_on_all_nodes(mount_t)
-corenetwork_network_udp_on_all_nodes(mount_t)
-corenetwork_network_tcp_on_all_ports(mount_t)
-corenetwork_network_udp_on_all_ports(mount_t)
-corenetwork_bind_tcp_on_all_nodes(mount_t)
-corenetwork_bind_udp_on_all_nodes(mount_t)
-corenetwork_bind_tcp_on_general_port(mount_t)
-corenetwork_bind_udp_on_general_port(mount_t)
-corenetwork_bind_tcp_on_reserved_port(mount_t)
-corenetwork_bind_udp_on_reserved_port(mount_t)
 ')
 
 ') dnl endif TODO

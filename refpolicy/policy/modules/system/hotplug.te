@@ -60,13 +60,9 @@ storage_set_removable_device_attributes(hotplug_t)
 
 terminal_ignore_use_console(hotplug_t)
 
-init_use_file_descriptors(hotplug_t)
-init_script_use_pseudoterminal(hotplug_t)
-# Allow hotplug (including /sbin/ifup-local) to start/stop services and
-# run sendmail -q
-init_script_transition(hotplug_t)
-# kernel threads inherit from shared descriptor table used by init
-init_ignore_use_control_channel(hotplug_t)
+corecommands_execute_general_programs(hotplug_t)
+corecommands_execute_shell(hotplug_t)
+corecommands_execute_system_programs(hotplug_t)
 
 domain_use_widely_inheritable_file_descriptors(hotplug_t)
 
@@ -74,11 +70,17 @@ files_read_general_system_config(hotplug_t)
 files_create_runtime_system_config(hotplug_t)
 files_execute_system_config_script(hotplug_t)
 
-corecommands_execute_general_programs(hotplug_t)
-corecommands_execute_shell(hotplug_t)
-corecommands_execute_system_programs(hotplug_t)
+init_use_file_descriptors(hotplug_t)
+init_script_use_pseudoterminal(hotplug_t)
+init_script_read_process_state(hotplug_t)
+# Allow hotplug (including /sbin/ifup-local) to start/stop services and
+# run sendmail -q
+init_script_transition(hotplug_t)
+# kernel threads inherit from shared descriptor table used by init
+init_ignore_use_control_channel(hotplug_t)
 
 logging_send_system_log_message(hotplug_t)
+logging_search_system_log_directory(hotplug_t)
 
 libraries_use_dynamic_loader(hotplug_t)
 libraries_use_shared_libraries(hotplug_t)
@@ -91,6 +93,8 @@ modutils_read_kernel_module_dependencies(hotplug_t)
 miscfiles_read_localization(hotplug_t)
 
 mount_transition(hotplug_t)
+
+userdomain_ignore_use_all_unprivileged_users_file_descriptors(hotplug_t)
 
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal(hotplug_t)
@@ -108,6 +112,10 @@ hostname_execute(hotplug_t)
 
 optional_policy(`iptables.te',`
 iptables_transition(hotplug_t)
+')
+
+optional_policy(`mta.te', `
+mta_send_mail(hotplug_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -128,7 +136,6 @@ updfstab_transition(hotplug_t)
 ')
 
 ifdef(`TODO',`
-dontaudit hotplug_t unpriv_userdomain:fd use;
 allow hotplug_t autofs_t:dir { search getattr };
 dontaudit hotplug_t sysadm_home_dir_t:dir search;
 optional_policy(`rhgb.te', `
@@ -147,19 +154,12 @@ can_network_server(hotplug_t)
 can_ypbind(hotplug_t)
 dbusd_client(system, hotplug)
 
-allow initrc_t usbdevfs_t:file { getattr read ioctl };
-allow initrc_t modules_dep_t:file { getattr read ioctl };
-# init scripts run /etc/hotplug/usb.rc
-allow initrc_t hotplug_etc_t:dir r_dir_perms;
-
 allow hotplug_t kernel_t:process sigchld;
 
 # for when filesystems are not mounted early in the boot
 dontaudit hotplug_t file_t:dir { search getattr };
 
 allow hotplug_t udev_runtime_t:file rw_file_perms;
-
-allow hotplug_t var_log_t:dir search;
 
 # for ps
 dontaudit hotplug_t domain:dir { getattr search };
@@ -178,6 +178,10 @@ allow hotplug_t var_lock_t:file getattr;
 
 optional_policy(`hald.te', `
 allow hotplug_t hald_t:unix_dgram_socket sendto;
+')
+
+# this goes to hald:
+optional_policy(`hotplug.te',`
 allow hald_t hotplug_etc_t:dir search;
 allow hald_t hotplug_etc_t:file { getattr read };
 ')
@@ -186,15 +190,7 @@ optional_policy(`fsadm.te', `
 domain_auto_trans(hotplug_t, fsadm_exec_t, fsadm_t)
 ')
 
-optional_policy(`initrc.te', `
-can_ps(hotplug_t, initrc_t)
-')
-
 optional_policy(`lpd.te', `
 allow hotplug_t printer_device_t:chr_file setattr;
-')
-
-optional_policy(`mta.te', `
-domain_auto_trans(hotplug_t, sendmail_exec_t, system_mail_t)
 ')
 ') dnl end TODO

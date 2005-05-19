@@ -49,12 +49,14 @@ filesystem_get_persistent_filesystem_attributes(iptables_t)
 
 terminal_ignore_use_console(iptables_t)
 
-init_use_file_descriptors(iptables_t)
-init_script_use_pseudoterminal(iptables_t)
-
 domain_use_widely_inheritable_file_descriptors(iptables_t)
 
 files_read_general_system_config(iptables_t)
+
+init_use_file_descriptors(iptables_t)
+init_script_use_pseudoterminal(iptables_t)
+# to allow rules to be saved on reboot:
+init_script_modify_temporary_data(iptables_t)
 
 libraries_use_dynamic_loader(iptables_t)
 libraries_use_shared_libraries(iptables_t)
@@ -66,6 +68,19 @@ logging_send_system_log_message(iptables_t)
 miscfiles_read_localization(iptables_t)
 
 sysnetwork_ifconfig_transition(iptables_t)
+
+userdomain_use_all_users_file_descriptors(iptables_t)
+
+tunable_policy(`use_dns',`
+allow iptables_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+corenetwork_network_udp_on_all_interfaces(iptables_t)
+corenetwork_network_raw_on_all_interfaces(iptables_t)
+corenetwork_network_udp_on_all_nodes(iptables_t)
+corenetwork_network_raw_on_all_nodes(iptables_t)
+corenetwork_bind_udp_on_all_nodes(iptables_t)
+corenetwork_network_udp_on_dns_port(iptables_t)
+sysnetwork_read_network_config(iptables_t)
+')
 
 optional_policy(`modutils.te', `
 modutils_insmod_transition(iptables_t)
@@ -92,26 +107,12 @@ allow iptables_t rhgb_t:process sigchld;
 allow iptables_t rhgb_t:fd use;
 allow iptables_t rhgb_t:fifo_file { read write };
 ')
-dontaudit iptables_t unpriv_userdomain:fd use;
+
 allow iptables_t autofs_t:dir { search getattr };
-tunable_policy(`direct_sysadm_daemon', `
-dontaudit iptables_t admin_tty_type:chr_file rw_file_perms;
-')
-
-domain_auto_trans(sysadm_t, iptables_exec_t, iptables_t)
-role sysadm_r types iptables_t;
-
-# to allow rules to be saved on reboot
-allow iptables_t initrc_tmp_t:file rw_file_perms;
 
 # for iptables -L
-can_resolve(iptables_t)
 can_ypbind(iptables_t)
 
-allow iptables_t userdomain:fd use;
-
-# Access terminals.
-allow iptables_t { sysadm_tty_device_t sysadm_devpts_t }:chr_file rw_file_perms;
 optional_policy(`gnome-pty-helper.te',`
 allow iptables_t sysadm_gph_t:fd use;
 ')
