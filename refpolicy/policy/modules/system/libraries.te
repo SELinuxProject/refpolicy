@@ -2,12 +2,18 @@
 
 policy_module(libraries,1.0)
 
+########################################
+#
+# Declarations
+#
+
 #
 # ld_so_cache_t is the type of /etc/ld.so.cache.
 #
 type ld_so_cache_t;
 files_make_file(ld_so_cache_t)
 
+#
 # ld_so_t is the type of the system dynamic loaders.
 #
 type ld_so_t;
@@ -32,3 +38,64 @@ files_make_file(shlib_t)
 #
 type texrel_shlib_t;
 files_make_file(texrel_shlib_t)
+
+########################################
+#
+# ldconfig local policy
+#
+type ldconfig_t;
+type ldconfig_exec_t;
+init_make_system_domain(ldconfig_t,ldconfig_exec_t)
+role system_r types ldconfig_t;
+
+allow ldconfig_t ld_so_cache_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_config(ldconfig_t,ld_so_cache_t,file)
+
+allow ldconfig_t lib_t:dir { getattr search read write add_name remove_name };
+allow ldconfig_t lib_t:lnk_file { getattr create read unlink };
+allow ldconfig_t ld_so_t:lnk_file { getattr read };
+allow ldconfig_t ld_so_t:file { getattr read execute };
+allow ldconfig_t ld_so_cache_t:file { getattr read };
+allow ldconfig_t { shlib_t texrel_shlib_t }:lnk_file { getattr read };
+allow ldconfig_t { shlib_t texrel_shlib_t }:file { getattr read execute };
+
+kernel_read_system_state(ldconfig_t)
+
+filesystem_get_persistent_filesystem_attributes(ldconfig_t)
+
+domain_use_widely_inheritable_file_descriptors(ldconfig_t)
+
+files_read_general_system_config(ldconfig_t)
+# for when /etc/ld.so.cache is mislabeled:
+files_remove_general_system_config(ldconfig_t)
+
+init_script_use_pseudoterminal(ldconfig_t)
+
+logging_send_system_log_message(ldconfig_t)
+
+userdomain_use_all_users_file_descriptors(ldconfig_t)
+
+
+ifdef(`TODO',`
+
+allow ldconfig_t tmp_t:dir search;
+
+ifdef(`apache.te', `
+# dontaudit access to /usr/lib/apache, normal programs cannot read these libs anyway
+dontaudit ldconfig_t httpd_modules_t:dir search;
+')
+
+allow ldconfig_t { var_t var_lib_t }:dir search;
+
+ifdef(`hide_broken_symptoms', `
+ifdef(`unconfined.te',`
+dontaudit ldconfig_t unconfined_t:tcp_socket { read write };
+')
+')
+
+ifdef(`targeted_policy', `
+allow ldconfig_t lib_t:file r_file_perms;
+unconfined_domain(ldconfig_t) 
+')
+
+') dnl end TODO
