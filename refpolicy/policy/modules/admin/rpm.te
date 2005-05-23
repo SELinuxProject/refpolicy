@@ -1,0 +1,403 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(rpm,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type rpm_t; #, admin, privmem, priv_system_role;
+type rpm_exec_t;
+init_make_system_domain(rpm_t,rpm_exec_t)
+kernel_make_object_identity_change_constraint_exception(rpm_t)
+domain_make_file_descriptors_widely_inheritable(rpm_t)
+role system_r types rpm_t;
+
+type rpm_file_t;
+files_make_file(rpm_file_t)
+
+type rpm_tmp_t;
+files_make_temporary_file(rpm_tmp_t)
+
+type rpm_tmpfs_t;
+files_make_tmpfs_file(rpm_tmpfs_t)
+
+type rpm_log_t;
+logging_make_log_file(rpm_log_t)
+
+type rpm_var_lib_t;
+files_make_file(rpm_var_lib_t)
+typealias rpm_var_lib_t alias var_lib_rpm_t;
+
+type rpm_script_t; #, admin, privmem, priv_system_role;
+type rpm_script_exec_t;
+kernel_make_object_identity_change_constraint_exception(rpm_script_t)
+corecommands_make_shell_entrypoint(rpm_script_t)
+domain_make_domain(rpm_script_t)
+domain_make_entrypoint_file(rpm_t,rpm_script_t)
+domain_make_file_descriptors_widely_inheritable(rpm_script_t)
+role system_r types rpm_script_t;
+
+type rpm_script_tmp_t;
+files_make_temporary_file(rpm_script_tmp_t)
+
+type rpm_script_tmpfs_t;
+files_make_tmpfs_file(rpm_script_tmpfs_t)
+
+type rpmbuild_t;
+type rpmbuild_exec_t;
+init_make_system_domain(rpmbuild_t,rpmbuild_exec_t)
+
+########################################
+#
+# rpm Local policy
+#
+
+allow rpm_t self:capability { chown dac_override fowner fsetid setgid setuid net_bind_service sys_chroot sys_tty_config mknod };
+allow rpm_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow rpm_t self:process { getattr setexec setfscreate setrlimit };
+allow rpm_t self:fd use;
+allow rpm_t self:fifo_file { read getattr lock ioctl write append };
+allow rpm_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow rpm_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow rpm_t self:unix_dgram_socket sendto;
+allow rpm_t self:unix_stream_socket connectto;
+allow rpm_t self:udp_socket { connect };
+allow rpm_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow rpm_t self:tcp_socket { listen accept create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow rpm_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow rpm_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow rpm_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow rpm_t self:msg { send receive };
+allow rpm_t self:dir search;
+allow rpm_t self:file { getattr read write };
+
+allow rpm_t rpm_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+logging_create_private_log(rpm_t,rpm_log_t)
+
+allow rpm_t rpm_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow rpm_t rpm_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(rpm_t, rpm_tmp_t, { file dir })
+
+allow rpm_t rpm_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow rpm_t rpm_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_t rpm_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+allow rpm_t rpm_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_t rpm_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+filesystem_create_private_tmpfs_data(rpm_t,rpm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+# Access /var/lib/rpm files
+allow rpm_t rpm_var_lib_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_t rpm_var_lib_t:dir { read getattr lock search ioctl add_name remove_name write };
+#files_create_private_libraries(rpm_t,rpm_var_lib_t,dir)
+
+kernel_read_system_state(rpm_t)
+kernel_read_kernel_sysctl(rpm_t)
+kernel_get_selinuxfs_mount_point(rpm_t)
+kernel_validate_selinux_context(rpm_t)
+kernel_compute_selinux_access_vector(rpm_t)
+kernel_compute_selinux_create_context(rpm_t)
+kernel_compute_selinux_relabel_context(rpm_t)
+kernel_compute_selinux_reachable_user_contexts(rpm_t)
+
+corenetwork_network_tcp_on_all_interfaces(rpm_t)
+corenetwork_network_raw_on_all_interfaces(rpm_t)
+corenetwork_network_udp_on_all_interfaces(rpm_t)
+corenetwork_network_tcp_on_all_nodes(rpm_t)
+corenetwork_network_raw_on_all_nodes(rpm_t)
+corenetwork_network_udp_on_all_nodes(rpm_t)
+corenetwork_network_tcp_on_all_ports(rpm_t)
+corenetwork_network_udp_on_all_ports(rpm_t)
+corenetwork_bind_tcp_on_all_nodes(rpm_t)
+corenetwork_bind_udp_on_all_nodes(rpm_t)
+
+devices_get_pseudorandom_data(rpm_t)
+#devices_manage_all_device_types(rpm_t)
+
+#filesystem_manage_nfs_dir(rpm_t)
+#filesystem_manage_nfs_files(rpm_t)
+filesystem_get_all_filesystems_attributes(rpm_t)
+
+storage_raw_write_fixed_disk(rpm_t)
+# for installing kernel packages
+storage_raw_read_fixed_disk(rpm_t)
+
+terminal_list_pseudoterminals(rpm_t)
+
+authlogin_ignore_read_shadow_passwords(rpm_t)
+
+corecommands_execute_general_programs(rpm_t)
+corecommands_execute_system_programs(rpm_t)
+corecommands_shell_transition(rpm_t,rpm_script_t)
+
+domain_execute_all_entrypoint_programs(rpm_t)
+domain_read_all_domains_process_state(rpm_t)
+domain_use_widely_inheritable_file_descriptors(rpm_t)
+
+files_execute_system_config_script(rpm_t)
+
+init_script_transition(rpm_t)
+
+libraries_use_dynamic_loader(rpm_t)
+libraries_use_shared_libraries(rpm_t)
+libraries_execute_dynamic_loader(rpm_t)
+libraries_execute_library_scripts(rpm_t)
+libraries_ldconfig_transition(rpm_t)
+
+logging_send_system_log_message(rpm_t)
+
+# allow compiling and loading new policy
+selinux_manage_source_policy(rpm_t)
+selinux_manage_binary_policy(rpm_t)
+
+sysnetwork_read_network_config(rpm_t)
+
+userdomain_use_all_unprivileged_users_file_descriptors(rpm_t)
+
+#cron_transition_from(rpm,rpm_exec_t)
+
+ifdef(`TODO',`
+
+type_transition rpm_t tmpfs_t:{ dir file lnk_file sock_file fifo_file } rpm_tmpfs_t;
+
+dontaudit rpm_t domain:process ptrace;
+
+# read/write/create any files in the system
+allow rpm_t { file_type -shadow_t }:{ file lnk_file dir fifo_file sock_file } { relabelfrom relabelto };
+allow rpm_t { file_type - shadow_t }:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow rpm_t { file_type - shadow_t }:{ file lnk_file fifo_file sock_file } { create ioctl read getattr lock write setattr append link unlink rename };
+dontaudit rpm_t domain:{ socket unix_dgram_socket udp_socket unix_stream_socket tcp_socket fifo_file rawip_socket packet_socket } getattr;
+allow rpm_t ttyfile:chr_file unlink;
+
+# needs rw permission to the directory for an rpm package that includes a mount
+# point
+allow rpm_t fs_type:dir { setattr rw_dir_perms };
+
+allow rpm_t mount_t:tcp_socket write;
+allow rpm_t nfs_t:lnk_file { create read getattr setattr link unlink rename };
+
+allow rpm_t sysfs_t:dir { read getattr lock search ioctl };
+allow rpm_t usbdevfs_t:dir { read getattr lock search ioctl };
+
+allow rpm_t rpc_pipefs_t:dir search;
+
+can_ypbind(rpm_t)
+
+optional_policy(`gnome-pty-helper.te', `
+allow rpm_t sysadm_gph_t:fd use;
+')
+
+optional_policy(`automount.te', `
+allow rpm_t autofs_t:dir { search getattr };
+')
+
+optional_policy(`mount.te', `
+allow rpm_t mount_t:udp_socket rw_socket_perms;
+')
+
+# for kernel package installation
+optional_policy(`mount.te', `
+allow mount_t rpm_t:fifo_file rw_file_perms;
+')
+
+# Commonly used from postinst scripts
+optional_policy(`consoletype.te', `
+allow consoletype_t rpm_t:fifo_file r_file_perms;
+')
+optional_policy(`crond.te', `
+allow crond_t rpm_t:fifo_file r_file_perms;
+')
+
+') dnl endif TODO
+
+########################################
+#
+# rpm-script Local policy
+#
+
+allow rpm_script_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid ipc_lock sys_chroot sys_nice mknod kill };
+allow rpm_script_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow rpm_script_t self:fd use;
+allow rpm_script_t self:fifo_file { read getattr lock ioctl write append };
+allow rpm_script_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow rpm_script_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow rpm_script_t self:unix_dgram_socket sendto;
+allow rpm_script_t self:unix_stream_socket connectto;
+allow rpm_script_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+allow rpm_script_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+allow rpm_script_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow rpm_script_t self:msg { send receive };
+
+allow rpm_script_t rpm_tmp_t:file { getattr read ioctl };
+
+allow rpm_script_t rpm_script_tmp_t:dir mounton;
+allow rpm_script_t rpm_script_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow rpm_script_t rpm_script_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_private_tmp_data(rpm_script_t, rpm_script_tmp_t, { file dir })
+
+allow rpm_script_t rpm_script_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow rpm_script_t rpm_script_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_script_t rpm_script_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+allow rpm_script_t rpm_script_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_script_t rpm_script_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+filesystem_create_private_tmpfs_data(rpm_script_t,rpm_script_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+kernel_read_kernel_sysctl(rpm_script_t)
+kernel_get_selinuxfs_mount_point(rpm_script_t)
+kernel_validate_selinux_context(rpm_script_t)
+kernel_compute_selinux_access_vector(rpm_script_t)
+kernel_compute_selinux_create_context(rpm_script_t)
+kernel_compute_selinux_relabel_context(rpm_script_t)
+kernel_compute_selinux_reachable_user_contexts(rpm_script_t)
+kernel_read_system_state(rpm_script_t)
+
+filesystem_manage_nfs_files(rpm_script_t)
+filesystem_get_nfs_filesystem_attributes(rpm_script_t)
+# why is this not using mount?
+filesystem_get_persistent_filesystem_attributes(rpm_script_t)
+filesystem_mount_persistent_filesystem(rpm_script_t)
+filesystem_unmount_persistent_filesystem(rpm_script_t)
+
+storage_raw_read_fixed_disk(rpm_script_t)
+storage_raw_write_fixed_disk(rpm_script_t)
+
+terminal_get_general_physical_terminal_attributes(rpm_script_t)
+terminal_list_pseudoterminals(rpm_script_t)
+
+authlogin_ignore_get_shadow_passwords_attributes(rpm_script_t)
+
+corecommands_execute_general_programs(rpm_script_t)
+corecommands_execute_system_programs(rpm_script_t)
+
+domain_use_widely_inheritable_file_descriptors(rpm_script_t)
+domain_execute_all_entrypoint_programs(rpm_script_t)
+domain_signal_all_domains(rpm_script_t)
+domain_signull_all_domains(rpm_script_t)
+
+files_execute_system_config_script(rpm_script_t)
+files_read_runtime_system_config(rpm_script_t)
+
+init_script_transition(rpm_script_t)
+
+libraries_use_dynamic_loader(rpm_script_t)
+libraries_use_shared_libraries(rpm_script_t)
+libraries_execute_dynamic_loader(rpm_script_t)
+libraries_execute_library_scripts(rpm_script_t)
+libraries_ldconfig_transition(rpm_script_t)
+
+logging_send_system_log_message(rpm_script_t)
+
+miscfiles_read_localization(rpm_script_t)
+
+modutils_depmod_transition(rpm_script_t)
+modutils_insmod_transition(rpm_script_t)
+
+selinux_load_policy_transition(rpm_script_t)
+selinux_restorecon_transition(rpm_script_t)
+
+userdomain_use_all_users_file_descriptors(rpm_script_t)
+
+optional_policy(`bootloader.te', `
+bootloader_transition(rpm_script_t)
+')
+
+ifdef(`TODO',`
+
+allow rpm_script_t sysfs_t:dir r_dir_perms;
+
+# ideally we would not need this
+allow rpm_script_t { file_type - shadow_t }:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow rpm_script_t { file_type - shadow_t }:{ file lnk_file fifo_file sock_file } { create ioctl read getattr lock write setattr append link unlink rename };
+allow rpm_script_t { device_t device_type }:{ chr_file blk_file } { create ioctl read getattr lock write setattr append link unlink rename };
+
+allow rpm_script_t usr_t:file { getattr read execute execute_no_trans };
+
+allow rpm_script_t autofs_t:dir { search getattr };
+
+can_ypbind(rpm_script_t)
+
+allow rpm_script_t domain:dir { search getattr read };
+allow rpm_script_t domain:{ file lnk_file } { read getattr };
+allow rpm_script_t domain:process getattr;
+# We need to suppress this denial because procps tries to access
+# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+# running in a privileged domain.
+dontaudit rpm_script_t domain:process ptrace;
+
+optional_policy(`automount.te', `
+allow rpm_script_t autofs_t:dir { search getattr };
+')
+
+optional_policy(`lpd.te', `
+allow rpm_script_t printconf_t:file { getattr read execute execute_no_trans };
+')
+
+optional_policy(`ssh.te', `
+allow sshd_t rpm_script_t:fd use;
+')
+
+') dnl end TODO
+
+########################################
+#
+# rpm-build Local policy
+#
+
+kernel_get_selinuxfs_mount_point(rpmbuild_t)
+kernel_validate_selinux_context(rpmbuild_t)
+kernel_compute_selinux_access_vector(rpmbuild_t)
+kernel_compute_selinux_create_context(rpmbuild_t)
+kernel_compute_selinux_relabel_context(rpmbuild_t)
+kernel_compute_selinux_reachable_user_contexts(rpmbuild_t)
+
+selinux_read_source_policy(rpmbuild_t)
+
+ifdef(`TODO',`
+
+allow userdomain var_lib_t:dir { getattr search };
+
+allow { insmod_t depmod_t } rpm_t:fifo_file { getattr read write append ioctl lock };
+
+optional_policy(`cups.te', `
+allow cupsd_t rpm_var_lib_t:dir { getattr read search };
+allow cupsd_t rpm_var_lib_t:file { read getattr };
+allow cupsd_t rpb_var_lib_t:lnk_file { getattr read };
+allow cupsd_t initrc_exec_t:file { getattr read };
+domain_auto_trans(rpm_script_t, cupsd_exec_t, cupsd_t)
+')
+
+optional_policy(`ssh-agent.te', `
+domain_auto_trans(rpm_script_t, ssh_agent_exec_t, sysadm_ssh_agent_t)
+')
+
+optional_policy(`useradd.te', `
+domain_auto_trans(rpm_script_t, useradd_exec_t, useradd_t)
+domain_auto_trans(rpm_script_t, groupadd_exec_t, groupadd_t)
+role system_r types { useradd_t groupadd_t };
+allow { useradd_t groupadd_t } rpm_t:fd use;
+allow { useradd_t groupadd_t } rpm_t:fifo_file { read write };
+')
+
+optional_policy(`bootloader.te',`
+allow bootloader_t rpm_t:fifo_file rw_file_perms;
+')
+
+optional_policy(`prelink.te', `
+domain_auto_trans(rpm_t, prelink_exec_t, prelink_t)
+')
+
+ifdef(`hide_broken_symptoms', `
+optional_policy(`pamconsole.te', `
+domain_trans(rpm_t, pam_console_exec_t, rpm_script_t)
+')
+')
+
+ifdef(`unlimitedRPM', `
+typeattribute rpm_t auth_write;
+unconfined_domain(rpm_t)
+typeattribute rpm_script_t auth_write;
+unconfined_domain(rpm_script_t)
+')
+') dnl end TODO
