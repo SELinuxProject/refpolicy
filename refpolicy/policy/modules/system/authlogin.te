@@ -107,19 +107,18 @@ libraries_use_shared_libraries(pam_t)
 
 logging_send_system_log_message(pam_t)
 
+userdomain_use_all_unprivileged_users_file_descriptors(pam_t)
+
 optional_policy(`locallogin.te',`
 locallogin_use_file_descriptors(pam_t)
 ')
 
 ifdef(`TODO',`
-allow pam_t unpriv_userdomain:fd use;
 can_ypbind(pam_t)
 ifdef(`automount.te', `
 allow pam_t autofs_t:dir { search getattr };
 ')
 
-in_user_role(pam_t)
-domain_auto_trans(userdomain, pam_exec_t, pam_t)
 ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
 ') dnl endif TODO
 
@@ -169,6 +168,8 @@ logging_send_system_log_message(pam_console_t)
 
 selinux_read_file_contexts(pam_console_t)
 
+userdomain_ignore_use_all_unprivileged_users_file_descriptors(pam_console_t)
+
 tunable_policy(`direct_sysadm_daemon', `
 dontaudit pam_console_t admin_tty_type:chr_file rw_file_perms;
 ')
@@ -198,7 +199,6 @@ allow pam_console_t rhgb_t:process sigchld;
 allow pam_console_t rhgb_t:fd use;
 allow pam_console_t rhgb_t:fifo_file { read write };
 ')
-dontaudit pam_console_t unpriv_userdomain:fd use;
 allow pam_console_t autofs_t:dir { search getattr };
 
 allow pam_console_t { 
@@ -213,8 +213,6 @@ power_device_t
 removable_device_t
 scsi_generic_device_t
 }:chr_file { getattr setattr };
-
-
 
 allow pam_console_t mnt_t:dir r_dir_perms;
 
@@ -306,10 +304,6 @@ libraries_use_shared_libraries(utempter_t)
 logging_search_system_log_directory(utempter_t)
 
 ifdef(`TODO',`
-in_user_role(utempter_t)
-role sysadm_r types utempter_t;
-domain_auto_trans(userdomain, utempter_exec_t, utempter_t)
-
 # Allow utemper to write to /tmp/.xses-*
 allow utempter_t user_tmpfile:file { getattr write append };
 

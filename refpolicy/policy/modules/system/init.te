@@ -209,6 +209,8 @@ devices_read_realtime_clock(initrc_t)
 devices_read_sound_mixer_levels(initrc_t)
 devices_write_sound_mixer_levels(initrc_t)
 devices_set_all_character_device_attributes(initrc_t)
+# Wants to remove udev.tbl:
+devices_remove_dev_symbolic_links(initrc_t)
 
 filesystem_register_binary_executable_type(initrc_t)
 # cjp: not sure why these are here; should use mount policy
@@ -283,6 +285,7 @@ kernel_set_selinux_enforcement_mode(initrc_t)
 # Create and read /boot/kernel.h and /boot/System.map.
 # Redhat systems typically create this file at boot time.
 bootloader_create_runtime_data(initrc_t)
+bootloader_modify_bootloader_data_directory_symbolic_links(initrc_t)
 
 filesystem_use_tmpfs_character_devices(initrc_t)
 
@@ -304,6 +307,17 @@ hotplug_read_config(initrc_t)
 modutils_read_kernel_module_dependencies(initrc_t)
 ')
 
+optional_policy(`rpm.te',`
+# why is this needed:
+rpm_manage_package_database(initrc_t)
+# for a bug in rm
+files_ignore_write_all_daemon_runtime_data(initrc_t)
+# bash tries ioctl for some reason
+files_ignore_ioctl_all_daemon_runtime_data(initrc_t)
+# bash tries to access a block device in the initrd
+kernel_ignore_get_unlabeled_block_device_attributes(initrc_t)
+') dnl end rpm.te
+
 ifdef(`TODO',`
 
 # Mount and unmount file systems.
@@ -318,12 +332,6 @@ allow initrc_t xconsole_device_t:fifo_file setattr;
 can_kerberos(initrc_t)
 dontaudit initrc_t krb5_conf_t:file write;
 allow initrc_t krb5_conf_t:file { getattr read };
-
-#
-# Wants to remove udev.tbl
-#
-allow initrc_t device_t:dir rw_dir_perms;
-allow initrc_t device_t:lnk_file unlink;
 
 #
 #  These rules are here to allow init scripts to su
@@ -343,10 +351,6 @@ file_type_auto_trans(initrc_t, tmpfs_t, fixed_disk_device_t, blk_file)
 ')dnl end distro_debian
 
 tunable_policy(`distro_redhat', `
-# Create and read /boot/kernel.h and /boot/System.map.
-# Redhat systems typically create this file at boot time.
-allow initrc_t boot_t:lnk_file rw_file_perms;
-
 # readahead asks for these
 allow initrc_t var_lib_nfs_t:file { getattr read };
 ')dnl end distro_redhat
@@ -359,20 +363,5 @@ dontaudit initrc_t mail_spool_t:lnk_file read;
 
 # for lsof which is used by alsa shutdown
 dontaudit initrc_t domain:{ udp_socket tcp_socket fifo_file unix_dgram_socket } getattr;
-
-optional_policy(`rpm.te',`
-# Access /var/lib/rpm.
-allow initrc_t rpm_var_lib_t:dir rw_dir_perms;
-allow initrc_t rpm_var_lib_t:file create_file_perms;
-
-# for a bug in rm
-dontaudit initrc_t pidfile:file write;
-
-# bash tries to access a block device in the initrd
-dontaudit initrc_t unlabeled_t:blk_file getattr;
-
-# bash tries ioctl for some reason
-dontaudit initrc_t pidfile:file ioctl;
-') dnl end rpm.te
 
 ') dnl end TODO

@@ -1,4 +1,6 @@
 # Copyright (C) 2005 Tresys Technology, LLC
+## <module name="authlogin" layer="system">
+## <summary>Common policy for authentication and user login.</summary>
 
 #######################################
 #
@@ -249,9 +251,16 @@ type lastlog_t;
 class file { getattr read write setattr };
 ')
 
-#######################################
-#
-# authlogin_pam_transition(domain)
+########################################
+## <interface name="authlogin_pam_transition">
+##	<description>
+##		Execute pam programs in the pam domain.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
 #
 define(`authlogin_pam_transition',`
 requires_block_template(`$0'_depend)
@@ -265,6 +274,35 @@ define(`authlogin_pam_transition_depend',`
 type pam_t, pam_exec_t;
 class file { getattr read execute };
 class process { transition noatsecure siginh rlimitinh };
+')
+
+########################################
+## <interface name="authlogin_pam_transition_add_role_use_terminal">
+##	<description>
+##		Execute pam programs in the PAM domain.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<parameter name="role">
+##		The role to allow the PAM domain.
+##	</parameter>
+##	<parameter name="terminal">
+##		The type of the terminal allow the PAM domain to use.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
+#
+define(`authlogin_pam_transition_add_role_use_terminal',`
+requires_block_template(`$0'_depend)
+authlogin_pam_transition($1)
+role $2 types pam_t;
+allow pam_t $3:chr_file { getattr read write ioctl };
+')
+
+define(`authlogin_pam_transition_add_role_use_terminal_depend',`
+type pam_t;
+class chr_file { getattr read write ioctl };
 ')
 
 #######################################
@@ -373,6 +411,60 @@ class file { create ioctl read getattr lock write setattr append link unlink ren
 class lnk_file { create read getattr setattr link unlink rename };
 ')
 
+########################################
+## <interface name="authlogin_utempter_transition">
+##	<description>
+##		Execute utempter programs in the utempter domain.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
+define(`authlogin_utempter_transition',`
+requires_block_template(`$0'_depend)
+allow $1 utempter_exec_t:file { getattr read execute };
+allow $1 utempter_t:process transition;
+type_transition $1 utempter_exec_t:file utempter_t;
+dontaudit $1 utempter_t:process { noatsecure siginh rlimitinh };
+')
+
+define(`authlogin_utempter_transition_depend',`
+type utempter_t, utempter_exec_t;
+class file { getattr read execute };
+class process { transition noatsecure siginh rlimitinh };
+')
+
+########################################
+## <interface name="authlogin_utempter_transition_add_role_use_terminal">
+##	<description>
+##		Execute utempter programs in the utempter domain.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<parameter name="role">
+##		The role to allow the utempter domain.
+##	</parameter>
+##	<parameter name="terminal">
+##		The type of the terminal allow the utempter domain to use.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
+#
+define(`authlogin_utempter_transition_add_role_use_terminal',`
+requires_block_template(`$0'_depend)
+authlogin_utempter_transition($1)
+role $2 types utempter_t;
+allow utempter_t $3:chr_file { getattr read write ioctl };
+')
+
+define(`authlogin_utempter_transition_add_role_use_terminal_depend',`
+type utempter_t;
+class chr_file { getattr read write ioctl };
+')
+
 #######################################
 #
 # authlogin_read_login_records(domain)
@@ -416,3 +508,5 @@ define(`authlogin_modify_login_records_depend',`
 type wtmp_t;
 class file { getattr read write setattr };
 ')
+
+## </module>

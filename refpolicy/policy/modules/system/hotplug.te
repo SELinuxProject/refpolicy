@@ -32,6 +32,7 @@ allow hotplug_t self:process { getsession getattr };
 
 allow hotplug_t self:fifo_file { read write getattr ioctl };
 allow hotplug_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow hotplug_t self:tcp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown listen accept };
 
 allow hotplug_t hotplug_etc_t:file { read getattr lock ioctl };
 allow hotplug_t hotplug_etc_t:dir { read getattr lock search ioctl };
@@ -49,6 +50,13 @@ kernel_read_network_sysctl(hotplug_t)
 kernel_read_usb_hardware_state(hotplug_t)
 
 bootloader_read_kernel_modules(hotplug_t)
+
+corenetwork_network_tcp_on_all_interfaces(hotplug_t)
+corenetwork_network_raw_on_all_interfaces(hotplug_t)
+corenetwork_network_tcp_on_all_nodes(hotplug_t)
+corenetwork_network_raw_on_all_nodes(hotplug_t)
+corenetwork_network_tcp_on_all_ports(hotplug_t)
+corenetwork_bind_tcp_on_all_nodes(hotplug_t)
 
 # for SSP
 devices_get_pseudorandom_data(hotplug_t)
@@ -94,7 +102,18 @@ miscfiles_read_localization(hotplug_t)
 
 mount_transition(hotplug_t)
 
+sysnetwork_read_network_config(hotplug_t)
+
 userdomain_ignore_use_all_unprivileged_users_file_descriptors(hotplug_t)
+
+tunable_policy(`distro_redhat', `
+optional_policy(`netutils.te', `
+# for arping used for static IP addresses on PCMCIA ethernet
+netutils_transition(hotplug_t)
+filesystem_use_tmpfs_character_devices(hotplug_t)
+') dnl endif netutils optional
+files_get_system_lock_file_attribues(hotplug_t)
+')dnl end distro_redhat tunable
 
 tunable_policy(`targeted_policy', `
 terminal_ignore_use_general_physical_terminal(hotplug_t)
@@ -144,13 +163,10 @@ allow hotplug_t rhgb_t:fd use;
 allow hotplug_t rhgb_t:fifo_file { read write };
 ')
 
-can_exec(hotplug_t, { ls_exec_t })
-
 allow kernel_t hotplug_etc_t:dir search;
 
 allow hotplug_t sound_device_t:chr_file setattr;
 
-can_network_server(hotplug_t)
 can_ypbind(hotplug_t)
 dbusd_client(system, hotplug)
 
@@ -159,22 +175,9 @@ allow hotplug_t kernel_t:process sigchld;
 # for when filesystems are not mounted early in the boot
 dontaudit hotplug_t file_t:dir { search getattr };
 
-allow hotplug_t udev_runtime_t:file rw_file_perms;
-
 # for ps
 dontaudit hotplug_t domain:dir { getattr search };
 dontaudit hotplug_t { init_t kernel_t }:file read;
-
-tunable_policy(`distro_redhat', `
-optional_policy(`netutils.te', `
-# for arping used for static IP addresses on PCMCIA ethernet
-netutils_transition(hotplug_t)
-allow hotplug_t tmpfs_t:dir search;
-allow hotplug_t tmpfs_t:chr_file rw_file_perms;
-') dnl endif netutils optional
-allow hotplug_t var_lock_t:dir search;
-allow hotplug_t var_lock_t:file getattr;
-')dnl end distro_redhat tunable
 
 optional_policy(`hald.te', `
 allow hotplug_t hald_t:unix_dgram_socket sendto;
