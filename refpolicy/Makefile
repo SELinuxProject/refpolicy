@@ -72,7 +72,7 @@ FLASKDIR = $(BASE_MODULE)/flask/
 MISCDIR = $(BASE_MODULE)/misc/
 
 DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
-ALL_MODULES := $(filter-out tmp appconfig,$(DETECTED_DIRS))
+ALL_MODULES := $(filter-out tmp appconfig CVS,$(DETECTED_DIRS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR),security_classes initial_sids access_vectors)
 ALL_INTERFACES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.if))
