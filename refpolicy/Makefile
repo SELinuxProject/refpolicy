@@ -39,6 +39,7 @@ PREFIX := /usr
 BINDIR := $(PREFIX)/bin
 SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
+LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 
 # determine the policy version and current kernel version if possible
@@ -71,7 +72,7 @@ FLASKDIR = $(BASE_MODULE)/flask/
 MISCDIR = $(BASE_MODULE)/misc/
 
 DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
-ALL_MODULES := $(filter-out tmp,$(DETECTED_DIRS))
+ALL_MODULES := $(filter-out tmp appconfig,$(DETECTED_DIRS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR),security_classes initial_sids access_vectors)
 ALL_INTERFACES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.if))
@@ -206,6 +207,17 @@ enableaudit: policy.conf
 $(FC): kernel/global.if $(ALL_FC_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) m4 $(M4PARAM) $^ > $@
+
+########################################
+#
+# Install file_contexts
+#
+$(FCPATH): $(FC)
+#$(FCPATH): $(FC) $(USERPATH)/system.users 
+	@mkdir -p $(CONTEXTPATH)/files
+	$(QUIET) install -m 644 $(FC) $(FCPATH)
+#	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
+#	$(QUIET) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(TYPE) $(USEPWD)
 
 ########################################
 #
