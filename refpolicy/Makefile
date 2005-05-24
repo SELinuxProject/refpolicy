@@ -158,7 +158,8 @@ tmp/generated_definitions.conf: $(ALL_MODULES) $(ALL_TE_FILES) $(BASE_MODULE)/co
 	$(QUIET) for i in $(notdir $(ALL_TE_FILES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
-	$(QUIET) m4 $(M4PARAM) -D interface_pass $(BASE_MODULE)/global.if $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te \
+	$(QUIET) grep -E "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
+		| m4 $(M4PARAM) -D interface_pass $(BASE_MODULE)/global.if $(BASE_MODULE)/corenetwork.if - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 tmp/all_interfaces.conf: $(ALL_INTERFACES)
