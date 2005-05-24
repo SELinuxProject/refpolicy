@@ -99,12 +99,13 @@ install: $(LOADPATH)
 # Build a binary policy locally
 #
 $(POLVER): policy.conf
+	@echo "Compiling $(POLVER)"
 ifneq ($(PV),$(KV))
 	@echo
 	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
 	@echo
 endif
-	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $(POLVER)
+	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $@
 
 ########################################
 #
@@ -112,18 +113,20 @@ endif
 #
 $(LOADPATH): policy.conf
 	@mkdir -p $(POLICYPATH)
+	@echo "Compiling and installing $(LOADPATH)"
 ifneq ($(PV),$(KV))
 	@echo
 	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
 	@echo
 endif
-	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $(LOADPATH)
+	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $@
 
 ########################################
 #
 # Load the binary policy
 #
 reload tmp/load: $(LOADPATH) $(FCPATH)
+	@echo "Loading $(LOADPATH)"
 	$(QUIET) $(LOADPOLICY) -q $(LOADPATH)
 	@touch tmp/load
 
@@ -134,11 +137,11 @@ load: tmp/load
 # Construct a monolithic policy.conf
 #
 policy.conf: $(POLICY_SECTIONS)
-	$(QUIET) # checkpolicy can use the #line directives provided by m4 -s
-	$(QUIET) # for error reporting:
+	@echo "Creating policy.conf"
+# checkpolicy can use the #line directives provided by -s for error reporting:
 	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
-	$(QUIET) # the ordering of these ocontexts matters:
+# the ordering of these ocontexts matters:
 	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^netifcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^nodecon tmp/$@.tmp >> $@ || true
@@ -161,6 +164,8 @@ tmp/generated_definitions.conf: $(ALL_MODULES) $(ALL_TE_FILES) $(BASE_MODULE)/co
 	$(QUIET) grep -E "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
 		| m4 $(M4PARAM) -D interface_pass $(BASE_MODULE)/global.if $(BASE_MODULE)/corenetwork.if - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
+# this is so the xml works:
+	$(QUIET) echo "## </module>" >> $@
 
 tmp/all_interfaces.conf: $(ALL_INTERFACES)
 	@test -d tmp || mkdir -p tmp
@@ -237,9 +242,10 @@ relabel:  $(FC) $(SETFILES)
 xml: policy.xml
 
 policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
-	echo "<policy>" > $@
-	grep -h -E "^##[[:space:]]" $^ | sed -e 's/^##[[:space:]]//g' >> $@
-	echo "</policy>" >> $@
+	@echo "Creating $@"
+	$(QUIET) echo "<policy>" > $@
+	$(QUIET) grep -h -E "^##[[:space:]]" $^ | sed -e 's/^##[[:space:]]//g' >> $@
+	$(QUIET) echo "</policy>" >> $@
 
 clean:
 	rm -fR tmp
@@ -248,4 +254,4 @@ clean:
 	rm -f policy.$(PV)
 	rm -f $(FC)
 
-.PHONY: default clean policy install
+.PHONY: default policy install reload enableaudit checklabels restorelabels relabel xml clean
