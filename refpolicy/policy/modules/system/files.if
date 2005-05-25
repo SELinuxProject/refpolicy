@@ -99,7 +99,7 @@ attribute tmpfsfile;
 ########################################
 #
 # files_get_all_file_attributes(domain)
-#
+
 define(`files_get_all_file_attributes',`
 requires_block_template(`$0'_depend)
 allow $1 file_type:dir { search getattr };
@@ -119,29 +119,80 @@ class sock_file getattr;
 ')
 
 ########################################
+## <interface name="files_relabel_all_files">
+##	<description>
+##		Relabel all files on the filesystem, except
+##		the listed exceptions.
+##	</description>
+##	<parameter name="domain">
+##		The type of the domain perfoming this action.
+##	</parameter>
+##	<parameter name="exception_types" optional="true">
+##		The types to be excluded.  Each type or attribute
+##		must be negated by the caller.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
 #
-# files_manage_all_files_labels(type)
-#
-define(`files_manage_all_files_labels',`
+define(`files_relabel_all_files',`
 requires_block_template(`$0'_depend)
-allow $1 file_type:dir { getattr relabelfrom relabelto };
-allow $1 file_type:file { getattr relabelfrom relabelto };
-allow $1 file_type:lnk_file { getattr relabelfrom relabelto };
-allow $1 file_type:fifo_file { getattr relabelfrom relabelto };
-allow $1 file_type:sock_file { getattr relabelfrom relabelto };
-allow $1 file_type:blk_file { getattr relabelfrom };
-allow $1 file_type:chr_file { getattr relabelfrom };
+allow $1 { file_type $2 }:dir { getattr search read relabelfrom relabelto };
+allow $1 { file_type $2 }:file { getattr relabelfrom relabelto };
+allow $1 { file_type $2 }:lnk_file { getattr relabelfrom relabelto };
+allow $1 { file_type $2 }:fifo_file { getattr relabelfrom relabelto };
+allow $1 { file_type $2 }:sock_file { getattr relabelfrom relabelto };
+allow $1 { file_type $2 }:blk_file { getattr relabelfrom };
+allow $1 { file_type $2 }:chr_file { getattr relabelfrom };
+# satisfy the assertions:
+selinux_relabelto_binary_policy($1)
 ')
 
-define(`files_manage_all_files_labels_depend',`
+define(`files_relabel_all_files_depend',`
 attribute file_type;
-class dir { relabelfrom relabelto };
+class dir { getattr search read relabelfrom relabelto };
 class file { relabelfrom relabelto };
 class lnk_file { relabelfrom relabelto };
 class fifo_file { relabelfrom relabelto };
 class sock_file { relabelfrom relabelto };
 class blk_file relabelfrom;
 class chr_file relabelfrom;
+')
+
+########################################
+## <interface name="files_manage_all_files">
+##	<description>
+##		Manage all files on the filesystem, except
+##		the listed exceptions.
+##	</description>
+##	<parameter name="domain">
+##		The type of the domain perfoming this action.
+##	</parameter>
+##	<parameter name="exception_types" optional="true">
+##		The types to be excluded.  Each type or attribute
+##		must be negated by the caller.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
+#
+define(`files_manage_all_files',`
+requires_block_template(`$0'_depend)
+allow $1 { file_type $2 }:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow $1 { file_type $2 }:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 { file_type $2 }:lnk_file { create read getattr setattr link unlink rename };
+allow $1 { file_type $2 }:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1 { file_type $2 }:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+# satisfy the assertions:
+selinux_write_binary_policy($1)
+bootloader_modify_kernel_modules($1)
+')
+
+define(`files_manage_all_files_depend',`
+attribute file_type;
+class dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+class file { create ioctl read getattr lock write setattr append link unlink rename };
+class lnk_file { create read getattr setattr link unlink rename };
+class fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+class sock_file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
 
 ########################################
@@ -648,6 +699,20 @@ class sock_file { getattr unlink };
 
 ########################################
 #
+# files_search_general_application_resources_dir(domain)
+#
+define(`files_search_general_application_resources_dir',`
+requires_block_template(`$0'_depend)
+allow $1 usr_t:dir search;
+')
+
+define(`files_search_general_application_resources_dir_depend',`
+type usr_t;
+class dir search;
+')
+
+########################################
+#
 # files_read_general_application_resources(domain)
 #
 define(`files_read_general_application_resources',`
@@ -996,6 +1061,40 @@ allow $1 var_spool_t:dir { getattr search read };
 define(`files_read_system_spool_directory_depend',`
 type var_t, var_spool_t;
 class dir { getattr search read };
+')
+
+########################################
+#
+# files_read_system_spools(domain)
+#
+define(`files_read_system_spools',`
+requires_block_template(`$0'_depend)
+allow $1 var_t:dir search;
+allow $1 var_spool_t:dir { getattr search read };
+allow $1 var_spool_t:file { getattr read };
+')
+
+define(`files_read_system_spools_depend',`
+type var_t, var_spool_t;
+class dir { getattr search read };
+class file { getattr read };
+')
+
+########################################
+#
+# files_manage_system_spools(domain)
+#
+define(`files_manage_system_spools',`
+requires_block_template(`$0'_depend)
+allow $1 var_t:dir search;
+allow $1 var_spool_t:dir { getattr search read write add_name remove_name };
+allow $1 var_spool_t:file { getattr create read write append unlink setattr };
+')
+
+define(`files_manage_system_spools_depend',`
+type var_t, var_spool_t;
+class dir { getattr search read write add_name remove_name };
+class file { getattr create read write append unlink setattr };
 ')
 
 ## </module>

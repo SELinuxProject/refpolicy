@@ -10,6 +10,10 @@
 
 define(`base_user_domain',`
 
+attribute $1_file_type;
+
+type $1_t, userdomain;
+corecommands_make_shell_entrypoint($1_t)
 role $1_r types $1_t;
 allow system_r $1_r;
 
@@ -370,9 +374,10 @@ define(`user_domain_template', `
 # Declarations
 #
 
-attribute $1_file_type;
+# Inherit rules for ordinary users.
+base_user_domain($1)
 
-type $1_t, userdomain, unpriv_userdomain; #, web_client_domain, nscd_client_domain;
+typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
 domain_make_domain($1_t)
 domain_make_file_descriptors_widely_inheritable($1_t)
 
@@ -397,9 +402,6 @@ terminal_make_physical_terminal($1_t,$1_tty_device_t)
 #
 # Local policy
 #
-
-# Inherit rules for ordinary users.
-base_user_domain($1)
 
 allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
 terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
@@ -584,9 +586,10 @@ define(`admin_domain_template',`
 # Declarations
 #
 
-attribute $1_file_type;
+# Inherit rules for ordinary users.
+base_user_domain($1)
 
-type $1_t, userdomain, privhome; #, admin, web_client_domain, nscd_client_domain;
+typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
 kernel_make_object_identity_change_constraint_exception($1_t)
 domain_make_domain($1_t)
 role system_r types $1_t;
@@ -614,9 +617,6 @@ terminal_make_physical_terminal($1_t,$1_tty_device_t)
 #
 # $1_t local policy
 #
-
-# Inherit rules for ordinary users.
-base_user_domain($1)
 
 allow $1_t self:capability ~sys_module;
 allow $1_t self:process { setexec setfscreate };
@@ -682,6 +682,11 @@ terminal_use_general_physical_terminal($1_t)
 terminal_use_all_private_pseudoterminals($1_t)
 terminal_use_all_private_physical_terminals($1_t)
 
+# Manage almost all files
+authlogin_manage_all_files_except_shadow($1_t)
+# Relabel almost all files
+authlogin_relabel_all_files_except_shadow($1_t)
+
 domain_set_all_domains_priorities($1_t)
 
 files_execute_system_source_code_scripts($1_t)
@@ -709,18 +714,6 @@ ifdef(`TODO',`
 
 # Let admin stat the shadow file.
 allow $1_t shadow_t:file getattr;
-
-# Create and use all files that have the sysadmfile attribute.
-allow $1_t sysadmfile:{ file sock_file fifo_file } create_file_perms;
-allow $1_t sysadmfile:lnk_file create_lnk_perms;
-allow $1_t sysadmfile:dir create_dir_perms;
-
-# Relabel all files.
-# Actually this will not allow relabeling ALL files unless you change
-# sysadmfile to file_type (and change the assertion in assert.te that
-# only auth_write can relabel shadow_t)
-allow $1_t sysadmfile:dir { getattr read search relabelfrom relabelto };
-allow $1_t sysadmfile:notdevfile_class_set { getattr relabelfrom relabelto };
 
 # for lsof
 allow $1_t mtrr_device_t:file getattr;

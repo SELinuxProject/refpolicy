@@ -108,7 +108,8 @@ type_transition checkpolicy_t policy_src_t:file policy_config_t;
 
 # only allow read of policy source files
 allow checkpolicy_t policy_src_t:dir { getattr search read };
-allow checkpolicy_t policy_src_t:{ file lnk_file } { getattr read };
+allow checkpolicy_t policy_src_t:file { getattr read ioctl };
+allow checkpolicy_t policy_src_t:lnk_file { getattr read };
 allow checkpolicy_t selinux_config_t:dir search;
 
 filesystem_get_persistent_filesystem_attributes(checkpolicy_t)
@@ -145,9 +146,9 @@ allow load_policy_t policy_src_t:dir search;
 allow load_policy_t policy_config_t:dir { getattr search read };
 allow load_policy_t policy_config_t:{ file lnk_file sock_file fifo_file } { getattr read };
 
-allow newrole_t selinux_config_t:dir { getattr read search };
-allow newrole_t selinux_config_t:file { read getattr };
-allow newrole_t selinux_config_t:lnk_file { getattr read };
+allow load_policy_t selinux_config_t:dir { getattr read search };
+allow load_policy_t selinux_config_t:file { read getattr };
+allow load_policy_t selinux_config_t:lnk_file { getattr read };
 
 kernel_get_selinuxfs_mount_point(load_policy_t)
 kernel_load_selinux_policy(load_policy_t)
@@ -163,18 +164,14 @@ init_script_use_pseudoterminal(load_policy_t)
 
 domain_use_widely_inheritable_file_descriptors(load_policy_t)
 
+files_search_general_system_config_directory(load_policy_t)
+
 libraries_use_dynamic_loader(load_policy_t)
 libraries_use_shared_libraries(load_policy_t)
 
 miscfiles_read_localization(load_policy_t)
 
 userdomain_use_all_users_file_descriptors(load_policy_t)
-
-ifdef(`TODO',`
-
-# directory search permissions for path to binary policy files
-allow load_policy_t etc_t:dir search;
-') dnl endif TODO
 
 ########################################
 #
@@ -317,7 +314,7 @@ hotplug_use_file_descriptors(restorecon_t)
 # relabeling rules
 kernel_relabel_unlabeled_object(restorecon_t)
 devices_manage_all_devices_labels(restorecon_t)
-files_manage_all_files_labels(restorecon_t)
+files_relabel_all_files(restorecon_t)
 files_read_all_directories(restorecon_t)
 # this is to satisfy the assertion:
 authlogin_relabel_to_shadow_passwords(restorecon_t)
@@ -325,6 +322,8 @@ authlogin_relabel_to_shadow_passwords(restorecon_t)
 tunable_policy(`distro_redhat', `
 filesystem_use_tmpfs_character_devices(restorecon_t)
 filesystem_use_tmpfs_block_devices(restorecon_t)
+filesystem_relabel_tmpfs_block_devices(restorecon_t)
+filesystem_relabel_tmpfs_character_devices(restorecon_t)
 ')
 
 ifdef(`TODO',`
@@ -332,11 +331,6 @@ ifdef(`TODO',`
 # for upgrading glibc and other shared objects - without this the upgrade
 # scripts will put things in a state such that restorecon can not be run!
 allow restorecon_t lib_t:file { read execute };
-
-tunable_policy(`distro_redhat', `
-allow restorecon_t tmpfs_t:chr_file { relabelfrom relabelto };
-allow restorecon_t tmpfs_t:blk_file { relabelfrom relabelto };
-')
 
 allow restorecon_t fs_type:dir r_dir_perms;
 
@@ -467,7 +461,7 @@ userdomain_read_all_users_data(setfiles_t)
 kernel_relabel_unlabeled_object(setfiles_t)
 devices_manage_all_devices_labels(setfiles_t)
 files_read_all_directories(setfiles_t)
-files_manage_all_files_labels(setfiles_t)
+files_relabel_all_files(setfiles_t)
 # this is to satisfy the assertion:
 authlogin_relabel_to_shadow_passwords(setfiles_t)
 

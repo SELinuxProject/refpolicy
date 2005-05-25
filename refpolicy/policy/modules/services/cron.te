@@ -94,15 +94,19 @@ filesystem_get_all_filesystems_attributes(crond_t)
 
 terminal_ignore_use_console(crond_t)
 
-init_use_file_descriptors(crond_t)
-init_script_use_pseudoterminal(crond_t)
+# need auth_chkpwd to check for locked accounts.
+authlogin_check_password_transition(crond_t)
+
+corecommands_execute_shell(crond_t)
+corecommands_read_system_programs_directory(crond_t)
 
 domain_use_widely_inheritable_file_descriptors(crond_t)
 
 files_read_general_system_config(crond_t)
+files_read_system_spools(crond_t)
 
-corecommands_execute_shell(crond_t)
-corecommands_read_system_programs_directory(crond_t)
+init_use_file_descriptors(crond_t)
+init_script_use_pseudoterminal(crond_t)
 
 libraries_use_dynamic_loader(crond_t)
 libraries_use_shared_libraries(crond_t)
@@ -115,8 +119,7 @@ selinux_newrole_sigchld(crond_t)
 
 miscfiles_read_localization(crond_t)
 
-# need auth_chkpwd to check for locked accounts.
-authlogin_check_password_transition(crond_t)
+userdomain_use_all_unprivileged_users_file_descriptors(crond_t)
 
 tunable_policy(`fcron_crond', `
 allow crond_t system_cron_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
@@ -136,7 +139,6 @@ ifdef(`TODO',`
 # NB The constraints file has some entries for crond_t, this makes it
 # different from all other domains...
 
-allow crond_t unpriv_userdomain:fd use;
 allow crond_t autofs_t:dir { search getattr };
 dontaudit crond_t sysadm_home_dir_t:dir search;
 
@@ -153,17 +155,14 @@ allow crond_t autofs_t:dir { search getattr };
 
 # Read from /var/spool/cron.
 allow crond_t var_lib_t:dir search;
-allow crond_t var_spool_t:dir r_dir_perms;
-allow crond_t var_spool_t:file { getattr read };
 allow crond_t mail_spool_t:dir search;
+# for if /var/mail is a symlink
+allow crond_t mail_spool_t:lnk_file read;
 
 allow crond_t default_t:dir search;
 
 # crond tries to search /root.  Not sure why.
 allow crond_t sysadm_home_dir_t:dir r_dir_perms;
-
-# for if /var/mail is a symlink
-allow crond_t mail_spool_t:lnk_file read;
 
 # to search /home
 allow crond_t user_home_dir_type:dir r_dir_perms;
@@ -269,6 +268,9 @@ files_get_all_file_attributes(system_crond_t)
 files_read_general_application_resources(system_crond_t)
 # for nscd:
 files_ignore_search_runtime_data_directory(system_crond_t)
+# Access other spool directories like
+# /var/spool/anacron and /var/spool/slrnpull.
+files_manage_system_spools(system_crond_t)
 
 corecommands_execute_general_programs(system_crond_t)
 corecommands_execute_system_programs(system_crond_t)
@@ -324,13 +326,8 @@ allow system_crond_t var_t:file { getattr read ioctl };
 allow system_crond_t var_lib_t:dir rw_dir_perms;
 allow system_crond_t var_lib_t:file create_file_perms;
 
-# Access other spool directories like
-# /var/spool/anacron and /var/spool/slrnpull.
-allow system_crond_t var_spool_t:file create_file_perms;
-allow system_crond_t var_spool_t:dir rw_dir_perms;
 # for if /var/mail is a symlink
 allow system_crond_t mail_spool_t:lnk_file read;
-
 
 #
 #  These rules are here to allow system cron jobs to su
@@ -359,7 +356,6 @@ mta_send_mail_transition(system_crond_t)
 
 # system_mail_t should only be reading from the cron fifo not needing to write
 dontaudit system_mail_t crond_t:fifo_file write;
-allow mta_user_agent system_crond_t:fd use;
 allow mta_user_agent system_crond_t:fd use;
 r_dir_file(system_mail_t, crond_tmp_t)
 ')
