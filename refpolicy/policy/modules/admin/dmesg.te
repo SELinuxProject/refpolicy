@@ -1,0 +1,77 @@
+# Copyright (C) 2005 Tresys Technology, LLC
+
+policy_module(dmesg, 1.0)
+
+########################################
+#
+# Declarations
+#
+
+type dmesg_t;
+type dmesg_exec_t;
+init_make_daemon_domain(dmesg_t,dmesg_exec_t)
+role system_r types dmesg_t;
+
+########################################
+#
+# Local policy
+#
+
+allow dmesg_t self:capability sys_admin;
+dontaudit dmesg_t self:capability sys_tty_config;
+
+allow dmesg_t self:process { sigchld sigkill sigstop signull signal };
+
+kernel_read_kernel_sysctl(dmesg_t)
+kernel_read_hardware_state(dmesg_t)
+kernel_read_ring_buffer(dmesg_t)
+kernel_clear_ring_buffer(dmesg_t)
+kernel_change_ring_buffer_level(dmesg_t)
+
+terminal_ignore_use_console(dmesg_t)
+
+domain_use_widely_inheritable_file_descriptors(dmesg_t)
+
+init_use_file_descriptors(dmesg_t)
+init_script_use_pseudoterminal(dmesg_t)
+
+libraries_use_dynamic_loader(dmesg_t)
+libraries_use_shared_libraries(dmesg_t)
+
+logging_send_system_log_message(dmesg_t)
+logging_write_system_logs(dmesg_t)
+
+miscfiles_read_localization(dmesg_t)
+
+userdomain_use_admin_terminals(dmesg_t)
+userdomain_ignore_use_all_unprivileged_users_file_descriptors(dmesg_t)
+
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(dmesg_t)
+terminal_ignore_use_general_pseudoterminal(dmesg_t)
+files_ignore_read_rootfs_file(dmesg_t)
+')
+
+optional_policy(`selinux.te',`
+selinux_newrole_sigchld(dmesg_t)
+')
+
+optional_policy(`udev.te', `
+udev_read_database(dmesg_t)
+')
+
+ifdef(`TODO',`
+allow dmesg_t proc_t:dir r_dir_perms;
+allow dmesg_t proc_t:lnk_file read;
+
+optional_policy(`rhgb.te', `
+allow dmesg_t rhgb_t:process sigchld;
+allow dmesg_t rhgb_t:fd use;
+allow dmesg_t rhgb_t:fifo_file { read write };
+')
+
+allow dmesg_t autofs_t:dir { search getattr };
+
+# for when /usr is not mounted
+dontaudit dmesg_t file_t:dir search;
+') dnl endif TODO
