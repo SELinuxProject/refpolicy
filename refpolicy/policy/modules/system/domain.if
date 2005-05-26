@@ -14,7 +14,7 @@ typeattribute $1 domain;
 
 # allow the domain to read its /proc/pid entries
 allow $1 self:dir { getattr search read };
-allow $1 self:{ file lnk_file } { getattr read };
+allow $1 self:{ file lnk_file } { getattr read write };
 
 # allow $1 to create child processes in this domain
 allow $1 self:process { fork sigchld };
@@ -23,7 +23,7 @@ allow $1 self:process { fork sigchld };
 define(`domain_make_base_domain_depend',`
 attribute domain;
 class dir { getattr search read };
-class file { getattr read };
+class file { getattr read write };
 class lnk_file { getattr read };
 ')
 
@@ -192,7 +192,12 @@ requires_block_template(`$0'_depend)
 allow $1 domain:dir { getattr search read };
 allow $1 domain:lnk_file { getattr read };
 allow $1 domain:file { getattr read };
-allow $1 domain:process { getattr getsession };
+allow $1 domain:process getattr;
+# We need to suppress this denial because procps tries to access
+# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+# running in a privileged domain.
+dontaudit $1 domain:process ptrace;
 ')
 
 define(`domain_read_all_domains_process_state_depend',`
@@ -200,7 +205,51 @@ attribute domain;
 class dir { getattr search read };
 class lnk_file { getattr read };
 class file { getattr read };
-class process { getattr getsession };
+class process { getattr ptrace };
+')
+
+########################################
+## <interface name="domain_ignore_read_all_domains_process_dirs">
+##	<description>
+##		Do not audit attempts to read the process state
+##		directories of all domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="none"/>
+## </interface>
+#
+define(`domain_ignore_read_all_domains_process_dirs',`
+requires_block_template(`$0'_depend)
+dontaudit $1 domain:dir { getattr search read };
+')
+
+define(`domain_ignore_read_all_domains_process_dirs_depend',`
+attribute domain;
+class dir { getattr search read };
+')
+
+
+########################################
+## <interface name="domain_get_all_domains_session_id">
+##	<description>
+##		Get the session ID of all domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="1"/>
+## </interface>
+#
+define(`domain_get_all_domains_session_id',`
+requires_block_template(`$0'_depend)
+allow $1 domain:process getsession;
+')
+
+define(`domain_get_all_domains_session_id_depend',`
+attribute domain;
+class process getsession;
 ')
 
 ########################################
