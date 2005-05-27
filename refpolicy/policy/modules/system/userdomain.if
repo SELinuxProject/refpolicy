@@ -13,9 +13,36 @@ define(`base_user_domain',`
 attribute $1_file_type;
 
 type $1_t, userdomain;
+domain_make_domain($1_t)
 corecommands_make_shell_entrypoint($1_t)
 role $1_r types $1_t;
 allow system_r $1_r;
+
+# user pseudoterminal
+type $1_devpts_t;
+terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
+
+# type for contents of home directory
+type $1_home_t, $1_file_type, home_type;
+files_make_file($1_home_t)
+
+# type of home directory
+type $1_home_dir_t, home_dir_type, home_type;
+files_make_file($1_home_t)
+
+type $1_tmp_t, $1_file_type;
+files_make_temporary_file($1_tmp_t)
+
+type $1_tmpfs_t;
+files_make_tmpfs_file($1_tmpfs_t)
+
+type $1_tty_device_t; 
+terminal_make_physical_terminal($1_t,$1_tty_device_t)
+
+##############################
+#
+# Local policy
+#
 
 allow $1_t self:capability { setgid chown fowner };
 dontaudit $1_t self:capability { sys_nice fsetid };
@@ -57,6 +84,13 @@ allow $1_t $1_tmp_t:file { getattr read execute execute_no_trans };
 # cjp: this is combination is not checked and should be removed
 allow $1_t $1_tmp_t:unix_stream_socket name_bind;
 
+allow $1_t $1_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1_t $1_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+allow $1_t $1_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+filesystem_create_private_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
 allow $1_t $1_tty_device_t:chr_file { setattr getattr read write append ioctl lock };
 
 allow $1_t unpriv_userdomain:fd use;
@@ -70,10 +104,12 @@ per_userdomain_templates($1)
 
 kernel_read_kernel_sysctl($1_t)
 kernel_get_selinuxfs_mount_point($1_t)
-# Very permissive allowing every domain to see every type.
+# Very permissive allowing every domain to see every type:
 kernel_get_sysvipc_info($1_t)
-# Find CDROM devices
+# Find CDROM devices:
 kernel_read_device_sysctl($1_t)
+# GNOME checks for usb and other devices:
+kernel_modify_usb_hardware_config_option($1_t)
 
 corenetwork_network_tcp_on_all_interfaces($1_t)
 corenetwork_network_raw_on_all_interfaces($1_t)
@@ -247,18 +283,11 @@ allow $1_t removable_device_t:blk_file r_file_perms;
 }
 allow $1_t usbtty_device_t:chr_file read;
 
-# GNOME checks for usb and other devices
-rw_dir_file($1_t,usbfs_t)
-
 can_exec($1_t, noexattrfile)
 
 # for running TeX programs
 r_dir_file($1_t, tetex_data_t)
 can_exec($1_t, tetex_data_t)
-
-type $1_tmpfs_t, file_type, sysadmfile, tmpfsfile;
-file_type_auto_trans($1_t, tmpfs_t, $1_tmpfs_t)
-allow $1_tmpfs_t tmpfs_t:filesystem associate;
 
 # Run programs developed by other users in the same domain.
 
@@ -378,25 +407,15 @@ define(`user_domain_template', `
 base_user_domain($1)
 
 typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
-domain_make_domain($1_t)
 domain_make_file_descriptors_widely_inheritable($1_t)
 
-type $1_devpts_t; # userpty_type, user_tty_type;
-terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
+#typeattribute $1_devpts_t userpty_type, user_tty_type;
+#typeattribute $1_home_dir_t user_home_dir_type;
+#typeattribute $1_home_t user_home_type;
 
-# Type for home directory.
-type $1_home_dir_t, home_dir_type, home_type; #, user_home_dir_type;
-files_make_file($1_home_dir_t)
+#typeattribute $1_tmp_t, user_tmpfile;
 
-# Type for files and directories in the home directory
-type $1_home_t, $1_file_type, home_type; #, user_home_type;
-files_make_file($1_home_t)
-
-type $1_tmp_t, $1_file_type; #, user_tmpfile
-files_make_temporary_file($1_tmp_t)
-
-type $1_tty_device_t; #, sysadmfile, ttyfile, user_tty_type, dev_fs;
-terminal_make_physical_terminal($1_t,$1_tty_device_t)
+#typeattribute $1_tty_device_t user_tty_type;
  
 ##############################
 #
@@ -591,27 +610,14 @@ base_user_domain($1)
 
 typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
 kernel_make_object_identity_change_constraint_exception($1_t)
-domain_make_domain($1_t)
 role system_r types $1_t;
 
 #ifdef(`direct_sysadm_daemon', `, priv_system_role')
 #; dnl end of sysadm_t type declaration
 
-# Type and access for pty devices.
-type $1_devpts_t, admin_terminal;
-terminal_make_pseudoterminal($1_devpts_t)
+typeattribute $1_devpts_t admin_terminal;
 
-type $1_home_t, $1_file_type; #, home_type;
-files_make_file($1_home_t)
-
-type $1_home_dir_t; #, home_dir_type, home_type;
-files_make_file($1_home_t)
-
-type $1_tmp_t, $1_file_type;
-files_make_temporary_file($1_tmp_t)
-
-type $1_tty_device_t, admin_terminal;
-terminal_make_physical_terminal($1_t,$1_tty_device_t)
+typeattribute $1_tty_device_t admin_terminal;
 
 ##############################
 #
@@ -663,6 +669,12 @@ kernel_compute_selinux_access_vector($1_t)
 kernel_compute_selinux_create_context($1_t)
 kernel_compute_selinux_relabel_context($1_t)
 kernel_compute_selinux_reachable_user_contexts($1_t)
+# signal unlabeled processes:
+kernel_kill_unlabeled_process($1_t)
+kernel_signal_unlabeled_process($1_t)
+kernel_sigstop_unlabeled_process($1_t)
+kernel_signull_unlabeled_process($1_t)
+kernel_sigchld_unlabeled_process($1_t)
 
 corenetwork_bind_tcp_on_general_port($1_t)
 
@@ -689,6 +701,13 @@ authlogin_relabel_all_files_except_shadow($1_t)
 
 domain_set_all_domains_priorities($1_t)
 domain_read_all_domains_process_state($1_t)
+# signal all domains:
+domain_kill_all_domains($1_t)
+domain_signal_all_domains($1_t)
+domain_signull_all_domains($1_t)
+domain_sigstop_all_domains($1_t)
+domain_sigstop_all_domains($1_t)
+domain_sigchld_all_domains($1_t)
 
 files_execute_system_source_code_scripts($1_t)
 
@@ -718,9 +737,6 @@ allow $1_t shadow_t:file getattr;
 
 # for lsof
 allow $1_t mtrr_device_t:file getattr;
-
-# Send signals to all processes.
-allow $1_t { domain unlabeled_t }:process signal_perms;
 
 allow $1_t serial_device:chr_file setattr;
 
