@@ -75,6 +75,7 @@ bool user_tcp_server false;
 # Allow w to display everyone
 bool user_ttyfile_stat false;
 
+admin_domain_template(sysadm)
 user_domain_template(staff)
 user_domain_template(user)
 
@@ -83,23 +84,51 @@ user_domain_template(user)
 # Local policy
 #
 
-#allow privhome home_root_t:dir { getattr search };
+# user role change rules:
+define(`role_change',`
+allow $1_r $2_r;
+type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
+type_change $2_t $1_tty_device_t:chr_file $2_tty_device_t;
+# avoid annoying messages on terminal hangup
+dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
+')
+
+# sysadm_r can change to user roles
+role_change(sysadm, user)
+role_change(sysadm, staff)
+
+# only staff_r can change to sysadm_r
+role_change(staff, sysadm)
+
+tunable_policy(`user_canbe_sysadm',`
+role_change(user,sysadm)
+')
+
+ifdef(`TODO',`
+allow privhome home_root_t:dir { getattr search };
 
 # Add/remove user home directories
-#file_type_auto_trans(sysadm_t, home_root_t, user_home_dir_t, dir)
+file_type_auto_trans(sysadm_t, home_root_t, user_home_dir_t, dir)
+')
 
 ########################################
 #
 # Sysadm local policy
 #
 
-admin_domain_template(sysadm)
-
 # for su
 allow sysadm_t userdomain:fd use;
 
 optional_policy(`bootloader.te',`
 bootloader_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`clock.te',`
+clock_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+')
+
+optional_policy(`hostname.te',`
+hostname_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
 ')
 
 optional_policy(`iptables.te',`
@@ -142,6 +171,7 @@ optional_policy(`sysnetwork.te',`
 sysnetwork_ifconfig_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
 ')
 
-optional_policy(`clock.te',`
-clock_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+optional_policy(`usermanage.te',`
+usermanage_groupadd_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
+usermanage_useradd_transition_add_role_use_terminal(sysadm_t,sysadm_r,admin_terminal)
 ')
