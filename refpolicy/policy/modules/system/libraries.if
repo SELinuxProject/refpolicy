@@ -57,11 +57,20 @@ class chr_file { getattr read write ioctl };
 ')
 
 ########################################
-#
-# libraries_use_dynamic_loader(domain)
+## <interface name="libraries_use_dynamic_loader">
+##	<description>
+##		Use the dynamic link/loader for automatic loading
+##		of shared libraries.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
 define(`libraries_use_dynamic_loader',`
 requires_block_template(`$0'_depend)
+files_read_general_system_config_directory($1)
 allow $1 lib_t:dir { getattr search read };
 allow $1 lib_t:lnk_file { getattr read };
 allow $1 ld_so_t:lnk_file { getattr read };
@@ -77,25 +86,44 @@ class file { getattr read execute };
 ')
 
 ########################################
-#
-# libraries_legacy_use_dynamic_loader(domain)
+## <interface name="libraries_legacy_use_dynamic_loader">
+##	<description>
+##		Use the dynamic link/loader for automatic loading
+##		of shared libraries with legacy support.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
 define(`libraries_legacy_use_dynamic_loader',`
 requires_block_template(`$0'_depend)
-libraries_use_dynamic_loader($1,optional)
+libraries_use_dynamic_loader($1)
 allow $1 ld_so_t:file execmod;
 allow $1 ld_so_cache_t:file execute;
 ')
 
 define(`libraries_legacy_use_dynamic_loader_depend',`
-libraries_use_dynamic_loader_depend
 type ld_so_t, ld_so_cache_t;
 class file { execute execmod };
 ')
 
 ########################################
-#
-# libraries_execute_dynamic_loader(domain)
+## <interface name="libraries_execute_dynamic_loader">
+##	<description>
+##		Execute the dynamic link/loader in the caller's
+##		domain.  This is commonly needed for the
+##		/usr/bin/ldd program.  Note: this can be used
+##		to execute any binary that the caller can
+##		read, even if the caller does not have execute
+##		permissions.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
 define(`libraries_execute_dynamic_loader',`
 requires_block_template(`$0'_depend)
@@ -113,11 +141,20 @@ class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
-#
-# libraries_modify_dynamic_loader_cache(domain)
+## <interface name="libraries_modify_dynamic_loader_cache">
+##	<description>
+##		Modify the dynamic link/loader's cached listing
+##		of shared libraries.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="both" weight="10"/>
+## </interface>
 #
 define(`libraries_modify_dynamic_loader_cache',`
 requires_block_template(`$0'_depend)
+files_read_general_system_config_directory($1)
 allow $1 ld_so_cache_t:file { getattr read write };
 ')
 
@@ -127,8 +164,65 @@ class file { getattr read write };
 ')
 
 ########################################
+## <interface name="libraries_read_library_resources">
+##	<description>
+##		Read files in the library directories, such
+##		as static libraries.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
-# libraries_use_shared_libraries(domain)
+define(`libraries_read_library_resources',`
+requires_block_template(`$0'_depend)
+allow $1 lib_t:dir { getattr read search };
+allow $1 lib_t:{ file lnk_file } { getattr read };
+')
+
+define(`libraries_read_library_resources_depend',`
+type lib_t;
+class dir { getattr read search };
+class lnk_file { getattr read };
+class file { getattr read };
+')
+
+########################################
+## <interface name="libraries_execute_library_scripts">
+##	<description>
+##		Execute library scripts in the caller domain.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
+#
+define(`libraries_execute_library_scripts',`
+requires_block_template(`$0'_depend)
+allow $1 lib_t:dir { getattr read search };
+allow $1 lib_t:lnk_file { getattr read };
+allow $1 lib_t:file { getattr read execute execute_no_trans };
+')
+
+define(`libraries_execute_library_scripts_depend',`
+type lib_t;
+class dir { getattr read search };
+class lnk_file { getattr read };
+class file { getattr read execute execute_no_trans };
+')
+
+########################################
+## <interface name="libraries_use_shared_libraries">
+##	<description>
+##		Load and execute functions from shared libraries.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
 define(`libraries_use_shared_libraries',`
 requires_block_template(`$0'_depend)
@@ -147,8 +241,16 @@ class file { getattr read execute };
 ')
 
 ########################################
-#
-# libraries_legacy_use_shared_libraries(domain)
+## <interface name="libraries_legacy_use_shared_libraries">
+##	<description>
+##		Load and execute functions from shared libraries,
+##		with legacy support.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
+## </interface>
 #
 define(`libraries_legacy_use_shared_libraries',`
 requires_block_template(`$0'_depend)
@@ -159,41 +261,6 @@ allow $1 { shlib_t texrel_shlib_t }:file execmod;
 define(`libraries_legacy_use_shared_libraries_depend',`
 type shlib_t, texrel_shlib_t;
 class file execmod;
-')
-
-########################################
-#
-# libraries_read_library_resources(domain)
-#
-define(`libraries_read_library_resources',`
-requires_block_template(`$0'_depend)
-allow $1 lib_t:dir { getattr read search };
-allow $1 lib_t:{ file lnk_file } { getattr read };
-')
-
-define(`libraries_read_library_resources_depend',`
-type lib_t;
-class dir { getattr read search };
-class lnk_file { getattr read };
-class file { getattr read };
-')
-
-########################################
-#
-# libraries_execute_library_scripts(domain)
-#
-define(`libraries_execute_library_scripts',`
-requires_block_template(`$0'_depend)
-allow $1 lib_t:dir { getattr read search };
-allow $1 lib_t:lnk_file { getattr read };
-allow $1 lib_t:file { getattr read execute execute_no_trans };
-')
-
-define(`libraries_execute_library_scripts_depend',`
-type lib_t;
-class dir { getattr read search };
-class lnk_file { getattr read };
-class file { getattr read execute execute_no_trans };
 ')
 
 ## </module>

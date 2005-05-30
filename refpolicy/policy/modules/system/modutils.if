@@ -15,7 +15,7 @@
 #
 define(`modutils_read_kernel_module_dependencies',`
 requires_block_template(`$0'_depend)
-bootloader_list_kernel_modules($1,optional)
+bootloader_list_kernel_modules($1)
 allow $1 modules_dep_t:file { getattr read };
 ')
 
@@ -23,7 +23,6 @@ define(`modutils_read_kernel_module_dependencies_depend',`
 type modules_dep_t;
 class file { getattr create read write setattr unlink };
 class dir { search read write add_name remove_name };
-bootloader_list_kernel_modules_depend
 ')
 
 ########################################
@@ -51,7 +50,8 @@ class file { getattr create read write setattr unlink };
 ########################################
 ## <interface name="modutils_insmod_transition">
 ##	<description>
-##		Execute insmod in the insmod domain.
+##		Execute insmod in the insmod domain.  Has a
+##		sigchld backchannel.
 ##	</description>
 ##	<parameter name="domain">
 ##		The type of the process performing this action.
@@ -65,12 +65,14 @@ allow $1 insmod_exec_t:file { getattr read execute };
 allow $1 insmod_t:process transition;
 type_transition $1 insmod_exec_t:process insmod_t;
 dontaudit $1 insmod_t:process { noatsecure siginh rlimitinh };
+# backchannel:
+allow insmod_t $1:process sigchld;
 ')
 
 define(`modutils_insmod_transition_depend',`
 type insmod_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
 ')
 
 ########################################
@@ -78,7 +80,8 @@ class process { transition noatsecure siginh rlimitinh };
 ##	<description>
 ##		Execute insmod in the insmod domain, and
 ##		allow the specified role the insmod domain,
-##		and use the caller's terminal.
+##		and use the caller's terminal.  Has a sigchld
+##		backchannel.
 ##	</description>
 ##	<parameter name="domain">
 ##		The type of the process performing this action.

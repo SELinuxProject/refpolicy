@@ -64,7 +64,7 @@ files_make_temporary_file(initrc_tmp_t)
 allow init_t self:fifo_file { read write ioctl };
 
 # Re-exec itself
-allow init_t init_exec_t:file { getattr read execute execute_no_trans };
+allow init_t init_exec_t:file { getattr read ioctl execute execute_no_trans };
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
@@ -107,7 +107,10 @@ domain_sigstop_all_domains(init_t)
 domain_sigstop_all_domains(init_t)
 domain_sigchld_all_domains(init_t)
 
+files_read_general_system_config(init_t)
 files_modify_system_runtime_data(init_t)
+# Run /etc/X11/prefdm:
+files_execute_system_config_script(init_t)
 # file descriptors inherited from the rootfs:
 files_ignore_modify_rootfs_file(init_t)
 files_ignore_modify_rootfs_device(init_t)
@@ -123,6 +126,7 @@ miscfiles_read_localization(init_t)
 
 tunable_policy(`distro_redhat',`
 filesystem_use_tmpfs_character_devices(init_t)
+filesystem_create_private_tmpfs_data(init_t,initctl_t,fifo_file)
 ')
 
 # Run the shell in the sysadm_t domain for single-user mode.
@@ -170,18 +174,18 @@ allow initrc_t self:passwd rootok;
 # Allow IPC with self
 allow initrc_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
 allow initrc_t self:unix_stream_socket { create listen accept ioctl read getattr write setattr append bind connect getopt setopt shutdown connectto };
+allow initrc_t self:tcp_socket { connect listen accept create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow initrc_t self:udp_socket { connect create ioctl read getattr write setattr append bind getopt setopt shutdown };
 allow initrc_t self:fifo_file { getattr read write ioctl };
-
 allow initrc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
 
 allow initrc_t init_t:fd use;
 
+allow initrc_t initrc_exec_t:file { getattr read ioctl execute execute_no_trans };
+
 allow initrc_t initrc_state_t:dir { create read getattr lock setattr ioctl unlink rename search add_name remove_name reparent write rmdir };
 allow initrc_t initrc_state_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
-
-allow initrc_t self:tcp_socket { connect listen accept create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow initrc_t self:udp_socket { connect create ioctl read getattr write setattr append bind getopt setopt shutdown };
 
 allow initrc_t initrc_var_run_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_daemon_runtime_data(initrc_t,initrc_var_run_t)
@@ -249,15 +253,29 @@ terminal_reset_physical_terminal_labels(initrc_t)
 
 authlogin_modify_login_records(initrc_t)
 authlogin_modify_last_login_log(initrc_t)
+authlogin_pam_read_runtime_data(initrc_t)
+authlogin_pam_remove_runtime_data(initrc_t)
+authlogin_pam_console_read_runtime_data_dir(initrc_t)
 
 corecommands_execute_general_programs(initrc_t)
 corecommands_execute_system_programs(initrc_t)
 corecommands_execute_shell(initrc_t)
+corecommands_execute_ls(initrc_t)
 
 domain_kill_all_domains(initrc_t)
+domain_signal_all_domains(initrc_t)
+domain_signull_all_domains(initrc_t)
+domain_sigstop_all_domains(initrc_t)
+domain_sigstop_all_domains(initrc_t)
+domain_sigchld_all_domains(initrc_t)
 domain_read_all_domains_process_state(initrc_t)
 domain_get_all_domains_session_id(initrc_t)
 domain_use_widely_inheritable_file_descriptors(initrc_t)
+# for lsof which is used by alsa shutdown:
+domain_ignore_get_all_domains_udp_socket_attributes(initrc_t)
+domain_ignore_get_all_domains_tcp_socket_attributes(initrc_t)
+domain_ignore_get_all_domains_unix_dgram_socket_attributes(initrc_t)
+domain_ignore_get_all_domains_pipe_attributes(initrc_t)
 
 files_get_all_file_attributes(initrc_t)
 files_remove_all_tmp_data(initrc_t)
@@ -297,7 +315,7 @@ userdomain_read_all_users_data(initrc_t)
 userdomain_use_admin_terminals(initrc_t)
 
 tunable_policy(`distro_debian', `
-filesystem_tmpfs_associate(initrc_var_run_t)
+filesystem_create_private_tmpfs_data(initrc_t,initrc_var_run_t,dir)
 ')
 
 tunable_policy(`distro_redhat',`
@@ -308,24 +326,35 @@ kernel_set_selinux_enforcement_mode(initrc_t)
 bootloader_create_runtime_data(initrc_t)
 bootloader_modify_bootloader_data_directory_symbolic_links(initrc_t)
 
+# These seem to be from the initrd:
+kernel_use_file_descriptors(initrc_t)
+# during device initialization:
+devices_legacy_use_dev_zero(initrc_t)
+devices_legacy_raw_read_memory(initrc_t)
+devices_legacy_raw_write_memory(initrc_t)
+storage_raw_read_fixed_disk(initrc_t)
+storage_raw_write_fixed_disk(initrc_t)
+
 filesystem_use_tmpfs_character_devices(initrc_t)
 
 files_create_boot_flag(initrc_t)
 
 # readahead asks for these
 mta_read_mail_aliases(initrc_t)
-') dnl end distro_redhat
 
-optional_policy(`authlogin.te',`
-authlogin_pam_read_runtime_data(initrc_t)
-authlogin_pam_remove_runtime_data(initrc_t)
-')
+') dnl end distro_redhat
 
 optional_policy(`hotplug.te',`
 kernel_read_usb_hardware_state(initrc_t)
 # init scripts run /etc/hotplug/usb.rc
 hotplug_read_config(initrc_t)
 modutils_read_kernel_module_dependencies(initrc_t)
+')
+
+optional_policy(`lvm.te',`
+#allow initrc_t lvm_control_t:chr_file unlink;
+devices_read_lvm_control_channel(initrc_t)
+devices_add_generic_character_device(initrc_t)
 ')
 
 optional_policy(`rhgb.te',`
@@ -344,8 +373,6 @@ kernel_ignore_get_unlabeled_block_device_attributes(initrc_t)
 ') dnl end rpm.te
 
 ifdef(`TODO',`
-
-allow initrc_t pam_var_console_t:dir r_dir_perms;
 
 # Mount and unmount file systems.
 allow initrc_t { file_t default_t }:dir { read search getattr mounton };
@@ -373,7 +400,6 @@ allow initrc_t { etc_t device_t }:dir setattr;
 
 # for storing state under /dev/shm
 allow initrc_t tmpfs_t:dir setattr;
-file_type_auto_trans(initrc_t, tmpfs_t, initrc_var_run_t, dir)
 file_type_auto_trans(initrc_t, tmpfs_t, fixed_disk_device_t, blk_file)
 ')dnl end distro_debian
 
@@ -382,13 +408,16 @@ tunable_policy(`distro_redhat', `
 allow initrc_t var_lib_nfs_t:file { getattr read };
 ')dnl end distro_redhat
 
+tunable_policy(`targeted_policy', `
+domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
+allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
+allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
+domain_trans(initrc_t, shell_exec_t, unconfined_t)
+') dnl endif targeted policy
+
 #
 # Shutting down xinet causes these
 #
 # Rsync
 dontaudit initrc_t mail_spool_t:lnk_file read;
-
-# for lsof which is used by alsa shutdown
-dontaudit initrc_t domain:{ udp_socket tcp_socket fifo_file unix_dgram_socket } getattr;
-
 ') dnl end TODO
