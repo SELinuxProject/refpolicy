@@ -150,6 +150,7 @@ authlogin_utempter_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t 
 
 corecommands_execute_general_programs($1_t)
 corecommands_execute_system_programs($1_t)
+corecommands_execute_ls($1_t)
 
 domain_execute_all_entrypoint_programs($1_t)
 domain_use_widely_inheritable_file_descriptors($1_t)
@@ -809,6 +810,28 @@ allow $1_t eventpollfs_t:file getattr;
 ')
 
 ########################################
+## <interface name="userdomain_all_users_explicit_transition">
+##	<description>
+##		Execute a shell in all user domains.  This
+##		is an explicit transition, requiring the
+##		caller to use setexeccon().
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
+define(`userdomain_all_users_explicit_transition',`
+requires_block_template(`$0'_depend)
+corecommands_shell_explicit_transition($1,userdomain)
+')
+
+define(`userdomain_all_users_explicit_transition_depend',`
+type sysadm_t;
+')
+
+########################################
 ## <interface name="userdomain_sysadm_shell_transition">
 ##	<description>
 ##		Execute a shell in the sysadm domain.
@@ -853,14 +876,36 @@ class chr_file { getattr read write ioctl };
 ')
 
 ########################################
-## <interface name="userdomain_read_all_users_data">
+## <interface name="userdomain_search_all_users_home_dirs">
 ##	<description>
-##		Inherit the file descriptors from all user domains
+##		Search all users home directories.
 ##	</description>
 ##	<parameter name="domain">
 ##		The type of the process performing this action.
 ##	</parameter>
-##	<infoflow type="read" weight="1"/>
+##	<infoflow type="read" weight="7"/>
+## </interface>
+#
+define(`userdomain_search_all_users_home_dirs',`
+requires_block_template(`$0'_depend)
+files_list_home_directories($1)
+allow $1 { home_dir_type home_type }:dir search;
+')
+
+define(`userdomain_search_all_users_home_dirs_depend',`
+attribute home_dir_type, home_type;
+class dir search;
+')
+
+########################################
+## <interface name="userdomain_read_all_users_data">
+##	<description>
+##		Read all files in all users home directories.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
 define(`userdomain_read_all_users_data',`
@@ -898,6 +943,27 @@ class fd use;
 ')
 
 ########################################
+## <interface name="userdomain_signal_all_userdomains">
+##	<description>
+##		Send general signals to all user domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<infoflow type="write" weight="1"/>
+## </interface>
+#
+define(`userdomain_signal_all_userdomains',`
+requires_block_template(`$0'_depend)
+allow $1 userdomain:process signal;
+')
+
+define(`userdomain_signal_all_userdomains_depend',`
+attribute userdomain;
+class process signal;
+')
+
+########################################
 ## <interface name="userdomain_use_all_unprivileged_users_file_descriptors">
 ##	<description>
 ##		Inherit the file descriptors from all user domains.
@@ -927,7 +993,7 @@ class fd use;
 ##	<parameter name="domain">
 ##		The type of the process performing this action.
 ##	</parameter>
-##	<infoflow type="read" weight="1"/>
+##	<infoflow type="none"/>
 ## </interface>
 #
 define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors',`

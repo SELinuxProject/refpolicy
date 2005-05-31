@@ -13,13 +13,18 @@ allow init_t $1:process transition;
 allow init_t $2:file { getattr read execute };
 dontaudit init_t $1:process { noatsecure siginh rlimitinh };
 type_transition init_t $2:process $1;
+allow $1 init_t:fd use;
+allow init_t $1:fd use;
+allow $1 init_t:fifo_file rw_file_perms;
+allow $1 init_t:process sigchld;
 ')
 
 define(`init_make_init_domain_depend',`
 type init_t;
 class file { getattr read execute };
 class fd use;
-class process { transition noatsecure siginh rlimitinh };
+class fifo_file rw_file_perms;
+class process { transition noatsecure siginh rlimitinh sigchld };
 role system_r;
 ')
 
@@ -36,17 +41,16 @@ allow initrc_t $1:process transition;
 allow initrc_t $2:file { getattr read execute };
 dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
 type_transition initrc_t $2:process $1;
+allow initrc_t $1:fd use;
 allow $1 initrc_t:fd use;
-# backchannels:
+allow $1 initrc_t:fifo_file rw_file_perms;
 allow $1 initrc_t:process sigchld;
-# cjp: probably for logging
-allow $1 initrc_t:fifo_file { getattr write };
 ')
 
 define(`init_make_daemon_domain_depend',`
 type initrc_t;
 class file { getattr read execute };
-class fifo_file { getattr write };
+class fifo_file rw_file_perms;
 class fd use;
 class process { transition noatsecure siginh rlimitinh sigchld };
 role system_r;
@@ -65,18 +69,17 @@ allow initrc_t $1:process transition;
 allow initrc_t $2:file { getattr read execute };
 dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
 type_transition initrc_t $2:process $1;
+allow initrc_t $1:fd use;
 allow $1 initrc_t:fd use;
-# backchannels:
+allow $1 initrc_t:fifo_file rw_file_perms;
 allow $1 initrc_t:process sigchld;
-# cjp: probably for logging
-allow $1 initrc_t:fifo_file { getattr write };
 ')
 
 define(`init_make_system_domain_depend',`
 type initrc_t;
 class file { getattr read execute };
 class fd use;
-class fifo_file { getattr write };
+class fifo_file rw_file_perms;
 class process { transition noatsecure siginh rlimitinh sigchld };
 role system_r;
 ')
@@ -91,12 +94,18 @@ allow $1 init_exec_t:file { getattr read execute };
 allow $1 init_t:process transition;
 type_transition $1 init_exec_t:process init_t;
 dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
+allow $1 init_t:fd use;
+allow init_t $1:fd use;
+allow init_t $1:fifo_file rw_file_perms;
+allow init_t $1:process sigchld;
 ')
 
 define(`init_transition_depend',`
 type init_t, init_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -222,12 +231,18 @@ allow $1 initrc_exec_t:file { getattr read execute };
 allow $1 initrc_t:process transition;
 type_transition $1 initrc_exec_t:process init_t;
 dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
+allow $1 initrc_t:fd use;
+allow initrc_t $1:fd use;
+allow initrc_t $1:fifo_file rw_file_perms;
+allow initrc_t $1:process sigchld;
 ')
 
 define(`init_script_transition_depend',`
 type initrc_t, initrc_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -273,26 +288,6 @@ class dir { search getattr read };
 class file { read getattr };
 class lnk_file { read getattr };
 class process { getattr ptrace };
-')
-
-########################################
-#
-# init_script_direct_admin_transition(role,domain)
-#
-define(`init_script_direct_admin_transition',`
-requires_block_template(`$0'_depend)
-allow $2 initrc_exec_t:file { getattr read execute };
-allow $2 initrc_t:process transition;
-type_transition $2 initrc_exec_t:file init_t;
-role_transition $1 initrc_exec_t system_r;
-dontaudit $2 init_t:process { noatsecure siginh rlimitinh };
-')
-
-define(`init_script_direct_admin_transition_depend',`
-type initrc_t, initrc_exec_t;
-class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
-kernel_system_role_transition_depend
 ')
 
 ########################################

@@ -1,4 +1,6 @@
 # Copyright (C) 2005 Tresys Technology, LLC
+## <module name="mta" layer="keyservices">
+## <summary>Policy common to all email tranfer agents.</summary>
 
 #######################################
 #
@@ -36,6 +38,10 @@ allow $1_t sendmail_exec_t:file { getattr read execute execute_no_trans };
 allow $1_t sendmail_exec_t:lnk_file { getattr read };
 allow $1_t $1_mail_t:process transition;
 type_transition $1_t sendmail_exec_t:process $1_mail_t;
+allow $1_t $1_mail_t:fd use;
+allow $1_mail_t $1_t:fd use;
+allow $1_mail_t $1_t:fifo_file rw_file_perms;
+allow $1_mail_t $1_t:process sigchld;
 
 kernel_read_kernel_sysctl($1_mail_t)
 
@@ -174,11 +180,10 @@ allow $1 sendmail_exec_t:file { getattr read execute };
 allow $1 system_mail_t:process transition;
 type_transition $1 sendmail_exec_t:process system_mail_t;
 dontaudit $1 system_mail_t:process { noatsecure siginh rlimitinh };
-
 allow $1 system_mail_t:fd use;
-allow system_mail_t $1:process sigchld;
 allow system_mail_t $1:fd use;
-allow system_mail_t $1:fifo_file { ioctl read getattr lock write append };
+allow system_mail_t $1:fifo_file rw_file_perms;
+allow system_mail_t $1:process sigchld;
 ')
 
 define(`mta_send_mail_depend',`
@@ -241,10 +246,30 @@ class file { getattr read write append setattr };
 
 #######################################
 #
+# mta_get_mail_spool_attributes(domain)
+#
+define(`mta_get_mail_spool_attributes',`
+requires_block_template(`$0'_depend)
+files_search_system_spool_directory($1)
+allow $1 mail_spool_t:dir r_dir_perms;
+allow $1 mail_spool_t:lnk_file read;
+allow $1 mail_spool_t:file getattr;
+')
+
+define(`mta_get_mail_spool_attributes_depend',`
+type mail_spool_t;
+class dir r_dir_perms;
+class file getattr;
+class lnk_file read;
+')
+
+#######################################
+#
 # mta_modify_mail_spool(domain)
 #
 define(`mta_modify_mail_spool',`
 requires_block_template(`$0'_depend)
+files_search_system_spool_directory($1)
 allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
 allow $1 mail_spool_t:file { getattr read write append setattr };
 ')
@@ -261,6 +286,7 @@ class file { create ioctl read getattr lock write setattr append link unlink ren
 #
 define(`mta_manage_mail_spool',`
 requires_block_template(`$0'_depend)
+files_search_system_spool_directory($1)
 allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
 allow $1 mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
@@ -286,3 +312,5 @@ type mqueue_spool_t;
 class dir { read getattr lock search ioctl add_name remove_name write };
 class file { create ioctl read getattr lock write setattr append link unlink rename }
 ')
+
+## </module>

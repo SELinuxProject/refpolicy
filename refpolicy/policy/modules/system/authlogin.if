@@ -51,6 +51,10 @@ selinux_read_config($1_chkpwd_t)
 allow $1_t chkpwd_exec_t:file { getattr read execute };
 allow $1_t $1_chkpwd_t:process transition;
 type_transition $1_t chkpwd_exec_t:process $1_chkpwd_t;
+allow $1_chkpwd_t $1_t:fd use;
+allow $1_t $1_chkpwd_t:fd use;
+allow $1_chkpwd_t $1_t:fifo_file rw_file_perms;
+allow $1_chkpwd_t $1_t:process sigchld;
 
 # Write to the user domain tty.
 #userdomain_use_$1_terminal($1_chkpwd_t)
@@ -80,10 +84,12 @@ define(`authlogin_per_userdomain_template_depend',`
 attribute can_read_shadow_passwords;
 type chkpwd_exec_t, system_chkpwd_t, shadow_t;
 class file { getattr read execute };
-class process { getattr transition };
+class process { getattr transition sigchld };
 class capability setuid;
 class unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
 class unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 #######################################
@@ -121,12 +127,18 @@ allow $1 login_exec_t:file { getattr read execute };
 allow $1 $2:process transition;
 type_transition $1 login_exec_t:process $2;
 dontaudit $1 $2:process { noatsecure siginh rlimitinh };
+allow $1 $2:fd use;
+allow $2 $1:fd use;
+allow $2 $1:fifo_file rw_file_perms;
+allow $2 $1:process sigchld;
 ')
 
 define(`authlogin_login_program_transition_depend',`
 type login_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 #######################################
@@ -138,6 +150,10 @@ requires_block_template(`$0'_depend)
 allow $1 chkpwd_exec_t:file { getattr read execute };
 allow $1 system_chkpwd_t:process transition;
 type_transition $1 chkpwd_exec_t:process system_chkpwd_t;
+allow $1 system_chkpwd_t:fd use;
+allow system_chkpwd_t $1:fd use;
+allow system_chkpwd_t $1:fifo_file rw_file_perms;
+allow system_chkpwd_t $1:process sigchld;
 
 dontaudit $1 shadow_t:file { getattr read };
 #allow $1_t sbin_t:dir search;
@@ -161,8 +177,10 @@ sysnetwork_read_network_config($1)
 define(`authlogin_check_password_transition_depend',`
 type system_chkpwd_t, chkpwd_exec_t, shadow_t;
 class file { getattr read execute };
-class process transition;
+class process { transition sigchld };
 class udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 #######################################
@@ -267,6 +285,21 @@ class file relabelto;
 
 #######################################
 #
+# authlogin_modify_login_failure_records(domain)
+#
+define(`authlogin_modify_login_failure_records',`
+requires_block_template(`$0'_depend)
+logging_search_system_log_directory($1)
+allow $1 faillog_t:file { read write append };
+')
+
+define(`authlogin_modify_login_failure_records_depend',`
+type faillog_t;
+class file { read write append };
+')
+
+#######################################
+#
 # authlogin_modify_last_login_log(domain)
 #
 define(`authlogin_modify_last_login_log',`
@@ -297,12 +330,18 @@ allow $1 pam_exec_t:file { getattr read execute };
 allow $1 pam_t:process transition;
 type_transition $1 pam_exec_t:process pam_t;
 dontaudit $1 pam_t:process { noatsecure siginh rlimitinh };
+allow $1 pam_t:fd use;
+allow pam_t $1:fd use;
+allow pam_t $1:fifo_file rw_file_perms;
+allow pam_t $1:process sigchld;
 ')
 
 define(`authlogin_pam_transition_depend',`
 type pam_t, pam_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd
+class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -394,12 +433,18 @@ allow $1 pam_console_exec_t:file { getattr read execute };
 allow $1 pam_console_t:process transition;
 type_transition $1 pam_console_exec_t:process pam_console_t;
 dontaudit $1 pam_console_t:process { noatsecure siginh rlimitinh };
+allow $1 pam_console_t:fd use;
+allow pam_console_t $1:fd use;
+allow pam_console_t $1:fifo_file rw_file_perms;
+allow pam_console_t $1:process sigchld;
 ')
 
 define(`authlogin_pam_console_transition_depend',`
 type pam_console_t, pam_console_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 #######################################
@@ -525,12 +570,18 @@ allow $1 utempter_exec_t:file { getattr read execute };
 allow $1 utempter_t:process transition;
 type_transition $1 utempter_exec_t:process utempter_t;
 dontaudit $1 utempter_t:process { noatsecure siginh rlimitinh };
+allow $1 utempter_t:fd use;
+allow utempter_t $1:fd use;
+allow utempter_t $1:fifo_file rw_file_perms;
+allow utempter_t $1:process sigchld;
 ')
 
 define(`authlogin_utempter_transition_depend',`
 type utempter_t, utempter_exec_t;
 class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 ########################################

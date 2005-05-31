@@ -54,14 +54,14 @@ define(`corecommands_execute_general_programs',`
 requires_block_template(`$0'_depend)
 allow $1 bin_t:dir { getattr search read };
 allow $1 bin_t:lnk_file { getattr read };
-allow $1 bin_t:file { getattr read ioctl execute execute_no_trans };
+allow $1 bin_t:file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 define(`corecommands_execute_general_programs_depend',`
 type bin_t;
 class dir { getattr search read };
 class lnk_file { getattr read };
-class file { getattr read ioctl execute execute_no_trans };
+class file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 ########################################
@@ -84,12 +84,12 @@ class dir search;
 #
 define(`corecommands_read_system_programs_directory',`
 requires_block_template(`$0'_depend)
-allow $1 sbin_t:dir { getattr search read };
+allow $1 sbin_t:dir r_dir_perms;
 ')
 
 define(`corecommands_read_system_programs_directory_depend',`
 type sbin_t;
-class dir { getattr search read };
+class dir r_dir_perms;
 ')
 
 ########################################
@@ -114,14 +114,14 @@ define(`corecommands_execute_system_programs',`
 requires_block_template(`$0'_depend)
 allow $1 sbin_t:dir { getattr search read };
 allow $1 sbin_t:lnk_file { getattr read };
-allow $1 sbin_t:file { getattr read ioctl execute execute_no_trans };
+allow $1 sbin_t:file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 define(`corecommands_execute_system_programs_depend',`
 type sbin_t;
 class dir { getattr search read };
 class lnk_file { getattr read };
-class file { getattr read ioctl execute execute_no_trans };
+class file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 ########################################
@@ -130,16 +130,16 @@ class file { getattr read ioctl execute execute_no_trans };
 #
 define(`corecommands_execute_shell',`
 requires_block_template(`$0'_depend)
-allow $1 bin_t:dir { getattr search read };
+allow $1 bin_t:dir r_dir_perms;
 allow $1 bin_t:lnk_file { getattr read };
-allow $1 shell_exec_t:file { getattr read execute execute_no_trans };
+allow $1 shell_exec_t:file { getattr read lock ioctl execute execute_no_trans };
 ')
 
 define(`corecommands_execute_shell_depend',`
 type bin_t, shell_exec_t;
-class dir { getattr search read };
+class dir r_dir_perms;
 class lnk_file { getattr read };
-class file { getattr read execute execute_no_trans };
+class file { getattr read lock ioctl execute execute_no_trans };
 ')
 
 ########################################
@@ -148,16 +148,55 @@ class file { getattr read execute execute_no_trans };
 #
 define(`corecommands_execute_ls',`
 requires_block_template(`$0'_depend)
-allow $1 bin_t:dir { getattr search read };
+allow $1 bin_t:dir r_dir_perms;
 allow $1 bin_t:lnk_file { getattr read };
-allow $1 ls_exec_t:file { getattr read execute execute_no_trans };
+allow $1 ls_exec_t:file { getattr read lock ioctl execute execute_no_trans };
 ')
 
 define(`corecommands_execute_shell_depend',`
 type bin_t, ls_exec_t;
+class dir r_dir_perms;
+class lnk_file { getattr read };
+class file { getattr read lock ioctl execute execute_no_trans };
+')
+
+########################################
+## <interface name="corecommands_shell_explicit_transition">
+##	<description>
+##		Execute a shell in the target domain.  This
+##		is an explicit transition, requiring the
+##		caller to use setexeccon().
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+##	<parameter name="target_domain">
+##		The type of the shell process.
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
+define(`corecommands_shell_explicit_transition',`
+requires_block_template(`$0'_depend)
+allow $1 bin_t:dir { getattr search read };
+allow $1 bin_t:lnk_file { getattr read };
+allow $1 shell_exec_t:file { getattr read execute };
+allow $1 $2:process transition;
+dontaudit $1 $2:process { noatsecure siginh rlimitinh };
+allow $1 $2:fd use;
+allow $2 $1:fd use;
+allow $2 $1:fifo_file rw_file_perms;
+allow $2 $1:process sigchld;
+')
+
+define(`corecommands_shell_explicit_transition_depend',`
+type bin_t, shell_exec_t;
 class dir { getattr search read };
 class lnk_file { getattr read };
-class file { getattr read execute execute_no_trans };
+class file { getattr read execute };
+class process { transition noatsecure siginh rlimitinh sigchld };
+class fd use;
+class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -176,20 +215,12 @@ class file { getattr read execute execute_no_trans };
 #
 define(`corecommands_shell_transition',`
 requires_block_template(`$0'_depend)
-allow $1 bin_t:dir { getattr search read };
-allow $1 bin_t:lnk_file { getattr read };
-allow $1 shell_exec_t:file { getattr read execute };
-allow $1 $2:process transition;
+corecommands_shell_explicit_transition($1,$2)
 type_transition $1 shell_exec_t:process $2;
-dontaudit $1 $2:process { noatsecure siginh rlimitinh };
 ')
 
 define(`corecommands_shell_transition_depend',`
-type bin_t, shell_exec_t;
-class dir { getattr search read };
-class lnk_file { getattr read };
-class file { getattr read execute };
-class process { transition noatsecure siginh rlimitinh };
+type shell_exec_t;
 ')
 
 ########################################
