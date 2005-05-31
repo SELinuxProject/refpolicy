@@ -74,9 +74,16 @@ miscfiles_read_localization(klogd_t)
 # syslogd local policy
 #
 
-# Use capabilities.
 allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
 dontaudit syslogd_t self:capability sys_tty_config;
+allow syslogd_t self:process signal_perms;
+
+# receive messages to be logged
+allow syslogd_t self:unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+allow syslogd_t self:unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow syslogd_t self:unix_dgram_socket sendto;
+allow syslogd_t self:fifo_file { getattr read write ioctl lock };
+allow syslogd_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
 
 # create/append log files.
 allow syslogd_t var_log_t:dir rw_dir_perms;
@@ -89,17 +96,12 @@ files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
 files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
 
-# receive messages to be logged
-allow syslogd_t devlog_t:unix_stream_socket name_bind;
-allow syslogd_t devlog_t:unix_dgram_socket name_bind;
-allow syslogd_t self:unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
-allow syslogd_t self:unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown listen accept };
-allow syslogd_t self:unix_dgram_socket sendto;
-allow syslogd_t self:fifo_file { getattr read write ioctl lock };
-
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
+# I belive these are not needed:
+allow syslogd_t devlog_t:unix_stream_socket name_bind;
+allow syslogd_t devlog_t:unix_dgram_socket name_bind;
 
 # manage pid file
 allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };

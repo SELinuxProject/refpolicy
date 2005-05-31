@@ -7,6 +7,15 @@ policy_module(sysnetwork,1.0)
 # Declarations
 #
 
+# this is shared between dhcpc and dhcpd:
+type dhcp_etc_t; #, usercanread; 
+typealias dhcp_etc_t alias { etc_dhcp_t etc_dhcpc_t etc_dhcpd_t };
+files_make_file(dhcp_etc_t)
+
+# this is shared between dhcpc and dhcpd:
+type dhcp_state_t;
+files_make_file(dhcp_state_t)
+
 type dhcpc_t;
 type dhcpc_exec_t;
 init_make_daemon_domain(dhcpc_t,dhcpc_exec_t)
@@ -38,19 +47,23 @@ dontaudit dhcpc_t self:capability sys_tty_config;
 # for access("/etc/bashrc", X_OK) on Red Hat
 dontaudit dhcpc_t self:capability { dac_read_search sys_module };
 
+allow dhcpc_t self:tcp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow dhcpc_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow dhcpc_t self:packet_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow dhcpc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
+allow dhcpc_t self:fifo_file { ioctl read getattr lock write append };
+
+allow dhcpc_t dhcp_etc_t:dir r_dir_perms;
+allow dhcpc_t dhcp_etc_t:lnk_file r_file_perms;
+allow dhcpc_t dhcp_etc_t:file { r_file_perms execute execute_no_trans };
+
+allow dhcpc_t dhcpc_state_t:dir rw_dir_perms;
+allow dhcpc_t dhcpc_state_t:file create_file_perms;
+type_transition dhcpc_t dhcp_state_t:file dhcpc_state_t;
+
 # create pid file
 allow dhcpc_t dhcpc_var_run_t:file { getattr create read write append setattr unlink };
 files_create_daemon_runtime_data(dhcpc_t,dhcpc_var_run_t)
-
-# transition to ifconfig
-allow dhcpc_t ifconfig_exec_t:file { getattr read execute };
-allow dhcpc_t ifconfig_t:process transition;
-type_transition dhcpc_t ifconfig_exec_t:process ifconfig_t;
-dontaudit dhcpc_t ifconfig_t:process { noatsecure siginh rlimitinh };
-allow dhcpc_t ifconfig_t:fd use;
-allow ifconfig_t dhcpc_t:fd use;
-allow ifconfig_t dhcpc_t:fifo_file rw_file_perms;
-allow ifconfig_t dhcpc_t:process sigchld;
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
 # in /etc created by dhcpcd will be labelled net_conf_t.
@@ -62,14 +75,17 @@ allow dhcpc_t dhcpc_tmp_t:dir { create read getattr lock setattr ioctl link unli
 allow dhcpc_t dhcpc_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 files_create_private_tmp_data(dhcpc_t, dhcpc_tmp_t, { file dir })
 
-allow dhcpc_t self:tcp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow dhcpc_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow dhcpc_t self:packet_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow dhcpc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
-
-allow dhcpc_t self:fifo_file { ioctl read getattr lock write append };
-
 allow dhcpc_t dhcpc_exec_t:file { getattr read execute execute_no_trans };
+
+# transition to ifconfig
+allow dhcpc_t ifconfig_exec_t:file { getattr read execute };
+allow dhcpc_t ifconfig_t:process transition;
+type_transition dhcpc_t ifconfig_exec_t:process ifconfig_t;
+dontaudit dhcpc_t ifconfig_t:process { noatsecure siginh rlimitinh };
+allow dhcpc_t ifconfig_t:fd use;
+allow ifconfig_t dhcpc_t:fd use;
+allow ifconfig_t dhcpc_t:fifo_file rw_file_perms;
+allow ifconfig_t dhcpc_t:process sigchld;
 
 kernel_read_system_state(dhcpc_t)
 kernel_read_network_state(dhcpc_t)
@@ -121,34 +137,39 @@ miscfiles_read_localization(dhcpc_t)
 
 modutils_insmod_transition(dhcpc_t)
 
+ifdef(`distro_redhat', `
+	files_execute_system_config_script(dhcpc_t)
+')
+
 tunable_policy(`targeted_policy', `
-terminal_ignore_use_general_physical_terminal(dhcpc_t)
-terminal_ignore_use_general_pseudoterminal(dhcpc_t)
-files_ignore_read_rootfs_file(dhcpc_t)
+	terminal_ignore_use_general_physical_terminal(dhcpc_t)
+	terminal_ignore_use_general_pseudoterminal(dhcpc_t)
+
+	files_ignore_read_rootfs_file(dhcpc_t)
 ')
 
 optional_policy(`consoletype.te',`
-consoletype_transition(dhcpc_t)
+	consoletype_transition(dhcpc_t)
 ')
 
 optional_policy(`hostname.te',`
-hostname_transition(dhcpc_t)
+	hostname_transition(dhcpc_t)
 ')
 
 optional_policy(`nscd.te',`
-nscd_transition(dhcpc_t)
+	nscd_transition(dhcpc_t)
 ')
 
 optional_policy(`selinux.te',`
-selinux_newrole_sigchld(dhcpc_t)
+	selinux_newrole_sigchld(dhcpc_t)
 ')
 
 optional_policy(`udev.te',`
-udev_read_database(dhcpc_t)
+	udev_read_database(dhcpc_t)
 ')
 
 optional_policy(`userdomain.te',`
-userdomain_use_all_users_file_descriptors(dhcpc_t)
+	userdomain_use_all_users_file_descriptors(dhcpc_t)
 ')
 
 #
@@ -156,10 +177,10 @@ userdomain_use_all_users_file_descriptors(dhcpc_t)
 #
 init_script_execute(dhcpc_t)
 optional_policy(`ypbind.te',`
-ypbind_transition(dhcpc_t)
+	ypbind_transition(dhcpc_t)
 ')
 optional_policy(`ntpd.te',`
-ntpd_transition(dhcpc_t)
+	ntpd_transition(dhcpc_t)
 ')
 
 ifdef(`TODO',`
@@ -201,24 +222,11 @@ allow ping_t cardmgr_t:fd use;
 ') dnl end if cardmgr
 ') dnl end if ping
 
-ifdef(`dhcpd.te', `', `
-#type dhcp_state_t, file_type, sysadmfile;
-#type dhcp_etc_t, file_type, sysadmfile, usercanread; 
-#typealias dhcp_etc_t alias { etc_dhcp_t etc_dhcpc_t etc_dhcpd_t };
-')
-
-allow dhcpc_t dhcp_etc_t:dir { getattr read search };
-allow dhcpc_t dhcp_etc_t:file { read getattr };
-allow dhcpc_t dhcp_etc_t:lnk_file { getattr read };
-allow dhcpc_t dhcp_etc_t:file { getattr read execute execute_no_trans };
-
 ifdef(`distro_redhat', `
-files_execute_system_config_script(dhcpc_t)
 allow initrc_t dhcp_etc_t:file rw_file_perms;
 ')
 
 allow dhcpc_t var_lib_t:dir search;
-file_type_auto_trans(dhcpc_t, dhcp_state_t, dhcpc_state_t, file)
 
 allow dhcpc_t home_root_t:dir search;
 allow initrc_t dhcpc_state_t:file { getattr read };

@@ -70,12 +70,14 @@ define(`init_make_daemon_domain',`
 ')
 
 define(`init_make_daemon_domain_depend',`
-type initrc_t;
-class file { getattr read execute };
-class fifo_file rw_file_perms;
-class fd use;
-class process { transition noatsecure siginh rlimitinh sigchld };
-role system_r;
+	type initrc_t;
+
+	role system_r;
+
+	class file { getattr read execute };
+	class fifo_file rw_file_perms;
+	class fd use;
+	class process { transition noatsecure siginh rlimitinh sigchld };
 ')
 
 ########################################
@@ -83,27 +85,39 @@ role system_r;
 # init_make_system_domain(domain,entrypointfile)
 #
 define(`init_make_system_domain',`
-requires_block_template(`$0'_depend)
-domain_make_domain($1)
-domain_make_entrypoint_file($1,$2)
-role system_r types $1;
-allow initrc_t $1:process transition;
-allow initrc_t $2:file { getattr read execute };
-dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
-type_transition initrc_t $2:process $1;
-allow initrc_t $1:fd use;
-allow $1 initrc_t:fd use;
-allow $1 initrc_t:fifo_file rw_file_perms;
-allow $1 initrc_t:process sigchld;
+	requires_block_template(`$0'_depend)
+
+	domain_make_domain($1)
+	domain_make_entrypoint_file($1,$2)
+
+	role system_r types $1;
+
+	allow initrc_t $1:process transition;
+	allow initrc_t $2:file { getattr read execute };
+	dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
+	type_transition initrc_t $2:process $1;
+
+	allow initrc_t $1:fd use;
+	allow $1 initrc_t:fd use;
+	allow $1 initrc_t:fifo_file rw_file_perms;
+	allow $1 initrc_t:process sigchld;
+
+	# Red Hat systems seem to have a stray
+	# fd open from the initrd
+	optional_policy(`distro_redhat',`
+		kernel_ignore_use_file_descriptors($1)
+		files_ignore_read_rootfs_file($1)
+	')
 ')
 
 define(`init_make_system_domain_depend',`
-type initrc_t;
-class file { getattr read execute };
-class fd use;
-class fifo_file rw_file_perms;
-class process { transition noatsecure siginh rlimitinh sigchld };
-role system_r;
+	type initrc_t;
+	role system_r;
+
+	class file { getattr read execute };
+	class fd use;
+	class fifo_file rw_file_perms;
+	class process { transition noatsecure siginh rlimitinh sigchld };
 ')
 
 ########################################
