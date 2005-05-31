@@ -35,10 +35,10 @@ files_make_file(var_log_t)
 # klogd local policy
 #
 
-allow klogd_t klogd_tmp_t:file { getattr create read write append setattr unlink };
+allow klogd_t klogd_tmp_t:file create_file_perms;
 files_create_private_tmp_data(klogd_t,klogd_tmp_t)
 
-allow klogd_t klogd_var_run_t:file { getattr create read write append setattr unlink };
+allow klogd_t klogd_var_run_t:file create_file_perms;
 
 allow klogd_t self:capability sys_admin;
 dontaudit klogd_t self:capability sys_resource;
@@ -60,6 +60,8 @@ files_read_runtime_system_config(klogd_t)
 # read /etc/nsswitch.conf
 files_read_general_system_config(klogd_t)
 
+init_use_file_descriptors(klogd_t)
+
 libraries_use_dynamic_loader(klogd_t)
 libraries_use_shared_libraries(klogd_t)
 
@@ -77,12 +79,15 @@ allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys
 dontaudit syslogd_t self:capability sys_tty_config;
 
 # create/append log files.
-allow syslogd_t var_log_t:dir { read getattr search add_name write };
-allow syslogd_t var_log_t:file { create ioctl getattr setattr append link };
+allow syslogd_t var_log_t:dir rw_dir_perms;
+allow syslogd_t var_log_t:file create_file_perms;
 
 # manage temporary files
-allow syslogd_t syslogd_tmp_t:file { getattr create read write append setattr unlink };
-allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
+allow syslogd_t syslogd_tmp_t:file create_file_perms;
+files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
+
+allow syslogd_t syslogd_var_run_t:file create_file_perms;
+files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
 
 # receive messages to be logged
 allow syslogd_t devlog_t:unix_stream_socket name_bind;
@@ -94,6 +99,7 @@ allow syslogd_t self:fifo_file { getattr read write ioctl lock };
 
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
 
 # manage pid file
 allow syslogd_t syslogd_var_run_t:file { getattr create read write append setattr unlink };
@@ -129,9 +135,6 @@ init_script_use_pseudoterminal(syslogd_t)
 domain_use_widely_inheritable_file_descriptors(syslogd_t)
 
 files_read_general_system_config(syslogd_t)
-files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
-files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
-files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
 
 libraries_use_dynamic_loader(syslogd_t)
 libraries_use_shared_libraries(syslogd_t)
@@ -145,7 +148,7 @@ userdomain_ignore_use_all_unprivileged_users_file_descriptors(syslogd_t)
 #
 # /initrd is not umounted before minilog starts
 #
-#dontaudit syslogd_t file_t:dir search;
+files_ignore_search_isid_type_dir(syslogd_t)
 #allow syslogd_t tmpfs_t:dir search;
 #dontaudit syslogd_t unlabeled_t:file read;
 #dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
@@ -159,6 +162,12 @@ kernel_clear_ring_buffer(syslogd_t)
 kernel_change_ring_buffer_level(syslogd_t)
 ')
 
+tunable_policy(`targeted_policy', `
+terminal_ignore_use_general_physical_terminal(syslogd_t)
+terminal_ignore_use_general_pseudoterminal(syslogd_t)
+files_ignore_read_rootfs_file(syslogd_t)
+')
+
 optional_policy(`selinux.te',`
 selinux_newrole_sigchld(syslogd_t)
 ')
@@ -167,10 +176,8 @@ optional_policy(`udev.te', `
 udev_read_database(syslogd_t)
 ')
 
-tunable_policy(`targeted_policy', `
-terminal_ignore_use_general_physical_terminal(syslogd_t)
-terminal_ignore_use_general_pseudoterminal(syslogd_t)
-files_ignore_read_rootfs_file(syslogd_t)
+optional_policy(`cron.te',`
+cron_modify_log(syslogd_t)
 ')
 
 ifdef(`TODO',`
@@ -198,8 +205,6 @@ can_ypbind(syslogd_t)
 allow syslogd_t xconsole_device_t:fifo_file { ioctl read write };
 
 ifdef(`crond.te', `
-# Write to the cron log.
-allow syslogd_t crond_log_t:file rw_file_perms;
 # for daemon re-start
 allow system_crond_t syslogd_t:lnk_file read;
 ')

@@ -45,7 +45,12 @@ files_create_daemon_runtime_data(dhcpc_t,dhcpc_var_run_t)
 # transition to ifconfig
 allow dhcpc_t ifconfig_exec_t:file { getattr read execute };
 allow dhcpc_t ifconfig_t:process transition;
+type_transition dhcpc_t ifconfig_exec_t:process ifconfig_t;
 dontaudit dhcpc_t ifconfig_t:process { noatsecure siginh rlimitinh };
+allow dhcpc_t ifconfig_t:fd use;
+allow ifconfig_t dhcpc_t:fd use;
+allow ifconfig_t dhcpc_t:fifo_file rw_file_perms;
+allow ifconfig_t dhcpc_t:process sigchld;
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
 # in /etc created by dhcpcd will be labelled net_conf_t.
@@ -253,6 +258,8 @@ files_read_general_system_config(ifconfig_t);
 kernel_use_file_descriptors(ifconfig_t)
 kernel_read_system_state(ifconfig_t)
 kernel_read_network_state(ifconfig_t)
+kernel_ignore_search_sysctl_dir(ifconfig_t)
+kernel_ignore_search_network_sysctl_dir(ifconfig_t)
 
 filesystem_get_persistent_filesystem_attributes(ifconfig_t)
 
@@ -289,11 +296,6 @@ allow ifconfig_t autofs_t:dir { search getattr };
 ifdef(`gnome-pty-helper.te', `allow ifconfig_t sysadm_gph_t:fd use;')
 
 allow ifconfig_t tun_tap_device_t:chr_file { read write };
-
-# ifconfig attempts to search some sysctl entries.
-# Do not audit those attempts; comment out these rules if it is desired to
-# see the denials.
-dontaudit ifconfig_t { sysctl_t sysctl_net_t }:dir search;
 
 optional_policy(`rhgb.te', `
 allow ifconfig_t rhgb_t:process sigchld;

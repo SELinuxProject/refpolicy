@@ -61,6 +61,15 @@ files_make_temporary_file(initrc_tmp_t)
 # Init local policy
 #
 
+# Use capabilities. old rule:
+allow init_t self:capability ~sys_module;
+# is ~sys_module really needed? observed: 
+# sys_boot
+# sys_tty_config
+# kill: now provided by domain_kill_all_domains()
+# setuid (from /sbin/shutdown)
+# sys_chroot (from /usr/bin/chroot): now provided by corecommands_chroot()
+
 allow init_t self:fifo_file { read write ioctl };
 
 # Re-exec itself
@@ -73,6 +82,9 @@ files_create_daemon_runtime_data(init_t,init_var_run_t)
 allow init_t initctl_t:fifo_file { create getattr read append write setattr unlink };
 filesystem_tmpfs_associate(initctl_t)
 devices_create_dev_entry(init_t,initctl_t,fifo_file)
+
+# Modify utmp.
+allow init_t initrc_var_run_t:file { getattr read write setattr lock };
 
 # Run init scripts.  this is ok since initrc
 # is also in this module
@@ -109,6 +121,8 @@ domain_sigchld_all_domains(init_t)
 
 files_read_general_system_config(init_t)
 files_modify_system_runtime_data(init_t)
+files_ignore_search_isid_type_dir(init_t)
+files_manage_runtime_system_config(init_t)
 # Run /etc/X11/prefdm:
 files_execute_system_config_script(init_t)
 # file descriptors inherited from the rootfs:
@@ -117,8 +131,10 @@ files_ignore_modify_rootfs_device(init_t)
 
 libraries_use_dynamic_loader(init_t)
 libraries_use_shared_libraries(init_t)
+libraries_modify_dynamic_loader_cache(init_t)
 
 logging_send_system_log_message(init_t)
+logging_modify_system_logs(init_t)
 
 selinux_read_config(init_t)
 
@@ -129,38 +145,14 @@ filesystem_use_tmpfs_character_devices(init_t)
 filesystem_create_private_tmpfs_data(init_t,initctl_t,fifo_file)
 ')
 
+optional_policy(`authlogin.te',`
+authlogin_modify_login_records(init_t)
+')
+
 # Run the shell in the sysadm_t domain for single-user mode.
 optional_policy(`userdomain.te',`
 userdomain_sysadm_shell_transition(init_t)
 ')
-
-########################################
-#
-# the following seem questionable
-#
-
-libraries_modify_dynamic_loader_cache(init_t)
-files_manage_runtime_system_config(init_t)
-authlogin_modify_login_records(init_t)
-logging_modify_system_logs(init_t)
-
-# Use capabilities. old rule:
-allow init_t self:capability ~sys_module;
-# is ~sys_module really needed? observed: 
-# sys_boot
-# sys_tty_config
-# kill: now provided by domain_kill_all_domains()
-# setuid (from /sbin/shutdown)
-# sys_chroot (from /usr/bin/chroot): now provided by corecommands_chroot()
-
-# Modify utmp.
-allow init_t initrc_var_run_t:file { getattr read write setattr lock };
-
-ifdef(`TODO',`
-
-# for mount points
-allow init_t file_t:dir search;
-') dnl end TODO
 
 ########################################
 #
