@@ -11,6 +11,7 @@
 # restorelabels - check filesystems against the file context configuration
 #                 and restore the label of files with incorrect labels
 # policy        - compile the policy configuration locally for testing/development.
+# xml           - create a XML file from in-policy documentation
 #
 # The default target is 'policy'.
 #
@@ -32,6 +33,9 @@ override M4PARAM += -D distro_redhat
 # Uncomment this to disable command echoing
 #QUIET:=@
 
+# Policy type (strict, targeted, etc)
+TYPE := strict
+
 ########################################
 #
 # Invariant portions of the Makefile
@@ -44,7 +48,9 @@ SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
+
 XMLLINT := $(BINDIR)/xmllint
+XMLDTD := policy.dtd
 
 # enable MLS if requested.
 ifeq ($(MLS),y)
@@ -68,7 +74,6 @@ endif
 
 FC := file_contexts
 POLVER := policy.$(PV)
-TYPE := strict
 
 # install paths
 TOPDIR = $(DESTDIR)/etc/selinux
@@ -278,8 +283,8 @@ policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 # currently these are only in corenetwork.if
 	$(QUIET) m4 $^ | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
-	$(QUIET) if test -x $(XMLLINT) && test -f policy.dtd; then \
-		$(XMLLINT) --noout --dtdvalid policy.dtd $@ ;\
+	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
+		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
 ########################################
