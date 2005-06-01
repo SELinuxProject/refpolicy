@@ -271,7 +271,9 @@ xml: policy.xml
 policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	@echo "Creating $@"
 	$(QUIET) echo "<policy>" > $@
-	$(QUIET) egrep -h "^##[[:space:]]" $^ | sed -e 's/^##[[:space:]]//g' >> $@
+# process this through m4 to eliminate the generated definitions.
+# currently these are only in corenetwork.if
+	$(QUIET) m4 $^ | egrep -h "^##[[:space:]]" | sed -e 's/^##[[:space:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
 
 ########################################
