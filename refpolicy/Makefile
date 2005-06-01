@@ -116,7 +116,7 @@ default: policy
 
 policy: $(POLVER)
 
-install: $(LOADPATH) $(FCPATH) $(USERPATH)/local.users
+install: $(LOADPATH) $(FCPATH) $(APPFILES) $(USERPATH)/local.users
 
 load: tmp/load
 
@@ -175,6 +175,7 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 	$(QUIET) cat $^ > $@
 
 tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te
+# per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
 	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_TE_FILES))); do \
@@ -182,9 +183,11 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 			>> $@ ;\
 	done
 	$(QUIET) echo "')" >> $@
+# define foo.te
 	$(QUIET) for i in $(notdir $(ALL_TE_FILES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
+# generate network interfaces
 	$(QUIET) egrep "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
 		| m4 $(M4PARAM) -D monolithic_policy -D interface_pass $(M4SUPPORT) $(BASE_MODULE)/corenetwork.if - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
@@ -280,7 +283,7 @@ policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
 	$(QUIET) echo "<policy>" >> $@
-# process this through m4 to eliminate the generated definitions.
+# process this through m4 to eliminate the generated definitions templates.
 # currently these are only in corenetwork.if
 	$(QUIET) m4 $^ | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
