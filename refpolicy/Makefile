@@ -89,6 +89,7 @@ HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 BASE_MODULE = kernel
 FLASKDIR = flask
 APPCONF = appconfig
+M4SUPPORT = support_macros
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
@@ -98,7 +99,7 @@ USER_FILES := users
 DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
 ALL_LAYERS := $(filter-out tmp CVS $(APPCONF) $(FLASKDIR),$(DETECTED_DIRS))
 
-PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) mls
+PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) mls
 ALL_INTERFACES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if))
 ALL_TE_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te))
 POST_TE_FILES := users constraints initial_sid_contexts fs_use
@@ -185,7 +186,7 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 		echo "define(\`$$i')" >> $@ ;\
 	done
 	$(QUIET) egrep "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
-		| m4 $(M4PARAM) -D monolithic_policy -D interface_pass $(BASE_MODULE)/global.if $(BASE_MODULE)/corenetwork.if - \
+		| m4 $(M4PARAM) -D monolithic_policy -D interface_pass $(M4SUPPORT) $(BASE_MODULE)/corenetwork.if - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 # this is so the xml works:
 	$(QUIET) echo "## </module>" >> $@
@@ -226,7 +227,7 @@ enableaudit: policy.conf
 #
 # Construct file_contexts
 #
-$(FC): kernel/global.if $(ALL_FC_FILES)
+$(FC): $(M4SUPPORT) $(ALL_FC_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) m4 $(M4PARAM) $^ > $@
 
