@@ -44,6 +44,7 @@ SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
+XMLLINT := $(BINDIR)/xmllint
 
 # enable MLS if requested.
 ifeq ($(MLS),y)
@@ -270,11 +271,16 @@ xml: policy.xml
 
 policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	@echo "Creating $@"
-	$(QUIET) echo "<policy>" > $@
+	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
+	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
+	$(QUIET) echo "<policy>" >> $@
 # process this through m4 to eliminate the generated definitions.
 # currently these are only in corenetwork.if
-	$(QUIET) m4 $^ | egrep -h "^##[[:space:]]" | sed -e 's/^##[[:space:]]//g' >> $@
+	$(QUIET) m4 $^ | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
+	$(QUIET) if test -x $(XMLLINT) && test -f policy.dtd; then \
+		$(XMLLINT) --noout --dtdvalid policy.dtd $@ ;\
+	fi
 
 ########################################
 #
