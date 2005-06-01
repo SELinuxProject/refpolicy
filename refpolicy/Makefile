@@ -21,7 +21,10 @@
 #
 
 # Build compatibility policies 
-POLICYCOMPAT = -c 18
+POLICYCOMPAT = 18
+
+# Build MLS policies
+MLS=n
 
 # set distribution
 override M4PARAM += -D distro_redhat
@@ -42,14 +45,24 @@ CHECKPOLICY := $(BINDIR)/checkpolicy
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 
+# enable MLS if requested.
+ifeq ($(MLS),y)
+	override M4PARAM += -D enable_mls
+	CHECKPOLICY += -M
+endif
+
+ifneq ($(POLICYCOMPAT),)
+	CHECKPOLICY += -c $(POLICYCOMPAT)
+endif
+
 # determine the policy version and current kernel version if possible
-PV := $(shell $(CHECKPOLICY) $(POLICYCOMPAT) -V |cut -f 1 -d ' ')
+PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
 KV := $(shell cat /selinux/policyvers)
 
 # dont print version warnings if we are unable to determine
 # the currently running kernel's policy version
 ifeq ($(KV),)
-KV := $(PV)
+	KV := $(PV)
 endif
 
 FC := file_contexts
@@ -68,21 +81,20 @@ FCPATH = $(CONTEXTPATH)/files/file_contexts
 HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 
 BASE_MODULE = kernel
-FLASKDIR = $(BASE_MODULE)/flask/
-MISCDIR = $(BASE_MODULE)/misc/
+FLASKDIR = flask
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard appconfig/*_context*) appconfig/media
-USER_FILES := $(MISCDIR)/users 
+USER_FILES := users 
 
 DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
-ALL_MODULES := $(filter-out tmp appconfig CVS,$(DETECTED_DIRS))
+ALL_MODULES := $(filter-out tmp CVS $(APPDIR) $(FLASKDIR),$(DETECTED_DIRS))
 
-PRE_TE_FILES := $(addprefix $(FLASKDIR),security_classes initial_sids access_vectors)
+PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) mls
 ALL_INTERFACES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.if))
 ALL_TE_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.te))
-POST_TE_FILES := $(addprefix $(MISCDIR),users constraints mls initial_sid_contexts fs_use)
+POST_TE_FILES := users constraints initial_sid_contexts fs_use
 
 ALL_FC_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.fc))
 
@@ -111,7 +123,7 @@ ifneq ($(PV),$(KV))
 	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
 	@echo
 endif
-	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $@
+	$(QUIET) $(CHECKPOLICY) $^ -o $@
 
 ########################################
 #
@@ -125,7 +137,7 @@ ifneq ($(PV),$(KV))
 	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
 	@echo
 endif
-	$(QUIET) $(CHECKPOLICY) $(POLICYCOMPAT) $^ -o $@
+	$(QUIET) $(CHECKPOLICY) $^ -o $@
 
 ########################################
 #
