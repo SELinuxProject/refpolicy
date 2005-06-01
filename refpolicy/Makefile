@@ -82,21 +82,22 @@ HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 
 BASE_MODULE = kernel
 FLASKDIR = flask
+APPCONF = appconfig
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
-CONTEXTFILES += $(wildcard appconfig/*_context*) appconfig/media
+CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := users 
 
 DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
-ALL_MODULES := $(filter-out tmp CVS $(APPDIR) $(FLASKDIR),$(DETECTED_DIRS))
+ALL_LAYERS := $(filter-out tmp CVS $(APPCONF) $(FLASKDIR),$(DETECTED_DIRS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) mls
-ALL_INTERFACES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.if))
-ALL_TE_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.te))
+ALL_INTERFACES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if))
+ALL_TE_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te))
 POST_TE_FILES := users constraints initial_sid_contexts fs_use
 
-ALL_FC_FILES := $(foreach dir,$(ALL_MODULES),$(wildcard $(dir)/*.fc))
+ALL_FC_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc))
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf
 
@@ -166,7 +167,7 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) cat $^ > $@
 
-tmp/generated_definitions.conf: $(ALL_MODULES) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te
+tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
 	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_TE_FILES))); do \
@@ -300,15 +301,15 @@ $(USERPATH)/local.users: local.users
 #
 install-appconfig: $(APPFILES)
 
-$(CONTEXTPATH)/files/media: appconfig/media
+$(CONTEXTPATH)/files/media: $(APPCONF)/media
 	mkdir -p $(CONTEXTPATH)/files/
 	install -m 644 $< $@
 
-$(APPDIR)/default_contexts: appconfig/default_contexts
+$(APPDIR)/default_contexts: $(APPCONF)/default_contexts
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/removable_context: appconfig/removable_context
+$(APPDIR)/removable_context: $(APPCONF)/removable_context
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
@@ -317,27 +318,27 @@ $(APPDIR)/customizable_types: policy.conf
 	@grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
 	install -m 644 tmp/customizable_types $@ 
 
-$(APPDIR)/default_type: appconfig/default_type
+$(APPDIR)/default_type: $(APPCONF)/default_type
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/userhelper_context: appconfig/userhelper_context
+$(APPDIR)/userhelper_context: $(APPCONF)/userhelper_context
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/initrc_context: appconfig/initrc_context
+$(APPDIR)/initrc_context: $(APPCONF)/initrc_context
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/failsafe_context: appconfig/failsafe_context
+$(APPDIR)/failsafe_context: $(APPCONF)/failsafe_context
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/dbus_contexts: appconfig/dbus_contexts
+$(APPDIR)/dbus_contexts: $(APPCONF)/dbus_contexts
 	mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
-$(APPDIR)/users/root: appconfig/root_default_contexts
+$(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 	mkdir -p $(APPDIR)/users
 	install -m 644 $< $@
 
