@@ -102,7 +102,7 @@ ALL_LAYERS := $(filter-out tmp CVS $(APPCONF) $(FLASKDIR),$(DETECTED_DIRS))
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) mls
 ALL_INTERFACES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if))
 ALL_TE_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te))
-POST_TE_FILES := users constraints initial_sid_contexts fs_use
+POST_TE_FILES := users constraints
 
 ALL_FC_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc))
 
@@ -213,8 +213,12 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 	$(QUIET) grep ^attribute tmp/all_te_files.conf > tmp/all_attrs_types.conf || true
 	$(QUIET) grep '^type ' tmp/all_te_files.conf >> tmp/all_attrs_types.conf
 	$(QUIET) cat tmp/post_te_files.conf > tmp/all_post.conf
+	$(QUIET) grep '^sid ' tmp/all_te_files.conf >> tmp/all_post.conf || true
+	$(QUIET) egrep '^fs_use_(xattr|task|trans)' tmp/all_te_files.conf >> tmp/all_post.conf || true
 	$(QUIET) grep ^genfscon tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(QUIET) sed -e /^attribute/d -e '/^type /d' -e /^genfscon/d < tmp/all_te_files.conf > tmp/only_te_rules.conf
+	$(QUIET) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
+			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
+			< tmp/all_te_files.conf > tmp/only_te_rules.conf
 
 ########################################
 #
