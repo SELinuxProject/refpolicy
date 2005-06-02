@@ -33,7 +33,7 @@ override M4PARAM += -D distro_redhat
 # Uncomment this to disable command echoing
 #QUIET:=@
 
-# Policy type (strict, targeted, etc)
+# Policy type (strict, mls)
 TYPE := strict
 
 ########################################
@@ -89,7 +89,7 @@ HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 BASE_MODULE = kernel
 FLASKDIR = flask
 APPCONF = appconfig
-M4SUPPORT = support_macros
+M4SUPPORT = support_macros $(wildcard macros/*.spt)
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
