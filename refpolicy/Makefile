@@ -50,7 +50,6 @@ LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 
 XMLLINT := $(BINDIR)/xmllint
-XMLDTD := policy.dtd
 
 # enable MLS if requested.
 ifeq ($(MLS),y)
@@ -107,6 +106,15 @@ POST_TE_FILES := users constraints
 ALL_FC_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc))
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf
+
+DOCTOOLS = doctools
+XMLDTD = $(DOCTOOLS)/policy.dtd
+HTMLHEAD = $(DOCTOOLS)/header.html
+HTMLFOOT = $(DOCTOOLS)/footer.html
+HTMLCSS = $(DOCTOOLS)/style.css
+HTMLOUT = $(DOCTOOLS)/html
+JAVASRC = $(wildcard $(DOCTOOLS)/src/*.java) $(wildcard $(DOCTOOLS)/src/policy/*.java)
+JAVABYTE = $(patsubst %.java,%.class,$(JAVASRC))
 
 ########################################
 #
@@ -280,10 +288,9 @@ relabel:  $(FC) $(SETFILES)
 # Documentation generation
 #
 
-xml: policy.xml
-
-policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
+tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	@echo "Creating $@"
+	@cp $(XMLDTD) tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
 	$(QUIET) echo "<policy>" >> $@
@@ -294,6 +301,15 @@ policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
+
+$(JAVABYTE) doctool: $(JAVASRC)
+	javac $(JAVASRC)
+
+html: tmp/policy.xml $(JAVABYTE) $(HTMLHEAD) $(HTMLFOOT)
+	@mkdir -p $(DOCTOOLS)/html
+	$(QUIET) java -cp $(DOCTOOLS)/src/ Docgen -xf tmp/policy.xml \
+		-hf $(HTMLHEAD) -ff $(HTMLFOOT) -od $(HTMLOUT)
+	$(QUIET) cp $(HTMLCSS) $(HTMLOUT)
 
 ########################################
 #
@@ -369,5 +385,7 @@ clean:
 	rm -f policy.conf
 	rm -f policy.$(PV)
 	rm -f $(FC)
+	rm -fR $(HTMLOUT)
+	find $(DOCTOOLS)/src -iname "*.class" | xargs rm -f
 
-.PHONY: default policy install reload enableaudit checklabels restorelabels relabel xml clean
+.PHONY: default policy install reload enableaudit checklabels restorelabels relabel html clean
