@@ -9,390 +9,390 @@
 
 define(`base_user_domain',`
 
-attribute $1_file_type;
-
-type $1_t, userdomain;
-domain_make_domain($1_t)
-corecommands_make_shell_entrypoint($1_t)
-role $1_r types $1_t;
-allow system_r $1_r;
-
-# user pseudoterminal
-type $1_devpts_t;
-terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
-
-# type for contents of home directory
-type $1_home_t, $1_file_type, home_type;
-files_make_file($1_home_t)
-
-# type of home directory
-type $1_home_dir_t, home_dir_type, home_type;
-files_make_file($1_home_t)
-
-type $1_tmp_t, $1_file_type;
-files_make_temporary_file($1_tmp_t)
-
-type $1_tmpfs_t;
-files_make_tmpfs_file($1_tmpfs_t)
-
-type $1_tty_device_t; 
-terminal_make_physical_terminal($1_t,$1_tty_device_t)
-
-##############################
-#
-# Local policy
-#
-
-allow $1_t self:capability { setgid chown fowner };
-dontaudit $1_t self:capability { sys_nice fsetid };
-allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
-allow $1_t self:process { ptrace setfscreate };
-allow $1_t self:fd use;
-allow $1_t self:fifo_file { read getattr lock ioctl write append };
-allow $1_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow $1_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
-allow $1_t self:unix_dgram_socket sendto;
-allow $1_t self:unix_stream_socket connectto;
-allow $1_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
-allow $1_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
-allow $1_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
-allow $1_t self:msg { send receive };
-dontaudit $1_t self:socket create;
-# Irrelevant until we have labeled networking.
-#allow $1_t self:udp_socket { sendto recvfrom };
-
-# evolution and gnome-session try to create a netlink socket
-dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
-
-# execute files in the home directory
-allow $1_t $1_home_t:file { getattr read execute execute_no_trans };
-
-# full control of the home directory
-allow $1_t $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-allow $1_t $1_home_t:lnk_file { create read getattr setattr link unlink rename relabelfrom relabelto };
-allow $1_t $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
-allow $1_t $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-allow $1_t $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-allow $1_t $1_home_dir_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-type_transition $1_t $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
-
-allow $1_t $1_tmp_t:file { getattr read execute execute_no_trans };
-
-# Bind to a Unix domain socket in /tmp.
-# cjp: this is combination is not checked and should be removed
-allow $1_t $1_tmp_t:unix_stream_socket name_bind;
-
-allow $1_t $1_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1_t $1_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-allow $1_t $1_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-filesystem_create_private_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
-
-allow $1_t $1_tty_device_t:chr_file { setattr getattr read write append ioctl lock };
-
-allow $1_t unpriv_userdomain:fd use;
-
-# Instantiate derived domains for a number of programs.
-# These derived domains encode both information about the calling
-# user domain and the program, and allow us to maintain separation
-# between different instances of the program being run by different
-# user domains.
-per_userdomain_templates($1)
-
-kernel_read_kernel_sysctl($1_t)
-kernel_get_selinuxfs_mount_point($1_t)
-# Very permissive allowing every domain to see every type:
-kernel_get_sysvipc_info($1_t)
-# Find CDROM devices:
-kernel_read_device_sysctl($1_t)
-# GNOME checks for usb and other devices:
-kernel_modify_usb_hardware_config_option($1_t)
-
-corenetwork_sendrecv_tcp_on_all_interfaces($1_t)
-corenetwork_sendrecv_raw_on_all_interfaces($1_t)
-corenetwork_sendrecv_udp_on_all_interfaces($1_t)
-corenetwork_sendrecv_tcp_on_all_nodes($1_t)
-corenetwork_sendrecv_raw_on_all_nodes($1_t)
-corenetwork_sendrecv_udp_on_all_nodes($1_t)
-corenetwork_sendrecv_tcp_on_all_ports($1_t)
-corenetwork_sendrecv_udp_on_all_ports($1_t)
-corenetwork_bind_tcp_on_all_nodes($1_t)
-corenetwork_bind_udp_on_all_nodes($1_t)
-# allow port_t name binding for UDP because it is not very usable otherwise
-corenetwork_bind_udp_on_general_port($1_t)
-
-devices_get_input_event($1_t)
-devices_read_misc($1_t)
-devices_write_misc($1_t)
-devices_play_sound($1_t)
-devices_record_sound_input($1_t)
-devices_read_sound_mixer_levels($1_t)
-devices_write_sound_mixer_levels($1_t)
-devices_get_random_data($1_t)
-devices_get_pseudorandom_data($1_t)
-# open office is looking for the following
-devices_get_direct_rendering_interface_attributes($1_t)
-devices_ignore_use_direct_rendering_interface($1_t)
-
-filesystem_get_all_filesystems_quotas($1_t)
-filesystem_get_all_filesystems_attributes($1_t)
-
-# for eject
-storage_get_fixed_disk_attributes($1_t)
-
-authlogin_read_login_records($1_t)
-authlogin_ignore_write_login_records($1_t)
-authlogin_pam_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
-authlogin_utempter_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
-
-corecommands_execute_general_programs($1_t)
-corecommands_execute_system_programs($1_t)
-corecommands_execute_ls($1_t)
-
-domain_execute_all_entrypoint_programs($1_t)
-domain_use_widely_inheritable_file_descriptors($1_t)
-
-files_execute_system_config_script($1_t)
-files_read_system_source_code($1_t)
-
-# Caused by su - init scripts
-init_script_ignore_use_pseudoterminal($1_t)
-
-libraries_use_dynamic_loader($1_t)
-libraries_use_shared_libraries($1_t)
-libraries_execute_dynamic_loader($1_t)
-libraries_execute_library_scripts($1_t)
-
-logging_ignore_get_all_logs_attributes($1_t)
-
-miscfiles_read_localization($1_t)
-miscfiles_manage_man_page_cache($1_t)
-
-selinux_newrole_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-
-mta_modify_mail_spool($1_t)
-
-if (allow_execmem) {
-# Allow loading DSOs that require executable stack.
-allow $1_t self:process execmem;
-}
-
-if (use_nfs_home_dirs) {
-filesystem_manage_nfs_directories($1_t)
-filesystem_manage_nfs_files($1_t)
-filesystem_manage_nfs_symbolic_links($1_t)
-filesystem_manage_nfs_named_sockets($1_t)
-filesystem_manage_nfs_named_pipes($1_t)
-filesystem_execute_nfs_files($1_t)
-}
-
-if (use_samba_home_dirs) {
-filesystem_manage_windows_network_directories($1_t)
-filesystem_manage_windows_network_files($1_t)
-filesystem_manage_windows_network_symbolic_links($1_t)
-filesystem_manage_windows_network_named_sockets($1_t)
-filesystem_manage_windows_network_named_pipes($1_t)
-filesystem_execute_windows_network_files($1_t)
-}
-
-if (user_direct_mouse) {
-devices_get_mouse_input($1_t)
-}
-
-if (user_ttyfile_stat) {
-terminal_get_all_private_physical_terminal_attributes($1_t)
-}
-
-optional_policy(`usermanage.te',`
-usermanage_chfn_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-usermanage_passwd_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-')
-
-ifdef(`TODO',`
-
-# When the user domain runs ps, there will be a number of access
-# denials when ps tries to search /proc.  Do not audit these denials.
-dontaudit $1_t domain:dir r_dir_perms;
-dontaudit $1_t domain:notdevfile_class_set r_file_perms;
-dontaudit $1_t domain:process { getattr getsession };
-#
-# Cups daemon running as user tries to write /etc/printcap
-#
-dontaudit $1_t usr_t:file setattr;
-
-# Access the power device.
-allow $1_t power_device_t:chr_file { getattr read write ioctl };
-
-# Check to see if cdrom is mounted
-allow $1_t mnt_t:dir { getattr search };
-
-#
-# Added to allow reading of cdrom
-#
-allow $1_t rpc_pipefs_t:dir getattr;
-allow $1_t nfsd_fs_t:dir getattr;
-allow $1_t binfmt_misc_fs_t:dir getattr;
-
-# /initrd is left mounted, various programs try to look at it
-dontaudit $1_t ramfs_t:dir getattr;
-
-if (read_default_t) {
-allow $1_t default_t:dir r_dir_perms;
-allow $1_t default_t:notdevfile_class_set r_file_perms;
-}
-
-#
-# Running ifconfig as a user generates the following
-#
-dontaudit $1_t sysctl_net_t:dir search;
-
-dontaudit $1_t default_context_t:dir search;
-
-r_dir_file($1_t, usercanread)
-
-can_ypbind($1_t)
-
-if (allow_execmod) {
-# Allow text relocations on system shared libraries, e.g. libGL.
-allow $1_t texrel_shlib_t:file execmod;
-}
-
-allow $1_t fs_type:dir getattr;
-
-# old "file_browse_domain":
-# Regular files/directories that are not security sensitive
-dontaudit $1_t file_type - secure_file_type:dir_file_class_set getattr;
-dontaudit $1_t file_type - secure_file_type:dir { read search };
-# /dev
-dontaudit $1_t dev_fs:dir_file_class_set getattr;
-dontaudit $1_t dev_fs:dir { read search };
-# /proc
-dontaudit $1_t sysctl_t:dir_file_class_set getattr;
-dontaudit $1_t proc_fs:dir { read search };
-
-allow $1_t autofs_t:dir { search getattr };
-
-can_exec($1_t, { removable_t noexattrfile } )
-if (user_rw_noexattrfile) {
-create_dir_file($1_t, noexattrfile)
-create_dir_file($1_t, removable_t)
-# Write floppies 
-allow $1_t removable_device_t:blk_file rw_file_perms;
-allow $1_t usbtty_device_t:chr_file write;
-} else {
-r_dir_file($1_t, noexattrfile)
-r_dir_file($1_t, removable_t)
-allow $1_t removable_device_t:blk_file r_file_perms;
-}
-allow $1_t usbtty_device_t:chr_file read;
-
-can_exec($1_t, noexattrfile)
-
-# for running TeX programs
-r_dir_file($1_t, tetex_data_t)
-can_exec($1_t, tetex_data_t)
-
-# Run programs developed by other users in the same domain.
-
-can_resmgrd_connect($1_t)
-
-can_ypbind($1_t)
-
-allow $1_t var_lock_t:dir search;
-
-# Grant permissions to access the system DBus
-ifdef(`dbusd.te', `
-dbusd_client(system, $1)
-can_network_server_tcp($1_dbusd_t)
-allow $1_dbusd_t reserved_port_t:tcp_socket name_bind;
-
-allow $1_t system_dbusd_t:dbus { send_msg acquire_svc };
-dbusd_client($1, $1)
-allow $1_t $1_dbusd_t:dbus { send_msg acquire_svc };
-dbusd_domain($1)
-ifdef(`hald.te', `
-allow $1_t hald_t:dbus send_msg;
-allow hald_t $1_t:dbus send_msg;
-') dnl end ifdef hald.te
-') dnl end ifdef dbus.te
-
-# Gnome pannel binds to the following
-ifdef(`cups.te', `
-allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file { read getattr };
-')
-
-# Connect to inetd.
-ifdef(`inetd.te', `
-can_tcp_connect($1_t, inetd_t)
-can_udp_send($1_t, inetd_t)
-can_udp_send(inetd_t, $1_t)
-')
-
-# Connect to portmap.
-ifdef(`portmap.te', `can_tcp_connect($1_t, portmap_t)')
-
-# Inherit and use sockets from inetd
-ifdef(`inetd.te', `
-allow $1_t inetd_t:fd use;
-allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
-')
-
-ifdef(`xserver.te', `
-# for /tmp/.ICE-unix
-file_type_auto_trans($1_t, xdm_xserver_tmp_t, $1_tmp_t, sock_file)
-allow $1_t xserver_misc_device_t:{ chr_file blk_file } rw_file_perms;
-')
-
-ifdef(`xdm.te', `
-# Connect to the X server run by the X Display Manager.
-can_unix_connect($1_t, xdm_t)
-allow $1_t xdm_tmp_t:sock_file rw_file_perms;
-allow $1_t xdm_tmp_t:dir r_dir_perms;
-allow $1_t xdm_tmp_t:file { getattr read };
-allow $1_t xdm_xserver_tmp_t:sock_file { read write };
-allow $1_t xdm_xserver_tmp_t:dir search;
-allow $1_t xdm_xserver_t:unix_stream_socket connectto;
-# certain apps want to read xdm.pid file
-r_dir_file($1_t, xdm_var_run_t)
-allow $1_t xdm_var_lib_t:file { getattr read };
-allow xdm_t $1_home_dir_t:dir getattr;
-ifdef(`xauth.te', `
-file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
-')
-
-# for shared memory
-allow xdm_xserver_t $1_tmpfs_t:file { read write };
-
-')dnl end ifdef xdm.te
-
-ifdef(`rpcd.te', `
-create_dir_file($1_t, nfsd_rw_t)
-')
-
-ifdef(`cardmgr.te', `
-# to allow monitoring of pcmcia status
-allow $1_t cardmgr_var_run_t:file { getattr read };
-')
-
-#
-# Allow graphical boot to check battery lifespan
-#
-ifdef(`apmd.te', `
-allow $1_t apmd_t:unix_stream_socket connectto;
-allow $1_t apmd_var_run_t:sock_file write;
-')
-
-ifdef(`automount.te', `
-allow $1_t autofs_t:dir { search getattr };
-')
-
-ifdef(`pamconsole.te', `
-allow $1_t pam_var_console_t:dir search;
-')
-
-') dnl endif TODO
+	attribute $1_file_type;
+
+	type $1_t, userdomain;
+	domain_make_domain($1_t)
+	corecommands_make_shell_entrypoint($1_t)
+	role $1_r types $1_t;
+	allow system_r $1_r;
+
+	# user pseudoterminal
+	type $1_devpts_t;
+	terminal_make_user_pseudoterminal($1_t,$1_devpts_t)
+
+	# type for contents of home directory
+	type $1_home_t, $1_file_type, home_type;
+	files_make_file($1_home_t)
+
+	# type of home directory
+	type $1_home_dir_t, home_dir_type, home_type;
+	files_make_file($1_home_t)
+
+	type $1_tmp_t, $1_file_type;
+	files_make_temporary_file($1_tmp_t)
+
+	type $1_tmpfs_t;
+	files_make_tmpfs_file($1_tmpfs_t)
+
+	type $1_tty_device_t; 
+	terminal_make_physical_terminal($1_t,$1_tty_device_t)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	allow $1_t self:capability { setgid chown fowner };
+	dontaudit $1_t self:capability { sys_nice fsetid };
+	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+	allow $1_t self:process { ptrace setfscreate };
+	allow $1_t self:fd use;
+	allow $1_t self:fifo_file { read getattr lock ioctl write append };
+	allow $1_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+	allow $1_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+	allow $1_t self:unix_dgram_socket sendto;
+	allow $1_t self:unix_stream_socket connectto;
+	allow $1_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
+	allow $1_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
+	allow $1_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+	allow $1_t self:msg { send receive };
+	dontaudit $1_t self:socket create;
+	# Irrelevant until we have labeled networking.
+	#allow $1_t self:udp_socket { sendto recvfrom };
+
+	# evolution and gnome-session try to create a netlink socket
+	dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+	dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+
+	# execute files in the home directory
+	allow $1_t $1_home_t:file { getattr read execute execute_no_trans };
+
+	# full control of the home directory
+	allow $1_t $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+	allow $1_t $1_home_t:lnk_file { create read getattr setattr link unlink rename relabelfrom relabelto };
+	allow $1_t $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+	allow $1_t $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+	allow $1_t $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+	allow $1_t $1_home_dir_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+	type_transition $1_t $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+
+	allow $1_t $1_tmp_t:file { getattr read execute execute_no_trans };
+
+	# Bind to a Unix domain socket in /tmp.
+	# cjp: this is combination is not checked and should be removed
+	allow $1_t $1_tmp_t:unix_stream_socket name_bind;
+
+	allow $1_t $1_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1_t $1_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_t $1_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	filesystem_create_private_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_t $1_tty_device_t:chr_file { setattr getattr read write append ioctl lock };
+
+	allow $1_t unpriv_userdomain:fd use;
+
+	# Instantiate derived domains for a number of programs.
+	# These derived domains encode both information about the calling
+	# user domain and the program, and allow us to maintain separation
+	# between different instances of the program being run by different
+	# user domains.
+	per_userdomain_templates($1)
+
+	kernel_read_kernel_sysctl($1_t)
+	kernel_get_selinuxfs_mount_point($1_t)
+	# Very permissive allowing every domain to see every type:
+	kernel_get_sysvipc_info($1_t)
+	# Find CDROM devices:
+	kernel_read_device_sysctl($1_t)
+	# GNOME checks for usb and other devices:
+	kernel_modify_usb_hardware_config_option($1_t)
+
+	corenetwork_sendrecv_tcp_on_all_interfaces($1_t)
+	corenetwork_sendrecv_raw_on_all_interfaces($1_t)
+	corenetwork_sendrecv_udp_on_all_interfaces($1_t)
+	corenetwork_sendrecv_tcp_on_all_nodes($1_t)
+	corenetwork_sendrecv_raw_on_all_nodes($1_t)
+	corenetwork_sendrecv_udp_on_all_nodes($1_t)
+	corenetwork_sendrecv_tcp_on_all_ports($1_t)
+	corenetwork_sendrecv_udp_on_all_ports($1_t)
+	corenetwork_bind_tcp_on_all_nodes($1_t)
+	corenetwork_bind_udp_on_all_nodes($1_t)
+	# allow port_t name binding for UDP because it is not very usable otherwise
+	corenetwork_bind_udp_on_general_port($1_t)
+
+	devices_get_input_event($1_t)
+	devices_read_misc($1_t)
+	devices_write_misc($1_t)
+	devices_play_sound($1_t)
+	devices_record_sound_input($1_t)
+	devices_read_sound_mixer_levels($1_t)
+	devices_write_sound_mixer_levels($1_t)
+	devices_get_random_data($1_t)
+	devices_get_pseudorandom_data($1_t)
+	# open office is looking for the following
+	devices_get_direct_rendering_interface_attributes($1_t)
+	devices_ignore_use_direct_rendering_interface($1_t)
+
+	filesystem_get_all_filesystems_quotas($1_t)
+	filesystem_get_all_filesystems_attributes($1_t)
+
+	# for eject
+	storage_get_fixed_disk_attributes($1_t)
+
+	authlogin_read_login_records($1_t)
+	authlogin_ignore_write_login_records($1_t)
+	authlogin_pam_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+	authlogin_utempter_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+
+	corecommands_execute_general_programs($1_t)
+	corecommands_execute_system_programs($1_t)
+	corecommands_execute_ls($1_t)
+
+	domain_execute_all_entrypoint_programs($1_t)
+	domain_use_widely_inheritable_file_descriptors($1_t)
+
+	files_execute_system_config_script($1_t)
+	files_read_system_source_code($1_t)
+
+	# Caused by su - init scripts
+	init_script_ignore_use_pseudoterminal($1_t)
+
+	libraries_use_dynamic_loader($1_t)
+	libraries_use_shared_libraries($1_t)
+	libraries_execute_dynamic_loader($1_t)
+	libraries_execute_library_scripts($1_t)
+
+	logging_ignore_get_all_logs_attributes($1_t)
+
+	miscfiles_read_localization($1_t)
+	miscfiles_manage_man_page_cache($1_t)
+
+	selinux_newrole_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+
+	mta_modify_mail_spool($1_t)
+
+	if (allow_execmem) {
+		# Allow loading DSOs that require executable stack.
+		allow $1_t self:process execmem;
+	}
+
+	if (use_nfs_home_dirs) {
+		filesystem_manage_nfs_directories($1_t)
+		filesystem_manage_nfs_files($1_t)
+		filesystem_manage_nfs_symbolic_links($1_t)
+		filesystem_manage_nfs_named_sockets($1_t)
+		filesystem_manage_nfs_named_pipes($1_t)
+		filesystem_execute_nfs_files($1_t)
+	}
+
+	if (use_samba_home_dirs) {
+		filesystem_manage_windows_network_directories($1_t)
+		filesystem_manage_windows_network_files($1_t)
+		filesystem_manage_windows_network_symbolic_links($1_t)
+		filesystem_manage_windows_network_named_sockets($1_t)
+		filesystem_manage_windows_network_named_pipes($1_t)
+		filesystem_execute_windows_network_files($1_t)
+	}
+
+	if (user_direct_mouse) {
+		devices_get_mouse_input($1_t)
+	}
+
+	if (user_ttyfile_stat) {
+		terminal_get_all_private_physical_terminal_attributes($1_t)
+	}
+
+	optional_policy(`usermanage.te',`
+		usermanage_chfn_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+		usermanage_passwd_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+	')
+
+	ifdef(`TODO',`
+
+	# When the user domain runs ps, there will be a number of access
+	# denials when ps tries to search /proc.  Do not audit these denials.
+	dontaudit $1_t domain:dir r_dir_perms;
+	dontaudit $1_t domain:notdevfile_class_set r_file_perms;
+	dontaudit $1_t domain:process { getattr getsession };
+	#
+	# Cups daemon running as user tries to write /etc/printcap
+	#
+	dontaudit $1_t usr_t:file setattr;
+
+	# Access the power device.
+	allow $1_t power_device_t:chr_file { getattr read write ioctl };
+
+	# Check to see if cdrom is mounted
+	allow $1_t mnt_t:dir { getattr search };
+
+	#
+	# Added to allow reading of cdrom
+	#
+	allow $1_t rpc_pipefs_t:dir getattr;
+	allow $1_t nfsd_fs_t:dir getattr;
+	allow $1_t binfmt_misc_fs_t:dir getattr;
+
+	# /initrd is left mounted, various programs try to look at it
+	dontaudit $1_t ramfs_t:dir getattr;
+
+	if (read_default_t) {
+		allow $1_t default_t:dir r_dir_perms;
+		allow $1_t default_t:notdevfile_class_set r_file_perms;
+	}
+
+	#
+	# Running ifconfig as a user generates the following
+	#
+	dontaudit $1_t sysctl_net_t:dir search;
+
+	dontaudit $1_t default_context_t:dir search;
+
+	r_dir_file($1_t, usercanread)
+
+	can_ypbind($1_t)
+
+	if (allow_execmod) {
+		# Allow text relocations on system shared libraries, e.g. libGL.
+		allow $1_t texrel_shlib_t:file execmod;
+	}
+
+	allow $1_t fs_type:dir getattr;
+
+	# old "file_browse_domain":
+	# Regular files/directories that are not security sensitive
+	dontaudit $1_t file_type - secure_file_type:dir_file_class_set getattr;
+	dontaudit $1_t file_type - secure_file_type:dir { read search };
+	# /dev
+	dontaudit $1_t dev_fs:dir_file_class_set getattr;
+	dontaudit $1_t dev_fs:dir { read search };
+	# /proc
+	dontaudit $1_t sysctl_t:dir_file_class_set getattr;
+	dontaudit $1_t proc_fs:dir { read search };
+
+	allow $1_t autofs_t:dir { search getattr };
+
+	can_exec($1_t, { removable_t noexattrfile } )
+	if (user_rw_noexattrfile) {
+		create_dir_file($1_t, noexattrfile)
+		create_dir_file($1_t, removable_t)
+		# Write floppies 
+		allow $1_t removable_device_t:blk_file rw_file_perms;
+		allow $1_t usbtty_device_t:chr_file write;
+	} else {
+		r_dir_file($1_t, noexattrfile)
+		r_dir_file($1_t, removable_t)
+		allow $1_t removable_device_t:blk_file r_file_perms;
+	}
+	allow $1_t usbtty_device_t:chr_file read;
+
+	can_exec($1_t, noexattrfile)
+
+	# for running TeX programs
+	r_dir_file($1_t, tetex_data_t)
+	can_exec($1_t, tetex_data_t)
+
+	# Run programs developed by other users in the same domain.
+
+	can_resmgrd_connect($1_t)
+
+	can_ypbind($1_t)
+
+	allow $1_t var_lock_t:dir search;
+
+	# Grant permissions to access the system DBus
+	ifdef(`dbusd.te', `
+		dbusd_client(system, $1)
+		can_network_server_tcp($1_dbusd_t)
+		allow $1_dbusd_t reserved_port_t:tcp_socket name_bind;
+	
+		allow $1_t system_dbusd_t:dbus { send_msg acquire_svc };
+		dbusd_client($1, $1)
+		allow $1_t $1_dbusd_t:dbus { send_msg acquire_svc };
+		dbusd_domain($1)
+		ifdef(`hald.te', `
+			allow $1_t hald_t:dbus send_msg;
+			allow hald_t $1_t:dbus send_msg;
+		')
+	')
+
+	# Gnome pannel binds to the following
+	ifdef(`cups.te', `
+		allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file { read getattr };
+	')
+
+	# Connect to inetd.
+	ifdef(`inetd.te', `
+		can_tcp_connect($1_t, inetd_t)
+		can_udp_send($1_t, inetd_t)
+		can_udp_send(inetd_t, $1_t)
+	')
+
+	# Connect to portmap.
+	ifdef(`portmap.te', `can_tcp_connect($1_t, portmap_t)')
+
+	# Inherit and use sockets from inetd
+	ifdef(`inetd.te', `
+		allow $1_t inetd_t:fd use;
+		allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
+	')
+
+	ifdef(`xserver.te', `
+		# for /tmp/.ICE-unix
+		file_type_auto_trans($1_t, xdm_xserver_tmp_t, $1_tmp_t, sock_file)
+		allow $1_t xserver_misc_device_t:{ chr_file blk_file } rw_file_perms;
+	')
+
+	ifdef(`xdm.te', `
+		# Connect to the X server run by the X Display Manager.
+		can_unix_connect($1_t, xdm_t)
+		allow $1_t xdm_tmp_t:sock_file rw_file_perms;
+		allow $1_t xdm_tmp_t:dir r_dir_perms;
+		allow $1_t xdm_tmp_t:file { getattr read };
+		allow $1_t xdm_xserver_tmp_t:sock_file { read write };
+		allow $1_t xdm_xserver_tmp_t:dir search;
+		allow $1_t xdm_xserver_t:unix_stream_socket connectto;
+		# certain apps want to read xdm.pid file
+		r_dir_file($1_t, xdm_var_run_t)
+		allow $1_t xdm_var_lib_t:file { getattr read };
+		allow xdm_t $1_home_dir_t:dir getattr;
+		ifdef(`xauth.te', `
+			file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
+		')
+
+		# for shared memory
+		allow xdm_xserver_t $1_tmpfs_t:file { read write };
+
+	')
+
+	ifdef(`rpcd.te', `
+		create_dir_file($1_t, nfsd_rw_t)
+	')
+
+	ifdef(`cardmgr.te', `
+		# to allow monitoring of pcmcia status
+		allow $1_t cardmgr_var_run_t:file { getattr read };
+	')
+
+	#
+	# Allow graphical boot to check battery lifespan
+	#
+	ifdef(`apmd.te', `
+		allow $1_t apmd_t:unix_stream_socket connectto;
+		allow $1_t apmd_var_run_t:sock_file write;
+	')
+
+	ifdef(`automount.te', `
+		allow $1_t autofs_t:dir { search getattr };
+	')
+
+	ifdef(`pamconsole.te', `
+		allow $1_t pam_var_console_t:dir search;
+	')
+
+	') dnl endif TODO
 
 ')dnl end base_user_domain macro
 
@@ -402,201 +402,200 @@ allow $1_t pam_var_console_t:dir search;
 #
 
 define(`user_domain_template', `
+	##############################
+	#
+	# Declarations
+	#
 
-##############################
-#
-# Declarations
-#
+	# Inherit rules for ordinary users.
+	base_user_domain($1)
 
-# Inherit rules for ordinary users.
-base_user_domain($1)
+	typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
+	domain_make_file_descriptors_widely_inheritable($1_t)
 
-typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
-domain_make_file_descriptors_widely_inheritable($1_t)
+	#typeattribute $1_devpts_t userpty_type, user_tty_type;
+	#typeattribute $1_home_dir_t user_home_dir_type;
+	#typeattribute $1_home_t user_home_type;
 
-#typeattribute $1_devpts_t userpty_type, user_tty_type;
-#typeattribute $1_home_dir_t user_home_dir_type;
-#typeattribute $1_home_t user_home_type;
+	#typeattribute $1_tmp_t, user_tmpfile;
 
-#typeattribute $1_tmp_t, user_tmpfile;
-
-#typeattribute $1_tty_device_t user_tty_type;
+	#typeattribute $1_tty_device_t user_tty_type;
  
-##############################
-#
-# Local policy
-#
+	##############################
+	#
+	# Local policy
+	#
 
-allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
-terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
+	allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
+	terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
 
-# Rules used to associate a homedir as a mountpoint
-allow $1_home_t self:filesystem associate;
-allow $1_file_type $1_home_t:filesystem associate;
+	# Rules used to associate a homedir as a mountpoint
+	allow $1_home_t self:filesystem associate;
+	allow $1_file_type $1_home_t:filesystem associate;
 
-# user temporary files
-allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmp_t:lnk_file { create read getattr setattr link unlink rename };
-allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-files_create_private_tmp_data($1_t, $1_tmp_t, { file lnk_file dir sock_file fifo_file })
+	# user temporary files
+	allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmp_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+	allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	files_create_private_tmp_data($1_t, $1_tmp_t, { file lnk_file dir sock_file fifo_file })
 
-# privileged home directory writers
-allow privhome $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow privhome $1_home_t:lnk_file { create read getattr setattr link unlink rename };
-allow privhome $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow privhome $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow privhome $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-type_transition privhome $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+	# privileged home directory writers
+	allow privhome $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow privhome $1_home_t:lnk_file { create read getattr setattr link unlink rename };
+	allow privhome $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+	allow privhome $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow privhome $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	type_transition privhome $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
 
-kernel_read_system_state($1_t)
-kernel_read_network_state($1_t)
-kernel_read_hardware_state($1_t)
+	kernel_read_system_state($1_t)
+	kernel_read_network_state($1_t)
+	kernel_read_hardware_state($1_t)
 
-# cjp: why?
-bootloader_read_kernel_symbol_table($1_t)
+	# cjp: why?
+	bootloader_read_kernel_symbol_table($1_t)
 
-# port access is audited even if dac would not have allowed it, so dontaudit it here
-corenetwork_ignore_bind_tcp_on_all_reserved_ports($1_t)
+	# port access is audited even if dac would not have allowed it, so dontaudit it here
+	corenetwork_ignore_bind_tcp_on_all_reserved_ports($1_t)
 
-files_read_general_system_config($1_t)
-files_list_home_directories($1_t)
-files_read_general_application_resources($1_t)
+	files_read_general_system_config($1_t)
+	files_list_home_directories($1_t)
+	files_read_general_application_resources($1_t)
 
-init_script_read_runtime_data($1_t)
-# The library functions always try to open read-write first,
-# then fall back to read-only if it fails. 
-init_script_ignore_write_runtime_data($1_t)
-# Stop warnings about access to /dev/console
-init_ignore_use_file_descriptors($1_t)
-init_script_ignore_use_file_descriptors($1_t)
+	init_script_read_runtime_data($1_t)
+	# The library functions always try to open read-write first,
+	# then fall back to read-only if it fails. 
+	init_script_ignore_write_runtime_data($1_t)
+	# Stop warnings about access to /dev/console
+	init_ignore_use_file_descriptors($1_t)
+	init_script_ignore_use_file_descriptors($1_t)
 
-miscfiles_read_man_pages($1_t)
+	miscfiles_read_man_pages($1_t)
 
-selinux_read_config($1_t)
-# Allow users to execute checkpolicy without a domain transition
-# so it can be used without privilege to write real binary policy file
-selinux_checkpolicy_execute($1_t)
+	selinux_read_config($1_t)
+	# Allow users to execute checkpolicy without a domain transition
+	# so it can be used without privilege to write real binary policy file
+	selinux_checkpolicy_execute($1_t)
 
-if (user_dmesg) {
-kernel_read_ring_buffer($1_t)
-} else {
-kernel_ignore_read_ring_buffer($1_t)
-}
+	if (user_dmesg) {
+		kernel_read_ring_buffer($1_t)
+	} else {
+		kernel_ignore_read_ring_buffer($1_t)
+	}
 
-# Allow users to run TCP servers (bind to ports and accept connection from
-# the same domain and outside users)  disabling this forces FTP passive mode
-# and may change other protocols
-if (user_tcp_server) {
-corenetwork_bind_tcp_on_general_port($1_t)
-}
+	# Allow users to run TCP servers (bind to ports and accept connection from
+	# the same domain and outside users)  disabling this forces FTP passive mode
+	# and may change other protocols
+	if (user_tcp_server) {
+		corenetwork_bind_tcp_on_general_port($1_t)
+	}
 
-# for running depmod as part of the kernel packaging process
-optional_policy(`modutils.te',`
-modutils_read_kernel_module_loading_config($1_t)
-')
+	# for running depmod as part of the kernel packaging process
+	optional_policy(`modutils.te',`
+		modutils_read_kernel_module_loading_config($1_t)
+	')
 
-optional_policy(`selinux.te',`
-# for when the network connection is killed
-selinux_newrole_ignore_signal($1_t)
-')
+	optional_policy(`selinux.te',`
+		# for when the network connection is killed
+		selinux_newrole_ignore_signal($1_t)
+	')
 
-# Need the following rule to allow users to run vpnc
-optional_policy(`xserver.te', `
-corenetwork_bind_tcp_on_xserver_port($1_t)
-')
+	# Need the following rule to allow users to run vpnc
+	optional_policy(`xserver.te', `
+		corenetwork_bind_tcp_on_xserver_port($1_t)
+	')
 
-ifdef(`TODO',`
+	ifdef(`TODO',`
 
-dontaudit $1_t boot_t:lnk_file read;
-dontaudit $1_t boot_t:file read;
+	dontaudit $1_t boot_t:lnk_file read;
+	dontaudit $1_t boot_t:file read;
 
-can_kerberos($1_t)
+	can_kerberos($1_t)
 
-# do not audit read on disk devices
-dontaudit $1_t { removable_device_t fixed_disk_device_t }:blk_file read;
+	# do not audit read on disk devices
+	dontaudit $1_t { removable_device_t fixed_disk_device_t }:blk_file read;
 
-ifdef(`xdm.te', `
-allow xdm_t $1_home_t:lnk_file read;
-allow xdm_t $1_home_t:dir search;
-#
-# Changing this to dontaudit should cause the .xsession-errors file to be written to /tmp
-# 
-dontaudit xdm_t $1_home_t:file rw_file_perms;
-')dnl end ifdef xdm.te
+	ifdef(`xdm.te', `
+		allow xdm_t $1_home_t:lnk_file read;
+		allow xdm_t $1_home_t:dir search;
+		#
+		# Changing this to dontaudit should cause the .xsession-errors file to be written to /tmp
+		# 
+		dontaudit xdm_t $1_home_t:file rw_file_perms;
+	')
 
-ifdef(`ftpd.te', `
-if (ftp_home_dir) {
-file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
-}
-')dnl end ifdef ftpd
+	ifdef(`ftpd.te', `
+		if (ftp_home_dir) {
+			file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
+		}
+	')
 
-if (read_default_t) {
-allow $1 default_t:dir r_dir_perms;
-allow $1 default_t:notdevfile_class_set r_file_perms;
-}
+	if (read_default_t) {
+		allow $1 default_t:dir r_dir_perms;
+		allow $1 default_t:notdevfile_class_set r_file_perms;
+	}
 
-can_exec($1_t, usr_t)
+	can_exec($1_t, usr_t)
 
-# Read directories and files with the readable_t type.
-# This type is a general type for "world"-readable files.
-allow $1_t readable_t:dir r_dir_perms;
-allow $1_t readable_t:notdevfile_class_set r_file_perms;
+	# Read directories and files with the readable_t type.
+	# This type is a general type for "world"-readable files.
+	allow $1_t readable_t:dir r_dir_perms;
+	allow $1_t readable_t:notdevfile_class_set r_file_perms;
 
-# Stat lost+found.
-allow $1_t lost_found_t:dir getattr;
+	# Stat lost+found.
+	allow $1_t lost_found_t:dir getattr;
 
-# Read /var, /var/spool, /var/run.
-allow $1_t var_t:dir r_dir_perms;
-allow $1_t var_t:notdevfile_class_set r_file_perms;
-allow $1_t var_spool_t:dir r_dir_perms;
-allow $1_t var_spool_t:notdevfile_class_set r_file_perms;
-allow $1_t var_run_t:dir r_dir_perms;
-allow $1_t var_run_t:{ file lnk_file } r_file_perms;
-allow $1_t var_lib_t:dir r_dir_perms;
-allow $1_t var_lib_t:file { getattr read };
+	# Read /var, /var/spool, /var/run.
+	allow $1_t var_t:dir r_dir_perms;
+	allow $1_t var_t:notdevfile_class_set r_file_perms;
+	allow $1_t var_spool_t:dir r_dir_perms;
+	allow $1_t var_spool_t:notdevfile_class_set r_file_perms;
+	allow $1_t var_run_t:dir r_dir_perms;
+	allow $1_t var_run_t:{ file lnk_file } r_file_perms;
+	allow $1_t var_lib_t:dir r_dir_perms;
+	allow $1_t var_lib_t:file { getattr read };
 
-# Allow users to rw usb devices
-if (user_rw_usb) {
-rw_dir_create_file($1_t,usbdevfs_t)
-} else {
-r_dir_file($1_t,usbdevfs_t)
-}
+	# Allow users to rw usb devices
+	if (user_rw_usb) {
+		rw_dir_create_file($1_t,usbdevfs_t)
+	} else {
+		r_dir_file($1_t,usbdevfs_t)
+	}
 
-# Do not audit write denials to /etc/ld.so.cache.
-dontaudit $1_t ld_so_cache_t:file write;
+	# Do not audit write denials to /etc/ld.so.cache.
+	dontaudit $1_t ld_so_cache_t:file write;
 
-dontaudit $1_t sysadm_home_t:file { read append };
+	dontaudit $1_t sysadm_home_t:file { read append };
 
-ifdef(`syslogd.te', `
-# Some programs that are left in $1_t will try to connect
-# to syslogd, but we do not want to let them generate log messages.
-# Do not audit.
-dontaudit $1_t devlog_t:sock_file { read write };
-dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
-')
+	ifdef(`syslogd.te', `
+		# Some programs that are left in $1_t will try to connect
+		# to syslogd, but we do not want to let them generate log messages.
+		# Do not audit.
+		dontaudit $1_t devlog_t:sock_file { read write };
+		dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
+	')
 
-allow $1_t initrc_t:fifo_file write;
+	allow $1_t initrc_t:fifo_file write;
 
-ifdef(`user_can_mount', `
-#
-#  Allow users to mount file systems like floppies and cdrom
-#
-mount_domain($1, $1_mount, `, fs_domain')
-r_dir_file($1_t, mnt_t)
-allow $1_mount_t device_t:lnk_file read;
-allow $1_mount_t removable_device_t:blk_file read;
-allow $1_mount_t iso9660_t:filesystem relabelfrom;
-allow $1_mount_t removable_t:filesystem { mount relabelto };
-allow $1_mount_t removable_t:dir mounton;
-ifdef(`xdm.te', `
-allow $1_mount_t xdm_t:fd use;
-allow $1_mount_t xdm_t:fifo_file { read write };
-')
-')
+	ifdef(`user_can_mount', `
+		#
+		#  Allow users to mount file systems like floppies and cdrom
+		#
+		mount_domain($1, $1_mount, `, fs_domain')
+		r_dir_file($1_t, mnt_t)
+		allow $1_mount_t device_t:lnk_file read;
+		allow $1_mount_t removable_device_t:blk_file read;
+		allow $1_mount_t iso9660_t:filesystem relabelfrom;
+		allow $1_mount_t removable_t:filesystem { mount relabelto };
+		allow $1_mount_t removable_t:dir mounton;
+		ifdef(`xdm.te', `
+			allow $1_mount_t xdm_t:fd use;
+			allow $1_mount_t xdm_t:fifo_file { read write };
+		')
+	')
 
-') dnl end TODO
+	') dnl end TODO
 ')
 
 ########################################
@@ -604,208 +603,207 @@ allow $1_mount_t xdm_t:fifo_file { read write };
 # Admin domain template
 #
 define(`admin_domain_template',`
+	##############################
+	#
+	# Declarations
+	#
 
-##############################
-#
-# Declarations
-#
+	# Inherit rules for ordinary users.
+	base_user_domain($1)
 
-# Inherit rules for ordinary users.
-base_user_domain($1)
+	typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
+	kernel_make_object_identity_change_constraint_exception($1_t)
+	role system_r types $1_t;
 
-typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
-kernel_make_object_identity_change_constraint_exception($1_t)
-role system_r types $1_t;
+	#ifdef(`direct_sysadm_daemon', `, priv_system_role')
+	#; dnl end of sysadm_t type declaration
 
-#ifdef(`direct_sysadm_daemon', `, priv_system_role')
-#; dnl end of sysadm_t type declaration
+	typeattribute $1_devpts_t admin_terminal;
 
-typeattribute $1_devpts_t admin_terminal;
+	typeattribute $1_tty_device_t admin_terminal;
 
-typeattribute $1_tty_device_t admin_terminal;
+	##############################
+	#
+	# $1_t local policy
+	#
 
-##############################
-#
-# $1_t local policy
-#
+	allow $1_t self:capability ~sys_module;
+	allow $1_t self:process { setexec setfscreate };
 
-allow $1_t self:capability ~sys_module;
-allow $1_t self:process { setexec setfscreate };
+	# Set password information for other users.
+	allow $1_t self:passwd { passwd chfn chsh };
 
-# Set password information for other users.
-allow $1_t self:passwd { passwd chfn chsh };
+	# Skip authentication when pam_rootok is specified.
+	allow $1_t self:passwd rootok;
 
-# Skip authentication when pam_rootok is specified.
-allow $1_t self:passwd rootok;
+	# Manipulate other users crontab.
+	allow $1_t self:passwd crontab;
 
-# Manipulate other users crontab.
-allow $1_t self:passwd crontab;
+	# for the administrator to run TCP servers directly
+	allow $1_t self:tcp_socket { acceptfrom connectto recvfrom };
 
-# for the administrator to run TCP servers directly
-allow $1_t self:tcp_socket { acceptfrom connectto recvfrom };
+	allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
+	terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
 
-allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
-terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
+	allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+	allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmp_t:lnk_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	files_create_private_tmp_data($1_t, $1_tmp_t, { file dir lnk_file sock_file fifo_file })
 
-allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmp_t:lnk_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-files_create_private_tmp_data($1_t, $1_tmp_t, { file dir lnk_file sock_file fifo_file })
+	kernel_read_system_state($1_t)
+	kernel_read_network_state($1_t)
+	kernel_read_software_raid_state($1_t)
+	kernel_get_core_interface_attributes($1_t)
+	kernel_get_message_interface_attributes($1_t)
+	kernel_change_ring_buffer_level($1_t)
+	kernel_clear_ring_buffer($1_t)
+	kernel_read_ring_buffer($1_t)
+	kernel_get_sysvipc_info($1_t)
+	kernel_modify_all_sysctl($1_t)
+	kernel_set_selinux_enforcement_mode($1_t)
+	kernel_set_selinux_boolean($1_t)
+	kernel_set_selinux_security_parameters($1_t)
+	# Get security policy decisions:
+	kernel_get_selinuxfs_mount_point($1_t)
+	kernel_validate_selinux_context($1_t)
+	kernel_compute_selinux_access_vector($1_t)
+	kernel_compute_selinux_create_context($1_t)
+	kernel_compute_selinux_relabel_context($1_t)
+	kernel_compute_selinux_reachable_user_contexts($1_t)
+	# signal unlabeled processes:
+	kernel_kill_unlabeled_process($1_t)
+	kernel_signal_unlabeled_process($1_t)
+	kernel_sigstop_unlabeled_process($1_t)
+	kernel_signull_unlabeled_process($1_t)
+	kernel_sigchld_unlabeled_process($1_t)
 
-kernel_read_system_state($1_t)
-kernel_read_network_state($1_t)
-kernel_read_software_raid_state($1_t)
-kernel_get_core_interface_attributes($1_t)
-kernel_get_message_interface_attributes($1_t)
-kernel_change_ring_buffer_level($1_t)
-kernel_clear_ring_buffer($1_t)
-kernel_read_ring_buffer($1_t)
-kernel_get_sysvipc_info($1_t)
-kernel_modify_all_sysctl($1_t)
-kernel_set_selinux_enforcement_mode($1_t)
-kernel_set_selinux_boolean($1_t)
-kernel_set_selinux_security_parameters($1_t)
-# Get security policy decisions:
-kernel_get_selinuxfs_mount_point($1_t)
-kernel_validate_selinux_context($1_t)
-kernel_compute_selinux_access_vector($1_t)
-kernel_compute_selinux_create_context($1_t)
-kernel_compute_selinux_relabel_context($1_t)
-kernel_compute_selinux_reachable_user_contexts($1_t)
-# signal unlabeled processes:
-kernel_kill_unlabeled_process($1_t)
-kernel_signal_unlabeled_process($1_t)
-kernel_sigstop_unlabeled_process($1_t)
-kernel_signull_unlabeled_process($1_t)
-kernel_sigchld_unlabeled_process($1_t)
+	corenetwork_bind_tcp_on_general_port($1_t)
 
-corenetwork_bind_tcp_on_general_port($1_t)
+	devices_get_generic_block_device_attributes($1_t)
+	devices_get_generic_character_device_attributes($1_t)
+	devices_get_all_block_device_attributes($1_t)
+	devices_get_all_character_device_attributes($1_t)
 
-devices_get_generic_block_device_attributes($1_t)
-devices_get_generic_character_device_attributes($1_t)
-devices_get_all_block_device_attributes($1_t)
-devices_get_all_character_device_attributes($1_t)
+	filesystem_get_all_filesystems_attributes($1_t)
+	filesystem_set_all_filesystems_quotas($1_t)
 
-filesystem_get_all_filesystems_attributes($1_t)
-filesystem_set_all_filesystems_quotas($1_t)
+	storage_raw_read_removable_device($1_t)
+	storage_raw_write_removable_device($1_t)
 
-storage_raw_read_removable_device($1_t)
-storage_raw_write_removable_device($1_t)
+	terminal_use_console($1_t)
+	terminal_use_general_physical_terminal($1_t)
+	terminal_use_all_private_pseudoterminals($1_t)
+	terminal_use_all_private_physical_terminals($1_t)
 
-terminal_use_console($1_t)
-terminal_use_general_physical_terminal($1_t)
-terminal_use_all_private_pseudoterminals($1_t)
-terminal_use_all_private_physical_terminals($1_t)
+	# Manage almost all files
+	authlogin_manage_all_files_except_shadow($1_t)
+	# Relabel almost all files
+	authlogin_relabel_all_files_except_shadow($1_t)
 
-# Manage almost all files
-authlogin_manage_all_files_except_shadow($1_t)
-# Relabel almost all files
-authlogin_relabel_all_files_except_shadow($1_t)
+	domain_set_all_domains_priorities($1_t)
+	domain_read_all_domains_process_state($1_t)
+	# signal all domains:
+	domain_kill_all_domains($1_t)
+	domain_signal_all_domains($1_t)
+	domain_signull_all_domains($1_t)
+	domain_sigstop_all_domains($1_t)
+	domain_sigstop_all_domains($1_t)
+	domain_sigchld_all_domains($1_t)
 
-domain_set_all_domains_priorities($1_t)
-domain_read_all_domains_process_state($1_t)
-# signal all domains:
-domain_kill_all_domains($1_t)
-domain_signal_all_domains($1_t)
-domain_signull_all_domains($1_t)
-domain_sigstop_all_domains($1_t)
-domain_sigstop_all_domains($1_t)
-domain_sigchld_all_domains($1_t)
+	files_execute_system_source_code_scripts($1_t)
 
-files_execute_system_source_code_scripts($1_t)
+	init_use_control_channel($1_t)
 
-init_use_control_channel($1_t)
+	logging_send_system_log_message($1_t)
 
-logging_send_system_log_message($1_t)
+	modutils_insmod_transition($1_t)
 
-modutils_insmod_transition($1_t)
+	selinux_read_config($1_t)
+	# The following rule is temporary until such time that a complete
+	# policy management infrastructure is in place so that an administrator
+	# cannot directly manipulate policy files with arbitrary programs.
+	selinux_manage_source_policy($1_t)
+	# Violates the goal of limiting write access to checkpolicy.
+	# But presently necessary for installing the file_contexts file.
+	selinux_manage_binary_policy($1_t)
 
-selinux_read_config($1_t)
-# The following rule is temporary until such time that a complete
-# policy management infrastructure is in place so that an administrator
-# cannot directly manipulate policy files with arbitrary programs.
-selinux_manage_source_policy($1_t)
-# Violates the goal of limiting write access to checkpolicy.
-# But presently necessary for installing the file_contexts file.
-selinux_manage_binary_policy($1_t)
+	optional_policy(`cron.te',`
+		cron_admin_template($1)
+	')
 
-optional_policy(`cron.te',`
-cron_admin_template($1)
-')
+	ifdef(`TODO',`
 
-ifdef(`TODO',`
+	# Let admin stat the shadow file.
+	allow $1_t shadow_t:file getattr;
 
-# Let admin stat the shadow file.
-allow $1_t shadow_t:file getattr;
+	# for lsof
+	allow $1_t mtrr_device_t:file getattr;
 
-# for lsof
-allow $1_t mtrr_device_t:file getattr;
+	allow $1_t serial_device:chr_file setattr;
 
-allow $1_t serial_device:chr_file setattr;
+	# allow setting up tunnels
+	allow $1_t tun_tap_device_t:chr_file rw_file_perms;
 
-# allow setting up tunnels
-allow $1_t tun_tap_device_t:chr_file rw_file_perms;
+	allow $1_t ptyfile:chr_file getattr;
 
-allow $1_t ptyfile:chr_file getattr;
+	# Run programs from staff home directories.
+	# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
+	can_exec($1_t, staff_home_t)
 
-# Run programs from staff home directories.
-# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
-can_exec($1_t, staff_home_t)
+	# Run admin programs that require different permissions in their own domain.
+	# These rules were moved into the appropriate program domain file.
 
-# Run admin programs that require different permissions in their own domain.
-# These rules were moved into the appropriate program domain file.
+	ifdef(`startx.te', `
+		ifdef(`xserver.te', `
+			# Create files in /tmp/.X11-unix with our X servers derived
+			# tmp type rather than user_xserver_tmp_t.
+			file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
+		')
+	')
 
-ifdef(`startx.te', `
-ifdef(`xserver.te', `
-# Create files in /tmp/.X11-unix with our X servers derived
-# tmp type rather than user_xserver_tmp_t.
-file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
-')dnl end xserver.te
-')dnl end startx.te
+	ifdef(`xdm.te', `
+		ifdef(`xauth.te', `
+			if (xdm_sysadm_login) {
+				allow xdm_t $1_home_t:lnk_file read;
+				allow xdm_t $1_home_t:dir search;
+			}
+			allow $1_t xdm_t:fifo_file rw_file_perms;
+		')
+	')
 
-ifdef(`xdm.te', `
-ifdef(`xauth.te', `
-if (xdm_sysadm_login) {
-allow xdm_t $1_home_t:lnk_file read;
-allow xdm_t $1_home_t:dir search;
-}
-allow $1_t xdm_t:fifo_file rw_file_perms;
-')dnl end ifdef xauth.te
-')dnl end ifdef xdm.te
+	#
+	# A user who is authorized for sysadm_t may nonetheless have
+	# a home directory labeled with user_home_t if the user is expected
+	# to login in either user_t or sysadm_t.  Hence, the derived domains
+	# for programs need to be able to access user_home_t.  
+	# 
 
-#
-# A user who is authorized for sysadm_t may nonetheless have
-# a home directory labeled with user_home_t if the user is expected
-# to login in either user_t or sysadm_t.  Hence, the derived domains
-# for programs need to be able to access user_home_t.  
-# 
+	# Allow our gph domain to write to .xsession-errors.
+	ifdef(`gnome-pty-helper.te', `
+		allow $1_gph_t user_home_dir_type:dir rw_dir_perms;
+		allow $1_gph_t user_home_type:file create_file_perms;
+	')
 
-# Allow our gph domain to write to .xsession-errors.
-ifdef(`gnome-pty-helper.te', `
-allow $1_gph_t user_home_dir_type:dir rw_dir_perms;
-allow $1_gph_t user_home_type:file create_file_perms;
-')
+	# for the administrator to run TCP servers directly
+	allow $1_t kernel_t:tcp_socket recvfrom;
 
-# for the administrator to run TCP servers directly
-allow $1_t kernel_t:tcp_socket recvfrom;
+	# Connect data port to ftpd.
+	ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
 
-# Connect data port to ftpd.
-ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
+	# Connect second port to rshd.
+	ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
 
-# Connect second port to rshd.
-ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
+	# Allow MAKEDEV to work
+	allow $1_t device_t:dir rw_dir_perms;
+	allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
+	allow $1_t device_t:lnk_file { create read };
 
-# Allow MAKEDEV to work
-allow $1_t device_t:dir rw_dir_perms;
-allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
-allow $1_t device_t:lnk_file { create read };
-
-# for lsof
-allow $1_t domain:socket_class_set getattr;
-allow $1_t eventpollfs_t:file getattr;
-') dnl endif TODO
+	# for lsof
+	allow $1_t domain:socket_class_set getattr;
+	allow $1_t eventpollfs_t:file getattr;
+	') dnl endif TODO
 ')
 
 ########################################
@@ -822,12 +820,12 @@ allow $1_t eventpollfs_t:file getattr;
 ## </interface>
 #
 define(`userdomain_all_users_explicit_transition',`
-requires_block_template(`$0'_depend)
-corecommands_shell_explicit_transition($1,userdomain)
+	requires_block_template(`$0'_depend)
+	corecommands_shell_explicit_transition($1,userdomain)
 ')
 
 define(`userdomain_all_users_explicit_transition_depend',`
-type sysadm_t;
+	type sysadm_t;
 ')
 
 ########################################
@@ -842,12 +840,13 @@ type sysadm_t;
 ## </interface>
 #
 define(`userdomain_sysadm_shell_transition',`
-requires_block_template(`$0'_depend)
-corecommands_shell_transition($1,sysadm_t)
+	requires_block_template(`$0'_depend)
+
+	corecommands_shell_transition($1,sysadm_t)
 ')
 
 define(`userdomain_sysadm_shell_transition_depend',`
-type sysadm_t;
+	type sysadm_t;
 ')
 
 ########################################
@@ -863,15 +862,17 @@ type sysadm_t;
 ## </interface>
 #
 define(`userdomain_use_admin_terminals',`
-requires_block_template(`$0'_depend)
-devices_list_device_nodes($1)
-terminal_list_pseudoterminals($1)
-allow $1 admin_terminal:chr_file { getattr read write ioctl };
+	requires_block_template(`$0'_depend)
+
+	devices_list_device_nodes($1)
+	terminal_list_pseudoterminals($1)
+	allow $1 admin_terminal:chr_file { getattr read write ioctl };
 ')
 
 define(`userdomain_use_admin_terminals_depend',`
-attribute admin_terminal;
-class chr_file { getattr read write ioctl };
+	attribute admin_terminal;
+
+	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
@@ -886,14 +887,16 @@ class chr_file { getattr read write ioctl };
 ## </interface>
 #
 define(`userdomain_search_all_users_home_dirs',`
-requires_block_template(`$0'_depend)
-files_list_home_directories($1)
-allow $1 { home_dir_type home_type }:dir search;
+	requires_block_template(`$0'_depend)
+
+	files_list_home_directories($1)
+	allow $1 { home_dir_type home_type }:dir search;
 ')
 
 define(`userdomain_search_all_users_home_dirs_depend',`
-attribute home_dir_type, home_type;
-class dir search;
+	attribute home_dir_type, home_type;
+
+	class dir search;
 ')
 
 ########################################
@@ -908,16 +911,18 @@ class dir search;
 ## </interface>
 #
 define(`userdomain_read_all_users_data',`
-requires_block_template(`$0'_depend)
-files_list_home_directories($1)
-allow $1 home_type:dir { getattr search read };
-allow $1 home_type:file { getattr read };
+	requires_block_template(`$0'_depend)
+
+	files_list_home_directories($1)
+	allow $1 home_type:dir { getattr search read };
+	allow $1 home_type:file { getattr read };
 ')
 
 define(`userdomain_read_all_users_data_depend',`
-attribute home_type;
-class dir { getattr search read };
-class file { getattr read };
+	attribute home_type;
+
+	class dir { getattr search read };
+	class file { getattr read };
 ')
 
 ########################################
@@ -932,13 +937,15 @@ class file { getattr read };
 ## </interface>
 #
 define(`userdomain_use_all_users_file_descriptors',`
-requires_block_template(`$0'_depend)
-allow $1 userdomain:fd use;
+	requires_block_template(`$0'_depend)
+
+	allow $1 userdomain:fd use;
 ')
 
 define(`userdomain_use_all_users_file_descriptors_depend',`
-attribute userdomain;
-class fd use;
+	attribute userdomain;
+
+	class fd use;
 ')
 
 ########################################
@@ -953,13 +960,15 @@ class fd use;
 ## </interface>
 #
 define(`userdomain_signal_all_userdomains',`
-requires_block_template(`$0'_depend)
-allow $1 userdomain:process signal;
+	requires_block_template(`$0'_depend)
+
+	allow $1 userdomain:process signal;
 ')
 
 define(`userdomain_signal_all_userdomains_depend',`
-attribute userdomain;
-class process signal;
+	attribute userdomain;
+
+	class process signal;
 ')
 
 ########################################
@@ -974,13 +983,15 @@ class process signal;
 ## </interface>
 #
 define(`userdomain_use_all_unprivileged_users_file_descriptors',`
-requires_block_template(`$0'_depend)
-allow $1 unpriv_userdomain:fd use;
+	requires_block_template(`$0'_depend)
+
+	allow $1 unpriv_userdomain:fd use;
 ')
 
 define(`userdomain_use_all_unprivileged_users_file_descriptors_depend',`
-attribute unpriv_userdomain;
-class fd use;
+	attribute unpriv_userdomain;
+
+	class fd use;
 ')
 
 ########################################
@@ -996,13 +1007,15 @@ class fd use;
 ## </interface>
 #
 define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors',`
-requires_block_template(`$0'_depend)
-dontaudit $1 unpriv_userdomain:fd use;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 unpriv_userdomain:fd use;
 ')
 
 define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors_depend',`
-attribute unpriv_userdomain;
-class fd use;
+	attribute unpriv_userdomain;
+
+	class fd use;
 ')
 
 ## </module>

@@ -302,7 +302,7 @@ tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
-$(JAVABYTE) doctool: $(JAVASRC)
+$(JAVABYTE): $(JAVASRC)
 	javac $(JAVASRC)
 
 html: tmp/policy.xml $(JAVABYTE) $(HTMLHEAD) $(HTMLFOOT)

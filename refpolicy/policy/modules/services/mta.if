@@ -8,133 +8,135 @@
 # mta_per_userdomain_template(userdomain_prefix)
 #
 define(`mta_per_userdomain_template',`
-requires_block_template(`$0'_depend)
+	requires_block_template(`$0'_depend)
 
-type $1_mail_t; # , user_mail_domain, nscd_client_domain;
-domain_make_domain($1_mail_t)
-role $1_r types $1_mail_t;
+	type $1_mail_t; # , user_mail_domain, nscd_client_domain;
+	domain_make_domain($1_mail_t)
+	role $1_r types $1_mail_t;
 
-type $1_mail_tmp_t;
-files_make_temporary_file($1_mail_tmp_t)
+	type $1_mail_tmp_t;
+	files_make_temporary_file($1_mail_tmp_t)
 
-##############################
-#
-# $1_mail_t local policy
-#
+	##############################
+	#
+	# $1_mail_t local policy
+	#
 
-allow $1_mail_t self:capability { setuid setgid chown };
-allow $1_mail_t self:process { sigkill sigstop signull signal setrlimit };
+	allow $1_mail_t self:capability { setuid setgid chown };
+	allow $1_mail_t self:process { sigkill sigstop signull signal setrlimit };
 
-# tcp networking
-allow $1_mail_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+	# tcp networking
+	allow $1_mail_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
 
-# re-exec itself
-allow $1_mail_t sendmail_exec_t:file { getattr read execute execute_no_trans };
-allow $1_mail_t sendmail_exec_t:lnk_file { getattr read };
+	# re-exec itself
+	allow $1_mail_t sendmail_exec_t:file { getattr read execute execute_no_trans };
+	allow $1_mail_t sendmail_exec_t:lnk_file { getattr read };
 
-# Transition from the user domain to the derived domain.
-allow $1_t sendmail_exec_t:file { getattr read execute execute_no_trans };
-allow $1_t sendmail_exec_t:lnk_file { getattr read };
-allow $1_t $1_mail_t:process transition;
-type_transition $1_t sendmail_exec_t:process $1_mail_t;
-allow $1_t $1_mail_t:fd use;
-allow $1_mail_t $1_t:fd use;
-allow $1_mail_t $1_t:fifo_file rw_file_perms;
-allow $1_mail_t $1_t:process sigchld;
+	# Transition from the user domain to the derived domain.
+	allow $1_t sendmail_exec_t:file { getattr read execute execute_no_trans };
+	allow $1_t sendmail_exec_t:lnk_file { getattr read };
+	allow $1_t $1_mail_t:process transition;
+	type_transition $1_t sendmail_exec_t:process $1_mail_t;
+	dontaudit $1_t $1_mail_t:process { noatsecure siginh rlimitinh };
 
-kernel_read_kernel_sysctl($1_mail_t)
+	allow $1_t $1_mail_t:fd use;
+	allow $1_mail_t $1_t:fd use;
+	allow $1_mail_t $1_t:fifo_file rw_file_perms;
+	allow $1_mail_t $1_t:process sigchld;
 
-corenetwork_sendrecv_tcp_on_all_interfaces($1_mail_t)
-corenetwork_sendrecv_raw_on_all_interfaces($1_mail_t)
-corenetwork_sendrecv_tcp_on_all_nodes($1_mail_t)
-corenetwork_sendrecv_raw_on_all_nodes($1_mail_t)
-corenetwork_sendrecv_tcp_on_all_ports($1_mail_t)
-corenetwork_bind_tcp_on_all_nodes($1_mail_t)
+	kernel_read_kernel_sysctl($1_mail_t)
 
-domain_use_widely_inheritable_file_descriptors($1_mail_t)
+	corenetwork_sendrecv_tcp_on_all_interfaces($1_mail_t)
+	corenetwork_sendrecv_raw_on_all_interfaces($1_mail_t)
+	corenetwork_sendrecv_tcp_on_all_nodes($1_mail_t)
+	corenetwork_sendrecv_raw_on_all_nodes($1_mail_t)
+	corenetwork_sendrecv_tcp_on_all_ports($1_mail_t)
+	corenetwork_bind_tcp_on_all_nodes($1_mail_t)
 
-libraries_use_dynamic_loader($1_mail_t)
-libraries_use_shared_libraries($1_mail_t)
+	domain_use_widely_inheritable_file_descriptors($1_mail_t)
 
-corecommands_execute_general_programs($1_mail_t)
+	libraries_use_dynamic_loader($1_mail_t)
+	libraries_use_shared_libraries($1_mail_t)
 
-files_read_general_system_config($1_mail_t)
+	corecommands_execute_general_programs($1_mail_t)
 
-logging_send_system_log_message($1_mail_t)
+	files_read_general_system_config($1_mail_t)
 
-miscfiles_read_localization($1_mail_t)
+	logging_send_system_log_message($1_mail_t)
 
-sysnetwork_read_network_config($1_mail_t)
+	miscfiles_read_localization($1_mail_t)
 
-tunable_policy(`use_dns',`
-allow $1_mail_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
-corenetwork_sendrecv_udp_on_all_interfaces($1_mail_t)
-corenetwork_sendrecv_udp_on_all_nodes($1_mail_t)
-corenetwork_bind_udp_on_all_nodes($1_mail_t)
-corenetwork_sendrecv_udp_on_dns_port($1_mail_t)
-')
+	sysnetwork_read_network_config($1_mail_t)
 
-optional_policy(`procmail.te',`
-procmail_execute($1_mail_t)
-')
+	tunable_policy(`use_dns',`
+		allow $1_mail_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+		corenetwork_sendrecv_udp_on_all_interfaces($1_mail_t)
+		corenetwork_sendrecv_udp_on_all_nodes($1_mail_t)
+		corenetwork_bind_udp_on_all_nodes($1_mail_t)
+		corenetwork_sendrecv_udp_on_dns_port($1_mail_t)
+	')
 
-ifdef(`TODO',`
+	optional_policy(`procmail.te',`
+		procmail_execute($1_mail_t)
+	')
 
-can_ypbind($1_mail_t)
+	ifdef(`TODO',`
 
-allow $1_mail_t device_t:dir search;
-allow $1_mail_t { var_t var_spool_t }:dir search;
-allow $1_mail_t sbin_t:dir search;
+	can_ypbind($1_mail_t)
 
-# It wants to check for nscd
-dontaudit $1_mail_t var_run_t:dir search;
+	allow $1_mail_t device_t:dir search;
+	allow $1_mail_t { var_t var_spool_t }:dir search;
+	allow $1_mail_t sbin_t:dir search;
 
-# For when the user wants to send mail via port 25 localhost
-can_tcp_connect($1_t, mail_server_domain)
+	# It wants to check for nscd
+	dontaudit $1_mail_t var_run_t:dir search;
 
-# Read user temporary files.
-allow $1_mail_t $1_tmp_t:file r_file_perms;
-dontaudit $1_mail_t $1_tmp_t:file append;
-ifdef(`postfix.te', `
-# postfix seems to need write access if the file handle is opened read/write
-allow $1_mail_t $1_tmp_t:file write;
-')dnl end if postfix
+	# For when the user wants to send mail via port 25 localhost
+	can_tcp_connect($1_t, mail_server_domain)
 
-allow mta_user_agent $1_tmp_t:file { read getattr };
+	# Read user temporary files.
+	allow $1_mail_t $1_tmp_t:file r_file_perms;
+	dontaudit $1_mail_t $1_tmp_t:file append;
+	ifdef(`postfix.te', `
+		# postfix seems to need write access if the file handle is opened read/write
+		allow $1_mail_t $1_tmp_t:file write;
+	')
 
-# Write to the user domain tty.
-allow mta_user_agent $1_tty_device_t:chr_file { read write getattr ioctl };
-allow mta_user_agent devpts_t:dir { read search getattr };
-allow mta_user_agent $1_devpts_t:chr_file { read write getattr ioctl };
+	allow mta_user_agent $1_tmp_t:file { read getattr };
 
-allow $1_mail_t $1_tty_device_t:chr_file { read write getattr ioctl };
-allow $1_mail_t devpts_t:dir { read search getattr };
-allow $1_mail_t $1_devpts_t:chr_file { read write getattr ioctl };
+	# Write to the user domain tty.
+	allow mta_user_agent $1_tty_device_t:chr_file { read write getattr ioctl };
+	allow mta_user_agent devpts_t:dir { read search getattr };
+	allow mta_user_agent $1_devpts_t:chr_file { read write getattr ioctl };
 
-# Inherit and use descriptors from gnome-pty-helper.
-ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')
+	allow $1_mail_t $1_tty_device_t:chr_file { read write getattr ioctl };
+	allow $1_mail_t devpts_t:dir { read search getattr };
+	allow $1_mail_t $1_devpts_t:chr_file { read write getattr ioctl };
 
-# Create dead.letter in user home directories.
-file_type_auto_trans($1_mail_t, $1_home_dir_t, $1_home_t, file)
+	# Inherit and use descriptors from gnome-pty-helper.
+	ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')
 
-if (use_samba_home_dirs) {
-rw_dir_create_file($1_mail_t, cifs_t)
-}
+	# Create dead.letter in user home directories.
+	file_type_auto_trans($1_mail_t, $1_home_dir_t, $1_home_t, file)
 
-# if you do not want to allow dead.letter then use the following instead
-#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
-#allow $1_mail_t $1_home_t:file r_file_perms;
+	if (use_samba_home_dirs) {
+		rw_dir_create_file($1_mail_t, cifs_t)
+	}
 
-# for reading .forward - maybe we need a new type for it?
-# also for delivering mail to maildir
-file_type_auto_trans(mta_delivery_agent, $1_home_dir_t, $1_home_t)
+	# if you do not want to allow dead.letter then use the following instead
+	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
+	#allow $1_mail_t $1_home_t:file r_file_perms;
 
-ifdef(`qmail.te', `
-allow $1_mail_t qmail_etc_t:dir search;
-allow $1_mail_t qmail_etc_t:{ file lnk_file } read;
-')dnl end if qmail
+	# for reading .forward - maybe we need a new type for it?
+	# also for delivering mail to maildir
+	file_type_auto_trans(mta_delivery_agent, $1_home_dir_t, $1_home_t)
 
-') dnl end TODO
+	ifdef(`qmail.te', `
+		allow $1_mail_t qmail_etc_t:dir search;
+		allow $1_mail_t qmail_etc_t:{ file lnk_file } read;
+	')
+
+	') dnl end TODO
 ')
 
 define(`mta_per_userdomain_template_depend',`
@@ -146,13 +148,14 @@ define(`mta_per_userdomain_template_depend',`
 # mta_make_mailserver_domain(domain,entrypointtype)
 #
 define(`mta_make_mailserver_domain',`
-requires_block_template(`$0'_depend)
-init_make_daemon_domain($1,$2)
-typeattribute $1 mailserver_domain;
+	requires_block_template(`$0'_depend)
+
+	init_make_daemon_domain($1,$2)
+	typeattribute $1 mailserver_domain;
 ')
 
 define(`mta_make_mailserver_domain_depend',`
-attribute mailserver_domain;
+	attribute mailserver_domain;
 ')
 
 #######################################
@@ -160,12 +163,13 @@ attribute mailserver_domain;
 # mta_make_sendmail_mailserver_domain(domain,entrypointtype)
 #
 define(`mta_make_sendmail_mailserver_domain',`
-requires_block_template(`$0'_depend)
-mta_make_mailserver_domain($1,sendmail_exec_t)
+	requires_block_template(`$0'_depend)
+
+	mta_make_mailserver_domain($1,sendmail_exec_t)
 ')
 
 define(`mta_make_sendmail_mailserver_domain_depend',`
-type sendmail_exec_t;
+	type sendmail_exec_t;
 ')
 
 #######################################
@@ -173,25 +177,28 @@ type sendmail_exec_t;
 # mta_send_mail(domain)
 #
 define(`mta_send_mail',`
-requires_block_template(`$0'_depend)
-allow $1 sendmail_exec_t:lnk_file { getattr read };
-allow $1 sendmail_exec_t:file { getattr read execute };
-allow $1 system_mail_t:process transition;
-type_transition $1 sendmail_exec_t:process system_mail_t;
-dontaudit $1 system_mail_t:process { noatsecure siginh rlimitinh };
-allow $1 system_mail_t:fd use;
-allow system_mail_t $1:fd use;
-allow system_mail_t $1:fifo_file rw_file_perms;
-allow system_mail_t $1:process sigchld;
+	requires_block_template(`$0'_depend)
+
+	allow $1 sendmail_exec_t:lnk_file { getattr read };
+	allow $1 sendmail_exec_t:file { getattr read execute };
+	allow $1 system_mail_t:process transition;
+	type_transition $1 sendmail_exec_t:process system_mail_t;
+	dontaudit $1 system_mail_t:process { noatsecure siginh rlimitinh };
+
+	allow $1 system_mail_t:fd use;
+	allow system_mail_t $1:fd use;
+	allow system_mail_t $1:fifo_file rw_file_perms;
+	allow system_mail_t $1:process sigchld;
 ')
 
 define(`mta_send_mail_depend',`
-type system_mail_t, sendmail_exec_t;
-class file { getattr read execute };
-class lnk_file { getattr read };
-class process { transition noatsecure siginh rlimitinh sigchld };
-class fd use;
-class fifo_file { ioctl read getattr lock write append };
+	type system_mail_t, sendmail_exec_t;
+
+	class file { getattr read execute };
+	class lnk_file { getattr read };
+	class process { transition noatsecure siginh rlimitinh sigchld };
+	class fd use;
+	class fifo_file rw_file_perms;
 ')
 
 #######################################
@@ -199,13 +206,15 @@ class fifo_file { ioctl read getattr lock write append };
 # mta_execute(domain)
 #
 define(`mta_execute',`
-requires_block_template(`$0'_depend)
-allow $1 sendmail_exec_t:file { getattr read execute execute_no_trans };
+	requires_block_template(`$0'_depend)
+
+	allow $1 sendmail_exec_t:file { getattr read execute execute_no_trans };
 ')
 
 define(`mta_execute_depend',`
-type sendmail_exec_t;
-class file { getattr read execute execute_no_trans };
+	type sendmail_exec_t;
+
+	class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
@@ -220,13 +229,15 @@ class file { getattr read execute execute_no_trans };
 ## </interface>
 #
 define(`mta_read_mail_aliases',`
-requires_block_template(`$0'_depend)
-allow $1 etc_aliases_t:file { getattr read };
+	requires_block_template(`$0'_depend)
+
+	allow $1 etc_aliases_t:file { getattr read };
 ')
 
 define(`mta_read_mail_aliases_depend',`
-type etc_aliases_t;
-class file { getattr read };
+	type etc_aliases_t;
+
+	class file { getattr read };
 ')
 
 #######################################
@@ -234,13 +245,15 @@ class file { getattr read };
 # mta_modify_mail_aliases(domain)
 #
 define(`mta_modify_mail_aliases',`
-requires_block_template(`$0'_depend)
-allow sendmail_t etc_aliases_t:file { getattr read write append setattr };
+	requires_block_template(`$0'_depend)
+
+	allow sendmail_t etc_aliases_t:file { getattr read write append setattr };
 ')
 
 define(`mta_modify_mail_aliases_depend',`
-type etc_aliases_t;
-class file { getattr read write append setattr };
+	type etc_aliases_t;
+
+	class file { getattr read write append setattr };
 ')
 
 #######################################
@@ -248,18 +261,20 @@ class file { getattr read write append setattr };
 # mta_get_mail_spool_attributes(domain)
 #
 define(`mta_get_mail_spool_attributes',`
-requires_block_template(`$0'_depend)
-files_search_system_spool_directory($1)
-allow $1 mail_spool_t:dir r_dir_perms;
-allow $1 mail_spool_t:lnk_file read;
-allow $1 mail_spool_t:file getattr;
+	requires_block_template(`$0'_depend)
+
+	files_search_system_spool_directory($1)
+	allow $1 mail_spool_t:dir r_dir_perms;
+	allow $1 mail_spool_t:lnk_file read;
+	allow $1 mail_spool_t:file getattr;
 ')
 
 define(`mta_get_mail_spool_attributes_depend',`
-type mail_spool_t;
-class dir r_dir_perms;
-class file getattr;
-class lnk_file read;
+	type mail_spool_t;
+
+	class dir r_dir_perms;
+	class file getattr;
+	class lnk_file read;
 ')
 
 #######################################
@@ -267,16 +282,18 @@ class lnk_file read;
 # mta_modify_mail_spool(domain)
 #
 define(`mta_modify_mail_spool',`
-requires_block_template(`$0'_depend)
-files_search_system_spool_directory($1)
-allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1 mail_spool_t:file { getattr read write append setattr };
+	requires_block_template(`$0'_depend)
+
+	files_search_system_spool_directory($1)
+	allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1 mail_spool_t:file { getattr read write append setattr };
 ')
 
 define(`mta_modify_mail_spool_depend',`
-type mail_spool_t;
-class dir { read getattr lock search ioctl add_name remove_name write };
-class file { create ioctl read getattr lock write setattr append link unlink rename };
+	type mail_spool_t;
+
+	class dir { read getattr lock search ioctl add_name remove_name write };
+	class file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
 
 #######################################
@@ -284,16 +301,18 @@ class file { create ioctl read getattr lock write setattr append link unlink ren
 # mta_manage_mail_spool(domain)
 #
 define(`mta_manage_mail_spool',`
-requires_block_template(`$0'_depend)
-files_search_system_spool_directory($1)
-allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1 mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	requires_block_template(`$0'_depend)
+
+	files_search_system_spool_directory($1)
+	allow $1 mail_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1 mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
 
 define(`mta_manage_mail_spool_depend',`
-type mail_spool_t;
-class dir { read getattr lock search ioctl add_name remove_name write };
-class file { create ioctl read getattr lock write setattr append link unlink rename };
+	type mail_spool_t;
+
+	class dir { read getattr lock search ioctl add_name remove_name write };
+	class file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
 
 #######################################
@@ -301,15 +320,17 @@ class file { create ioctl read getattr lock write setattr append link unlink ren
 # mta_manage_mail_queue(domain)
 #
 define(`mta_manage_mail_queue',`
-requires_block_template(`$0'_depend)
-allow $1 mqueue_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1 mqueue_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	requires_block_template(`$0'_depend)
+
+	allow $1 mqueue_spool_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1 mqueue_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 ')
 
 define(`mta_manage_mail_queue_depend',`
-type mqueue_spool_t;
-class dir { read getattr lock search ioctl add_name remove_name write };
-class file { create ioctl read getattr lock write setattr append link unlink rename }
+	type mqueue_spool_t;
+
+	class dir { read getattr lock search ioctl add_name remove_name write };
+	class file { create ioctl read getattr lock write setattr append link unlink rename }
 ')
 
 ## </module>

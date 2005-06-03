@@ -6,24 +6,25 @@
 # domain_make_base_domain(domain)
 #
 define(`domain_make_base_domain',`
-requires_block_template(`$0'_depend)
+	requires_block_template(`$0'_depend)
 
-# mark as a domain
-typeattribute $1 domain;
+	# mark as a domain
+	typeattribute $1 domain;
 
-# allow the domain to read its /proc/pid entries
-allow $1 self:dir { getattr search read };
-allow $1 self:{ file lnk_file } { getattr read write ioctl };
+	# allow the domain to read its /proc/pid entries
+	allow $1 self:dir { getattr search read };
+	allow $1 self:{ file lnk_file } { getattr read write ioctl };
 
-# allow $1 to create child processes in this domain
-allow $1 self:process { fork sigchld };
+	# allow $1 to create child processes in this domain
+	allow $1 self:process { fork sigchld };
 ')
 
 define(`domain_make_base_domain_depend',`
-attribute domain;
-class dir { getattr search read };
-class file { getattr read write ioctl };
-class lnk_file { getattr read };
+	attribute domain;
+
+	class dir { getattr search read };
+	class file { getattr read write ioctl };
+	class lnk_file { getattr read };
 ')
 
 ########################################
@@ -31,26 +32,25 @@ class lnk_file { getattr read };
 # domain_make_domain(domain)
 #
 define(`domain_make_domain',`
+	# start with basic domain
+	domain_make_base_domain($1)
 
-# start with basic domain
-domain_make_base_domain($1)
+	# Use trusted objects in /dev
+	devices_use_dev_null($1)
+	devices_use_dev_zero($1)
+	terminal_use_controlling_terminal($1)
 
-# Use trusted objects in /dev
-devices_use_dev_null($1)
-devices_use_dev_zero($1)
-terminal_use_controlling_terminal($1)
+	# read the root directory
+	files_read_root_dir($1)
 
-# read the root directory
-files_read_root_dir($1)
+	# send init a sigchld
+	init_sigchld($1)
 
-# send init a sigchld
-init_sigchld($1)
-
-# this seems highly questionable:
-optional_policy(`rpm.te',`
-rpm_use_file_descriptors($1)
-rpm_read_pipe($1)
-')
+	# this seems highly questionable:
+	optional_policy(`rpm.te',`
+		rpm_use_file_descriptors($1)
+		rpm_read_pipe($1)
+	')
 ')
 
 ########################################
@@ -58,15 +58,17 @@ rpm_read_pipe($1)
 # domain_make_entrypoint_file(domain,entrypointfile)
 #
 define(`domain_make_entrypoint_file',`
-requires_block_template(`$0'_depend)
-allow $1 $2:file entrypoint;
-files_make_file($2)
-typeattribute $2 entry_type;
+	requires_block_template(`$0'_depend)
+
+	files_make_file($2)
+	allow $1 $2:file entrypoint;
+	typeattribute $2 entry_type;
 ')
 
 define(`domain_make_entrypoint_file_depend',`
-attribute entry_type;
-class file entrypoint;
+	attribute entry_type;
+
+	class file entrypoint;
 ')
 
 ########################################
@@ -74,12 +76,13 @@ class file entrypoint;
 # domain_make_file_descriptors_widely_inheritable(domain)
 #
 define(`domain_make_file_descriptors_widely_inheritable',`
-requires_block_template(`$0'_depend)
-typeattribute $1 privfd;
+	requires_block_template(`$0'_depend)
+
+	typeattribute $1 privfd;
 ')
 
 define(`domain_make_file_descriptors_widely_inheritable_depend',`
-attribute privfd;
+	attribute privfd;
 ')
 
 ########################################
@@ -87,13 +90,15 @@ attribute privfd;
 # domain_use_widely_inheritable_file_descriptors(domain)
 #
 define(`domain_use_widely_inheritable_file_descriptors',`
-requires_block_template(`$0'_depend)
-allow $1 privfd:fd use;
+	requires_block_template(`$0'_depend)
+
+	allow $1 privfd:fd use;
 ')
 
 define(`domain_use_widely_inheritable_file_descriptors_depend',`
-attribute privfd;
-class fd use;
+	attribute privfd;
+
+	class fd use;
 ')
 
 ########################################
@@ -101,13 +106,15 @@ class fd use;
 # domain_ignore_use_widely_inheritable_file_descriptors(domain)
 #
 define(`domain_ignore_use_widely_inheritable_file_descriptors',`
-requires_block_template(`$0'_depend)
-dontaudit $1 privfd:fd use;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 privfd:fd use;
 ')
 
 define(`domain_ignore_use_widely_inheritable_file_descriptors_depend',`
-attribute privfd;
-class fd use;
+	attribute privfd;
+
+	class fd use;
 ')
 
 ########################################
@@ -115,13 +122,15 @@ class fd use;
 # domain_set_all_domains_priorities(domain)
 #
 define(`domain_set_all_domains_priorities',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process setsched;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process setsched;
 ')
 
 define(`domain_set_all_domains_priorities_depend',`
-attribute domain;
-class process setsched;
+	attribute domain;
+
+	class process setsched;
 ')
 
 ########################################
@@ -136,13 +145,15 @@ class process setsched;
 ## </interface>
 #
 define(`domain_signal_all_domains',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process signal;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process signal;
 ')
 
 define(`domain_signal_all_domains_depend',`
-attribute domain;
-class process signal;
+	attribute domain;
+
+	class process signal;
 ')
 
 ########################################
@@ -157,13 +168,15 @@ class process signal;
 ## </interface>
 #
 define(`domain_signull_all_domains',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process signull;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process signull;
 ')
 
 define(`domain_signull_all_domains_depend',`
-attribute domain;
-class process signull;
+	attribute domain;
+
+	class process signull;
 ')
 
 ########################################
@@ -178,13 +191,15 @@ class process signull;
 ## </interface>
 #
 define(`domain_sigstop_all_domains',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process sigstop;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process sigstop;
 ')
 
 define(`domain_sigstop_all_domains_depend',`
-attribute domain;
-class process sigstop;
+	attribute domain;
+
+	class process sigstop;
 ')
 
 ########################################
@@ -199,13 +214,15 @@ class process sigstop;
 ## </interface>
 #
 define(`domain_sigchld_all_domains',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process sigchld;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process sigchld;
 ')
 
 define(`domain_sigchld_all_domains_depend',`
-attribute domain;
-class process sigchld;
+	attribute domain;
+
+	class process sigchld;
 ')
 
 ########################################
@@ -220,15 +237,17 @@ class process sigchld;
 ## </interface>
 #
 define(`domain_kill_all_domains',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process sigkill;
-allow $1 self:capability kill;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process sigkill;
+	allow $1 self:capability kill;
 ')
 
 define(`domain_kill_all_domains_depend',`
-attribute domain;
-class process sigkill;
-class capability kill;
+	attribute domain;
+
+	class process sigkill;
+	class capability kill;
 ')
 
 ########################################
@@ -243,24 +262,27 @@ class capability kill;
 ## </interface>
 #
 define(`domain_read_all_domains_process_state',`
-requires_block_template(`$0'_depend)
-allow $1 domain:dir { getattr search read };
-allow $1 domain:lnk_file { getattr read };
-allow $1 domain:file { getattr read };
-allow $1 domain:process getattr;
-# We need to suppress this denial because procps tries to access
-# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-# running in a privileged domain.
-dontaudit $1 domain:process ptrace;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:dir { getattr search read };
+	allow $1 domain:lnk_file { getattr read };
+	allow $1 domain:file { getattr read };
+	allow $1 domain:process getattr;
+
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $1 domain:process ptrace;
 ')
 
 define(`domain_read_all_domains_process_state_depend',`
-attribute domain;
-class dir { getattr search read };
-class lnk_file { getattr read };
-class file { getattr read };
-class process { getattr ptrace };
+	attribute domain;
+
+	class dir { getattr search read };
+	class lnk_file { getattr read };
+	class file { getattr read };
+	class process { getattr ptrace };
 ')
 
 ########################################
@@ -276,13 +298,15 @@ class process { getattr ptrace };
 ## </interface>
 #
 define(`domain_ignore_read_all_domains_process_dirs',`
-requires_block_template(`$0'_depend)
-dontaudit $1 domain:dir r_dir_perms;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 domain:dir r_dir_perms;
 ')
 
 define(`domain_ignore_read_all_domains_process_dirs_depend',`
-attribute domain;
-class dir r_dir_perms;
+	attribute domain;
+
+	class dir r_dir_perms;
 ')
 
 
@@ -298,13 +322,15 @@ class dir r_dir_perms;
 ## </interface>
 #
 define(`domain_get_all_domains_session_id',`
-requires_block_template(`$0'_depend)
-allow $1 domain:process getsession;
+	requires_block_template(`$0'_depend)
+
+	allow $1 domain:process getsession;
 ')
 
 define(`domain_get_all_domains_session_id_depend',`
-attribute domain;
-class process getsession;
+	attribute domain;
+
+	class process getsession;
 ')
 
 ########################################
@@ -320,13 +346,15 @@ class process getsession;
 ## </interface>
 #
 define(`domain_ignore_get_all_domains_udp_socket_attributes',`
-requires_block_template(`$0'_depend)
-dontaudit $1 domain:udp_socket getattr;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 domain:udp_socket getattr;
 ')
 
 define(`domain_ignore_get_all_domains_udp_socket_attributes_depend',`
-attribute domain;
-class udp_socket getattr;
+	attribute domain;
+
+	class udp_socket getattr;
 ')
 
 ########################################
@@ -342,13 +370,15 @@ class udp_socket getattr;
 ## </interface>
 #
 define(`domain_ignore_get_all_domains_tcp_socket_attributes',`
-requires_block_template(`$0'_depend)
-dontaudit $1 domain:tcp_socket getattr;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 domain:tcp_socket getattr;
 ')
 
 define(`domain_ignore_get_all_domains_tcp_socket_attributes_depend',`
-attribute domain;
-class tcp_socket getattr;
+	attribute domain;
+
+	class tcp_socket getattr;
 ')
 
 ########################################
@@ -364,13 +394,15 @@ class tcp_socket getattr;
 ## </interface>
 #
 define(`domain_ignore_get_all_domains_unix_dgram_socket_attributes',`
-requires_block_template(`$0'_depend)
-dontaudit $1 domain:unix_dgram_socket getattr;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 domain:unix_dgram_socket getattr;
 ')
 
 define(`domain_ignore_get_all_domains_unix_dgram_socket_attributes_depend',`
-attribute domain;
-class unix_dgram_socket getattr;
+	attribute domain;
+
+	class unix_dgram_socket getattr;
 ')
 
 ########################################
@@ -386,13 +418,15 @@ class unix_dgram_socket getattr;
 ## </interface>
 #
 define(`domain_ignore_get_all_domains_pipe_attributes',`
-requires_block_template(`$0'_depend)
-dontaudit $1 domain:fifo_file getattr;
+	requires_block_template(`$0'_depend)
+
+	dontaudit $1 domain:fifo_file getattr;
 ')
 
 define(`domain_ignore_get_all_domains_pipe_attributes_depend',`
-attribute domain;
-class fifo_file getattr;
+	attribute domain;
+
+	class fifo_file getattr;
 ')
 
 ########################################
@@ -400,13 +434,15 @@ class fifo_file getattr;
 # domain_execute_all_entrypoint_programs(domain)
 #
 define(`domain_execute_all_entrypoint_programs',`
-requires_block_template(`$0'_depend)
-allow $1 entry_type:file { getattr read ioctl lock execute execute_no_trans };
+	requires_block_template(`$0'_depend)
+
+	allow $1 entry_type:file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 define(`domain_execute_all_entrypoint_programs_depend',`
-attribute entry_type;
-class file { getattr read ioctl lock execute execute_no_trans };
+	attribute entry_type;
+
+	class file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 ########################################
@@ -414,15 +450,17 @@ class file { getattr read ioctl lock execute execute_no_trans };
 # domain_read_all_entrypoint_programs(domain)
 #
 define(`domain_read_all_entrypoint_programs',`
-requires_block_template(`$0'_depend)
-allow $1 entry_type:lnk_file { getattr read };
-allow $1 entry_type:file r_file_perms;
+	requires_block_template(`$0'_depend)
+
+	allow $1 entry_type:lnk_file { getattr read };
+	allow $1 entry_type:file r_file_perms;
 ')
 
 define(`domain_read_all_entrypoint_programs_depend',`
-attribute entry_type;
-class file r_file_perms;
-class lnk_file { getattr read };
+	attribute entry_type;
+
+	class file r_file_perms;
+	class lnk_file { getattr read };
 ')
 
 ## </module>
