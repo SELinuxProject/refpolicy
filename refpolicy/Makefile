@@ -11,7 +11,6 @@
 # restorelabels - check filesystems against the file context configuration
 #                 and restore the label of files with incorrect labels
 # policy        - compile the policy configuration locally for testing/development.
-# xml           - create a XML file from in-policy documentation
 #
 # The default target is 'policy'.
 #
@@ -21,24 +20,30 @@
 # Configurable portions of the Makefile
 #
 
-# Build compatibility policies 
-POLICYCOMPAT = 18
+# Override default policy version
+OUTPUT_POLICY = 18
 
-# Build MLS policies
-MLS=n
+# Policy Type
+# strict, targeted, strict-mls, targeted-mls
+# strict and strict-mls are currently supported.
+TYPE = strict
 
-# set distribution
-override M4PARAM += -D distro_redhat
+# If set, this will be used as the policy
+# name.  Otherwise the policy type will be
+# used for the name.
+NAME = 
+
+# Build monolithic policy.  Putting n here
+# will build a loadable module policy.
+# Only monolithic policies are currently supported.
+MONOLITHIC=y
 
 # Uncomment this to disable command echoing
 #QUIET:=@
 
-# Policy type (strict, mls)
-TYPE := strict
-
 ########################################
 #
-# Invariant portions of the Makefile
+# NO OPTIONS BELOW HERE
 #
 
 # executable paths
@@ -52,13 +57,26 @@ SETFILES := $(SBINDIR)/setfiles
 XMLLINT := $(BINDIR)/xmllint
 
 # enable MLS if requested.
-ifeq ($(MLS),y)
+ifneq ($(findstring mls,$(TYPE)),)
 	override M4PARAM += -D enable_mls
 	CHECKPOLICY += -M
 endif
 
-ifneq ($(POLICYCOMPAT),)
-	CHECKPOLICY += -c $(POLICYCOMPAT)
+# compile targeted policy if requested.
+ifneq ($(findstring targeted,$(TYPE)),)
+	override M4PARAM += -D targeted_policy
+endif
+
+ifeq ($(MONOLITHIC),y)
+	override M4PARAM += -D monolithic_policy
+endif
+
+ifneq ($(OUTPUT_POLICY),)
+	CHECKPOLICY += -c $(OUTPUT_POLICY)
+endif
+
+ifeq ($(NAME),)
+	NAME := $(TYPE)
 endif
 
 # determine the policy version and current kernel version if possible
@@ -76,7 +94,7 @@ POLVER := policy.$(PV)
 
 # install paths
 TOPDIR = $(DESTDIR)/etc/selinux
-INSTALLDIR = $(TOPDIR)/$(TYPE)
+INSTALLDIR = $(TOPDIR)/$(NAME)
 POLICYPATH = $(INSTALLDIR)/policy
 SRCPATH = $(INSTALLDIR)/src
 USERPATH = $(INSTALLDIR)/users
@@ -85,23 +103,26 @@ LOADPATH = $(POLICYPATH)/$(POLVER)
 FCPATH = $(CONTEXTPATH)/files/file_contexts
 HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 
-BASE_MODULE = kernel
-FLASKDIR = flask
+POLDIR = policy
+MODDIR = $(POLDIR)/modules
+
+BASE_MODULE = $(MODDIR)/kernel
+FLASKDIR = $(POLDIR)/flask
 APPCONF = appconfig
-M4SUPPORT = support_macros $(wildcard macros/*.spt)
+M4SUPPORT = $(POLDIR)/support/support_macros $(wildcard $(POLDIR)/support/*.spt)
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
-USER_FILES := users 
+USER_FILES := $(POLDIR)/users 
 
-DETECTED_DIRS := $(shell find $(wildcard *) -maxdepth 0 -type d)
-ALL_LAYERS := $(filter-out tmp CVS $(APPCONF) $(FLASKDIR),$(DETECTED_DIRS))
+DETECTED_DIRS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
+ALL_LAYERS := $(filter-out CVS,$(DETECTED_DIRS))
 
-PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) mls
+PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
 ALL_INTERFACES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if))
 ALL_TE_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te))
-POST_TE_FILES := users constraints
+POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
 
 ALL_FC_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc))
 
@@ -113,8 +134,6 @@ HTMLHEAD = $(DOCTOOLS)/header.html
 HTMLFOOT = $(DOCTOOLS)/footer.html
 HTMLCSS = $(DOCTOOLS)/style.css
 HTMLOUT = $(DOCTOOLS)/html
-JAVASRC = $(wildcard $(DOCTOOLS)/src/*.java) $(wildcard $(DOCTOOLS)/src/policy/*.java)
-JAVABYTE = $(patsubst %.java,%.class,$(JAVASRC))
 
 ########################################
 #
@@ -133,10 +152,10 @@ load: tmp/load
 # Build a binary policy locally
 #
 $(POLVER): policy.conf
-	@echo "Compiling $(POLVER)"
+	@echo "Compiling $(NAME) $(POLVER)"
 ifneq ($(PV),$(KV))
 	@echo
-	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
+	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
 	$(QUIET) $(CHECKPOLICY) $^ -o $@
@@ -147,10 +166,10 @@ endif
 #
 $(LOADPATH): policy.conf
 	@mkdir -p $(POLICYPATH)
-	@echo "Compiling and installing $(LOADPATH)"
+	@echo "Compiling and installing $(NAME) $(LOADPATH)"
 ifneq ($(PV),$(KV))
 	@echo
-	@echo "WARNING: Policy version mismatch!  Is your POLICYCOMPAT set correctly?"
+	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
 	$(QUIET) $(CHECKPOLICY) $^ -o $@
@@ -160,7 +179,7 @@ endif
 # Load the binary policy
 #
 reload tmp/load: $(LOADPATH) $(FCPATH)
-	@echo "Loading $(LOADPATH)"
+	@echo "Loading $(NAME) $(LOADPATH)"
 	$(QUIET) $(LOADPOLICY) -q $(LOADPATH)
 	@touch tmp/load
 
@@ -169,9 +188,9 @@ reload tmp/load: $(LOADPATH) $(FCPATH)
 # Construct a monolithic policy.conf
 #
 policy.conf: $(POLICY_SECTIONS)
-	@echo "Creating policy.conf"
+	@echo "Creating $(NAME) policy.conf"
 # checkpolicy can use the #line directives provided by -s for error reporting:
-	$(QUIET) m4 $(M4PARAM) -D monolithic_policy -s $^ > tmp/$@.tmp
+	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
 # the ordering of these ocontexts matters:
 	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
@@ -302,15 +321,6 @@ tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
-$(JAVABYTE): $(JAVASRC)
-	javac $(JAVASRC)
-
-html: tmp/policy.xml $(JAVABYTE) $(HTMLHEAD) $(HTMLFOOT)
-	@mkdir -p $(DOCTOOLS)/html
-	$(QUIET) java -cp $(DOCTOOLS)/src/ Docgen -xf tmp/policy.xml \
-		-hf $(HTMLHEAD) -ff $(HTMLFOOT) -od $(HTMLOUT)
-	$(QUIET) cp $(HTMLCSS) $(HTMLOUT)
-
 ########################################
 #
 # Runtime binary policy patching of users
@@ -385,7 +395,5 @@ clean:
 	rm -f policy.conf
 	rm -f policy.$(PV)
 	rm -f $(FC)
-	rm -fR $(HTMLOUT)
-	find $(DOCTOOLS)/src -iname "*.class" | xargs rm -f
 
-.PHONY: default policy install reload enableaudit checklabels restorelabels relabel html clean
+.PHONY: default policy install reload enableaudit checklabels restorelabels relabel clean
