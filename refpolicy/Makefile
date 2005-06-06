@@ -108,7 +108,7 @@ MODDIR = $(POLDIR)/modules
 
 BASE_MODULE = $(MODDIR)/kernel
 FLASKDIR = $(POLDIR)/flask
-APPCONF = appconfig
+APPCONF = config/appconfig
 M4SUPPORT = $(POLDIR)/support/support_macros $(wildcard $(POLDIR)/support/*.spt)
 
 APPDIR := $(CONTEXTPATH)
