@@ -310,7 +310,7 @@ int main( int argc, char *argv[])
 
 		/* Get rid of whitespace from the front of the line. */
 		i = 0;
-		while( line_buf[i] && line_buf[i] <= 32 ) i++;
+		while( line_buf[i] && line_buf[i] <= ' ' ) i++;
 
 		/* Check if the line isn't empty and isn't a comment */
 		if( line_buf[i] && line_buf[i] != '#' ) {
@@ -324,7 +324,7 @@ int main( int argc, char *argv[])
 
 			/* Parse out the regular expression from the line. */
 			start = i;
-			while( line_buf[i] > 32 )i++;
+			while( line_buf[i] > ' ' )i++;
 			finish = i;
 
 			/* Allocate a character array to hold the regular
@@ -344,7 +344,7 @@ int main( int argc, char *argv[])
 
 			/* Get rid of whitespace after the regular
                          *  expression. */
-			while( line_buf[i] <= 32 ) i++;
+			while( line_buf[i] <= ' ' ) i++;
 
 			/* Parse out the type from the line (if it 
                          *  is there). */
@@ -364,12 +364,12 @@ int main( int argc, char *argv[])
 				temp->type[2] = 0;
 				
 				/* Get rid of whitespace after the type. */
-				while( line_buf[i] <= 32 ) i++;
+				while( line_buf[i] <= ' ' ) i++;
 			}
 
 			/* Parse out the context from the line. */
                         start = i;
-                        while( line_buf[i] > 32 ) i++;
+                        while( line_buf[i] > ' ' ) i++;
                         finish = i;
 
 			/* Allocate a character array to hold the context. */
