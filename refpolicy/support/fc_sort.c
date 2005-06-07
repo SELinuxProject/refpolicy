@@ -1,4 +1,8 @@
+/* Copyright 2005, Tresys Technology */
+
 #include <stdio.h>
+
+typedef unsigned char bool_t;
 
 /* file_context_node
  * A node used in a linked list of file contexts.
@@ -9,18 +13,22 @@
  *  function after the regular expression has been loaded.
  * next points to the next node in the linked list.
  */
-struct file_context_node { 
-	char* regex;
-	char* type;
-        char* context;
-        int meta;
-        int stem_len;
-        int str_len;
+typedef struct file_context_node {
+	char *regex;
+	char *file_type;
+	char *context;
+	bool_t meta;
+	int stem_len;
+	int str_len;
+	struct file_context_node *next;
+} file_context_node_t;
 
-        struct file_context_node* next;
-};
-
-
+void file_context_node_destroy(file_context_node_t *x)
+{
+	free(x->regex);
+	free(x->file_type);
+	free(x->context);
+}
 
 /* file_context_bucket
  * A node used in a linked list of buckets that contain
@@ -30,11 +38,10 @@ struct file_context_node {
  *  content of this bucket.
  * next points to the next bucket in the linked list.
  */
-struct file_context_bucket {
-	struct file_context_node* data;
-
-	struct file_context_bucket* next;
-};
+typedef struct file_context_bucket {
+	file_context_node_t *data;
+	struct file_context_bucket *next;
+} file_context_bucket_t;
 
 
 
@@ -44,60 +51,63 @@ struct file_context_bucket {
  * Pass two lists a and b, and after the completion of fc_merge,
  *  the final list is contained in a, and b is empty.
  */
-struct file_context_node* fc_merge( struct file_context_node* a, struct file_context_node* b )
+file_context_node_t *fc_merge(file_context_node_t *a,
+				   file_context_node_t *b)
 {
-        struct file_context_node* a_current;
-        struct file_context_node* b_current;
-        struct file_context_node* temp;
-        struct file_context_node* jumpto;
+	file_context_node_t *a_current;
+	file_context_node_t *b_current;
+	file_context_node_t *temp;
+	file_context_node_t *jumpto;
 
-        /* If a is a empty list, and b is not,
-         *  set a as b and proceed to the end. */
-        if( !a && b )
-                a = b;
-        /* If b is an empty list, leave a as it is. */
-        else if( !b ) { }
-        else {
-                /* Make it so the list a has the lesser
-                 *  first element always. */
-                if( fc_compare( a, b ) == 1 ) {
-                        temp = a;
-                        a = b;
-                        b = temp;
-                }
-                a_current = a;
-                b_current = b;
+	/* If a is a empty list, and b is not,
+	 *  set a as b and proceed to the end. */
+	if (!a && b)
+		a = b;
+	/* If b is an empty list, leave a as it is. */
+	else if (!b) {
+	} else {
+		/* Make it so the list a has the lesser
+		 *  first element always. */
+		if (fc_compare(a, b) == 1) {
+			temp = a;
+			a = b;
+			b = temp;
+		}
+		a_current = a;
+		b_current = b;
 
-                /* Merge by inserting b's nodes inbetween a's nodes. */
-                while( a_current->next && b_current ) {
-                        jumpto = a_current->next;
+		/* Merge by inserting b's nodes inbetween a's nodes. */
+		while (a_current->next && b_current) {
+			jumpto = a_current->next;
 
-                        /* Insert b's nodes inbetween the current a node
-                         *  and the next a node.*/
-                        while( b_current && a_current->next &&
-                               fc_compare( a_current->next, b_current) != -1 ) {                                temp = a_current->next;
-                                a_current->next = b_current;
-                                b_current = b_current->next;
-                                a_current->next->next = temp;
-                                a_current = a_current->next;
-                        }
+			/* Insert b's nodes inbetween the current a node
+			 *  and the next a node.*/
+			while (b_current && a_current->next &&
+			       fc_compare(a_current->next,
+					  b_current) != -1) {
+				temp = a_current->next;
+				a_current->next = b_current;
+				b_current = b_current->next;
+				a_current->next->next = temp;
+				a_current = a_current->next;
+			}
 
-                        /* Skip all the inserted node from b to the
-                         *  next node in the original a. */
-                        a_current = jumpto;
-                }
+			/* Skip all the inserted node from b to the
+			 *  next node in the original a. */
+			a_current = jumpto;
+		}
 
 
-                /* if there is anything left in b to be inserted,
-                   put it on the end */
-                if( b_current ) {
-                        a_current->next = b_current;
-                }
-        }
+		/* if there is anything left in b to be inserted,
+		   put it on the end */
+		if (b_current) {
+			a_current->next = b_current;
+		}
+	}
 
-        b = NULL;
+	b = NULL;
 
-        return a;
+	return a;
 }
 
 
@@ -119,35 +129,37 @@ struct file_context_node* fc_merge( struct file_context_node* a, struct file_con
  *   until there is only  one bucket left, containing the list of
  *   file contexts, sorted.
  */
-void fc_merge_sort( struct file_context_bucket* master )
+void fc_merge_sort(file_context_bucket_t *master)
 {
-        int i;
+	int i;
 
-        struct file_context_bucket* current;
-        struct file_context_bucket* temp;
+	file_context_bucket_t *current;
+	file_context_bucket_t *temp;
 
-        struct file_context_node* ncurrent;
-        struct file_context_node* ntemp;
+	file_context_node_t *ncurrent;
+	file_context_node_t *ntemp;
 
 	/* Loop until master is the only bucket left
-         * so that this will stop when master contains
+	 * so that this will stop when master contains
 	 * the sorted list. */
-        while( master->next ) {
-                current = master;
+	while (master->next) {
+		current = master;
 
 		/* This loop merges buckets two-by-two. */
-		while( current ) {
-                        if( current->next ) {
+		while (current) {
+			if (current->next) {
 				/* Merge the next one into the current one. */
-                                current->data = fc_merge( current->data, current->next->data );
-                        	/* remove the next bucket that is now empty. */
+				current->data =
+				    fc_merge(current->data,
+					     current->next->data);
+				/* remove the next bucket that is now empty. */
 				temp = current->next;
-                                current->next = current->next->next;
-                                free( temp );
-                        }
-                        current = current->next;
-                }
-        }
+				current->next = current->next->next;
+				free(temp);
+			}
+			current = current->next;
+		}
+	}
 }
 
 /* fc_compare
@@ -166,39 +178,39 @@ void fc_merge_sort( struct file_context_bucket* master )
  *     If a does not have a specified type and b does not,
  *      -> a is less specific than b.
  */
-int fc_compare( struct file_context_node* a, struct file_context_node* b )
+int fc_compare(file_context_node_t *a, file_context_node_t *b)
 {
 	/* Check to see if either a or b have meta characters
-         *  and the other doesn't. */
-        if( a->meta && !b->meta )
-                return -1;
-        if( b->meta && !a->meta )
-                return 1;
+	 *  and the other doesn't. */
+	if (a->meta && !b->meta)
+		return -1;
+	if (b->meta && !a->meta)
+		return 1;
 
 	/* Check to see if either a or b have a shorter stem
-         *  length than the other. */
-        if( a->stem_len < b->stem_len )
-                return -1;
-        if( b->stem_len < a->stem_len )
-                return 1;
+	 *  length than the other. */
+	if (a->stem_len < b->stem_len)
+		return -1;
+	if (b->stem_len < a->stem_len)
+		return 1;
 
 	/* Check to see if either a or b have a shorter string
-         *  length than the other. */
-        if( a->str_len < b->str_len )
-                return -1;
-        if( b->str_len < b->str_len )
-                return 1;
+	 *  length than the other. */
+	if (a->str_len < b->str_len)
+		return -1;
+	if (b->str_len < b->str_len)
+		return 1;
 
 	/* Check to see if either a or b has a specified type
-         *  and the other doesn't. */
-        if( !a->type && b->type )
-                return -1;
-        if( !b->type && a->type )
-                return 1;
+	 *  and the other doesn't. */
+	if (!a->type && b->type)
+		return -1;
+	if (!b->type && a->type)
+		return 1;
 
 	/* If none of the above conditions were satisfied, 
-         * then a and b are equally specific. */
-        return 0;
+	 * then a and b are equally specific. */
+	return 0;
 }
 
 
@@ -216,49 +228,50 @@ int fc_compare( struct file_context_node* a, struct file_context_node* b )
  *     fc_node->stem_len = 	The number of characters up until
  *				 the first meta character.
  */
-void fc_fill_data( struct file_context_node* fc_node )
+void fc_fill_data(file_context_node_t *fc_node)
 {
-        int c = 0;
+	int c = 0;
 
-        fc_node->meta = 0;
-        fc_node->stem_len = 0;
-        fc_node->str_len = 0;
+	fc_node->meta = 0;
+	fc_node->stem_len = 0;
+	fc_node->str_len = 0;
 
 	/* Process until the string termination character
-         *  has been reached.
+	 *  has been reached.
 	 * Note: this while loop has been adapted from
-         *  spec_hasMetaChars in matchpathcon.c from
-         *  libselinux-1.22. */
-        while( fc_node->regex[c] != 0 ) {
-                switch( fc_node->regex[c] ) {
-                        case '.':
-                        case '^':
-                        case '$':
-                        case '?':
-                        case '*':
-                        case '+':
-                        case '|':
-                        case '[':
-                        case '(':
-                        case '{':
-            			/* If a meta character is found,
-                                 *  set meta to one */
-		                fc_node->meta = 1;
-                                break;
-                        case '\\':
-				/* If a escape character is found,
-                                 *  skip the next character. */
-                                c++;
-                        default:
-				/* If no meta character has been found yet,
-				 *  add one to the stem length. */
-                                if( !fc_node->meta ) fc_node->stem_len++;
-                                break;
-                }
+	 *  spec_hasMetaChars in matchpathcon.c from
+	 *  libselinux-1.22. */
+	while (fc_node->regex[c] != 0) {
+		switch (fc_node->regex[c]) {
+		case '.':
+		case '^':
+		case '$':
+		case '?':
+		case '*':
+		case '+':
+		case '|':
+		case '[':
+		case '(':
+		case '{':
+			/* If a meta character is found,
+			 *  set meta to one */
+			fc_node->meta = 1;
+			break;
+		case '\\':
+			/* If a escape character is found,
+			 *  skip the next character. */
+			c++;
+		default:
+			/* If no meta character has been found yet,
+			 *  add one to the stem length. */
+			if (!fc_node->meta)
+				fc_node->stem_len++;
+			break;
+		}
 
 		fc_node->str_len++;
-                c++;
-        }
+		c++;
+	}
 }
 
 /* main
@@ -267,143 +280,163 @@ void fc_fill_data( struct file_context_node* fc_node )
  * Overall what is done in the main is read in the file and store each
  *  line of code, sort it, then output it to the output file.
  */
-int main( int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	int i, j, lines;
-	int start, finish;
-	char* str;
-	struct file_context_node* temp;
-	struct file_context_node* head;
-	struct file_context_node* current;
-	struct file_context_node* array; 
-	struct file_context_bucket* master;
-	struct file_context_bucket* bcurrent;
+	int lines;
+	size_t start, finish, regex_len;
+	size_t line_len, i, j;
+	char *str, *input_name, *output_name, *line_buf;
+	
+	file_context_node_t *temp;
+	file_context_node_t *head;
+	file_context_node_t *current;
+	file_context_node_t *array;
+	file_context_bucket_t *master;
+	file_context_bucket_t *bcurrent;
 
-	FILE *path;
-	char line_buf[ 127 ];
+	FILE *in_file, *out_file;
 
 	/* Check for the correct number of command line arguments. */
-	if( argc != 3 ) {
-		printf( "Error: invalid number of command line arguments.\n" );
-		return -1;
+	if (argc != 3) {
+		fprintf(stderr, "Error: invalid number of command line arguments.\n");
+		return 1;
 	}
+	
+	input_name = argv[1];
+	output_name = argv[2];
 
 	i = j = lines = 0;
 
-	/* Allocate the head of the file_context linked list. */
-	if( !( current = head = (struct file_context_node*)malloc( sizeof( struct file_context_node ) ) ) ) {
-		printf( "Error: failure allocating memory.\n" );
-		return -1;
-	}
-	
 	/* Make sure to have a terminating character, always. */
-	line_buf[127] = 0;
+	line_buf[BUF_SIZE - 1] = '\0';
 
 	/* Open the input file. */
-	if( !( path = fopen( argv[1], "r" ) ) ) {
-		printf( "Error: failure opening input file for read.\n" );
-		return -1;
+	if (!(in_file = fopen(input_name), "r")) {
+		fprintf(stderr, "Error: failure opening input file for read.\n");
+		return 1;
 	}
 
 	/* Parse the file into a file_context linked list. */
-	while( fgets( line_buf, 126, path ) != NULL ) {
-
+	buf = NULL;
+	while (getline(&line_buf, &line_len, in_file) {
 		/* Get rid of whitespace from the front of the line. */
-		i = 0;
-		while( line_buf[i] && line_buf[i] <= ' ' ) i++;
-
-		/* Check if the line isn't empty and isn't a comment */
-		if( line_buf[i] && line_buf[i] != '#' ) {
-			/* Allocate a new node. */
-			temp = (struct file_context_node*)malloc( sizeof( struct file_context_node ) );
-			if( !temp ) {
-				printf( "Error: failure allocating memory.\n" );
-				return -1;
-			}
-			temp->next = NULL;
-
-			/* Parse out the regular expression from the line. */
-			start = i;
-			while( line_buf[i] > ' ' )i++;
-			finish = i;
-
-			/* Allocate a character array to hold the regular
- 			 *  expression. */
-			temp->regex = (char*)malloc( sizeof( char ) * ( finish - start + 1) );
-			if( !( temp->regex ) ) {
-				printf( "Error: failure allocating memory.\n" );
-				return -1;
-			}
-			temp->regex[0] = 0;
-
-			/* Fill the regular expression array. */
-			temp->regex[ ( finish - start ) ] = 0;
-			for( j = 0; j < finish - start; j++ ) {
-				temp->regex[j] = line_buf[j + start];
-			}
-
-			/* Get rid of whitespace after the regular
-                         *  expression. */
-			while( line_buf[i] <= ' ' ) i++;
-
-			/* Parse out the type from the line (if it 
-                         *  is there). */
-			if( line_buf[i] == '-' ) {
-				/* Allocate a character array to
-                                 *  hold the type. */
-				temp->type = (char*)malloc( sizeof( char ) * 3 );
-				if( !( temp->type ) ) {
-					printf( "Error: failure allocating memory.\n" );
-					return -1;
-				}
-
-				/* Fill the type into the array. */
-				temp->type[0] = line_buf[i];
-				temp->type[1] = line_buf[i + 1];
-				i += 2;
-				temp->type[2] = 0;
-				
-				/* Get rid of whitespace after the type. */
-				while( line_buf[i] <= ' ' ) i++;
-			}
-
-			/* Parse out the context from the line. */
-                        start = i;
-                        while( line_buf[i] > ' ' ) i++;
-                        finish = i;
-
-			/* Allocate a character array to hold the context. */
-                        temp->context = (char*)malloc( sizeof( char ) * ( finish - start + 1 ) );
-			if( !( temp->context ) ) {
-				printf( "Error: failure allocating memory.\n" );
-				return -1;
-			}
-			temp->context[0] = 0;
-
-			/* Fill the context array. */
-                        temp->context[ ( finish - start ) ] = 0;
-                        for( j = 0; j < finish - start; j++ ) {
-                                temp->context[j] = line_buf[j + start];
-                        }
-
-			/* Set all the data about the regular
-                         *  expression. */
-			fc_fill_data( temp );
-
-			/* Link this line of code at the end of
-                         *  the linked list. */
-			current->next = temp;
-			current = current->next;
-			lines++;
+		for (i = 0; i < line_len; i++) {
+			if (line_buf[i] != ' ' || line_buf[i] != '\t')
+				break;
 		}
+		
+		if (i >= line_len)
+			continue;
+		/* Check if the line isn't empty and isn't a comment */
+		if (line_buf[i] == '#')
+			continue;
+		
+		/* We have a valid line - allocate a new node. */
+		temp = (file_context_node_t *)malloc(sizeof(file_context_node_t));
+		if (!temp) {
+			fprintf(stderr, "Error: failure allocating memory.\n");
+			return 1;
+		}
+		memset(temp, 0, sizeof(file_context_node_t));
+
+		/* Parse out the regular expression from the line. */
+		start = i;
+		while (i < line_len && (line_buf[i] != ' ' || line_buf[i] != '\t'))
+			i++;
+		finish = i;
+		
+		regex_len = start - finish;
+		
+		if (regex_len == 0) {
+			file_context_node_destroy(temp);
+			free(temp);
+			continue;
+		}
+
+		temp->path = strndup(&line_buf[start], regex_len);
+		if (!temp->path) {
+			file_context_node_destroy(temp);
+			free(temp);
+			fprintf(stderr, "Memory error\n");
+			return 1;
+		}
+
+		/* Get rid of whitespace after the regular expression. */
+		for (; i < line_len; i++) {
+			if (line_buf[i] != ' ' || line_buf[i] != '\t')
+				break;
+		}
+		
+		if (i == line_len) {
+			file_context_node_destroy(temp);
+			free(temp);
+			continue;
+		}
+
+		/* Parse out the type from the line (if it 
+			*  is there). */
+		if (line_buf[i] == '-') {
+			
+			temp->type = (char *)malloc(sizeof(char) * 3);
+			if (!(temp->type)) {
+				fprintf(stderr, "Error: failure allocating memory.\n");
+				return 1;
+			}
+
+			/* Fill the type into the array. */
+			temp->type[0] = line_buf[i];
+			temp->type[1] = line_buf[i + 1];
+			i += 2;
+			temp->type[2] = 0;
+
+			/* Get rid of whitespace after the type. */
+			while (line_buf[i] <= ' ')
+				i++;
+		}
+
+		/* Parse out the context from the line. */
+		start = i;
+		while (line_buf[i] > ' ')
+			i++;
+		finish = i;
+
+		/* Allocate a character array to hold the context. */
+		temp->context =
+			(char *) malloc(sizeof(char) *
+					(finish - start + 1));
+		if (!(temp->context)) {
+			printf
+				("Error: failure allocating memory.\n");
+			return -1;
+		}
+		temp->context[0] = 0;
+
+		/* Fill the context array. */
+		temp->context[(finish - start)] = 0;
+		for (j = 0; j < finish - start; j++) {
+			temp->context[j] = line_buf[j + start];
+		}
+
+		/* Set all the data about the regular
+			*  expression. */
+		fc_fill_data(temp);
+
+		/* Link this line of code at the end of
+			*  the linked list. */
+		current->next = temp;
+		current = current->next;
+		lines++;
 	}
-	fclose( path );
+	free(buf);
+	fclose(path);
 
 	/* Create the bucket linked list from the earlier linked list. */
 	current = head->next;
-	bcurrent = master = (struct file_context_bucket*)malloc( sizeof( struct file_context_bucket ) );
+	bcurrent = master =
+	    (file_context_bucket_t *)
+	    malloc(sizeof(file_context_bucket_t));
 	/* Go until all the nodes have been put in individual buckets. */
-	while( current ) {
+	while (current) {
 		/* Copy over the file context line into the bucket. */
 		bcurrent->data = current;
 		current = current->next;
@@ -412,15 +445,18 @@ int main( int argc, char *argv[])
 		bcurrent->data->next = NULL;
 
 		/* If there should be another bucket, put one at the end. */
-		if( current ) {
-			bcurrent->next = (struct file_context_bucket*) malloc( sizeof( struct file_context_bucket ) );
-			if( !( bcurrent->next ) ) {
-				printf( "Error: failure allocating memory.\n" );
+		if (current) {
+			bcurrent->next =
+			    (file_context_bucket_t *)
+			    malloc(sizeof(file_context_bucket_t));
+			if (!(bcurrent->next)) {
+				printf
+				    ("Error: failure allocating memory.\n");
 				return -1;
 			}
 
 			/* Make sure the new bucket thinks it's the end of the
-                         *  list. */
+			 *  list. */
 			bcurrent->next->next = NULL;
 
 			bcurrent = bcurrent->next;
@@ -428,57 +464,56 @@ int main( int argc, char *argv[])
 	}
 
 	/* Sort the bucket list. */
-	fc_merge_sort( master );
+	fc_merge_sort(master);
 
 	/* Open the output file. */
-	if( !(path = fopen( argv[2], "w" ) ) ) {
-		printf( "Error: failure opening output file for write.\n" );
+	if (!(path = fopen(argv[2], "w"))) {
+		printf("Error: failure opening output file for write.\n");
 		return -1;
 	}
 
 	/* Output the sorted file_context linked list to the output file. */
 	current = master->data;
-	while( current ) {
+	while (current) {
 		/* Output the regular expression. */
 		i = 0;
-		while( current->regex[i] != 0 ) {
-			fprintf( path, "%c", current->regex[i] );
+		while (current->regex[i] != 0) {
+			fprintf(path, "%c", current->regex[i]);
 			i++;
 		}
-		fprintf( path, "\t" );
-		
+		fprintf(path, "\t");
+
 		/* Output the type, if there is one. */
-		if( current->type ) {
+		if (current->type) {
 			i = 0;
-			while( current->type[i] != 0 ) {
-				fprintf( path, "%c", current->type[i] );
+			while (current->type[i] != 0) {
+				fprintf(path, "%c", current->type[i]);
 				i++;
 			}
-			fprintf( path, "\t" ); 	
+			fprintf(path, "\t");
 		}
 
 		/* Output the context. */
 		i = 0;
-		while( current->context[i] != 0 ) {
-			fprintf( path, "%c", current->context[i] );
+		while (current->context[i] != 0) {
+			fprintf(path, "%c", current->context[i]);
 			i++;
 		}
-		fprintf( path, "\n" );
+		fprintf(path, "\n");
 
 		/* Remove the node. */
 		temp = current;
 		current = current->next;
 
-		free( temp->regex );
-		if( temp->type)
-			free( temp->type );
-		free( temp->context );		
-		free( temp );
+		free(temp->regex);
+		if (temp->type)
+			free(temp->type);
+		free(temp->context);
+		free(temp);
 	}
-	free( master );
+	free(master);
 
-	fclose( path );
+	fclose(path);
 
 	return 0;
 }
-
