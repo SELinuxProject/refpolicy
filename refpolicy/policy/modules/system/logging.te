@@ -1,7 +1,22 @@
 
 policy_module(logging,1.0)
 
+########################################
+#
+# Declarations
+#
+
 attribute logfile;
+
+type auditd_log_t;
+logging_make_log_file(auditd_t,auditd_log_t)
+
+type auditd_t;
+type auditd_exec_t;
+init_make_daemon_domain(auditd_t,auditd_exec_t)
+
+type auditd_var_run_t;
+files_make_daemon_runtime_file(auditd_var_run_t)
 
 type devlog_t;
 files_make_file(devlog_t)
@@ -28,6 +43,71 @@ files_make_daemon_runtime_file(syslogd_var_run_t)
 
 type var_log_t, logfile;
 files_make_file(var_log_t)
+
+########################################
+#
+# Auditd local policy
+#
+
+allow auditd_t self:capability { audit_write audit_control };
+dontaudit auditd_t self:capability sys_tty_config;
+allow auditd_t self:netlink_audit_socket { bind create getattr nlmsg_read nlmsg_write read write };
+
+allow auditd_t auditd_log_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+
+allow auditd_t auditd_var_run_t:file { getattr create read write append setattr unlink };
+files_create_daemon_runtime_data(auditd_t,auditd_var_run_t)
+
+kernel_read_kernel_sysctl(auditd_t)
+kernel_read_hardware_state(auditd_t)
+
+filesystem_get_all_filesystems_attributes(auditd_t)
+
+terminal_ignore_use_console(auditd_t)
+
+init_use_file_descriptors(auditd_t)
+init_script_use_pseudoterminal(auditd_t)
+
+domain_use_widely_inheritable_file_descriptors(auditd_t)
+
+files_read_general_system_config(auditd_t)
+
+logging_send_system_log_message(auditd_t)
+
+libraries_use_dynamic_loader(auditd_t)
+libraries_use_shared_libraries(auditd_t)
+
+miscfiles_read_localization(auditd_t)
+
+tunable_policy(`targeted_policy', `
+	terminal_ignore_use_general_physical_terminal(auditd_t)
+	terminal_ignore_use_general_pseudoterminal(auditd_t)
+	files_ignore_read_rootfs_file(auditd_t)
+')
+
+optional_policy(`selinux.te',`
+	selinux_newrole_sigchld(auditd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_database(auditd_t)
+')
+
+ifdef(`TODO',`
+allow auditd_t proc_t:dir r_dir_perms;
+allow auditd_t proc_t:lnk_file read;
+dontaudit auditd_t unpriv_userdomain:fd use;
+allow auditd_t autofs_t:dir { search getattr };
+dontaudit auditd_t sysadm_home_dir_t:dir search;
+optional_policy(`rhgb.te', `
+allow auditd_t rhgb_t:process sigchld;
+allow auditd_t rhgb_t:fd use;
+allow auditd_t rhgb_t:fifo_file { read write };
+')
+
+# cjp: this is questionable:
+allow auditd_t sysadm_tty_device_t:chr_file rw_file_perms;
+') dnl endif TODO
 
 ########################################
 #
