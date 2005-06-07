@@ -56,6 +56,7 @@ SETFILES := $(SBINDIR)/setfiles
 
 SUPPORT := support
 GENDOC := $(SUPPORT)/sedoctool.py
+FCSORT := $(SUPPORT)/fc_sort
 
 XMLLINT := $(BINDIR)/xmllint
 
@@ -261,16 +262,15 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 # Create config files
 #
 conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
-	$(QUIET) touch $(TUNABLES)
-	@echo "Creating $(MOD_DISABLE)"
-	@echo "# This file contains a listing of available modules." > $(MOD_DISABLE)
-	@echo "# To prevent a module from  being used in policy" >> $(MOD_DISABLE)
-	@echo "# creation, uncomment the line with its name." >> $(MOD_DISABLE)
-	@echo "" >> $(MOD_DISABLE)
-	@for i in $(sort $(patsubst %.te,%,$(notdir $(ALL_TE_FILES)))); do \
-		echo "#$$i" >> $(MOD_DISABLE) ;\
-	done
-	$(QUIET) $(GENDOC) -x tmp/policy.xml -t $(TUNABLES)
+	@echo "Creating $(MOD_DISABLE) and $(TUNABLES)"
+#	@echo "# This file contains a listing of available modules." > $(MOD_DISABLE)
+#	@echo "# To prevent a module from  being used in policy" >> $(MOD_DISABLE)
+#	@echo "# creation, uncomment the line with its name." >> $(MOD_DISABLE)
+#	@echo "" >> $(MOD_DISABLE)
+#	@for i in $(sort $(patsubst %.te,%,$(notdir $(ALL_TE_FILES)))); do \
+#		echo "#$$i" >> $(MOD_DISABLE) ;\
+#	done
+	$(QUIET) $(GENDOC) -x tmp/policy.xml -t $(TUNABLES) -m $(MOD_DISABLE)
 
 ########################################
 #
@@ -299,6 +299,7 @@ $(FCPATH): $(FC) $(USERPATH)/system.users
 	$(QUIET) install -m 644 $(FC) $(FCPATH)
 #	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
 #	$(QUIET) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(TYPE) $(USEPWD)
+	$(QUIET) $(FCSORT) $(FCPATH) $(FCPATH)
 
 ########################################
 #
@@ -422,6 +423,8 @@ clean:
 	rm -f $(FC)
 
 bare: clean
+	rm -f $(SUPPORT)/*.pyc
+	rm -f $(FCSORT)
 	rm -f $(MOD_DISABLE)
 	rm -f $(TUNABLES)
 
