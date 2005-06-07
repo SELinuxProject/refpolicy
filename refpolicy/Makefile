@@ -54,6 +54,9 @@ CHECKPOLICY := $(BINDIR)/checkpolicy
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 
+SUPPORT := support
+GENDOC := $(SUPPORT)/sedoctool.py
+
 XMLLINT := $(BINDIR)/xmllint
 
 # enable MLS if requested.
@@ -134,7 +137,7 @@ ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf
 
-DOCTOOLS = doctools
+DOCTOOLS = doc
 XMLDTD = $(DOCTOOLS)/policy.dtd
 HTMLHEAD = $(DOCTOOLS)/header.html
 HTMLFOOT = $(DOCTOOLS)/footer.html
@@ -227,13 +230,13 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 # this is so the xml works:
 	$(QUIET) echo "## </module>" >> $@
 
-tmp/all_interfaces.conf: $(ALL_INTERFACES) $(MOD_DISABLE)
+tmp/all_interfaces.conf: $(ALL_INTERFACES)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $(ALL_INTERFACES) > $@
+	$(QUIET) cat $^ > $@
 
-tmp/all_te_files.conf: $(ALL_TE_FILES) $(MOD_DISABLE)
+tmp/all_te_files.conf: $(ALL_TE_FILES)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $(ALL_TE_FILES) > $@
+	$(QUIET) cat $^ > $@
 
 tmp/post_te_files.conf: $(POST_TE_FILES)
 	@test -d tmp || mkdir -p tmp
@@ -257,7 +260,7 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 #
 # Create config files
 #
-conf $(MOD_DISABLE) $(TUNABLES):
+conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
 	$(QUIET) touch $(TUNABLES)
 	@echo "Creating $(MOD_DISABLE)"
 	@echo "# This file contains a listing of available modules." > $(MOD_DISABLE)
@@ -267,6 +270,7 @@ conf $(MOD_DISABLE) $(TUNABLES):
 	@for i in $(sort $(patsubst %.te,%,$(notdir $(ALL_TE_FILES)))); do \
 		echo "#$$i" >> $(MOD_DISABLE) ;\
 	done
+	$(QUIET) $(GENDOC) -x tmp/policy.xml -t $(TUNABLES)
 
 ########################################
 #
@@ -290,7 +294,7 @@ $(FC): $(M4SUPPORT) $(ALL_FC_FILES)
 #
 # Install file_contexts
 #
-$(FCPATH): $(FC) $(USERPATH)/system.users $(MOD_DISABLE) 
+$(FCPATH): $(FC) $(USERPATH)/system.users
 	@mkdir -p $(CONTEXTPATH)/files
 	$(QUIET) install -m 644 $(FC) $(FCPATH)
 #	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
@@ -330,7 +334,6 @@ relabel:  $(FC) $(SETFILES)
 
 tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	@echo "Creating $@"
-	@cp $(XMLDTD) tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
 	$(QUIET) echo "<policy>" >> $@
@@ -339,6 +342,7 @@ tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
 	$(QUIET) m4 $^ | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
+		cp $(XMLDTD) tmp ;\
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
