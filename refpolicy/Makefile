@@ -111,20 +111,26 @@ FLASKDIR = $(POLDIR)/flask
 APPCONF = config/appconfig
 M4SUPPORT = $(POLDIR)/support/support_macros $(wildcard $(POLDIR)/support/*.spt)
 
+MOD_DISABLE := $(POLDIR)/modules.disable
+TUNABLES = $(POLDIR)/tunables.conf
+
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/users 
 
+DISABLEMOD := $(foreach mod,$(shell egrep -v '^[[:blank:]]*\#' $(MOD_DISABLE)),$(shell find -iname $(mod).te))
 DETECTED_DIRS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
 ALL_LAYERS := $(filter-out CVS,$(DETECTED_DIRS))
+DETECTED_MODS := $(foreach dir,$(ALL_LAYERS),$(wildcard ./$(dir)/*.te))
+ALL_MODULES := $(filter-out $(DISABLEMOD),$(DETECTED_MODS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
-ALL_INTERFACES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if))
-ALL_TE_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te))
+ALL_INTERFACES := $(ALL_MODULES:.te=.if)
+ALL_TE_FILES := $(ALL_MODULES)
 POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
 
-ALL_FC_FILES := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc))
+ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf
 
@@ -205,13 +211,13 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 # per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
-	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_TE_FILES))); do \
+	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_MODULES))); do \
 		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$1'")')" \
 			>> $@ ;\
 	done
 	$(QUIET) echo "')" >> $@
 # define foo.te
-	$(QUIET) for i in $(notdir $(ALL_TE_FILES)); do \
+	$(QUIET) for i in $(notdir $(ALL_MODULES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
 # generate network interfaces
@@ -221,13 +227,13 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 # this is so the xml works:
 	$(QUIET) echo "## </module>" >> $@
 
-tmp/all_interfaces.conf: $(ALL_INTERFACES)
+tmp/all_interfaces.conf: $(ALL_INTERFACES) $(MOD_DISABLE)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
+	$(QUIET) cat $(ALL_INTERFACES) > $@
 
-tmp/all_te_files.conf: $(ALL_TE_FILES)
+tmp/all_te_files.conf: $(ALL_TE_FILES) $(MOD_DISABLE)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
+	$(QUIET) cat $(ALL_TE_FILES) > $@
 
 tmp/post_te_files.conf: $(POST_TE_FILES)
 	@test -d tmp || mkdir -p tmp
@@ -246,6 +252,21 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 	$(QUIET) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
 			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
 			< tmp/all_te_files.conf > tmp/only_te_rules.conf
+
+########################################
+#
+# Create config files
+#
+conf $(MOD_DISABLE) $(TUNABLES):
+	$(QUIET) touch $(TUNABLES)
+	@echo "Creating $(MOD_DISABLE)"
+	@echo "# This file contains a listing of available modules." > $(MOD_DISABLE)
+	@echo "# To prevent a module from  being used in policy" >> $(MOD_DISABLE)
+	@echo "# creation, uncomment the line with its name." >> $(MOD_DISABLE)
+	@echo "" >> $(MOD_DISABLE)
+	@for i in $(sort $(patsubst %.te,%,$(notdir $(ALL_TE_FILES)))); do \
+		echo "#$$i" >> $(MOD_DISABLE) ;\
+	done
 
 ########################################
 #
@@ -269,7 +290,7 @@ $(FC): $(M4SUPPORT) $(ALL_FC_FILES)
 #
 # Install file_contexts
 #
-$(FCPATH): $(FC) $(USERPATH)/system.users 
+$(FCPATH): $(FC) $(USERPATH)/system.users $(MOD_DISABLE) 
 	@mkdir -p $(CONTEXTPATH)/files
 	$(QUIET) install -m 644 $(FC) $(FCPATH)
 #	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
@@ -396,4 +417,8 @@ clean:
 	rm -f policy.$(PV)
 	rm -f $(FC)
 
-.PHONY: default policy install reload enableaudit checklabels restorelabels relabel clean
+bare: clean
+	rm -f $(MOD_DISABLE)
+	rm -f $(TUNABLES)
+
+.PHONY: default policy install reload enableaudit checklabels restorelabels relabel conf clean bare
