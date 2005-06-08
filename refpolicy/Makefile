@@ -129,6 +129,8 @@ DISABLEMOD := $(foreach mod,$(shell egrep -v '^[[:blank:]]*\#' $(MOD_DISABLE)),$
 DETECTED_DIRS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
 ALL_LAYERS := $(filter-out CVS,$(DETECTED_DIRS))
 DETECTED_MODS := $(foreach dir,$(ALL_LAYERS),$(wildcard ./$(dir)/*.te))
+GENERATED_MOD := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard ./$(dir)/*.te.in)))
+DETECTED_MODS += $(GENERATED_MOD)
 ALL_MODULES := $(filter-out $(DISABLEMOD),$(DETECTED_MODS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
@@ -226,9 +228,6 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 	$(QUIET) for i in $(notdir $(ALL_MODULES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
-	$(QUIET) egrep "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
-		| m4 $(M4PARAM) -D monolithic_policy -D interface_pass $(M4SUPPORT) $(BASE_MODULE)/corenetwork.if - \
-		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 	$(QUIET) $(SETTUN) $(TUNABLES) >> $@
 
 tmp/all_interfaces.conf: $(ALL_INTERFACES)
@@ -256,6 +255,17 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 	$(QUIET) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
 			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
 			< tmp/all_te_files.conf > tmp/only_te_rules.conf
+
+$(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/kernel/corenetwork.if.in
+	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in > $@
+	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
+		| m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
+	$(QUIET) echo "## </module>" >> $@
+
+$(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
+	$(QUIET) m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $^ \
+		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
 #
