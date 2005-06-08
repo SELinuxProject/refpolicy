@@ -46,11 +46,11 @@ dontaudit dhcpc_t self:capability sys_tty_config;
 # for access("/etc/bashrc", X_OK) on Red Hat
 dontaudit dhcpc_t self:capability { dac_read_search sys_module };
 
-allow dhcpc_t self:tcp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow dhcpc_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow dhcpc_t self:packet_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow dhcpc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
-allow dhcpc_t self:fifo_file { ioctl read getattr lock write append };
+allow dhcpc_t self:tcp_socket create_socket_perms;
+allow dhcpc_t self:udp_socket create_socket_perms;
+allow dhcpc_t self:packet_socket create_socket_perms;
+allow dhcpc_t self:netlink_route_socket { create_socket_perms nlmsg_read };
+allow dhcpc_t self:fifo_file rw_file_perms;
 
 allow dhcpc_t dhcp_etc_t:dir r_dir_perms;
 allow dhcpc_t dhcp_etc_t:lnk_file r_file_perms;
@@ -61,26 +61,23 @@ allow dhcpc_t dhcpc_state_t:file create_file_perms;
 type_transition dhcpc_t dhcp_state_t:file dhcpc_state_t;
 
 # create pid file
-allow dhcpc_t dhcpc_var_run_t:file { getattr create read write append setattr unlink };
+allow dhcpc_t dhcpc_var_run_t:file create_file_perms;
 files_create_daemon_runtime_data(dhcpc_t,dhcpc_var_run_t)
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
 # in /etc created by dhcpcd will be labelled net_conf_t.
-allow dhcpc_t net_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow dhcpc_t net_conf_t:file create_file_perms;
 files_create_private_config(dhcpc_t,net_conf_t,file)
 
 # create temp files
-allow dhcpc_t dhcpc_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow dhcpc_t dhcpc_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow dhcpc_t dhcpc_tmp_t:dir create_dir_perms;
+allow dhcpc_t dhcpc_tmp_t:file create_file_perms;
 files_create_private_tmp_data(dhcpc_t, dhcpc_tmp_t, { file dir })
 
-allow dhcpc_t dhcpc_exec_t:file { getattr read execute execute_no_trans };
+can_exec(dhcpc_t, dhcpc_exec_t)
 
 # transition to ifconfig
-allow dhcpc_t ifconfig_exec_t:file { getattr read execute };
-allow dhcpc_t ifconfig_t:process transition;
-type_transition dhcpc_t ifconfig_exec_t:process ifconfig_t;
-dontaudit dhcpc_t ifconfig_t:process { noatsecure siginh rlimitinh };
+domain_auto_trans(dhcp_t, ifconfig_exec_t, ifconfig_t)
 allow dhcpc_t ifconfig_t:fd use;
 allow ifconfig_t dhcpc_t:fd use;
 allow ifconfig_t dhcpc_t:fifo_file rw_file_perms;
@@ -244,21 +241,21 @@ allow ifconfig_t self:capability net_admin;
 dontaudit ifconfig_t self:capability sys_module;
 
 allow ifconfig_t self:fd use;
-allow ifconfig_t self:fifo_file { read getattr lock ioctl write append };
-allow ifconfig_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow ifconfig_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+allow ifconfig_t self:fifo_file rw_file_perms;
+allow ifconfig_t self:unix_dgram_socket create_socket_perms;
+allow ifconfig_t self:unix_stream_socket create_stream_socket_perms;
 allow ifconfig_t self:unix_dgram_socket sendto;
 allow ifconfig_t self:unix_stream_socket connectto;
-allow ifconfig_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
-allow ifconfig_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
-allow ifconfig_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+allow ifconfig_t self:shm create_shm_perms;
+allow ifconfig_t self:sem create_sem_perms;
+allow ifconfig_t self:msgq create_msgq_perms;
 allow ifconfig_t self:msg { send receive };
 
 # Create UDP sockets, necessary when called from dhcpc
-allow ifconfig_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow ifconfig_t self:udp_socket create_socket_perms;
 
 # for /sbin/ip
-allow ifconfig_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+allow ifconfig_t self:netlink_route_socket create_netlink_socket_perms;
 allow ifconfig_t self:tcp_socket { create ioctl };
 files_read_general_system_config(ifconfig_t);
 
