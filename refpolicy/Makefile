@@ -125,12 +125,14 @@ APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context 
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/users 
 
-DISABLEMOD := $(foreach mod,$(shell egrep -v '^[[:blank:]]*\#' $(MOD_DISABLE)),$(shell find -iname $(mod).te))
-DETECTED_DIRS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
-ALL_LAYERS := $(filter-out CVS,$(DETECTED_DIRS))
-DETECTED_MODS := $(foreach dir,$(ALL_LAYERS),$(wildcard ./$(dir)/*.te))
-GENERATED_MOD := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard ./$(dir)/*.te.in)))
-DETECTED_MODS += $(GENERATED_MOD)
+DISABLEMOD := $(foreach mod,$(shell egrep -v '^[[:blank:]]*\#' $(MOD_DISABLE)),$(subst ./,,$(shell find -iname $(mod).te)))
+ALL_LAYERS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
+
+GENERATED_TE := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te.in)))
+GENERATED_IF := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if.in)))
+GENERATED_FC := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc.in)))
+
+DETECTED_MODS := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE)
 ALL_MODULES := $(filter-out $(DISABLEMOD),$(DETECTED_MODS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
@@ -215,7 +217,7 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) cat $^ > $@
 
-tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te $(TUNABLES)
+tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(TUNABLES)
 	# per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
@@ -434,5 +436,14 @@ bare: clean
 	rm -f $(FCSORT)
 	rm -f $(MOD_DISABLE)
 	rm -f $(TUNABLES)
+ifneq ($(GENERATED_TE),)
+	rm -f $(GENERATED_TE)
+endif
+ifneq ($(GENERATED_IF),)
+	rm -f $(GENERATED_IF)
+endif
+ifneq ($(GENERATED_FC),)
+	rm -f $(GENERATED_FC)
+endif
 
 .PHONY: default policy install reload enableaudit checklabels restorelabels relabel conf clean bare
