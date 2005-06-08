@@ -57,6 +57,7 @@ SETFILES := $(SBINDIR)/setfiles
 SUPPORT := support
 GENDOC := $(SUPPORT)/sedoctool.py
 FCSORT := $(SUPPORT)/fc_sort
+SETTUN := $(SUPPORT)/set_tunables
 
 XMLLINT := $(BINDIR)/xmllint
 
@@ -115,8 +116,9 @@ FLASKDIR = $(POLDIR)/flask
 APPCONF = config/appconfig
 M4SUPPORT = $(POLDIR)/support/support_macros $(wildcard $(POLDIR)/support/*.spt)
 
+GLOBALTUN := $(POLDIR)/global_tunables
 MOD_DISABLE := $(POLDIR)/modules.disable
-TUNABLES = $(POLDIR)/tunables.conf
+TUNABLES := $(POLDIR)/tunables.conf
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
@@ -136,7 +138,7 @@ POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
 
 ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
 
-POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf
+POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
 
 DOCTOOLS = doc
 XMLDTD = $(DOCTOOLS)/policy.dtd
@@ -199,10 +201,10 @@ reload tmp/load: $(LOADPATH) $(FCPATH)
 #
 policy.conf: $(POLICY_SECTIONS)
 	@echo "Creating $(NAME) policy.conf"
-# checkpolicy can use the #line directives provided by -s for error reporting:
+	# checkpolicy can use the #line directives provided by -s for error reporting:
 	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
-# the ordering of these ocontexts matters:
+	# the ordering of these ocontexts matters:
 	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^netifcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^nodecon tmp/$@.tmp >> $@ || true
@@ -211,8 +213,8 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) cat $^ > $@
 
-tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te
-# per-userdomain templates:
+tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/corenetwork.if $(BASE_MODULE)/corenetwork.te $(TUNABLES)
+	# per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
 	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_MODULES))); do \
@@ -220,16 +222,14 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(BASE_MODULE)/cor
 			>> $@ ;\
 	done
 	$(QUIET) echo "')" >> $@
-# define foo.te
+	# define foo.te
 	$(QUIET) for i in $(notdir $(ALL_MODULES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
-# generate network interfaces
 	$(QUIET) egrep "^network_(interface|node|port)\(.*\)" $(BASE_MODULE)/corenetwork.te \
 		| m4 $(M4PARAM) -D monolithic_policy -D interface_pass $(M4SUPPORT) $(BASE_MODULE)/corenetwork.if - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
-# this is so the xml works:
-	$(QUIET) echo "## </module>" >> $@
+	$(QUIET) $(SETTUN) $(TUNABLES) >> $@
 
 tmp/all_interfaces.conf: $(ALL_INTERFACES)
 	@test -d tmp || mkdir -p tmp
@@ -256,21 +256,6 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 	$(QUIET) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
 			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
 			< tmp/all_te_files.conf > tmp/only_te_rules.conf
-
-########################################
-#
-# Create config files
-#
-conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
-	@echo "Creating $(MOD_DISABLE) and $(TUNABLES)"
-#	@echo "# This file contains a listing of available modules." > $(MOD_DISABLE)
-#	@echo "# To prevent a module from  being used in policy" >> $(MOD_DISABLE)
-#	@echo "# creation, uncomment the line with its name." >> $(MOD_DISABLE)
-#	@echo "" >> $(MOD_DISABLE)
-#	@for i in $(sort $(patsubst %.te,%,$(notdir $(ALL_TE_FILES)))); do \
-#		echo "#$$i" >> $(MOD_DISABLE) ;\
-#	done
-	$(QUIET) $(GENDOC) -x tmp/policy.xml -t $(TUNABLES) -m $(MOD_DISABLE)
 
 ########################################
 #
@@ -330,17 +315,29 @@ relabel:  $(FC) $(SETFILES)
 
 ########################################
 #
+# Create config files
+#
+conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
+	@echo "Creating $(MOD_DISABLE) and $(TUNABLES)"
+	$(QUIET) cd tmp && ../$(GENDOC) -t ../$(TUNABLES) -m ../$(MOD_DISABLE) -x ../tmp/policy.xml
+
+########################################
+#
 # Documentation generation
 #
 
-tmp/policy.xml: $(ALL_INTERFACES) tmp/generated_definitions.conf
+# no dependencies here, because we don't want to rebuild 
+# this and its dependents every time the dependencies
+# change
+tmp/policy.xml:
 	@echo "Creating $@"
+	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
 	$(QUIET) echo "<policy>" >> $@
 # process this through m4 to eliminate the generated definitions templates.
 # currently these are only in corenetwork.if
-	$(QUIET) m4 $^ | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
+	$(QUIET) m4 $(ALL_INTERFACES) $(GLOBALTUN) | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		cp $(XMLDTD) tmp ;\
