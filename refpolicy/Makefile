@@ -114,10 +114,10 @@ MODDIR = $(POLDIR)/modules
 BASE_MODULE = $(MODDIR)/kernel
 FLASKDIR = $(POLDIR)/flask
 APPCONF = config/appconfig
-M4SUPPORT = $(POLDIR)/support/support_macros $(wildcard $(POLDIR)/support/*.spt)
+M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
 GLOBALTUN := $(POLDIR)/global_tunables
-MOD_DISABLE := $(POLDIR)/modules.disable
+MOD_DISABLE := $(POLDIR)/modules.conf
 TUNABLES := $(POLDIR)/tunables.conf
 
 APPDIR := $(CONTEXTPATH)
