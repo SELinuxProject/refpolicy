@@ -144,12 +144,10 @@ ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
 
-DOCTOOLS = doc
-XMLDTD = $(DOCTOOLS)/policy.dtd
-HTMLHEAD = $(DOCTOOLS)/header.html
-HTMLFOOT = $(DOCTOOLS)/footer.html
-HTMLCSS = $(DOCTOOLS)/style.css
-HTMLOUT = $(DOCTOOLS)/html
+DOCS = doc
+XMLDTD = $(DOCS)/policy.dtd
+HTMLDIR = $(DOCS)/html
+DOCTEMPLATE = $(DOCS)/templates
 
 ########################################
 #
@@ -356,6 +354,11 @@ tmp/policy.xml: $(GENERATED_IF)
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
+html: tmp/policy.xml
+	@mkdir -p $(HTMLDIR)
+	$(QUIET) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../tmp/policy.xml
+	$(QUIET) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
+
 ########################################
 #
 # Runtime binary policy patching of users
@@ -436,6 +439,7 @@ bare: clean
 	rm -f $(FCSORT)
 	rm -f $(MOD_DISABLE)
 	rm -f $(TUNABLES)
+	rm -fR $(HTMLDIR)
 ifneq ($(GENERATED_TE),)
 	rm -f $(GENERATED_TE)
 endif
