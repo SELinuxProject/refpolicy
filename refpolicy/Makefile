@@ -341,7 +341,7 @@ conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
 # no dependencies here, because we don't want to rebuild 
 # this and its dependents every time the dependencies
 # change
-tmp/policy.xml:
+tmp/policy.xml: $(GENERATED_IF)
 	@echo "Creating $@"
 	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
