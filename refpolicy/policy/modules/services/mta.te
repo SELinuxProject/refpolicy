@@ -41,13 +41,13 @@ init_make_system_domain(system_mail_t,sendmail_exec_t)
 #
 
 allow system_mail_t self:capability { setuid setgid chown };
-allow system_mail_t self:process { sigkill sigstop signull signal setrlimit };
+allow system_mail_t self:process { signal_perms setrlinit };
 
-allow system_mail_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow system_mail_t self:tcp_socket create_socket_perms;
 
 # re-exec itself
-allow system_mail_t sendmail_exec_t:file { getattr read execute execute_no_trans };
-allow system_mail_t sendmail_exec_t:lnk_file { getattr read };
+can_exec(system_mail_t, sendmail_exec_t)
+allow system_mail_t sendmail_exec_t:lnk_file r_file_perms;
 
 kernel_read_kernel_sysctl(system_mail_t)
 kernel_read_system_state(system_mail_t)
@@ -83,7 +83,7 @@ miscfiles_read_localization(system_mail_t)
 sysnetwork_read_network_config(system_mail_t)
 
 tunable_policy(`use_dns',`
-	allow system_mail_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+	allow system_mail_t self:udp_socket create_socket_perms;
 	corenetwork_sendrecv_udp_on_all_interfaces(system_mail_t)
 	corenetwork_sendrecv_udp_on_all_nodes(system_mail_t)
 	corenetwork_bind_udp_on_all_nodes(system_mail_t)
@@ -130,8 +130,8 @@ allow privmail sendmail_exec_t:lnk_file { getattr read };
 
 ifdef(`crond.te', `
 # Read cron temporary files.
-allow system_mail_t system_crond_tmp_t:file { read getattr ioctl };
-allow mta_user_agent system_crond_tmp_t:file { read getattr };
+allow system_mail_t system_crond_tmp_t:file r_file_perms;
+allow mta_user_agent system_crond_tmp_t:file r_file_perms;
 ')
 
 ifdef(`qmail.te', `
@@ -156,16 +156,16 @@ libraries_execute_library_scripts(system_mail_t)
 
 allow system_mail_t { var_t var_spool_t }:dir getattr;
 
-allow system_mail_t mqueue_spool_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow system_mail_t mqueue_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow system_mail_t mqueue_spool_t:lnk_file { create read getattr setattr link unlink rename };
+allow system_mail_t mqueue_spool_t:dir create_dir_perms;
+allow system_mail_t mqueue_spool_t:file create_file_perms;
+allow system_mail_t mqueue_spool_t:lnk_file create_lnk_perms;
 
-allow system_mail_t mail_spool_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow system_mail_t mail_spool_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow system_mail_t mail_spool_t:lnk_file { create read getattr setattr link unlink rename };
+allow system_mail_t mail_spool_t:dir create_dir_perms;
+allow system_mail_t mail_spool_t:file create_file_perms;
+allow system_mail_t mail_spool_t:lnk_file create_lnk_perms;
 
 allow system_mail_t mail_spool_t:fifo_file rw_file_perms;
-allow system_mail_t etc_mail_t:file { getattr read };
+allow system_mail_t etc_mail_t:file r_file_perms;
 ', ` dnl if not targeted policy:
 optional_policy(`sendmail.te', `
 # sendmail has an ugly design, the one process parses input from the user and
@@ -209,16 +209,16 @@ ra_dir_create_file(mta_delivery_agent, mail_spool_t)
 can_exec(mta_delivery_agent, shell_exec_t)
 allow mta_delivery_agent bin_t:dir search;
 allow mta_delivery_agent bin_t:lnk_file read;
-allow mta_delivery_agent { etc_runtime_t proc_t }:file { getattr read };
+allow mta_delivery_agent { etc_runtime_t proc_t }:file r_file_perms;
 
 # Transition from a system domain to the derived domain.
 domain_auto_trans(privmail, sendmail_exec_t, system_mail_t)
-allow privmail sendmail_exec_t:lnk_file { getattr read };
+allow privmail sendmail_exec_t:lnk_file r_file_perms;
 
 ifdef(`crond.te', `
 # Read cron temporary files.
-allow system_mail_t system_crond_tmp_t:file { read getattr ioctl };
-allow mta_user_agent system_crond_tmp_t:file { read getattr };
+allow system_mail_t system_crond_tmp_t:file r_file_perms;
+allow mta_user_agent system_crond_tmp_t:file r_file_perms;
 ')
 
 ') dnl end TODO
