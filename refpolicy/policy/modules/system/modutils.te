@@ -41,13 +41,13 @@ files_make_temporary_file(update_modules_tmp_t)
 allow insmod_t self:capability { dac_override net_raw sys_tty_config };
 allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
 
-allow insmod_t self:udp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-allow insmod_t self:rawip_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow insmod_t self:udp_socket create_socket_perms; 
+allow insmod_t self:rawip_socket create_socket_perms; 
 
 # Read module config and dependency information
-allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
+allow insmod_t { modules_conf_t modules_dep_t }:file r_file_perms;
 
-allow insmod_t insmod_exec_t:file { getattr read execute execute_no_trans };
+can_exec(insmod_t, insmod_exec_t)
 
 kernel_load_module(insmod_t)
 kernel_read_system_state(insmod_t)
@@ -121,12 +121,12 @@ allow insmod_t usbfs_t:filesystem mount;
 # depmod local policy
 #
 
-allow depmod_t depmod_exec_t:file { getattr read execute execute_no_trans };
+can_exec(depmod_t, depmod_exec_t)
 
 # Read conf.modules.
-allow depmod_t modules_conf_t:file { getattr read };
+allow depmod_t modules_conf_t:file r_file_perms;
 
-allow depmod_t modules_dep_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow depmod_t modules_dep_t:file create_file_perms;
 bootloader_create_private_module_dir_entry(depmod_t,modules_dep_t)
 
 kernel_read_system_state(depmod_t)
@@ -167,26 +167,23 @@ r_dir_file(depmod_t, { staff_home_t sysadm_home_t })
 # update-modules local policy
 #
 
-allow update_modules_t self:fifo_file { getattr read write };
+allow update_modules_t self:fifo_file rw_file_perms;
 
-allow update_modules_t modules_dep_t:file { getattr read write };
+allow update_modules_t modules_dep_t:file rw_file_perms;
 
-allow update_modules_t insmod_exec_t:file { getattr read execute execute_no_trans };
-allow update_modules_t update_modules_exec_t:file { getattr read execute execute_no_trans };
+can_exec(update_modules_t, insmod_exec_t)
+can_exec(update_modules_t, update_modules_exec_t)
 
 # manage module loading configuration
-allow update_modules_t modules_conf_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow update_modules_t modules_conf_t:file create_file_perms;
 bootloader_create_private_module_dir_entry(update_modules_t,modules_conf_t)
 files_create_private_config(update_modules_t,modules_conf_t)
 
 # transition to depmod
-allow update_modules_t depmod_exec_t:file { getattr read execute };
-allow update_modules_t depmod_t:process transition;
-type_transition update_modules_t depmod_exec_t:process depmod_t;
-dontaudit update_modules_t depmod_t : process { noatsecure siginh rlimitinh };
+domain_auto_trans(update_modules_t, depmod_exec_t, depmod_t)
 
-allow update_modules_t update_modules_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow update_modules_t update_modules_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow update_modules_t update_modules_tmp_t:dir create_dir_perms;
+allow update_modules_t update_modules_tmp_t:file create_file_perms;
 files_create_private_tmp_data(update_modules_t, update_modules_tmp_t, { file dir })
 
 kernel_read_kernel_sysctl(update_modules_t)
