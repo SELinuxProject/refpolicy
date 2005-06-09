@@ -429,7 +429,6 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 
 clean:
 	rm -fR tmp
-	rm -f policy.xml
 	rm -f policy.conf
 	rm -f policy.$(PV)
 	rm -f $(FC)
