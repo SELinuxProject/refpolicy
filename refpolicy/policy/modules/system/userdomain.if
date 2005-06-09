@@ -48,14 +48,14 @@ define(`base_user_domain',`
 	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
 	allow $1_t self:process { ptrace setfscreate };
 	allow $1_t self:fd use;
-	allow $1_t self:fifo_file { read getattr lock ioctl write append };
-	allow $1_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-	allow $1_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+	allow $1_t self:fifo_file rw_file_perms;
+	allow $1_t self:unix_dgram_socket create_socket_perms;
+	allow $1_t self:unix_stream_socket rw_stream_socket_perms;
 	allow $1_t self:unix_dgram_socket sendto;
 	allow $1_t self:unix_stream_socket connectto;
-	allow $1_t self:shm { associate getattr setattr create destroy read write lock unix_read unix_write };
-	allow $1_t self:sem { associate getattr setattr create destroy read write unix_read unix_write };
-	allow $1_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
+	allow $1_t self:shm create_shm_perms;
+	allow $1_t self:sem create_sem_perms;
+	allow $1_t self:msgq create_msgq_perms;
 	allow $1_t self:msg { send receive };
 	dontaudit $1_t self:socket create;
 	# Irrelevant until we have labeled networking.
@@ -66,31 +66,31 @@ define(`base_user_domain',`
 	dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
 
 	# execute files in the home directory
-	allow $1_t $1_home_t:file { getattr read execute execute_no_trans };
+	allow $1_t $1_home_t:file { rx_file_perms execute_no_trans };
 
 	# full control of the home directory
-	allow $1_t $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-	allow $1_t $1_home_t:lnk_file { create read getattr setattr link unlink rename relabelfrom relabelto };
-	allow $1_t $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
-	allow $1_t $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-	allow $1_t $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
-	allow $1_t $1_home_dir_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-	type_transition $1_t $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+	allow $1_t $1_home_t:file { create_file_perms relabelfrom relabelto };
+	allow $1_t $1_home_t:lnk_file { create_lnk_perms relabelfrom relabelto };
+	allow $1_t $1_home_t:dir { create_dir_perms relabelfrom relabelto };
+	allow $1_t $1_home_t:sock_file { create_file_perms relabelfrom relabelto };
+	allow $1_t $1_home_t:fifo_file { create_file_perms relabelfrom relabelto };
+	allow $1_t $1_home_dir_t:dir create_dir_perms;
+	type_transition $1_t $1_home_dir_t:{ dir notdevfile_class_set } $1_home_t;
 
-	allow $1_t $1_tmp_t:file { getattr read execute execute_no_trans };
+	allow $1_t $1_tmp_t:file { rx_file_perms execute_no_trans };
 
 	# Bind to a Unix domain socket in /tmp.
 	# cjp: this is combination is not checked and should be removed
 	allow $1_t $1_tmp_t:unix_stream_socket name_bind;
 
-	allow $1_t $1_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1_t $1_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-	allow $1_t $1_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	fs_create_private_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	allow $1_t $1_tmpfs_t:dir rw_dir_perms;
+	allow $1_t $1_tmpfs_t:file create_file_perms;
+	allow $1_t $1_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_t $1_tmpfs_t:sock_file create_file_perms;
+	allow $1_t $1_tmpfs_t:fifo_file create_file_perms;
+	fs_create_private_tmpfs_data($1_t,$1_tmpfs_t, { dir notdevfile_class_set } )
 
-	allow $1_t $1_tty_device_t:chr_file { setattr getattr read write append ioctl lock };
+	allow $1_t $1_tty_device_t:chr_file { setattr rw_file_perms };
 
 	allow $1_t unpriv_userdomain:fd use;
 
@@ -223,7 +223,7 @@ define(`base_user_domain',`
 	dontaudit $1_t usr_t:file setattr;
 
 	# Access the power device.
-	allow $1_t power_device_t:chr_file { getattr read write ioctl };
+	allow $1_t power_device_t:chr_file rw_file_perms;
 
 	# Check to see if cdrom is mounted
 	allow $1_t mnt_t:dir { getattr search };
@@ -272,7 +272,7 @@ define(`base_user_domain',`
 	dontaudit $1_t sysctl_t:dir_file_class_set getattr;
 	dontaudit $1_t proc_fs:dir { read search };
 
-	allow $1_t autofs_t:dir { search getattr };
+	allow $1_t autofs_t:dir { getattr search };
 
 	can_exec($1_t, { removable_t noexattrfile } )
 	if (user_rw_noexattrfile) {
@@ -320,7 +320,7 @@ define(`base_user_domain',`
 
 	# Gnome pannel binds to the following
 	ifdef(`cups.te', `
-		allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file { read getattr };
+		allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file r_file_perms;
 	')
 
 	# Connect to inetd.
@@ -350,13 +350,13 @@ define(`base_user_domain',`
 		can_unix_connect($1_t, xdm_t)
 		allow $1_t xdm_tmp_t:sock_file rw_file_perms;
 		allow $1_t xdm_tmp_t:dir r_dir_perms;
-		allow $1_t xdm_tmp_t:file { getattr read };
+		allow $1_t xdm_tmp_t:file r_file_perms;
 		allow $1_t xdm_xserver_tmp_t:sock_file { read write };
 		allow $1_t xdm_xserver_tmp_t:dir search;
 		allow $1_t xdm_xserver_t:unix_stream_socket connectto;
 		# certain apps want to read xdm.pid file
 		r_dir_file($1_t, xdm_var_run_t)
-		allow $1_t xdm_var_lib_t:file { getattr read };
+		allow $1_t xdm_var_lib_t:file r_file_perms;
 		allow xdm_t $1_home_dir_t:dir getattr;
 		ifdef(`xauth.te', `
 			file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
@@ -373,7 +373,7 @@ define(`base_user_domain',`
 
 	ifdef(`cardmgr.te', `
 		# to allow monitoring of pcmcia status
-		allow $1_t cardmgr_var_run_t:file { getattr read };
+		allow $1_t cardmgr_var_run_t:file r_file_perms;
 	')
 
 	#
@@ -385,7 +385,7 @@ define(`base_user_domain',`
 	')
 
 	ifdef(`automount.te', `
-		allow $1_t autofs_t:dir { search getattr };
+		allow $1_t autofs_t:dir { getattr search };
 	')
 
 	ifdef(`pamconsole.te', `
@@ -434,20 +434,20 @@ define(`user_domain_template', `
 	allow $1_file_type $1_home_t:filesystem associate;
 
 	# user temporary files
-	allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmp_t:lnk_file { create read getattr setattr link unlink rename };
-	allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-	allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	files_create_private_tmp_data($1_t, $1_tmp_t, { file lnk_file dir sock_file fifo_file })
+	allow $1_t $1_tmp_t:file create_file_perms;
+	allow $1_t $1_tmp_t:lnk_file create_lnk_perms;
+	allow $1_t $1_tmp_t:dir create_dir_perms;
+	allow $1_t $1_tmp_t:sock_file create_file_perms;
+	allow $1_t $1_tmp_t:fifo_file create_file_perms;
+	files_create_private_tmp_data($1_t, $1_tmp_t, { dir notdevfile_class_set })
 
 	# privileged home directory writers
-	allow privhome $1_home_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow privhome $1_home_t:lnk_file { create read getattr setattr link unlink rename };
-	allow privhome $1_home_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-	allow privhome $1_home_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow privhome $1_home_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	type_transition privhome $1_home_dir_t:{ file lnk_file dir sock_file fifo_file } $1_home_t;
+	allow privhome $1_home_t:file create_file_perms;
+	allow privhome $1_home_t:lnk_file create_lnk_perms;
+	allow privhome $1_home_t:dir create_dir_perms;
+	allow privhome $1_home_t:sock_file create_file_perms;
+	allow privhome $1_home_t:fifo_file create_file_perms;
+	type_transition privhome $1_home_dir_t:{ dir notdevfile_class_set } $1_home_t;
 
 	kernel_read_system_state($1_t)
 	kernel_read_network_state($1_t)
@@ -645,12 +645,12 @@ define(`admin_domain_template',`
 	allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
 	terminal_create_private_pseudoterminal($1_t,$1_devpts_t)
 
-	allow $1_t $1_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-	allow $1_t $1_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmp_t:lnk_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmp_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	files_create_private_tmp_data($1_t, $1_tmp_t, { file dir lnk_file sock_file fifo_file })
+	allow $1_t $1_tmp_t:dir create_dir_perms;
+	allow $1_t $1_tmp_t:file create_file_perms;
+	allow $1_t $1_tmp_t:lnk_file create_file_perms;
+	allow $1_t $1_tmp_t:fifo_file create_file_perms;
+	allow $1_t $1_tmp_t:sock_file create_file_perms;
+	files_create_private_tmp_data($1_t, $1_tmp_t, { dir notdevfile_class_set })
 
 	kernel_read_system_state($1_t)
 	kernel_read_network_state($1_t)
@@ -931,15 +931,15 @@ define(`userdomain_read_all_users_data',`
 	requires_block_template(`$0'_depend)
 
 	files_list_home_directories($1)
-	allow $1 home_type:dir { getattr search read };
-	allow $1 home_type:file { getattr read };
+	allow $1 home_type:dir r_dir_perms;
+	allow $1 home_type:file r_file_perm;
 ')
 
 define(`userdomain_read_all_users_data_depend',`
 	attribute home_type;
 
-	class dir { getattr search read };
-	class file { getattr read };
+	class dir r_dir_perms;
+	class file r_file_perms;
 ')
 
 ########################################

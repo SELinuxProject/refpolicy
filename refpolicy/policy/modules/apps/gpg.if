@@ -44,7 +44,7 @@ define(`gpg_per_userdomain_template',`
 
 	# transition from the userdomain to the derived domain
 	allow $1_t $1_gpg_t:process transition;
-	allow $1_t gpg_exec_t:file { getattr read execute };
+	allow $1_t gpg_exec_t:file rx_file_perms;
 	type_transition $1_t gpg_exec_t:process $1_gpg_t;
 	dontaudit $1_t $1_gpg_t:process { noatsecure siginh rlimitinh };
 
@@ -58,12 +58,12 @@ define(`gpg_per_userdomain_template',`
 	# setrlimit is for ulimit -c 0
 	allow $1_gpg_t self:process { setrlimit setcap };
 
-	allow $1_gpg_t self:fifo_file { getattr read write };
-	allow $1_gpg_t self:tcp_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+	allow $1_gpg_t self:fifo_file rw_file_perms;
+	allow $1_gpg_t self:tcp_socket create_stream_socket_perms;
 
-	allow $1_gpg_t $1_gpg_secret_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1_gpg_t $1_gpg_secret_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_gpg_t $1_gpg_secret_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_gpg_t $1_gpg_secret_t:dir rw_dir_perms;
+	allow $1_gpg_t $1_gpg_secret_t:file create_file_perms;
+	allow $1_gpg_t $1_gpg_secret_t:lnk_file create_lnk_perms;
 
 	corenetwork_sendrecv_tcp_on_all_interfaces($1_gpg_t)
 	corenetwork_sendrecv_raw_on_all_interfaces($1_gpg_t)
@@ -159,7 +159,7 @@ define(`gpg_per_userdomain_template',`
 
 	# transition from the gpg domain to the helper domain
 	allow $1_gpg_t $1_gpg_helper_t:process transition;
-	allow $1_gpg_t gpg_helper_exec_t:file { getattr read execute };
+	allow $1_gpg_t gpg_helper_exec_t:file rx_file_perms;
 	type_transition $1_gpg_t gpg_helper_exec_t:process $1_gpg_helper_t;
 	dontaudit $1_gpg_helper_t $1_gpg_t:process { noatsecure siginh rlimitinh };
 
@@ -168,10 +168,10 @@ define(`gpg_per_userdomain_template',`
 	allow $1_gpg_helper_t $1_gpg_t:fifo_file rw_file_perms;
 	allow $1_gpg_helper_t $1_gpg_t:process sigchld;
 
-	allow $1_gpg_helper_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
+	allow $1_gpg_helper_t self:unix_stream_socket create_stream_socket_perms;
 
-	allow $1_gpg_helper_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
-	allow $1_gpg_helper_t self:udp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+	allow $1_gpg_helper_t self:tcp_socket { connect connected_socket_perms };
+	allow $1_gpg_helper_t self:udp_socket { connect connected_socket_perms };
 
 	dontaudit $1_gpg_helper_t $1_gpg_secret_t:file read;
 
@@ -224,12 +224,12 @@ define(`gpg_per_userdomain_template',`
 	# rlimit: gpg-agent wants to prevent coredumps
 	allow $1_gpg_agent_t self:process setrlimit;
 
-	allow $1_gpg_agent_t self:unix_stream_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown listen accept };
-	allow $1_gpg_agent_t self:fifo_file { getattr read write };
+	allow $1_gpg_agent_t self:unix_stream_socket create_stream_socket_perms ;
+	allow $1_gpg_agent_t self:fifo_file rw_file_perms;
 
-	allow $1_t $1_gpg_agent_tmp_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-	allow $1_t $1_gpg_agent_tmp_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_t $1_gpg_agent_tmp_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_gpg_agent_tmp_t:dir create_dir_perms;
+	allow $1_t $1_gpg_agent_tmp_t:file create_file_perms;
+	allow $1_t $1_gpg_agent_tmp_t:sock_file create_file_perms;
 	files_create_private_tmp_data($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
 
 	domain_use_widely_inheritable_file_descriptors($1_gpg_agent_t)
@@ -256,7 +256,7 @@ define(`gpg_per_userdomain_template',`
 	allow $1_gpg_agent_t proc_t:dir search;
 	allow $1_gpg_agent_t proc_t:lnk_file read;
 
-	allow $1_gpg_agent_t device_t:dir { getattr read };
+	allow $1_gpg_agent_t device_t:dir r_file_perms;
 
 	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
 	allow $1_gpg_agent_t { home_root_t $1_home_dir_t }:dir search;
@@ -282,7 +282,7 @@ define(`gpg_per_userdomain_template',`
 	# we need to allow gpg-agent to call pinentry so it can get the passphrase 
 	# from the user.
 	allow $1_gpg_agent_t $1_gpg_pinentry_t:process transition;
-	allow $1_gpg_agent_t pinentry_exec_t:file { getattr read execute };
+	allow $1_gpg_agent_t pinentry_exec_t:file rx_file_perms;
 	type_transition $1_gpg_agent_t pinentry_exec_t:process $1_gpg_pinentry_t;
 	dontaudit $1_gpg_agent_t $1_gpg_pinentry_t:process { noatsecure siginh rlimitinh };
 
@@ -292,7 +292,7 @@ define(`gpg_per_userdomain_template',`
 	allow $1_gpg_agent_t $1_gpg_pinentry_t:process sigchld;
 
 	allow $1_gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
-	allow $1_gpg_pinentry_t self:fifo_file { getattr read write };
+	allow $1_gpg_pinentry_t self:fifo_file rw_file_perms;
 
 	# read /proc/meminfo
 	kernel_read_system_state($1_gpg_pinentry_t)
@@ -322,21 +322,21 @@ define(`gpg_per_userdomain_template',`
 
 	# for .Xauthority
 	allow $1_gpg_pinentry_t $1_home_dir_t:dir { getattr search };
-	allow $1_gpg_pinentry_t $1_home_t:file { getattr read };
+	allow $1_gpg_pinentry_t $1_home_t:file r_file_perms;
 	# wants to put some lock files into the user home dir, seems to work fine without
 	dontaudit $1_gpg_pinentry_t $1_home_t:dir { read write };
 	dontaudit $1_gpg_pinentry_t $1_home_t:file write;
 
 	if (use_nfs_home_dirs) {
 		allow $1_gpg_pinentry_t nfs_t:dir { getattr search };
-		allow $1_gpg_pinentry_t nfs_t:file { getattr read };
+		allow $1_gpg_pinentry_t nfs_t:file r_file_perms;
 		dontaudit $1_gpg_pinentry_t nfs_t:dir { read write };
 		dontaudit $1_gpg_pinentry_t nfs_t:file write;
 	}
 
 	if (use_samba_home_dirs) {
 		allow $1_gpg_pinentry_t cifs_t:dir { getattr search };
-		allow $1_gpg_pinentry_t cifs_t:file { getattr read };
+		allow $1_gpg_pinentry_t cifs_t:file r_file_perms;
 		dontaudit $1_gpg_pinentry_t cifs_t:dir { read write };
 		dontaudit $1_gpg_pinentry_t cifs_t:file write;
 	}
