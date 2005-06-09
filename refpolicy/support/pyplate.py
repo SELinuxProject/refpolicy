@@ -179,7 +179,7 @@ class ForTemplateNode(TemplateNode):
       self.vars = []
       for v in self.vars_temp:
         self.vars.append(v.strip())
-      print self.vars
+      #print self.vars
       self.expression = match.group(2)
 
   def execute(self, stream, data):
@@ -188,8 +188,8 @@ class ForTemplateNode(TemplateNode):
       if data.has_key(var):
         remember_vars[var] = data[var]
     for list in eval(self.expression, globals(), data):
-      if util.is_sequence(list):
-        for index, value in util.enumerate(list):
+      if is_sequence(list):
+        for index, value in enumerate(list):
           data[self.vars[index]] = value
       else:
         data[self.vars[0]] = list
@@ -255,7 +255,7 @@ class FunctionTemplateNode(TemplateNode):
     self.vars = []
     for v in self.vars_temp:
       self.vars.append(v.strip())
-    print self.vars
+    #print self.vars
     self.parent.functions[self.function_name] = self
 
   def execute(self, stream, data):
@@ -263,7 +263,7 @@ class FunctionTemplateNode(TemplateNode):
 
   def call(self, args, stream, data):
     remember_vars = {}
-    for index, var in util.enumerate(self.vars):
+    for index, var in enumerate(self.vars):
       if data.has_key(var):
         remember_vars[var] = data[var]
       data[var] = args[index]
@@ -355,37 +355,10 @@ def TemplateNodeFactory(parent):
           return template_factory_type_map[i](parent, directive)
       return ExpressionTemplateNode(parent, directive)
 
-
-############################################################
-# TESTING CODE
-if __name__ == '__main__':
-  combinations = (('OneBit', 'Float', 'GreyScale'),
-                  ('GreyScale', 'RGB'))
-  
-  template = Template("""
-  [[# This is a comment #]]
-  [[# This example does recursive function calls need to generate feature combinations #]]
-  [[def switch(layer, args)]]
-     switch(m[[layer]].id) {
-     [[for option in combinations[layer]]]
-     [[exec current = option + '(m' + str(layer) + ')']]
-     case [[option]]:
-       [[if layer == layers - 1]]
-         function_call([[string.join(args + [current], ',')]]);
-       [[else]]
-         [[call switch(layer + 1, args + [current])]]
-       [[end]]
-     break;
-     [[end]]
-     }
-  [[end]]
-
-  PyObject *py_overload_resolution_[[function_name]](PyObject *args) {
-  [[call switch(0, [])]]
-  }
-  """)
-
-  data = {'combinations'  : combinations,
-          'function_name' : 'threshold',
-          'layers'        : 2}
-  template.execute(sys.stdout, data)
+def is_sequence(object):
+  try:
+    test = object[0:0]
+  except:
+    return False
+  else:
+    return True
