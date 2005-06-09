@@ -69,7 +69,7 @@ allow init_t self:capability ~sys_module;
 # setuid (from /sbin/shutdown)
 # sys_chroot (from /usr/bin/chroot): now provided by corecommands_chroot()
 
-allow init_t self:fifo_file { read write ioctl };
+allow init_t self:fifo_file rw_file_perms;
 
 # Re-exec itself
 allow init_t init_exec_t:file { getattr read ioctl execute execute_no_trans };
@@ -83,12 +83,12 @@ fs_tmpfs_associate(initctl_t)
 devices_create_dev_entry(init_t,initctl_t,fifo_file)
 
 # Modify utmp.
-allow init_t initrc_var_run_t:file { getattr read write setattr lock };
+allow init_t initrc_var_run_t:file rw_file_perms;
 
 # Run init scripts.  this is ok since initrc
 # is also in this module
 allow init_t initrc_t:process transition;
-allow init_t initrc_exec_t:file { getattr read execute };
+allow init_t initrc_exec_t:file rx_file_perms;
 type_transition init_t initrc_exec_t:process initrc_t;
 dontaudit init_t initrc_t:process { noatsecure siginh rlimitinh };
 
@@ -163,26 +163,26 @@ allow initrc_t self:capability ~{ sys_admin sys_module };
 allow initrc_t self:passwd rootok;
 
 # Allow IPC with self
-allow initrc_t self:unix_dgram_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
+allow initrc_t self:unix_dgram_socket create_socket_perms;
 allow initrc_t self:unix_stream_socket { create listen accept ioctl read getattr write setattr append bind connect getopt setopt shutdown connectto };
-allow initrc_t self:tcp_socket { connect listen accept create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow initrc_t self:udp_socket { connect create ioctl read getattr write setattr append bind getopt setopt shutdown };
-allow initrc_t self:fifo_file { getattr read write ioctl };
-allow initrc_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read };
+allow initrc_t self:tcp_socket create_stream_socket_perms;
+allow initrc_t self:udp_socket create_socket_perms;
+allow initrc_t self:fifo_file rw_file_perms;
+allow initrc_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow initrc_t init_t:fd use;
 
 allow initrc_t initrc_exec_t:file { getattr read ioctl execute execute_no_trans };
 
-allow initrc_t initrc_state_t:dir { create read getattr lock setattr ioctl unlink rename search add_name remove_name reparent write rmdir };
-allow initrc_t initrc_state_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow initrc_t initrc_state_t:dir create_dir_perms;
+allow initrc_t initrc_state_t:file create_file_perms;
 allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
 
-allow initrc_t initrc_var_run_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow initrc_t initrc_var_run_t:file create_file_perms;
 files_create_daemon_runtime_data(initrc_t,initrc_var_run_t)
 
-allow initrc_t initrc_tmp_t : file { create ioctl read getattr lock write setattr append link unlink rename };
-allow initrc_t initrc_tmp_t : dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
+allow initrc_t initrc_tmp_t:file create_file_perms;
+allow initrc_t initrc_tmp_t:dir create_dir_perms;
 files_create_private_tmp_data(initrc_t,initrc_tmp_t, { file dir })
 
 kernel_read_system_state(initrc_t)
@@ -389,7 +389,7 @@ allow initrc_t xconsole_device_t:fifo_file setattr;
 # for lsof in shutdown scripts
 can_kerberos(initrc_t)
 dontaudit initrc_t krb5_conf_t:file write;
-allow initrc_t krb5_conf_t:file { getattr read };
+allow initrc_t krb5_conf_t:file r_file_perms;
 
 #
 #  These rules are here to allow init scripts to su
@@ -409,7 +409,7 @@ ifdef(`distro_debian', `
 
 ifdef(`distro_redhat', `
 	# readahead asks for these
-	allow initrc_t var_lib_nfs_t:file { getattr read };
+	allow initrc_t var_lib_nfs_t:file r_file_perms;
 ')
 
 ifdef(`targeted_policy', `

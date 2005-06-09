@@ -1,6 +1,22 @@
 ## <module name="authlogin" layer="system">
 ## <summary>Common policy for authentication and user login.</summary>
 
+
+########################################
+## <interface name="authlogin_per_userdomain_template">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="userdomain_prefix">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
+
 #######################################
 #
 # Per user domain template for this module
@@ -47,10 +63,7 @@ define(`authlogin_per_userdomain_template',`
 	#can_ldap($1_chkpwd_t)
 
 	# Transition from the user domain to this domain.
-	allow $1_t chkpwd_exec_t:file { getattr read execute };
-	allow $1_t $1_chkpwd_t:process transition;
-	type_transition $1_t chkpwd_exec_t:process $1_chkpwd_t;
-	dontaudit $1_t $1_chkpwd_t:process { noatsecure siginh rlimitinh };
+	domain_auto_trans($1,chkpwd_exec_t,$1_chkpwd_t)
 
 	allow $1_chkpwd_t $1_t:fd use;
 	allow $1_t $1_chkpwd_t:fd use;
@@ -65,7 +78,7 @@ define(`authlogin_per_userdomain_template',`
 	#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
 
 	tunable_policy(`use_dns',`
-		allow $1_chkpwd_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+		allow $1_chkpwd_t self:udp_socket create_socket_perms;
 		corenetwork_sendrecv_udp_on_all_interfaces($1_chkpwd_t)
 		corenetwork_sendrecv_raw_on_all_interfaces($1_chkpwd_t)
 		corenetwork_sendrecv_udp_on_all_nodes($1_chkpwd_t)
@@ -86,14 +99,29 @@ define(`authlogin_per_userdomain_template_depend',`
 
 	type chkpwd_exec_t, system_chkpwd_t, shadow_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { getattr transition sigchld };
 	class capability setuid;
-	class unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
+	class unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown }; 
 	class unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
 	class fd use;
 	class fifo_file rw_file_perms;
 ')
+
+########################################
+## <interface name="authlogin_make_login_program_entrypoint">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 
 #######################################
 #
@@ -127,7 +155,7 @@ define(`authlogin_login_program_transition',`
 	requires_block_template(`$0'_depend)
 
 	# FIXME: search bin_t
-	allow $1 login_exec_t:file { getattr read execute };
+	allow $1 login_exec_t:file rx_file_perms;
 	allow $1 $2:process transition;
 	type_transition $1 login_exec_t:process $2;
 	dontaudit $1 $2:process { noatsecure siginh rlimitinh };
@@ -141,12 +169,26 @@ define(`authlogin_login_program_transition',`
 define(`authlogin_login_program_transition_depend',`
 	type login_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms; 
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd use;
 	class fifo_file rw_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_check_password_transition">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_check_password_transition(domain)
@@ -168,7 +210,7 @@ define(`authlogin_check_password_transition',`
 	#can_ldap($1_t)
 
 	tunable_policy(`use_dns',`
-		allow $1 self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+		allow $1 self:udp_socket create_socket_perms;
 		corenetwork_sendrecv_udp_on_all_interfaces($1)
 		corenetwork_sendrecv_raw_on_all_interfaces($1)
 		corenetwork_sendrecv_udp_on_all_nodes($1)
@@ -182,13 +224,27 @@ define(`authlogin_check_password_transition',`
 define(`authlogin_check_password_transition_depend',`
 	type system_chkpwd_t, chkpwd_exec_t, shadow_t;
 
-	class file { getattr read execute };
-	class process { transition sigchld };
-	class udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
+	class file rx_file_perms;
+	class process { transition sigchld };                         
+	class udp_socket create_socket_perms;
 	class fd use;
 	class fifo_file rw_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_ignore_get_shadow_passwords_attributes">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_ignore_get_shadow_passwords_attributes(domain)
@@ -202,9 +258,23 @@ define(`authlogin_ignore_get_shadow_passwords_attributes',`
 define(`authlogin_ignore_get_shadow_passwords_attributes_depend',`
 	type shadow_t;
 
-	class file getattr;
+	class file stat_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_read_shadow_passwords">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_read_shadow_passwords(domain)
@@ -213,7 +283,7 @@ define(`authlogin_read_shadow_passwords',`
 	requires_block_template(`$0'_depend)
 
 	files_read_general_system_config_directory($1)
-	allow $1 shadow_t:file { getattr read };
+	allow $1 shadow_t:file r_file_perms;
 	typeattribute $1 can_read_shadow_passwords;
 ')
 
@@ -222,9 +292,23 @@ define(`authlogin_read_shadow_passwords_depend',`
 
 	type shadow_t;
 
-	class file { getattr read };
+	class file r_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_ignore_read_shadow_passwords">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_ignore_read_shadow_passwords(domain)
@@ -238,9 +322,23 @@ define(`authlogin_ignore_read_shadow_passwords',`
 define(`authlogin_ignore_read_shadow_passwords_depend',`
 	type shadow_t;
 
-	class file { getattr read };
+	class file r_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_modify_shadow_passwords">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_modify_shadow_passwords(domain)
@@ -349,10 +447,7 @@ define(`authlogin_modify_last_login_log_depend',`
 define(`authlogin_pam_transition',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 pam_exec_t:file { getattr read execute };
-	allow $1 pam_t:process transition;
-	type_transition $1 pam_exec_t:process pam_t;
-	dontaudit $1 pam_t:process { noatsecure siginh rlimitinh };
+	domain_auto_trans($1,pam_exec_t,pam_t)
 
 	allow $1 pam_t:fd use;
 	allow pam_t $1:fd use;
@@ -363,7 +458,7 @@ define(`authlogin_pam_transition',`
 define(`authlogin_pam_transition_depend',`
 	type pam_t, pam_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd
 	class fifo_file rw_file_perms;
@@ -381,7 +476,7 @@ define(`authlogin_pam_transition_depend',`
 ##		The role to allow the PAM domain.
 ##	</parameter>
 ##	<parameter name="terminal">
-##		The type of the terminal allow the PAM domain to use.
+B##		The type of the terminal allow the PAM domain to use.
 ##	</parameter>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
@@ -391,15 +486,29 @@ define(`authlogin_pam_transition_add_role_use_terminal',`
 
 	authlogin_pam_transition($1)
 	role $2 types pam_t;
-	allow pam_t $3:chr_file { getattr read write ioctl };
+	allow pam_t $3:chr_file rw_file_perms;
 ')
 
 define(`authlogin_pam_transition_add_role_use_terminal_depend',`
 	type pam_t;
 
-	class chr_file { getattr read write ioctl };
+	class chr_file rw_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_pam_execute">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_pam_execute(domain)
@@ -407,7 +516,7 @@ define(`authlogin_pam_transition_add_role_use_terminal_depend',`
 define(`authlogin_pam_execute',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 pam_exec_t:file { getattr read execute execute_no_trans };
+	can_exec($1,pam_exec_file_t)
 ')
 
 define(`authlogin_pam_execute_depend',`
@@ -425,17 +534,31 @@ define(`authlogin_pam_read_runtime_data',`
 
 	files_search_system_state_data_directory($1)
 	files_search_runtime_data_directory($1)
-	allow $1 pam_var_run_t:dir { getattr search read };
-	allow $1 pam_var_run_t:file { getattr read };
+	allow $1 pam_var_run_t:dir r_dir_perms;
+	allow $1 pam_var_run_t:file r_file_perms;
 ')
 
 define(`authlogin_pam_read_runtime_data_depend',`
 	type pam_var_run_t;
 
-	class dir { getattr search read };
-	class file { getattr read };
+	class dir r_dir_perms;
+	class file r_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_pam_remove_runtime_data">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_pam_remove_runtime_data(domain)
@@ -463,10 +586,7 @@ define(`authlogin_pam_remove_runtime_data_depend',`
 define(`authlogin_pam_console_transition',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 pam_console_exec_t:file { getattr read execute };
-	allow $1 pam_console_t:process transition;
-	type_transition $1 pam_console_exec_t:process pam_console_t;
-	dontaudit $1 pam_console_t:process { noatsecure siginh rlimitinh };
+	domain_auto_trans($1,pam_console_exec_t,pam_console_t)
 
 	allow $1 pam_console_t:fd use;
 	allow pam_console_t $1:fd use;
@@ -477,12 +597,26 @@ define(`authlogin_pam_console_transition',`
 define(`authlogin_pam_console_transition_depend',`
 	type pam_console_t, pam_console_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd use;
 	class fifo_file rw_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_pam_console_read_runtime_data_dir">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_pam_console_read_runtime_data_dir(domain)
@@ -530,17 +664,17 @@ define(`authlogin_pam_console_manage_runtime_data',`
 
 	files_search_system_state_data_directory($1)
 	files_search_runtime_data_directory($1)
-	allow $1 pam_var_console_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1 pam_var_console_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1 pam_var_console_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1 pam_var_console_t:dir rw_dir_perms;
+B	allow $1 pam_var_console_t:file create_file_perms;
+	allow $1 pam_var_console_t:lnk_file create_lnk_perms;
 ')
 
 define(`authlogin_pam_console_manage_runtime_data_depend',`
 	type pam_var_console_t;
 
-	class dir { read getattr lock search ioctl add_name remove_name write };
-	class file { create ioctl read getattr lock write setattr append link unlink rename };
-	class lnk_file { create read getattr setattr link unlink rename };
+	class dir rw_dir_perms;
+	class file create_file_perms;
+	class lnk_file create_lnk_perms;
 ')
 
 ########################################
@@ -611,10 +745,7 @@ define(`authlogin_manage_all_files_except_shadow_depend',`
 define(`authlogin_utempter_transition',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 utempter_exec_t:file { getattr read execute };
-	allow $1 utempter_t:process transition;
-	type_transition $1 utempter_exec_t:process utempter_t;
-	dontaudit $1 utempter_t:process { noatsecure siginh rlimitinh };
+	domain_auto_trans($1,utempter_exec_t,utempter_t)
 
 	allow $1 utempter_t:fd use;
 	allow utempter_t $1:fd use;
@@ -625,7 +756,7 @@ define(`authlogin_utempter_transition',`
 define(`authlogin_utempter_transition_depend',`
 	type utempter_t, utempter_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd use;
 	class fifo_file rw_file_perms;
@@ -653,15 +784,29 @@ define(`authlogin_utempter_transition_add_role_use_terminal',`
 
 	authlogin_utempter_transition($1)
 	role $2 types utempter_t;
-	allow utempter_t $3:chr_file { getattr read write ioctl };
+	allow utempter_t $3:chr_file rw_file_perms;
 ')
 
 define(`authlogin_utempter_transition_add_role_use_terminal_depend',`
 	type utempter_t;
 
-	class chr_file { getattr read write ioctl };
+	class chr_file rw_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_read_login_records">
+##	<description>
+##		
+##	</description>
+##      <securitydesc>
+##              ...
+##      </securitydesc>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_read_login_records(domain)
@@ -670,15 +815,26 @@ define(`authlogin_read_login_records',`
 	requires_block_template(`$0'_depend)
 
 	logging_search_system_log_directory($1)
-	allow $1 wtmp_t:file { getattr read };
+	allow $1 wtmp_t:file r_file_perms;
 ')
 
 define(`authlogin_read_login_records_depend',`
 	type wtmp_t;
 
-	class file { getattr read };
+	class file r_file_perms;
 ')
 
+########################################
+## <interface name="authlogin_ignore_write_login_records">
+##	<description>
+##		
+##	</description>
+##	<parameter name="domain">
+##		
+##	</parameter>
+##	<infoflow type="write" weight="10"/>
+## </interface>
+#
 #######################################
 #
 # authlogin_ignore_write_login_records(domain)

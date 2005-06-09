@@ -14,7 +14,7 @@ define(`init_make_init_domain',`
 	role system_r types $1;
 
 	allow init_t $1:process transition;
-	allow init_t $2:file { getattr read execute };
+	allow init_t $2:file rx_file_perms;
 	dontaudit init_t $1:process { noatsecure siginh rlimitinh };
 	type_transition init_t $2:process $1;
 
@@ -33,7 +33,7 @@ define(`init_make_init_domain',`
 
 define(`init_make_init_domain_depend',`
 	type init_t;
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class fd use;
 	class fifo_file rw_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
@@ -53,7 +53,7 @@ define(`init_make_daemon_domain',`
 	role system_r types $1;
 
 	allow initrc_t $1:process transition;
-	allow initrc_t $2:file { getattr read execute };
+	allow initrc_t $2:file rx_file_perms;
 	dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
 	type_transition initrc_t $2:process $1;
 
@@ -75,7 +75,7 @@ define(`init_make_daemon_domain_depend',`
 
 	role system_r;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class fifo_file rw_file_perms;
 	class fd use;
 	class process { transition noatsecure siginh rlimitinh sigchld };
@@ -94,7 +94,7 @@ define(`init_make_system_domain',`
 	role system_r types $1;
 
 	allow initrc_t $1:process transition;
-	allow initrc_t $2:file { getattr read execute };
+	allow initrc_t $2:file rx_file_perms;
 	dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
 	type_transition initrc_t $2:process $1;
 
@@ -115,7 +115,7 @@ define(`init_make_system_domain_depend',`
 	type initrc_t;
 	role system_r;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class fd use;
 	class fifo_file rw_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
@@ -128,7 +128,7 @@ define(`init_make_system_domain_depend',`
 define(`init_transition',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 init_exec_t:file { getattr read execute };
+	allow $1 init_exec_t:file rx_file_perms;
 	allow $1 init_t:process transition;
 	type_transition $1 init_exec_t:process init_t;
 	dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
@@ -142,7 +142,7 @@ define(`init_transition',`
 define(`init_transition_depend',`
 	type init_t, init_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd use;
 	class fifo_file rw_file_perms;
@@ -204,13 +204,13 @@ define(`init_use_control_channel',`
 	requires_block_template(`$0'_depend)
 
 	devices_list_device_nodes($1)
-	allow $1 initctl_t:fifo_file { getattr read write };
+	allow $1 initctl_t:fifo_file rw_file_perms;
 ')
 
 define(`init_use_control_channel_depend',`
 	type initctl_t;
 
-	class fifo_file { getattr read write };
+	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -284,7 +284,7 @@ define(`init_ignore_use_file_descriptors_depend',`
 define(`init_script_transition',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 initrc_exec_t:file { getattr read execute };
+	allow $1 initrc_exec_t:file rx_file_perms;
 	allow $1 initrc_t:process transition;
 	type_transition $1 initrc_exec_t:process init_t;
 	dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
@@ -298,7 +298,7 @@ define(`init_script_transition',`
 define(`init_script_transition_depend',`
 	type initrc_t, initrc_exec_t;
 
-	class file { getattr read execute };
+	class file rx_file_perms;
 	class process { transition noatsecure siginh rlimitinh sigchld };
 	class fd use;
 	class fifo_file rw_file_perms;
@@ -311,7 +311,8 @@ define(`init_script_transition_depend',`
 define(`init_script_execute',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 initrc_exec_t:file { getattr read execute execute_no_trans };
+	can_exec($1,initrc_exec_t)
+
 ')
 
 define(`init_script_execute_depend',`
@@ -334,8 +335,8 @@ define(`init_script_execute_depend',`
 define(`init_script_read_process_state',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 initrc_t:dir { search getattr read };
-	allow $1 initrc_t:{ file lnk_file } { read getattr };
+	allow $1 initrc_t:dir r_dir_perms;
+	allow $1 initrc_t:{ file lnk_file } r_file_perms;
 	allow $1 initrc_t:process getattr;
 
 	# We need to suppress this denial because procps tries to access
@@ -348,9 +349,9 @@ define(`init_script_read_process_state',`
 define(`init_script_read_process_state_depend',`
 	type initrc_t;
 
-	class dir { search getattr read };
-	class file { read getattr };
-	class lnk_file { read getattr };
+	class dir r_dir_perms;
+	class file r_file_perms;
+	class lnk_file r_file_perms;
 	class process { getattr ptrace };
 ')
 
@@ -426,7 +427,7 @@ define(`init_script_use_pseudoterminal_depend',`
 define(`init_script_ignore_use_pseudoterminal',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 initrc_devpts_t:chr_file { read write ioctl };
+	dontaudit $1 initrc_devpts_t:chr_file { read write ioctl };
 ')
 
 define(`init_script_ignore_use_pseudoterminal_depend',`
@@ -450,13 +451,13 @@ define(`init_script_modify_temporary_data',`
 	requires_block_template(`$0'_depend)
 
 	# FIXME: read tmp_t
-	allow $1 initrc_tmp_t:file { getattr read write };
+	allow $1 initrc_tmp_t:file rw_file_perms;
 ')
 
 define(`init_script_modify_temporary_data_depend',`
 	type initrc_var_run_t;
 
-	class file { getattr read write };
+	class file rw_file_perms;
 ')
 
 ########################################
@@ -467,13 +468,13 @@ define(`init_script_read_runtime_data',`
 	requires_block_template(`$0'_depend)
 
 	files_read_runtime_data_directory($1)
-	allow $1 initrc_var_run_t:file { getattr read lock };
+	allow $1 initrc_var_run_t:file r_file_perms;
 ')
 
 define(`init_script_read_runtime_data_depend',`
 	type initrc_var_run_t;
 
-	class file { getattr read lock };
+	class file r_file_perms;
 ')
 
 ########################################
@@ -500,13 +501,13 @@ define(`init_script_modify_runtime_data',`
 	requires_block_template(`$0'_depend)
 
 	files_read_runtime_data_directory($1)
-	allow $1 initrc_var_run_t:file { getattr read write append lock };
+	allow $1 initrc_var_run_t:file rw_file_perms;
 ')
 
 define(`init_script_modify_runtime_data_depend',`
 	type initrc_var_run_t;
 
-	class file { getattr read write append lock };
+	class file rw_file_perms;
 ')
 
 ########################################
@@ -522,7 +523,7 @@ define(`init_script_ignore_modify_runtime_data',`
 define(`init_script_ignore_modify_runtime_data_depend',`
 	type initrc_var_run_t;
 
-	class file { getattr read write append };
+	class file rw_file_perms;
 ')
 
 ## </module>

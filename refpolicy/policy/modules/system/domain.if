@@ -12,8 +12,8 @@ define(`domain_make_base_domain',`
 	typeattribute $1 domain;
 
 	# allow the domain to read its /proc/pid entries
-	allow $1 self:dir { getattr search read };
-	allow $1 self:{ file lnk_file } { getattr read write ioctl };
+	allow $1 self:dir r_dir_perms;
+	allow $1 self:{ file lnk_file } rw_file_perms;
 
 	# allow $1 to create child processes in this domain
 	allow $1 self:process { fork sigchld };
@@ -22,9 +22,9 @@ define(`domain_make_base_domain',`
 define(`domain_make_base_domain_depend',`
 	attribute domain;
 
-	class dir { getattr search read };
-	class file { getattr read write ioctl };
-	class lnk_file { getattr read };
+	class dir r_dir_perms;
+	class file rw_file_perms;
+	class lnk_file r_file_perms;
 ')
 
 ########################################
@@ -264,9 +264,9 @@ define(`domain_kill_all_domains_depend',`
 define(`domain_read_all_domains_process_state',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 domain:dir { getattr search read };
-	allow $1 domain:lnk_file { getattr read };
-	allow $1 domain:file { getattr read };
+	allow $1 domain:dir r_dir_perms;
+	allow $1 domain:lnk_file r_file_perms;
+	allow $1 domain:file r_file_perms;
 	allow $1 domain:process getattr;
 
 	# We need to suppress this denial because procps tries to access
@@ -279,9 +279,9 @@ define(`domain_read_all_domains_process_state',`
 define(`domain_read_all_domains_process_state_depend',`
 	attribute domain;
 
-	class dir { getattr search read };
-	class lnk_file { getattr read };
-	class file { getattr read };
+	class dir r_dir_perms;
+	class lnk_file r_file_perms;
+	class file r_file_perms;
 	class process { getattr ptrace };
 ')
 
@@ -435,8 +435,9 @@ define(`domain_ignore_get_all_domains_pipe_attributes_depend',`
 #
 define(`domain_execute_all_entrypoint_programs',`
 	requires_block_template(`$0'_depend)
+	
+	can_exec($1,entry_type)
 
-	allow $1 entry_type:file { getattr read ioctl lock execute execute_no_trans };
 ')
 
 define(`domain_execute_all_entrypoint_programs_depend',`
@@ -452,7 +453,7 @@ define(`domain_execute_all_entrypoint_programs_depend',`
 define(`domain_read_all_entrypoint_programs',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 entry_type:lnk_file { getattr read };
+	allow $1 entry_type:lnk_file r_file_perms;
 	allow $1 entry_type:file r_file_perms;
 ')
 
@@ -460,7 +461,7 @@ define(`domain_read_all_entrypoint_programs_depend',`
 	attribute entry_type;
 
 	class file r_file_perms;
-	class lnk_file { getattr read };
+	class lnk_file r_file_perms;
 ')
 
 ## </module>
@@ -478,13 +479,13 @@ define(`domain_read_all_entrypoint_programs_depend',`
 define(`domain_trans',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 $2:file { getattr read execute };
+	allow $1 $2:file rx_file_perms;
 	allow $1 $3:process transition;
 	dontaudit $1 $3:process { noatsecure siginh rlimitinh };
 ')
 
 define(`domain_trans_depend',`
-	class file { getattr read execute };
+	class file rx_file_perms;
 	process { transition noatsecure siginh rlimitinh };
 ')
 
