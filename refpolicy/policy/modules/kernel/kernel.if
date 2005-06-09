@@ -5,10 +5,10 @@
 ## </summary>
 
 ########################################
-## <interface name="kernel_make_userland_entrypoint">
+## <interface name="kernel_userland_entry">
 ## 	<description>
-##		Gives kernel an entrypoint to the caller via
-##		the entrypoint type.
+##		Allows to start userland processes
+##		by transitioning to the specified domain.
 ## 	</description>
 ## 	<parameter name="domain">
 ##		The process type entered by kernel.
@@ -18,7 +18,7 @@
 ## 	</parameter>
 ## </interface>
 #
-define(`kernel_make_userland_entrypoint',`
+define(`kernel_userland_entry',`
 	requires_block_template(`$0'_depend)
 
 	domain_auto_trans(kernel_t, $2, $1)
@@ -36,6 +36,29 @@ define(`kernel_make_userland_entrypoint_depend',`
 	class file { getattr read execute };
 	class fifo_file rw_file_perms;
 	class fd use;
+')
+
+########################################
+## <interface name="kernel_rootfs_mountpoint">
+##	<description>
+## 		Allows the kernel to mount filesystems on
+## 		the specified directory type.
+##	</description>
+##	<parameter name="directory_type">
+##		The type of the directory to use as a mountpoint.
+##	</parameter>
+## </interface>
+#
+define(`kernel_rootfs_mountpoint',`
+	requires_block_template(`$0'_depend)
+
+	allow kernel_t $1:dir mounton;
+')
+
+define(`kernel_rootfs_mountpoint_depend',`
+	type kernel_t;
+
+	class dir mounton;
 ')
 
 ########################################
@@ -62,7 +85,7 @@ define(`kernel_share_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_use_file_descriptors">
+## <interface name="kernel_use_fd">
 ## 	<description>
 ## 		Permits caller to use kernel file descriptors.
 ## 	</description>
@@ -71,22 +94,22 @@ define(`kernel_share_state_depend',`
 ## 	</parameter>
 ## </interface>
 #
-define(`kernel_use_file_descriptors',`
+define(`kernel_use_fd',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 kernel_t:fd use;
 ')
 
-define(`kernel_use_file_descriptors_depend',`
+define(`kernel_use_fd_depend',`
 	type kernel_t;
 
 	class fd use;
 ')
 
 ########################################
-## <interface name="kernel_ignore_use_file_descriptors">
+## <interface name="kernel_dontaudit_use_fd">
 ## 	<description>
-## 		Do not audit attempts by the caller to use
+## 		Do not audit attempts to use
 ## 		kernel file descriptors.
 ## 	</description>
 ## 	<parameter name="domain">
@@ -94,39 +117,16 @@ define(`kernel_use_file_descriptors_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_use_file_descriptors',`
+define(`kernel_dontaudit_use_fd',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 kernel_t:fd use;
 ')
 
-define(`kernel_ignore_use_file_descriptors_depend',`
+define(`kernel_dontaudit_use_fd_depend',`
 	type kernel_t;
 
 	class fd use;
-')
-
-########################################
-## <interface name="kernel_make_root_fs_mountpoint">
-##	<description>
-## 		Allows the kernel to mount filesystems on
-## 		the caller.
-##	</description>
-##	<parameter name="mountpoint">
-##		The type of the directory to use as a mountpoint.
-##	</parameter>
-## </interface>
-#
-define(`kernel_make_root_fs_mountpoint',`
-	requires_block_template(`$0'_depend)
-
-	allow kernel_t $1:dir mounton;
-')
-
-define(`kernel_make_root_fs_mountpoint_depend',`
-	type kernel_t;
-
-	class dir mounton;
 ')
 
 ########################################
@@ -193,7 +193,6 @@ define(`kernel_make_object_identity_change_constraint_exception_depend',`
 ')
 
 ########################################
-## 
 ## <interface name="kernel_load_module">
 ##	<description>
 ## 		Allows caller to load kernel modules
@@ -217,7 +216,6 @@ define(`kernel_load_module_depend',`
 ')
 
 ########################################
-##
 ## <interface name="kernel_get_selinux_enforcement_mode">
 ##	<description>
 ## 		Allows the caller to get the mode of policy enforcement
@@ -243,7 +241,7 @@ define(`kernel_get_selinux_enforcement_mode_depend',`
 ')
 
 ########################################
-## <interface name="kernel_set_selinux_enforcement_mode">
+## <interface name="kernel_set_enforcement_mode">
 ##	<description>
 ## 		Allow caller to set the mode of policy enforcement
 ## 		(enforcing or permissive mode).
@@ -253,7 +251,7 @@ define(`kernel_get_selinux_enforcement_mode_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_set_selinux_enforcement_mode',`
+define(`kernel_set_enforcement_mode',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -263,7 +261,7 @@ define(`kernel_set_selinux_enforcement_mode',`
 	typeattribute $1 can_setenforce;
 ')
 
-define(`kernel_set_selinux_enforcement_mode_depend',`
+define(`kernel_set_enforcement_mode_depend',`
 	type security_t;
 
 	attribute can_setenforce;
@@ -274,19 +272,16 @@ define(`kernel_set_selinux_enforcement_mode_depend',`
 ')
 
 ########################################
-## <interface name="kernel_load_selinux_policy">
+## <interface name="kernel_load_policy">
 ##	<description>
 ## 		Allow caller to load the policy into the kernel.
 ##	</description>
-##	<securitydesc>
-## 		Caller can replace the policy being enforced.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type that will load the policy.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_load_selinux_policy',`
+define(`kernel_load_policy',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -296,7 +291,7 @@ define(`kernel_load_selinux_policy',`
 	typeattribute $1 can_load_policy;
 ')
 
-define(`kernel_load_selinux_policy_depend',`
+define(`kernel_load_policy_depend',`
 	type security_t;
 
 	attribute can_load_policy;
@@ -307,15 +302,11 @@ define(`kernel_load_selinux_policy_depend',`
 ')
 
 ########################################
-## <interface name="kernel_set_selinux_boolean">
+## <interface name="kernel_set_boolean">
 ##	<description>
 ## 		Allow caller to set the state of Booleans to
 ## 		enable or disable conditional portions of the policy.
 ##	</description>
-##	<securitydesc>
-## 		Caller can change which of the conditional portions of 
-## 		the policy are being enforced.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type allowed to set the Boolean.
 ##	</parameter>
@@ -324,7 +315,7 @@ define(`kernel_load_selinux_policy_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_set_selinux_boolean',`
+define(`kernel_set_boolean',`
 	requires_block_template(`$0'_depend)
 
 	ifelse(`$2',`',`
@@ -340,7 +331,7 @@ define(`kernel_set_selinux_boolean',`
 	auditallow $1 security_t:security setbool;
 ')
 
-define(`kernel_set_selinux_boolean_depend',`
+define(`kernel_set_boolean_depend',`
 	type security_t;
 
 	class dir { read search getattr };
@@ -349,19 +340,16 @@ define(`kernel_set_selinux_boolean_depend',`
 ')
 
 ########################################
-## <interface name="kernel_set_selinux_security_parameters">
+## <interface name="kernel_set_security_parameters">
 ##	<description>
 ## 		Allow caller to set selinux security parameters.
 ##	</description>
-##	<securitydesc>
-## 		Caller can change security parameters.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type to allow to set security parameters.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_set_selinux_security_parameters',`
+define(`kernel_set_security_parameters',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -371,7 +359,7 @@ define(`kernel_set_selinux_security_parameters',`
 	typeattribute $1 can_setsecparam;
 ')
 
-define(`kernel_set_selinux_security_parameters_depend',`
+define(`kernel_set_security_parameters_depend',`
 	type security_t;
 
 	attribute can_setsecparam;
@@ -382,19 +370,16 @@ define(`kernel_set_selinux_security_parameters_depend',`
 ')
 
 ########################################
-## <interface name="kernel_validate_selinux_context">
+## <interface name="kernel_validate_context">
 ##	<description>
 ## 		Allows caller to validate security contexts.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type permitted to validate contexts.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_validate_selinux_context',`
+define(`kernel_validate_context',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -402,7 +387,7 @@ define(`kernel_validate_selinux_context',`
 	allow $1 security_t:security check_context;
 ')
 
-define(`kernel_validate_selinux_context_depend',`
+define(`kernel_validate_context_depend',`
 	type security_t;
 
 	class dir { read search getattr };
@@ -411,19 +396,16 @@ define(`kernel_validate_selinux_context_depend',`
 ')
 
 ########################################
-## <interface name="kernel_compute_selinux_access_vector">
+## <interface name="kernel_compute_access_vector">
 ##	<description>
 ## 		Allows caller to compute an access vector.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type allowed to compute an access vector.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_compute_selinux_access_vector',`
+define(`kernel_compute_access_vector',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -431,7 +413,7 @@ define(`kernel_compute_selinux_access_vector',`
 	allow $1 security_t:security compute_av;
 ')
 
-define(`kernel_compute_selinux_access_vector_depend',`
+define(`kernel_compute_access_vector_depend',`
 	type security_t;
 
 	class dir { read search getattr };
@@ -440,19 +422,16 @@ define(`kernel_compute_selinux_access_vector_depend',`
 ')
 
 ########################################
-## <interface name="kernel_compute_selinux_create_context">
+## <interface name="kernel_compute_create_context">
 ##	<description>
 ## 		
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_compute_selinux_create_context',`
+define(`kernel_compute_create_context',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -460,7 +439,7 @@ define(`kernel_compute_selinux_create_context',`
 	allow $1 security_t:security compute_create;
 ')
 
-define(`kernel_compute_selinux_create_context_depend',`
+define(`kernel_compute_create_context_depend',`
 	type security_t;
 
 	class dir { read search getattr };
@@ -469,19 +448,16 @@ define(`kernel_compute_selinux_create_context_depend',`
 ')
 
 ########################################
-## <interface name="kernel_compute_selinux_relabel_context">
+## <interface name="kernel_compute_relabel_context">
 ##	<description>
 ## 		
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type to 
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_compute_selinux_relabel_context',`
+define(`kernel_compute_relabel_context',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -489,7 +465,7 @@ define(`kernel_compute_selinux_relabel_context',`
 	allow $1 security_t:security compute_relabel;
 ')
 
-define(`kernel_compute_selinux_relabel_context_depend',`
+define(`kernel_compute_relabel_context_depend',`
 	type security_t;
 
 	class dir { read search getattr };
@@ -498,19 +474,16 @@ define(`kernel_compute_selinux_relabel_context_depend',`
 ')
 
 ########################################
-## <interface name="kernel_compute_selinux_reachable_user_contexts">
+## <interface name="kernel_compute_reachable_user_contexts">
 ##	<description>
 ## 		Allows caller to compute possible contexts for a user.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type allowed to compute user contexts.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_compute_selinux_reachable_user_contexts',`
+define(`kernel_compute_reachable_user_contexts',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 security_t:dir { read search getattr };
@@ -531,9 +504,6 @@ define(`kernel_compute_selinux_reachable_user_contexts_depend',`
 ##	<description>
 ## 		Allows caller to read the ring buffer.
 ##	</description>
-##	<securitydesc>
-## 		Buffer read could have sensitive information from multiple doamins.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type allowed to read the ring buffer.
 ##	</parameter>
@@ -552,26 +522,22 @@ define(`kernel_read_ring_buffer_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_read_ring_buffer">
+## <interface name="kernel_dontaudit_read_ring_buffer">
 ##	<description>
-## 		Ignore attempts by caller to read the ring buffer.
+## 		Do not audit attempts to read the ring buffer.
 ##	</description>
-##	<securitydesc>
-## 		Causes attepts to read potentially sensitive information
-## 		from being audited.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The domain to not audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_read_ring_buffer',`
+define(`kernel_dontaudit_read_ring_buffer',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 kernel_t:system syslog_read;
 ')
 
-define(`kernel_ignore_read_ring_buffer_depend',`
+define(`kernel_dontaudit_read_ring_buffer_depend',`
 	type kernel_t;
 
 	class system syslog_read;
@@ -582,9 +548,6 @@ define(`kernel_ignore_read_ring_buffer_depend',`
 ##	<description>
 ## 		
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		
 ##	</parameter>
@@ -607,9 +570,6 @@ define(`kernel_change_ring_buffer_level_depend',`
 ##	<description>
 ## 		Allows the caller to clear the ring buffer.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type clearing the buffer.
 ##	</parameter>
@@ -630,11 +590,8 @@ define(`kernel_clear_ring_buffer_depend',`
 ########################################
 ## <interface name="kernel_get_sysvipc_info">
 ##	<description>
-## 		Allow caller to get information about an ipc socket.
+## 		Get information on all System V IPC objects.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		
 ##	</parameter>
@@ -657,9 +614,6 @@ define(`kernel_get_sysvipc_info_depend',`
 ##	<description>
 ## 		Gets the caller the mountpoint of the selinuxfs filesystem.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type requesting the selinuxfs mountpoint.
 ##	</parameter>
@@ -687,9 +641,6 @@ define(`kernel_get_selinuxfs_mount_point_depend',`
 ##	<description>
 ## 		Allows caller to read system state information.
 ##	</description>
-##	<securitydesc>
-## 		State data contains information about multiple domains and may be privlaged.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type reading the system state information.
 ##	</parameter>
@@ -712,26 +663,23 @@ define(`kernel_read_system_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_read_system_state">
+## <interface name="kernel_dontaudit_read_system_state">
 ##	<description>
 ## 		Do not audit attempts by caller to 
 ## 		read system state information.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts to read system state data not to be auditted.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type not to audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_read_system_state',`
+define(`kernel_dontaudit_read_system_state',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:file read;
 ')
 
-define(`kernel_ignore_read_system_state_depend',`
+define(`kernel_dontaudit_read_system_state_depend',`
 	type proc_t;
 
 	class file read;
@@ -742,9 +690,6 @@ define(`kernel_ignore_read_system_state_depend',`
 ##	<description>
 ## 		Allow caller to read the state information for software raid.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type reading software raid state.
 ##	</parameter>
@@ -765,26 +710,23 @@ define(`kernel_read_software_raid_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_get_core_interface_attributes">
+## <interface name="kernel_getattr_core">
 ##	<description>
-## 		Allows caller to get attribues of core kernel interfaces.
+## 		Allows caller to get attribues of core kernel interface.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type getting the attibutes.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_get_core_interface_attributes',`
+define(`kernel_getattr_core',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir r_dir_perms;
 	allow $1 proc_kcore_t:file getattr;
 ')
 
-define(`kernel_get_core_interface_attributes_depend',`
+define(`kernel_getattr_core_depend',`
 	type proc_t, proc_kcore_t;
 
 	class dir { search getattr read };
@@ -792,27 +734,23 @@ define(`kernel_get_core_interface_attributes_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_get_core_interface_attributes">
+## <interface name="kernel_dontaudit_getattr_core">
 ##	<description>
 ## 		Do not audit attempts to get the attributes of 
 ## 		core kernel interfaces.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts to get attributes of kernel interfaces to 
-## 		not be auditted.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type to not audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_get_core_interface_attributes',`
+define(`kernel_dontaudit_getattr_core',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 proc_kcore_t:file getattr;
 ')
 
-define(`kernel_ignore_get_core_interface_attributes_depend',`
+define(`kernel_dontaudit_getattr_core_depend',`
 	type proc_kcore_t;
 
 	class file getattr;
@@ -821,11 +759,9 @@ define(`kernel_ignore_get_core_interface_attributes_depend',`
 ########################################
 ## <interface name="kernel_read_messages">
 ##	<description>
-## 		Allow caller to receive and read kernel messages.
+## 		Allow caller to read kernel messages
+##		using the /proc/kmsg interface.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type reading the messages.
 ##	</parameter>
@@ -849,27 +785,24 @@ define(`kernel_read_messages_depend',`
 ')
 
 ########################################
-## <interface name="kernel_get_message_interface_attributes">
+## <interface name="kernel_getattr_message_if">
 ##	<description>
 ## 		Allow caller to get the attributes of kernel message
-## 		interfaces.
+## 		interface (/proc/kmsg).
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type getting the attributes.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_get_message_interface_attributes',`
+define(`kernel_getattr_message_if',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
 	allow $1 proc_kmsg_t:file getattr;
 ')
 
-define(`kernel_get_message_interface_attributes_depend',`
+define(`kernel_getattr_message_if_depend',`
 	type proc_kmsg_t, proc_t;
 
 	class dir search;
@@ -877,27 +810,23 @@ define(`kernel_get_message_interface_attributes_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_get_message_interface_attributes">
+## <interface name="kernel_dontaudit_getattr_message_if">
 ##	<description>
 ## 		Do not audit attempts by caller to get the attributes of kernel 
 ## 		message interfaces.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts by caller to get the attributes of kernel 
-## 		message interfaces not to be auditted.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type not to audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_get_message_interface_attributes',`
+define(`kernel_dontaudit_getattr_message_if',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 proc_kmsg_t:file getattr;
 ')
 
-define(`kernel_ignore_get_message_interface_attributes_depend',`
+define(`kernel_dontaudit_getattr_message_if_depend',`
 	type proc_kmsg_t, proc_t;
 
 	class file getattr;
@@ -908,9 +837,6 @@ define(`kernel_ignore_get_message_interface_attributes_depend',`
 ##	<description>
 ## 		Allow caller to read the network state information.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type reading the state.
 ##	</parameter>
@@ -933,26 +859,23 @@ define(`kernel_read_network_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_search_sysctl_dir">
+## <interface name="kernel_dontaudit_search_sysctl_dir">
 ##	<description>
 ## 		Do not audit attempts by caller to search the sysctl directory.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts by caller to search the sysctl directy not to be auditted.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type not to audit.
 ##	</parameter>
 ## </interface>
 ##
 #
-define(`kernel_ignore_search_sysctl_dir',`
+define(`kernel_dontaudit_search_sysctl_dir',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 sysctl_t:dir search;
 ')
 
-define(`kernel_ignore_search_sysctl_dir_depend',`
+define(`kernel_dontaudit_search_sysctl_dir_depend',`
 	type sysctl_t;
 
 	class dir search;
@@ -961,13 +884,10 @@ define(`kernel_ignore_search_sysctl_dir_depend',`
 ########################################
 ## <interface name="kernel_read_device_sysctl">
 ##	<description>
-## 		Allow caller to read the sysctl device.
+## 		Allow caller to read the device sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type to allow to read the sysctl device.
+##		The process type to allow to read the device sysctls.
 ##	</parameter>
 ## </interface>
 #
@@ -988,19 +908,16 @@ define(`kernel_read_device_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_device_sysctl">
+## <interface name="kernel_rw_device_sysctl">
 ##	<description>
-## 		Allows the caller to modify the sysctl device file.
+## 		Read and write device sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying the sysctl device.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_device_sysctl',`
+define(`kernel_rw_device_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1008,7 +925,7 @@ define(`kernel_modify_device_sysctl',`
 	allow $1 sysctl_dev_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_device_sysctl_depend',`
+define(`kernel_rw_device_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_dev_t;
 
 	class dir r_dir_perms;
@@ -1016,20 +933,17 @@ define(`kernel_modify_device_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_read_virtual_memory_sysctl">
+## <interface name="kernel_read_vm_sysctl">
 ##	<description>
-## 		Allow caller to read sysctl virtual memory.
+## 		Allow caller to read virtual memory sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 ##
 #
-define(`kernel_read_virtual_memory_sysctl',`
+define(`kernel_read_vm_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1037,7 +951,7 @@ define(`kernel_read_virtual_memory_sysctl',`
 	allow $1 sysctl_vm_t:file r_file_perms;
 ')
 
-define(`kernel_read_virtual_memory_sysctl_depend',`
+define(`kernel_read_vm_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_vm_t;
 
 	class dir r_dir_perms;
@@ -1045,19 +959,16 @@ define(`kernel_read_virtual_memory_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_virtual_memory_sysctl">
+## <interface name="kernel_rw_vm_sysctl">
 ##	<description>
-## 		Allow caller to modify contents of sysctl virtual memory.
+## 		Read and write virtual memory sysctls.
 ##	</description>
-##	<securitydesc>
-## 		Allows caller to modify sysctl virtual memory.
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying sysctl virtual memory.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_virtual_memory_sysctl',`
+define(`kernel_rw_vm_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1065,7 +976,7 @@ define(`kernel_modify_virtual_memory_sysctl',`
 	allow $1 sysctl_vm_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_virtual_memory_sysctl_depend',`
+define(`kernel_rw_vm_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_vm_t;
 
 	class dir r_dir_perms;
@@ -1073,46 +984,39 @@ define(`kernel_modify_virtual_memory_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_ignore_search_network_sysctl_dir">
+## <interface name="kernel_dontaudit_search_network_sysctl_dir">
 ##	<description>
 ## 		Do not audit attempts by caller to search sysctl network directories.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts by the caller to search the sysctl network 
-## 		directories not to be audited.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type not to audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_search_network_sysctl_dir',`
+define(`kernel_dontaudit_search_network_sysctl_dir',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 sysctl_net_t:dir search;
 ')
 
-define(`kernel_ignore_search_network_sysctl_dir_depend',`
+define(`kernel_dontaudit_search_network_sysctl_dir_depend',`
 	type sysctl_net_t;
 
 	class dir search;
 ')
 
 ########################################
-## <interface name="kernel_read_network_sysctl">
+## <interface name="kernel_read_net_sysctl">
 ##	<description>
-## 		Allow caller to read sysctl network files.
+## 		Allow caller to read network sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading sysctl network files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 ##
 #
-define(`kernel_read_network_sysctl',`
+define(`kernel_read_net_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1121,7 +1025,7 @@ define(`kernel_read_network_sysctl',`
 	allow $1 sysctl_net_t:file r_file_perms;
 ')
 
-define(`kernel_read_network_sysctl_depend',`
+define(`kernel_read_net_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_net_t;
 
 	class dir r_dir_perms;
@@ -1129,20 +1033,16 @@ define(`kernel_read_network_sysctl_depend',`
 ')
 
 ########################################
-
-## <interface name="kernel_modify_network_sysctl">
+## <interface name="kernel_rw_net_sysctl">
 ##	<description>
 ## 		Allow caller to modiry contents of sysctl network files.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying sysctl network files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_network_sysctl',`
+define(`kernel_rw_net_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1151,7 +1051,7 @@ define(`kernel_modify_network_sysctl',`
 	allow $1 sysctl_net_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_network_sysctl_depend',`
+define(`kernel_rw_net_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_net_t;
 
 	class dir r_dir_perms;
@@ -1161,13 +1061,11 @@ define(`kernel_modify_network_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_unix_sysctl">
 ##	<description>
-## 		Allow caller to read unix sysctl files.
+## 		Allow caller to read unix domain
+##		socket sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading unix sysctl files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1180,7 +1078,7 @@ define(`kernel_read_unix_sysctl',`
 	allow $1 sysctl_net_unix_t:file r_file_perms;
 ')
 
-define(`kernel_read_net_sysctl_depend',`
+define(`kernel_read_unix_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_net_t, sysctl_net_unix_t;
 
 	class dir r_dir_perms;
@@ -1188,15 +1086,13 @@ define(`kernel_read_net_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_unix_sysctl">
+## <interface name="kernel_rw_unix_sysctl">
 ##	<description>
-## 		Allow caller to modify contents of unix sysctl files.
+## 		Read and write unix domain
+##		socket sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying contents of unix sysctl files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1219,13 +1115,10 @@ define(`kernel_modify_net_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_hotplug_sysctl">
 ##	<description>
-## 		Allow caller to read data from hotplug.
+## 		Read the hotplug sysctl.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading hotplug data.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1246,19 +1139,16 @@ define(`kernel_read_hotplug_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_hotplug_sysctl">
+## <interface name="kernel_rw_hotplug_sysctl">
 ##	<description>
-## 		Allow caller to modify hotplug sysctl data.
+## 		Read and write the hotplug sysctl.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying hotplug sysctl data.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_hotplug_sysctl',`
+define(`kernel_rw_hotplug_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1267,7 +1157,7 @@ define(`kernel_modify_hotplug_sysctl',`
 	allow $1 sysctl_hotplug_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_hotplug_sysctl_depend',`
+define(`kernel_rw_hotplug_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_kernel_t, sysctl_hotplug_t;
 
 	class dir r_dir_perms;
@@ -1277,13 +1167,10 @@ define(`kernel_modify_hotplug_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_modprobe_sysctl">
 ##	<description>
-## 		Allow caller to read files containing modprobe information.
+## 		Read the modprobe sysctl.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process domian reading modprobe information files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1304,19 +1191,16 @@ define(`kernel_read_modprobe_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_modprobe_sysctl">
+## <interface name="kernel_rw_modprobe_sysctl">
 ##	<description>
-## 		Allow caller to modify files containing modprobe information.
+##		Read and write the modprobe sysctl.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process domian modifying modprobe information files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_modprobe_sysctl',`
+define(`kernel_rw_modprobe_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1325,7 +1209,7 @@ define(`kernel_modify_modprobe_sysctl',`
 	allow $1 sysctl_modprobe_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_modprobe_sysctl_depend',`
+define(`kernel_rw_modprobe_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_kernel_t, sysctl_modprobe_t;
 
 	class dir r_dir_perms;
@@ -1335,13 +1219,10 @@ define(`kernel_modify_modprobe_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_kernel_sysctl">
 ##	<description>
-## 		Allow caller to read kernel sysctl files.
+##		Read generic kernel sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading kernel sysctl files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1362,19 +1243,16 @@ define(`kernel_read_kernel_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_kernel_sysctl">
+## <interface name="kernel_rw_kernel_sysctl">
 ##	<description>
-## 		Allow caller to modify kernel sysctl files.
+## 		Read and write generic kernel sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying kernel sysctl files.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_kernel_sysctl',`
+define(`kernel_rw_kernel_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1383,7 +1261,7 @@ define(`kernel_modify_kernel_sysctl',`
 	allow $1 sysctl_kernel_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_kernel_sysctl_depend',`
+define(`kernel_rw_kernel_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_kernel_t;
 
 	class dir r_dir_perms;
@@ -1393,13 +1271,10 @@ define(`kernel_modify_kernel_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_fs_sysctl">
 ##	<description>
-## 		Allow caller to read filesystem information.
+##		Read filesystem sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading filesystem information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1420,21 +1295,16 @@ define(`kernel_read_fs_sysctl_depend',`
 ')
 
 ########################################
-#
-# kernel_modify_fs_sysctl(domain)
-## <interface name="kernel_modify_fs_sysctl">
+## <interface name="kernel_rw_fs_sysctl">
 ##	<description>
-## 		Allow caller to modify filesystem information.
+##		Read and write fileystem sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying filesystem information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_fs_sysctl',`
+define(`kernel_rw_fs_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1443,7 +1313,7 @@ define(`kernel_modify_fs_sysctl',`
 	allow $1 sysctl_fs_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_fs_sysctl_depend',`
+define(`kernel_rw_fs_sysctl_depend',`
 	type proc_t, sysctl_t, sysctl_fs_t;
 
 	class dir r_dir_perms;
@@ -1453,13 +1323,10 @@ define(`kernel_modify_fs_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_irq_sysctl">
 ##	<description>
-## 		Allows caller to read interrupt request information.
+## 		Read IRQ sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading interrupt request information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1479,20 +1346,17 @@ define(`kernel_read_irq_sysctl_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_irq_sysctl">
+## <interface name="kernel_rw_irq_sysctl">
 ##	<description>
-## 		Allows caller to modify interrupt request information.
+## 		Read and write IRQ sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying interrupt request information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 ##
 #
-define(`kernel_modify_irq_sysctl',`
+define(`kernel_rw_irq_sysctl',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 proc_t:dir search;
@@ -1500,7 +1364,7 @@ define(`kernel_modify_irq_sysctl',`
 	allow $1 sysctl_irq_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_irq_sysctl_depend',`
+define(`kernel_rw_irq_sysctl_depend',`
 	type proc_t, sysctl_irq_t;
 
 	class dir r_dir_perms;
@@ -1550,13 +1414,10 @@ define(`kernel_modify_rpc_sysctl_depend',`
 ########################################
 ## <interface name="kernel_read_all_sysctl">
 ##	<description>
-## 		Allow caller to read all sysctl information.
+## 		Allow caller to read all sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type reading the information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
@@ -1576,31 +1437,28 @@ define(`kernel_read_all_sysctl',`
 ########################################
 ## <interface name="kernel_modify_all_sysctl">
 ##	<description>
-## 		Allow caller to modify all sysctl information.
+## 		Read and write all sysctls.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
-##		The process type modifying the information.
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_all_sysctl',`
-	kernel_modify_device_sysctl($1)
-	kernel_modify_virtual_memory_sysctl($1)
-	kernel_modify_network_sysctl($1)
-	kernel_modify_unix_sysctl($1)
-	kernel_modify_hotplug_sysctl($1)
-	kernel_modify_modprobe_sysctl($1)
-	kernel_modify_kernel_sysctl($1)
-	kernel_modify_fs_sysctl($1)
-	kernel_modify_irq_sysctl($1)
-	kernel_modify_rpc_sysctl($1)
+define(`kernel_rw_all_sysctl',`
+	kernel_rw_device_sysctl($1)
+	kernel_rw_virtual_memory_sysctl($1)
+	kernel_rw_network_sysctl($1)
+	kernel_rw_unix_sysctl($1)
+	kernel_rw_hotplug_sysctl($1)
+	kernel_rw_modprobe_sysctl($1)
+	kernel_rw_kernel_sysctl($1)
+	kernel_rw_fs_sysctl($1)
+	kernel_rw_irq_sysctl($1)
+	kernel_rw_rpc_sysctl($1)
 ')
 
 ########################################
-## <interface name="kernel_search_hardware_state_dir">
+## <interface name="kernel_search_sysfs">
 ##	<description>
 ##		Search the directory containing hardware information.
 ##	</description>
@@ -1609,13 +1467,13 @@ define(`kernel_modify_all_sysctl',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_search_hardware_state_dir',`
+define(`kernel_search_sysfs',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 sysfs_t:dir search;
 ')
 
-define(`kernel_search_hardware_state_dir_depend',`
+define(`kernel_search_sysfs_depend',`
 	type sysfs_t;
 
 	class dir search;
@@ -1626,9 +1484,6 @@ define(`kernel_search_hardware_state_dir_depend',`
 ##	<description>
 ## 		Allow caller to read hardware state information.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type reading hardware state information.
 ##	</parameter>
@@ -1650,19 +1505,16 @@ define(`kernel_read_hardware_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_hardware_state">
+## <interface name="kernel_rw_hardware_state">
 ##	<description>
 ## 		Allow caller to modify hardware state information.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type modifying hardware state information.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_hardware_config_option',`
+define(`kernel_rw_hardware_config_option',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 sysfs_t:dir r_dir_perms;
@@ -1670,7 +1522,7 @@ define(`kernel_modify_hardware_config_option',`
 	allow $1 sysfs_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_hardware_config_option_depend',`
+define(`kernel_rw_hardware_config_option_depend',`
 	type sysfs_t;
 
 	class dir r_dir_perms;
@@ -1679,7 +1531,7 @@ define(`kernel_modify_hardware_config_option_depend',`
 ')
 
 ########################################
-## <interface name="kernel_kill_unlabeled_process">
+## <interface name="kernel_kill_unlabeled">
 ##	<description>
 ##		Send a kill signal to unlabeled processes.
 ##	</description>
@@ -1688,20 +1540,20 @@ define(`kernel_modify_hardware_config_option_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_kill_unlabeled_process',`
+define(`kernel_kill_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:process sigkill;
 ')
 
-define(`kernel_kill_unlabeled_process_depend',`
+define(`kernel_kill_unlabeled_depend',`
 	type unlabeled_t;
 
 	class process sigkill;
 ')
 
 ########################################
-## <interface name="kernel_signal_unlabeled_process">
+## <interface name="kernel_signal_unlabeled">
 ##	<description>
 ##		Send general signals to unlabeled processes.
 ##	</description>
@@ -1710,20 +1562,20 @@ define(`kernel_kill_unlabeled_process_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_signal_unlabeled_process',`
+define(`kernel_signal_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:process signal;
 ')
 
-define(`kernel_signal_unlabeled_process_depend',`
+define(`kernel_signal_unlabeled_depend',`
 	type unlabeled_t;
 
 	class process signal;
 ')
 
 ########################################
-## <interface name="kernel_signull_unlabeled_process">
+## <interface name="kernel_signull_unlabeled">
 ##	<description>
 ##		Send a null signal to unlabeled processes.
 ##	</description>
@@ -1732,20 +1584,20 @@ define(`kernel_signal_unlabeled_process_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_signull_unlabeled_process',`
+define(`kernel_signull_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:process signull;
 ')
 
-define(`kernel_signull_unlabeled_process_depend',`
+define(`kernel_signull_unlabeled_depend',`
 	type unlabeled_t;
 
 	class process signull;
 ')
 
 ########################################
-## <interface name="kernel_sigstop_unlabeled_process">
+## <interface name="kernel_sigstop_unlabeled">
 ##	<description>
 ##		Send a stop signal to unlabeled processes.
 ##	</description>
@@ -1754,20 +1606,20 @@ define(`kernel_signull_unlabeled_process_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_sigstop_unlabeled_process',`
+define(`kernel_sigstop_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:process sigstop;
 ')
 
-define(`kernel_sigstop_unlabeled_process_depend',`
+define(`kernel_sigstop_unlabeled_depend',`
 	type unlabeled_t;
 
 	class process sigstop;
 ')
 
 ########################################
-## <interface name="kernel_sigchld_unlabeled_process">
+## <interface name="kernel_sigchld_unlabeled">
 ##	<description>
 ##		Send a child terminated signal to unlabeled processes.
 ##	</description>
@@ -1776,65 +1628,58 @@ define(`kernel_sigstop_unlabeled_process_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_sigchld_unlabeled_process',`
+define(`kernel_sigchld_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:process sigchld;
 ')
 
-define(`kernel_sigchld_unlabeled_process_depend',`
+define(`kernel_sigchld_unlabeled_depend',`
 	type unlabeled_t;
 
 	class process sigchld;
 ')
 
 ########################################
-## <interface name="kernel_ignore_get_unlabeled_block_device_attributes">
+## <interface name="kernel_dontaudit_getattr_unlabeled_blk_dev">
 ##	<description>
 ## 		Do not audit attempts by caller to get attributes for 
 ## 		unlabeled block devices.
 ##	</description>
-##	<securitydesc>
-## 		Causes attempts by caller to get attributes on unlabeled 
-## 		block devices to not be auditted.
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type not to audit.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_ignore_get_unlabeled_block_device_attributes',`
+define(`kernel_dontaudit_getattr_unlabeled_blk_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:blk_file getattr;
 ')
 
-define(`kernel_ignore_get_unlabeled_block_device_attributes_depend',`
+define(`kernel_dontaudit_getattr_unlabeled_blk_dev_depend',`
 	type unlabeled_t;
 
 	class process getattr;
 ')
 
 ########################################
-## <interface name="kernel_relabel_unlabeled_object">
+## <interface name="kernel_relabel_unlabeled">
 ##	<description>
 ## 		Allow caller to relabel unlabeled objects.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type relabeling the objects.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_relabel_unlabeled_object',`
+define(`kernel_relabel_unlabeled',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unlabeled_t:dir_file_class_set { getattr relabelfrom };
 ')
 
-define(`kernel_relabel_unlabeled_object_depend',`
+define(`kernel_relabel_unlabeled_depend',`
 	type unlabeled_t;
 
 	class dir { getattr relabelfrom };
@@ -1847,7 +1692,7 @@ define(`kernel_relabel_unlabeled_object_depend',`
 ')
 
 ########################################
-## <interface name="kernel_search_usb_hardware_state_dir">
+## <interface name="kernel_search_usbfs">
 ##	<description>
 ##		Search the directory containing USB hardware information.
 ##	</description>
@@ -1856,13 +1701,13 @@ define(`kernel_relabel_unlabeled_object_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_search_usb_hardware_state_dir',`
+define(`kernel_search_usbfs',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 usbfs_t:dir search;
 ')
 
-define(`kernel_search_usb_hardware_state_dir_depend',`
+define(`kernel_search_usbfs_depend',`
 	type usbfs_t;
 
 	class dir search;
@@ -1873,9 +1718,6 @@ define(`kernel_search_usb_hardware_state_dir_depend',`
 ##	<description>
 ## 		Allow caller to get a list of usb hardware.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type getting the list.
 ##	</parameter>
@@ -1924,19 +1766,16 @@ define(`kernel_read_usb_hardware_state_depend',`
 ')
 
 ########################################
-## <interface name="kernel_modify_usb_hardware_config_option">
+## <interface name="kernel_rw_usb_hardware_config_option">
 ##	<description>
 ## 		Allow caller to modify usb hardware configuration files.
 ##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
 ##	<parameter name="domain">
 ##		The process type modifying the options.
 ##	</parameter>
 ## </interface>
 #
-define(`kernel_modify_usb_hardware_config_option',`
+define(`kernel_rw_usb_hardware_config_option',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 usbfs_t:dir r_dir_perms;
@@ -1944,96 +1783,12 @@ define(`kernel_modify_usb_hardware_config_option',`
 	allow $1 usbfs_t:file rw_file_perms;
 ')
 
-define(`kernel_modify_usb_hardware_config_option_depend',`
+define(`kernel_rw_usb_hardware_config_option_depend',`
 	type usbfs_t;
 
 	class dir r_dir_perms;
 	class file rw_file_perms;
 	class lnk_file r_file_perms;
-')
-
-###################################################################
-#                                                                 #
-# These interfaces are reversed, to decouple the base module from #
-# the programs that the kernel runs, such as init and insmod, so  #
-# the base module is self-contained.  These styles of interfaces  #
-# should not be used anywhere else.                               #
-#                                                                 #
-###################################################################
-
-########################################
-## <interface name="kernel_sigchld_from">
-##	<description>
-## 		Receive sigchild from kernel.
-##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
-##	<parameter name="domain">
-##		The process type receiving the signal.
-##	</parameter>
-## </interface>
-#
-define(`kernel_sigchld_from',`
-	requires_block_template(`$0'_depend)
-
-	allow kernel_t $1:process sigchld;
-')
-
-define(`kernel_sigchld_from_depend',`
-	type kernel_t;
-
-	class process sigchld;
-')
-
-########################################
-## <interface name="kernel_unlabeled_sigchld_from">
-##	<description>
-## 		Receive sigchld from unlabeled processes.
-##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
-##	<parameter name="domain">
-##		The process type receiving the signal.
-##	</parameter>
-## </interface>
-#
-define(`kernel_unlabeled_sigchld_from',`
-	requires_block_template(`$0'_depend)
-
-	allow unlabeled_t $1:process sigchld;
-')
-
-define(`kernel_unlabeled_sigchld_from_depend',`
-	type unlabeled_t;
-
-	class process sigchld;
-')
-
-########################################
-## <interface name="kernel_read_directory_from">
-##	<description>
-## 		XXX FIXME
-##	</description>
-##	<securitydesc>
-## 		
-##	</securitydesc>
-##	<parameter name="domain">
-##		
-##	</parameter>
-## </interface>
-#
-define(`kernel_read_directory_from',`
-	requires_block_template(`$0'_depend)
-
-	allow kernel_t $1:dir r_dir_perms;
-')
-
-define(`kernel_read_directory_from_depend',`
-	type kernel_t;
-
-	class dir r_dir_perms;
 ')
 
 ## </module>
