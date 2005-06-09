@@ -16,8 +16,10 @@ import sys
 import getopt
 import pyplate
 import os
-from xml.dom.ext import *
-from xml.dom.ext.reader import Sax2
+import string
+#from xml.dom.ext import *
+#from xml.dom.ext.reader import Sax2
+from xml.dom.minidom import parse, parseString
 
 def read_policy_xml(filename):
 	try:
@@ -26,8 +28,9 @@ def read_policy_xml(filename):
 		error("error opening " + filename)
 
 	try:
-		reader = Sax2.Reader()
-		doc = reader.fromString(xml_fh.read())
+		#reader = Sax2.Reader()
+		#doc = reader.fromString(xml_fh.read())
+		doc = parseString(xml_fh.read())
 	except: 
 		xml_fh.close()
 		error("Error while parsing xml")
@@ -42,10 +45,10 @@ def gen_tunable_conf(doc, file):
 			file.write("# %s\n" % line)
 		tun_name = tun_val = None
         	for (name, value) in node.attributes.items():
-			if name[1] == "name":
-				tun_name = value.value
-			elif name[1] == "dftval":
-				tun_val = value.value
+			if name == "name":
+				tun_name = value
+			elif name == "dftval":
+				tun_val = value
 
 			if tun_name and tun_val:
 	            		file.write("%s = %s\n\n" % (tun_name, tun_val))
@@ -58,10 +61,10 @@ def gen_module_conf(doc, file):
 	for node in doc.getElementsByTagName("module"):
 		mod_name = mod_layer = None
 		for (name, value) in node.attributes.items():
-			if name[1] == "name":
-				mod_name = value.value
-			if name[1] == "layer":
-				mod_layer = value.value
+			if name == "name":
+				mod_name = value
+			if name == "layer":
+				mod_layer = value
 
 			if mod_name and mod_layer:
 				file.write("# Layer: %s\n# Module: %s\n#\n" % (mod_layer,mod_name))
@@ -116,13 +119,12 @@ def gen_docs(doc, dir, templatedir):
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = interface_buf = ''
 		for (name, value) in node.attributes.items():
-			if name[1] == "name":
-				mod_name = value.value
-			if name[1] == "layer":
-				mod_layer = value.value
+			if name == "name":
+				mod_name = value
+			if name == "layer":
+				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
 			mod_summary = desc.firstChild.data
-	
 		if not module_list.has_key(mod_layer):
 			module_list[mod_layer] = {}
 
@@ -171,10 +173,10 @@ def gen_docs(doc, dir, templatedir):
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = interface_buf = ''
 		for (name, value) in node.attributes.items():
-			if name[1] == "name":
-				mod_name = value.value
-			if name[1] == "layer":
-				mod_layer = value.value
+			if name == "name":
+				mod_name = value
+			if name == "layer":
+				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
 			mod_summary = desc.firstChild.data
 		for interface in node.getElementsByTagName("interface"):
@@ -182,7 +184,7 @@ def gen_docs(doc, dir, templatedir):
 			interface_secdesc = None
 			interface_tpl = pyplate.Template(intdata)
 			for i,v in interface.attributes.items():
-				interface_name = v.value
+				interface_name = v
 			for desc in interface.getElementsByTagName("description"):
 				interface_desc = desc.firstChild.data
 			for desc in interface.getElementsByTagName("securitydesc"):
@@ -194,10 +196,10 @@ def gen_docs(doc, dir, templatedir):
 				paramname = None
 				paramopt = "No"
 				for name,val in args.attributes.items():
-					if name[1] == "name":
-						paramname = val.value
-					if name[1] == "optional":
-						if val.value == "true":
+					if name == "name":
+						paramname = val
+					if name == "optional":
+						if val == "true":
 							paramopt = "yes"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
@@ -247,6 +249,13 @@ def usage():
 	sys.stdout.write("-x --xml <file>		--	filename to read xml data from\n")
 	sys.stdout.write("-T --templates <dir>		--	template directory for documents\n")
 
+def sort_dict(d):
+    our_list = d.items()
+    our_list.sort()
+    k = {}   
+    for item in our_list:
+        k[item[0]] = item[1]
+    return k
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], "t:m:d:x:T:", ["tunables","modules","docs","xml", "templates"])
