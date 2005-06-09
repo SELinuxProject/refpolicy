@@ -75,15 +75,23 @@ def gen_module_conf(doc, file):
 				file.write("# %s\n" % line)	
 			file.write("#\n#%s\n\n" % mod_name)
 
+def stupid_cmp(a, b):
+	return cmp(a[0], b[0])
+			
 def gen_doc_menu(mod_layer, module_list):
-	menu = {}
-	for name, value in module_list.iteritems():
-		if not menu.has_key(name):
-			menu[name] = {}
-		if name == mod_layer or mod_layer == None:
+	menu = []
+	for layer, value in module_list.iteritems():
+		cur_menu = (layer, [])
+		menu.append(cur_menu)
+		if layer != mod_layer and mod_layer != None:
+			continue
 		#we are in our layer so fill in the other modules or we want them all
-			for mod, desc in value.iteritems():
-				menu[name][mod] = desc
+		for mod, desc in value.iteritems():
+			cur_menu[1].append((mod, desc))
+
+	menu.sort(stupid_cmp)
+	for x in menu:
+		x[1].sort(stupid_cmp)
 	return menu
 
 def gen_docs(doc, dir, templatedir):
