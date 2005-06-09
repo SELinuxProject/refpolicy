@@ -21,11 +21,18 @@ from xml.dom.ext.reader import Sax2
 
 def read_policy_xml(filename):
 	try:
+		xml_fh = open(filename)
+	except:
+		error("error opening " + filename)
+
+	try:
 		reader = Sax2.Reader()
-		doc = reader.fromStream(filename)
+		doc = reader.fromString(xml_fh.read())
 	except: 
+		xml_fh.close()
 		error("Error while parsing xml")
-	
+
+	xml_fh.close()	
 	return doc
 
 def gen_tunable_conf(doc, file):
@@ -185,12 +192,13 @@ def gen_docs(doc, dir, templatedir):
 			for args in interface.getElementsByTagName("parameter"):
 				paramdesc = args.firstChild.data
 				paramname = None
-				paramopt = False
+				paramopt = "No"
 				for name,val in args.attributes.items():
 					if name[1] == "name":
 						paramname = val.value
 					if name[1] == "optional":
-						paramopt = val.value
+						if val.value == "true":
+							paramopt = "yes"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
 					      "optional" : paramopt }
@@ -228,7 +236,6 @@ def error(error):
         sys.stderr.write("%s exiting for: " % sys.argv[0])
         sys.stderr.write("%s\n" % error)
         sys.stderr.flush()
-	raise
         sys.exit(1)
 
 def usage():
@@ -247,7 +254,7 @@ except getopt.GetoptError:
 	usage()
 	sys.exit(1)
 
-tunables = modules = docs = None
+tunables = modules = docsdir = None
 templatedir = "templates/"
 xmlfile = "policy.xml"
 
@@ -262,10 +269,6 @@ for opt, val in opts:
 		xmlfile = val
 	if opt in ("-T", "--templates"):
 		templatedir = val
-
-if xmlfile == None:
-	usage()
-	sys.exit(1)
 
 doc = read_policy_xml(xmlfile)
 		
