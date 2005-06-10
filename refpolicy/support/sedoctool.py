@@ -93,6 +93,24 @@ def gen_doc_menu(mod_layer, module_list):
 		x[1].sort(stupid_cmp)
 	return menu
 
+def format_desc(node):
+
+	desc_buf = ''
+	for desc in node.childNodes:
+		if desc.nodeName == "#text":
+			desc_buf += "<p>" + desc.data + "<p>"
+		elif desc.nodeName == "p":
+			desc_buf += "<p>" + desc.firstChild.data + "</p>"
+			for chld in desc.childNodes: 
+				if chld.nodeName == "ul":
+					print "got a ul!"
+					desc_buf += "<ul>"
+					for li in chld.getElementsByTagName("li"):
+						desc_buf += "<li>" + li.firstChild.data + "</li>"
+
+	return desc_buf
+
+
 def gen_docs(doc, dir, templatedir):
 
 	try:
@@ -135,7 +153,8 @@ def gen_docs(doc, dir, templatedir):
 			if name == "layer":
 				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
-			mod_summary = desc.firstChild.data
+			if desc.parentNode == node:
+				mod_summary = format_desc(desc)
 		if not module_list.has_key(mod_layer):
 			module_list[mod_layer] = {}
 
@@ -183,26 +202,32 @@ def gen_docs(doc, dir, templatedir):
 
 	all_interfaces = []
 	for node in doc.getElementsByTagName("module"):
-                mod_name = mod_layer = interface_buf = ''
+                mod_name = mod_layer = mod_desc = interface_buf = ''
 		for (name, value) in node.attributes.items():
 			if name == "name":
 				mod_name = value
 			if name == "layer":
 				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
-			mod_summary = desc.firstChild.data
+			if desc.parentNode == node:
+				mod_summary = format_desc(desc)
+		for desc in node.getElementsByTagName("description"):
+			if desc.parentNode == node:
+				mod_desc = format_desc(desc)
 
 		interfaces = []
 		for interface in node.getElementsByTagName("interface"):
 			interface_parameters = []
-			interface_secdesc = None
+			interface_secdesc = interface_summary = None
 			for i,v in interface.attributes.items():
 				interface_name = v
 			for desc in interface.getElementsByTagName("description"):
-				interface_desc = desc.firstChild.data
+				interface_desc = format_desc(desc)
 			for desc in interface.getElementsByTagName("securitydesc"):
 				if desc:
-					interface_secdesc = desc.firstChild.data
+					interface_secdesc = format_desc(desc)
+			for desc in interface.getElementsByTagName("summary"):
+				interface_summary = format_desc(desc)
 			
 			for args in interface.getElementsByTagName("parameter"):
 				paramdesc = args.firstChild.data
@@ -219,11 +244,13 @@ def gen_docs(doc, dir, templatedir):
 					      "optional" : paramopt }
 				interface_parameters.append(parameter)
 			interfaces.append( { "interface_name" : interface_name,
+					   "interface_summary" : interface_summary,
 					   "interface_desc" : interface_desc,
 					   "interface_parameters" : interface_parameters,
 					   "interface_secdesc" : interface_secdesc })
 			#all_interfaces is for the main interface index with all interfaces
 			all_interfaces.append( { "interface_name" : interface_name,
+					   "interface_summary" : interface_summary,
 					   "interface_desc" : interface_desc,
 					   "interface_parameters" : interface_parameters,
 					   "interface_secdesc" : interface_secdesc,
@@ -241,6 +268,7 @@ def gen_docs(doc, dir, templatedir):
 		module_args = { "mod_layer" : mod_layer,
 			      "mod_name" : mod_name,	
 			      "mod_summary" : mod_summary,
+			      "mod_desc" : mod_desc,
 			      "interfaces" : interface_buf }
 
 		module_tpl = pyplate.Template(moduledata)
