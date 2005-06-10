@@ -15,7 +15,7 @@ define(`devices_make_device_node',`
 	fs_associate($1)
 
 	optional_policy(`distro_redhat',`
-		fs_tmpfs_associate($1)
+		fs_associate_tmpfs($1)
 	')
 ')
 
@@ -101,6 +101,22 @@ define(`devices_add_dev_dir_depend',`
 	type device_t;
 
 	class dir { ra_dir_perms create };
+')
+
+########################################
+#
+# devices_relabel_dev_dirs(domain)
+#
+define(`devices_relabel_dev_dirs',`
+	requires_block_template(`$0'_depend)
+
+	allow $1 device_t:dir { r_dir_perms relabelfrom relabelto };
+')
+
+define(`devices_relabel_dev_dirs_depend',`
+	type device_t;
+
+	class dir { r_dir_perms relabelfrom relabelto };
 ')
 
 ########################################
@@ -276,11 +292,11 @@ define(`devices_manage_dev_symbolic_links_depend',`
 define(`devices_manage_device_nodes',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir create_dir_perms;
+	allow $1 device_t:dir { create_dir_perms relabelfrom relabelto };
 	allow $1 device_t:sock_file create_file_perms;
 	allow $1 device_t:lnk_file create_lnk_perms;
-	allow $1 device_t:{ chr_file blk_file } create_file_perms;
-	allow $1 device_node:{ chr_file blk_file } create_file_perms;
+	allow $1 device_t:{ chr_file blk_file } { create_file_perms relabelfrom relabelto };
+	allow $1 device_node:{ chr_file blk_file } { create_file_perms relabelfrom relabelto };
 
 	# these next rules are to satisfy assertions broken by the above lines.
 	# the permissions hopefully can be cut back a lot
@@ -298,11 +314,11 @@ define(`devices_manage_device_nodes_depend',`
 
 	type device_t;
 
-	class dir create_dir_perms;
+	class dir { create_dir_perms relabelfrom relabelto };
 	class sock_file create_file_perms;
 	class lnk_file create_lnk_perms;
-	class chr_file create_file_perms;
-	class blk_file create_file_perms;
+	class chr_file { create_file_perms relabelfrom relabelto };
+	class blk_file { create_file_perms relabelfrom relabelto };
 ')
 
 ########################################
@@ -369,7 +385,7 @@ define(`devices_create_dev_entry',`
 	type_transition $1 device_t:$3 $2;
 
 	optional_policy(`distro_redhat',`
-		fs_tmpfs_associate($2)
+		fs_associate_tmpfs($2)
 	')
 ')
 

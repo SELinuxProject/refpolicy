@@ -17,7 +17,7 @@ role system_r types init_t;
 # init_exec_t is the type of the init program.
 #
 type init_exec_t;
-kernel_make_userland_entrypoint(init_t,init_exec_t)
+kernel_userland_entry(init_t,init_exec_t)
 domain_make_entrypoint_file(init_t,init_exec_t)
 
 #
@@ -43,8 +43,8 @@ domain_make_entrypoint_file(initrc_t,initrc_exec_t)
 
 type initrc_devpts_t;
 fs_associate(initrc_devpts_t)
-fs_noxattr_associate(initrc_devpts_t)
-terminal_make_pseudoterminal(initrc_devpts_t)
+fs_associate_noxattr(initrc_devpts_t)
+term_pty(initrc_devpts_t)
 
 type initrc_var_run_t;
 files_make_daemon_runtime_file(initrc_var_run_t)
@@ -79,21 +79,21 @@ allow init_t init_var_run_t:file { create getattr read append write setattr unli
 files_create_daemon_runtime_data(init_t,init_var_run_t)
 
 allow init_t initctl_t:fifo_file { create getattr read append write setattr unlink };
-fs_tmpfs_associate(initctl_t)
+fs_associate_tmpfs(initctl_t)
 devices_create_dev_entry(init_t,initctl_t,fifo_file)
 
 # Modify utmp.
-allow init_t initrc_var_run_t:file rw_file_perms;
+allow init_t initrc_var_run_t:file { rw_file_perms setattr };
 
 # Run init scripts.
 domain_auto_trans(init_t,initrc_exec_t,initrc_t)
 
-kernel_set_selinux_boolean(init_t)
+kernel_set_boolean(init_t)
 kernel_read_system_state(init_t)
 kernel_read_hardware_state(init_t)
 kernel_share_state(init_t)
 
-terminal_use_all_terminals(init_t)
+term_use_all_terms(init_t)
 
 corecommands_chroot(init_t)
 corecommands_execute_general_programs(init_t)
@@ -129,7 +129,7 @@ miscfiles_read_localization(init_t)
 
 ifdef(`distro_redhat',`
 	fs_use_tmpfs_character_devices(init_t)
-	fs_create_private_tmpfs_data(init_t,initctl_t,fifo_file)
+	fs_create_tmpfs_data(init_t,initctl_t,fifo_file)
 ')
 
 optional_policy(`authlogin.te',`
@@ -181,26 +181,26 @@ kernel_change_ring_buffer_level(initrc_t)
 kernel_clear_ring_buffer(initrc_t)
 kernel_get_sysvipc_info(initrc_t)
 kernel_read_hardware_state(initrc_t)
-kernel_modify_hardware_config_option(initrc_t)
+kernel_rw_hardware_config_option(initrc_t)
 kernel_read_all_sysctl(initrc_t)
-kernel_modify_all_sysctl(initrc_t)
+kernel_rw_all_sysctl(initrc_t)
 kernel_get_selinux_enforcement_mode(initrc_t)
 kernel_list_usb_hardware(initrc_t)
 # for lsof which is used by alsa shutdown:
-kernel_ignore_get_message_interface_attributes(initrc_t)
+kernel_dontaudit_getattr_message_if(initrc_t)
 
 bootloader_read_kernel_symbol_table(initrc_t)
 
-corenetwork_sendrecv_tcp_on_all_interfaces(initrc_t)
-corenetwork_sendrecv_raw_on_all_interfaces(initrc_t)
-corenetwork_sendrecv_udp_on_all_interfaces(initrc_t)
-corenetwork_sendrecv_tcp_on_all_nodes(initrc_t)
-corenetwork_sendrecv_raw_on_all_nodes(initrc_t)
-corenetwork_sendrecv_udp_on_all_nodes(initrc_t)
-corenetwork_sendrecv_tcp_on_all_ports(initrc_t)
-corenetwork_sendrecv_udp_on_all_ports(initrc_t)
-corenetwork_bind_tcp_on_all_nodes(initrc_t)
-corenetwork_bind_udp_on_all_nodes(initrc_t)
+corenet_tcp_sendrecv_all_if(initrc_t)
+corenet_raw_sendrecv_all_if(initrc_t)
+corenet_udp_sendrecv_all_if(initrc_t)
+corenet_tcp_sendrecv_all_nodes(initrc_t)
+corenet_raw_sendrecv_all_nodes(initrc_t)
+corenet_udp_sendrecv_all_nodes(initrc_t)
+corenet_tcp_sendrecv_all_ports(initrc_t)
+corenet_udp_sendrecv_all_ports(initrc_t)
+corenet_tcp_bind_all_nodes(initrc_t)
+corenet_udp_bind_all_nodes(initrc_t)
 
 devices_get_random_data(initrc_t)
 devices_get_pseudorandom_data(initrc_t)
@@ -221,14 +221,14 @@ fs_register_binary_executable_type(initrc_t)
 fs_mount_all_fs(initrc_t)
 fs_unmount_all_fs(initrc_t)
 fs_remount_all_fs(initrc_t)
-fs_get_all_fs_attributes(initrc_t)
+fs_getattr_all_fs(initrc_t)
 
-storage_get_fixed_disk_attributes(initrc_t)
-storage_set_fixed_disk_attributes(initrc_t)
+storage_getattr_fixed_disk(initrc_t)
+storage_setattr_fixed_disk(initrc_t)
 storage_set_removable_device_attributes(initrc_t)
 
-terminal_use_all_terminals(initrc_t)
-terminal_reset_physical_terminal_labels(initrc_t)
+term_use_all_terms(initrc_t)
+term_reset_tty_labels(initrc_t)
 
 authlogin_modify_login_records(initrc_t)
 authlogin_modify_last_login_log(initrc_t)
@@ -296,7 +296,7 @@ userdomain_read_all_users_data(initrc_t)
 userdomain_use_admin_terminals(initrc_t)
 
 ifdef(`distro_debian', `
-	fs_create_private_tmpfs_data(initrc_t,initrc_var_run_t,dir)
+	fs_create_tmpfs_data(initrc_t,initrc_var_run_t,dir)
 ')
 
 ifdef(`distro_redhat',`
@@ -305,10 +305,10 @@ ifdef(`distro_redhat',`
 
 	# Red Hat systems seem to have a stray
 	# fd open from the initrd
-	kernel_ignore_use_file_descriptors(initrc_t)
+	kernel_dontaudit_use_fd(initrc_t)
 	files_ignore_read_rootfs_file(initrc_t)
 
-	kernel_set_selinux_enforcement_mode(initrc_t)
+	kernel_set_enforcement_mode(initrc_t)
 
 	# Create and read /boot/kernel.h and /boot/System.map.
 	# Redhat systems typically create this file at boot time.
@@ -354,7 +354,7 @@ optional_policy(`rhgb.te',`
 
 optional_policy(`rpm.te',`
 	# bash tries to access a block device in the initrd
-	kernel_ignore_get_unlabeled_block_device_attributes(initrc_t)
+	kernel_dontaudit_getattr_unlabeled_blk_dev(initrc_t)
 
 	# for a bug in rm
 	files_ignore_write_all_daemon_runtime_data(initrc_t)
