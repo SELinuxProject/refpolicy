@@ -17,8 +17,6 @@ import getopt
 import pyplate
 import os
 import string
-#from xml.dom.ext import *
-#from xml.dom.ext.reader import Sax2
 from xml.dom.minidom import parse, parseString
 
 def read_policy_xml(filename):
@@ -28,8 +26,6 @@ def read_policy_xml(filename):
 		error("error opening " + filename)
 
 	try:
-		#reader = Sax2.Reader()
-		#doc = reader.fromString(xml_fh.read())
 		doc = parseString(xml_fh.read())
 	except: 
 		xml_fh.close()
@@ -77,6 +73,9 @@ def gen_module_conf(doc, file):
 
 def stupid_cmp(a, b):
 	return cmp(a[0], b[0])
+
+def int_cmp(a, b):
+	return cmp(a["interface_name"], b["interface_name"])
 			
 def gen_doc_menu(mod_layer, module_list):
 	menu = []
@@ -97,6 +96,7 @@ def gen_doc_menu(mod_layer, module_list):
 def gen_docs(doc, dir, templatedir):
 
 	try:
+		#get the template data ahead of time so we don't reopen them over and over
 		bodyfile = open(templatedir + "/header.html", "r")
 		bodydata = bodyfile.read()
 		bodyfile.close()
@@ -112,6 +112,9 @@ def gen_docs(doc, dir, templatedir):
 		modulefile = open(templatedir + "/module.html","r")
 		moduledata = modulefile.read()
 		modulefile.close()
+		intlistfile = open(templatedir + "/int_list.html", "r")
+		intlistdata = intlistfile.read()
+		intlistfile.close()
 	except:
 		error("Could not open templates")
 
@@ -176,8 +179,9 @@ def gen_docs(doc, dir, templatedir):
 	body_tpl = pyplate.Template(bodydata)
 	body_tpl.execute(index_fh, body_args)
 	index_fh.close()
-	
+#now generate the individual module pages
 
+	all_interfaces = []
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = interface_buf = ''
 		for (name, value) in node.attributes.items():
@@ -187,10 +191,11 @@ def gen_docs(doc, dir, templatedir):
 				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
 			mod_summary = desc.firstChild.data
+
+		interfaces = []
 		for interface in node.getElementsByTagName("interface"):
 			interface_parameters = []
 			interface_secdesc = None
-			interface_tpl = pyplate.Template(intdata)
 			for i,v in interface.attributes.items():
 				interface_name = v
 			for desc in interface.getElementsByTagName("description"):
@@ -213,17 +218,25 @@ def gen_docs(doc, dir, templatedir):
 					      "desc" : paramdesc,
 					      "optional" : paramopt }
 				interface_parameters.append(parameter)
-			interface_args = { "interface_name" : interface_name,
+			interfaces.append( { "interface_name" : interface_name,
 					   "interface_desc" : interface_desc,
 					   "interface_parameters" : interface_parameters,
-					   "interface_secdesc" : interface_secdesc }
-			interface_buf += interface_tpl.execute_string(interface_args)
-		
+					   "interface_secdesc" : interface_secdesc })
+			#all_interfaces is for the main interface index with all interfaces
+			all_interfaces.append( { "interface_name" : interface_name,
+					   "interface_desc" : interface_desc,
+					   "interface_parameters" : interface_parameters,
+					   "interface_secdesc" : interface_secdesc,
+					   "mod_name": mod_name,
+					   "mod_layer" : mod_layer })
+		interfaces.sort(int_cmp)	
+		interface_tpl = pyplate.Template(intdata)
+		interface_buf = interface_tpl.execute_string({"interfaces" : interfaces})
+	
 		menu = gen_doc_menu(mod_layer, module_list)
 
-		menu_args = { "menulist" : menu }
 		menu_tpl = pyplate.Template(menudata)
-		menu_buf = menu_tpl.execute_string(menu_args)
+		menu_buf = menu_tpl.execute_string({ "menulist" : menu })
 
 		module_args = { "mod_layer" : mod_layer,
 			      "mod_name" : mod_name,	
@@ -242,6 +255,27 @@ def gen_docs(doc, dir, templatedir):
 		body_tpl.execute(module_fh, body_args)
 		module_fh.close()
 
+		#and last build the interface index
+	
+		menu = gen_doc_menu(None, module_list)
+		menu_args = { "menulist" : menu,
+			      "mod_layer" : None }
+		menu_tpl = pyplate.Template(menudata)
+		menu_buf = menu_tpl.execute_string(menu_args)
+	
+		all_interfaces.sort(int_cmp)
+		interface_tpl = pyplate.Template(intlistdata)
+		interface_buf = interface_tpl.execute_string({"interfaces" : all_interfaces})
+		int_file = "interfaces.html"
+		int_fh = open(int_file, "w")
+		body_tpl = pyplate.Template(bodydata)
+
+		body_args = { "menu" : menu_buf, 
+			      "content" : interface_buf }
+
+		body_tpl.execute(int_fh, body_args)
+		int_fh.close()
+
 def error(error):
         sys.stderr.write("%s exiting for: " % sys.argv[0])
         sys.stderr.write("%s\n" % error)
@@ -256,14 +290,6 @@ def usage():
 	sys.stdout.write("-d --docs <dir>		--	write interface documentation to <dir>\n")
 	sys.stdout.write("-x --xml <file>		--	filename to read xml data from\n")
 	sys.stdout.write("-T --templates <dir>		--	template directory for documents\n")
-
-def sort_dict(d):
-    our_list = d.items()
-    our_list.sort()
-    k = {}   
-    for item in our_list:
-        k[item[0]] = item[1]
-    return k
 
 try:
 	opts, args = getopt.getopt(sys.argv[1:], "t:m:d:x:T:", ["tunables","modules","docs","xml", "templates"])
