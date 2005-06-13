@@ -36,7 +36,7 @@ def read_policy_xml(filename):
 
 def gen_tunable_conf(doc, file):
 	for node in doc.getElementsByTagName("tunable"):
-		s = string.split(node.firstChild.data, "\n")
+		s = string.split(format_txt_desc(node), "\n")
 		for line in s:
 			file.write("# %s\n" % line)
 		tun_name = tun_val = None
@@ -66,10 +66,12 @@ def gen_module_conf(doc, file):
 				file.write("# Layer: %s\n# Module: %s\n#\n" % (mod_layer,mod_name))
 
 		for desc in node.getElementsByTagName("summary"):
-			s = string.split(desc.firstChild.data, "\n")
+			if not desc.parentNode == node:
+				continue
+			s = string.split(format_txt_desc(desc), "\n")
 			for line in s:
 				file.write("# %s\n" % line)	
-			file.write("#\n#%s\n\n" % mod_name)
+			file.write("#%s\n\n" % mod_name)
 
 def stupid_cmp(a, b):
 	return cmp(a[0], b[0])
@@ -93,7 +95,7 @@ def gen_doc_menu(mod_layer, module_list):
 		x[1].sort(stupid_cmp)
 	return menu
 
-def format_desc(node):
+def format_html_desc(node):
 
 	desc_buf = ''
 	for desc in node.childNodes:
@@ -103,13 +105,27 @@ def format_desc(node):
 			desc_buf += "<p>" + desc.firstChild.data + "</p>"
 			for chld in desc.childNodes: 
 				if chld.nodeName == "ul":
-					print "got a ul!"
 					desc_buf += "<ul>"
 					for li in chld.getElementsByTagName("li"):
 						desc_buf += "<li>" + li.firstChild.data + "</li>"
 
 	return desc_buf
 
+def format_txt_desc(node):
+
+	desc_buf = ''
+	for desc in node.childNodes:
+		if desc.nodeName == "#text":
+			desc_buf += desc.data + "\n"
+		elif desc.nodeName == "p":
+			desc_buf += desc.firstChild.data + "\n"
+			for chld in desc.childNodes: 
+				if chld.nodeName == "ul":
+					desc_buf += "\n"
+					for li in chld.getElementsByTagName("li"):
+						desc_buf += "\t -" + li.firstChild.data + "\n"
+
+	return desc_buf
 
 def gen_docs(doc, dir, templatedir):
 
@@ -153,8 +169,8 @@ def gen_docs(doc, dir, templatedir):
 			if name == "layer":
 				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
-			if desc.parentNode == node:
-				mod_summary = format_desc(desc)
+			if desc.parentNode == node and desc:
+				mod_summary = format_html_desc(desc)
 		if not module_list.has_key(mod_layer):
 			module_list[mod_layer] = {}
 
@@ -210,10 +226,10 @@ def gen_docs(doc, dir, templatedir):
 				mod_layer = value
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node:
-				mod_summary = format_desc(desc)
+				mod_summary = format_html_desc(desc)
 		for desc in node.getElementsByTagName("description"):
 			if desc.parentNode == node:
-				mod_desc = format_desc(desc)
+				mod_desc = format_html_desc(desc)
 
 		interfaces = []
 		for interface in node.getElementsByTagName("interface"):
@@ -222,12 +238,12 @@ def gen_docs(doc, dir, templatedir):
 			for i,v in interface.attributes.items():
 				interface_name = v
 			for desc in interface.getElementsByTagName("description"):
-				interface_desc = format_desc(desc)
+				interface_desc = format_html_desc(desc)
 			for desc in interface.getElementsByTagName("securitydesc"):
 				if desc:
-					interface_secdesc = format_desc(desc)
+					interface_secdesc = format_html_desc(desc)
 			for desc in interface.getElementsByTagName("summary"):
-				interface_summary = format_desc(desc)
+				interface_summary = format_html_desc(desc)
 			
 			for args in interface.getElementsByTagName("parameter"):
 				paramdesc = args.firstChild.data
