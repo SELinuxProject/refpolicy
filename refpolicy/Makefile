@@ -145,6 +145,7 @@ ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
 
 DOCS = doc
+POLXML = $(DOCS)/policy.xml
 XMLDTD = $(DOCS)/policy.dtd
 HTMLDIR = $(DOCS)/html
 DOCTEMPLATE = $(DOCS)/templates
@@ -327,9 +328,9 @@ relabel:  $(FC) $(SETFILES)
 #
 # Create config files
 #
-conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
+conf $(MOD_DISABLE) $(TUNABLES): $(POLXML)
 	@echo "Creating $(MOD_DISABLE) and $(TUNABLES)"
-	$(QUIET) cd tmp && ../$(GENDOC) -t ../$(TUNABLES) -m ../$(MOD_DISABLE) -x ../tmp/policy.xml
+	$(QUIET) cd $(DOCS) && ../$(GENDOC) -t ../$(TUNABLES) -m ../$(MOD_DISABLE) -x ../$(POLXML)
 
 ########################################
 #
@@ -339,7 +340,7 @@ conf $(MOD_DISABLE) $(TUNABLES): tmp/policy.xml
 # no dependencies here, because we don't want to rebuild 
 # this and its dependents every time the dependencies
 # change
-tmp/policy.xml: $(GENERATED_IF)
+$(POLXML): $(GENERATED_IF)
 	@echo "Creating $@"
 	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
@@ -350,13 +351,12 @@ tmp/policy.xml: $(GENERATED_IF)
 	$(QUIET) m4 $(ALL_INTERFACES) $(GLOBALTUN) | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
-		cp $(XMLDTD) tmp ;\
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
-html: tmp/policy.xml
+html: $(POLXML)
 	@mkdir -p $(HTMLDIR)
-	$(QUIET) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../tmp/policy.xml
+	$(QUIET) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
 	$(QUIET) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
 
 ########################################
@@ -434,6 +434,7 @@ clean:
 	rm -f $(FC)
 
 bare: clean
+	rm -f $(POLXML)
 	rm -f $(SUPPORT)/*.pyc
 	rm -f $(FCSORT)
 	rm -f $(MOD_DISABLE)
