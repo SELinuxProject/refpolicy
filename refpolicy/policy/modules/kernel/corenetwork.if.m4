@@ -17,7 +17,7 @@ define(`create_netif_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_netif_t:netif { tcp_send tcp_recv };
 ')
@@ -40,7 +40,7 @@ define(`corenet_tcp_sendrecv_$1_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_netif_t:netif udp_send;
 ')
@@ -63,7 +63,7 @@ define(`corenet_udp_send_$1_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_netif_t:netif udp_recv;
 ')
@@ -102,7 +102,7 @@ define(`corenet_udp_sendrecv_$1',`
 ## </interface>
 #
 define(`corenet_raw_send_$1',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_netif_t:netif rawip_send;
 	allow dollarsone self:capability net_raw;
@@ -127,7 +127,7 @@ define(`corenet_raw_send_$1_depend',`
 ## </interface>
 #
 define(`corenet_raw_receive_$1',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_netif_t:netif rawip_recv;
 ')
@@ -174,7 +174,7 @@ define(`create_node_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:node { tcp_send tcp_recv };
 ')
@@ -197,7 +197,7 @@ define(`corenet_tcp_sendrecv_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:node udp_send;
 ')
@@ -220,7 +220,7 @@ define(`corenet_udp_send_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:node udp_recv;
 ')
@@ -259,7 +259,7 @@ define(`corenet_udp_sendrecv_$1_node',`
 ## </interface>
 #
 define(`corenet_raw_send_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:node rawip_send;
 	allow dollarsone self:capability net_raw;
@@ -284,7 +284,7 @@ define(`corenet_raw_send_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_raw_receive_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:node rawip_recv;
 ')
@@ -323,7 +323,7 @@ define(`corenet_raw_sendrecv_$1_node',`
 ## </interface>
 #
 define(`corenet_tcp_bind_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:tcp_socket node_bind;
 ')
@@ -346,7 +346,7 @@ define(`corenet_tcp_bind_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_bind_$1_node',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_node_t:udp_socket node_bind;
 ')
@@ -377,7 +377,7 @@ define(`create_port_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1_port',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_port_t:tcp_socket { send_msg recv_msg };
 ')
@@ -400,7 +400,7 @@ define(`corenet_tcp_sendrecv_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1_port',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_port_t:udp_socket send_msg;
 ')
@@ -423,7 +423,7 @@ define(`corenet_udp_send_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1_port',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_port_t:udp_socket recv_msg;
 ')
@@ -462,7 +462,7 @@ define(`corenet_udp_sendrecv_$1_port',`
 ## </interface>
 #
 define(`corenet_tcp_bind_$1_port',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 	allow dollarsone $1_port_t:tcp_socket name_bind;
 	$2
 ')
@@ -486,7 +486,7 @@ define(`corenet_tcp_bind_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_bind_$1_port',`
-	requires_block_template(`dollarszero'_depend)
+	gen_require(`dollarszero'_depend)
 
 	allow dollarsone $1_port_t:udp_socket name_bind;
 	$2

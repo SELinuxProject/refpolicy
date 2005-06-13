@@ -2,7 +2,7 @@
 # network_interface(linux_interfacename,mls_sensitivity)
 #
 define(`network_interface',`
-requires_block_template(`type unlabeled_t')
+gen_require(`type unlabeled_t')
 type $1_netif_t alias netif_$1_t, netif_type;
 netifcon $1 context_template(system_u:object_r:$1_netif_t,$2) context_template(system_u:object_r:unlabeled_t,$2)
 ')
