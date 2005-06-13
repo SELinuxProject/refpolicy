@@ -7,16 +7,16 @@ policy_module(sendmail,1.0)
 #
 
 type sendmail_t; # , nscd_client_domain, mta_delivery_agent, mail_server_sender', nosysadm)
-mta_make_sendmail_mailserver_domain(sendmail_t)
+mta_sendmail_mailserver(sendmail_t)
 
 type sendmail_log_t;
-logging_make_log_file(sendmail_log_t)
+logging_log_file(sendmail_log_t)
 
 type sendmail_tmp_t;
-files_make_temporary_file(sendmail_tmp_t)
+files_tmp_file(sendmail_tmp_t)
 
 type sendmail_var_run_t;
-files_make_daemon_runtime_file(sendmail_var_run_t)
+files_pid_file(sendmail_var_run_t)
 
 ########################################
 #
@@ -30,14 +30,14 @@ allow sendmail_t self:unix_dgram_socket create_socket_perms;
 
 allow sendmail_t sendmail_log_t:file create_file_perms;
 allow sendmail_t sendmail_log_t:dir { rw_dir_perms setattr };
-logging_create_private_log(sendmail_t,sendmail_log_t,{ file dir })
+logging_create_log(sendmail_t,sendmail_log_t,{ file dir })
 
 allow sendmail_t sendmail_tmp_t:dir create_dir_perms;
 allow sendmail_t sendmail_tmp_t:file create_file_perms;
-files_create_private_tmp_data(sendmail_t, sendmail_tmp_t, { file dir })
+files_create_tmp_files(sendmail_t, sendmail_tmp_t, { file dir })
 
 allow sendmail_t sendmail_var_run_t:file { getattr create read write append setattr unlink };
-files_create_daemon_runtime_data(sendmail_t,sendmail_var_run_t)
+files_create_pid(sendmail_t,sendmail_var_run_t)
 
 kernel_read_kernel_sysctl(sendmail_t)
 kernel_read_hardware_state(sendmail_t)
@@ -60,38 +60,38 @@ fs_getattr_all_fs(sendmail_t)
 
 term_dontaudit_use_console(sendmail_t)
 
-init_use_file_descriptors(sendmail_t)
-init_script_use_pseudoterminal(sendmail_t)
+init_use_fd(sendmail_t)
+init_use_script_pty(sendmail_t)
 # sendmail wants to read /var/run/utmp if the controlling tty is /dev/console
-init_script_read_runtime_data(sendmail_t)
-init_script_ignore_write_runtime_data(sendmail_t)
+init_read_script_pid(sendmail_t)
+init_dontaudit_write_script_pid(sendmail_t)
 
-domain_use_widely_inheritable_file_descriptors(sendmail_t)
+domain_use_wide_inherit_fd(sendmail_t)
 
-files_read_general_system_config(sendmail_t)
-files_search_system_spool_directory(sendmail_t)
+files_read_generic_etc_files(sendmail_t)
+files_search_spool(sendmail_t)
 
-logging_send_system_log_message(sendmail_t)
+logging_send_syslog_msg(sendmail_t)
 
-libraries_use_dynamic_loader(sendmail_t)
-libraries_use_shared_libraries(sendmail_t)
+libs_use_ld_so(sendmail_t)
+libs_use_shared_libs(sendmail_t)
 # Read /usr/lib/sasl2/.*
-libraries_read_library_resources(sendmail_t)
+libs_read_lib(sendmail_t)
 
 miscfiles_read_localization(sendmail_t)
 
 # Write to /etc/aliases and /etc/mail.
-mta_modify_mail_aliases(sendmail_t)
+mta_rw_aliases(sendmail_t)
 # Write to /var/spool/mail and /var/spool/mqueue.
-mta_manage_mail_queue(sendmail_t)
-mta_manage_mail_spool(sendmail_t)
+mta_manage_queue(sendmail_t)
+mta_manage_spool(sendmail_t)
 
-sysnetwork_read_network_config(sendmail_t)
+sysnet_read_config(sendmail_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(sendmail_t)
 	terminal_ignore_use_general_pseudoterminal(sendmail_t)
-	files_ignore_read_rootfs_file(sendmail_t)
+	files_dontaudit_read_root_file(sendmail_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -99,7 +99,7 @@ optional_policy(`selinux.te',`
 ')
 
 optional_policy(`udev.te', `
-	udev_read_database(sendmail_t)
+	udev_read_db(sendmail_t)
 ')
 
 ifdef(`TODO',`
@@ -143,7 +143,7 @@ dontaudit system_mail_t { staff_home_dir_t sysadm_home_dir_t}:dir { getattr sear
 
 # Run procmail in its own domain, if defined.
 ifdef(`procmail.te',`
-corecommands_search_general_programs_directory(sendmail_t)
+corecmd_search_bin(sendmail_t)
 procmail_transition(sendmail_t)
 domain_auto_trans(system_mail_t, procmail_exec_t, procmail_t)
 ')

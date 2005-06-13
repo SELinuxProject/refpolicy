@@ -7,25 +7,25 @@ policy_module(locallogin,1.0)
 #
 
 type local_login_t; #, nscd_client_domain;
-kernel_make_object_identity_change_constraint_exception(local_login_t)
-kernel_make_process_identity_change_constraint_exception(local_login_t)
-kernel_make_role_change_constraint_exception(local_login_t)
-authlogin_make_login_program_entrypoint(local_login_t)
-domain_make_domain(local_login_t)
-domain_make_file_descriptors_widely_inheritable(local_login_t)
+kernel_obj_id_change_exempt(local_login_t)
+kernel_subj_id_change_exempt(local_login_t)
+kernel_role_change_exempt(local_login_t)
+auth_login_entry_type(local_login_t)
+domain_type(local_login_t)
+domain_wide_inherit_fd(local_login_t)
 role system_r types local_login_t;
 
 type local_login_tmp_t;
-files_make_file(local_login_tmp_t)
+files_file_type(local_login_tmp_t)
 
 type sulogin_t;
 type sulogin_exec_t;
-kernel_make_object_identity_change_constraint_exception(sulogin_t)
-kernel_make_process_identity_change_constraint_exception(sulogin_t)
-kernel_make_role_change_constraint_exception(sulogin_t)
-domain_make_file_descriptors_widely_inheritable(sulogin_t)
-init_make_init_domain(sulogin_t,sulogin_exec_t)
-init_make_system_domain(sulogin_t,sulogin_exec_t)
+kernel_obj_id_change_exempt(sulogin_t)
+kernel_subj_id_change_exempt(sulogin_t)
+kernel_role_change_exempt(sulogin_t)
+domain_wide_inherit_fd(sulogin_t)
+init_domain(sulogin_t,sulogin_exec_t)
+init_system_domain(sulogin_t,sulogin_exec_t)
 role system_r types sulogin_t;
 
 ########################################
@@ -49,7 +49,7 @@ allow local_login_t self:msg { send receive };
 
 allow local_login_t local_login_tmp_t:dir create_dir_perms;
 allow local_login_t local_login_tmp_t:file create_file_perms;
-files_create_private_tmp_data(local_login_t, local_login_tmp_t, { file dir })
+files_create_tmp_files(local_login_t, local_login_tmp_t, { file dir })
 
 kernel_read_system_state(local_login_t)
 kernel_read_kernel_sysctl(local_login_t)
@@ -70,47 +70,47 @@ term_relabel_all_user_ttys(local_login_t)
 term_setattr_all_user_ttys(local_login_t)
 term_setattr_unallocated_ttys(local_login_t)
 
-authlogin_check_password_transition(local_login_t)
-authlogin_ignore_read_shadow_passwords(local_login_t)
-authlogin_modify_login_records(local_login_t)
-authlogin_modify_last_login_log(local_login_t)
-authlogin_modify_login_failure_records(local_login_t)
-authlogin_pam_execute(local_login_t)
-authlogin_pam_console_manage_runtime_data(local_login_t)
+auth_domtrans_chk_passwd(local_login_t)
+auth_dontaudit_read_shadow(local_login_t)
+auth_rw_login_records(local_login_t)
+auth_rw_lastlog(local_login_t)
+auth_rw_faillog(local_login_t)
+auth_exec_pam(local_login_t)
+auth_manage_pam_console_data(local_login_t)
 
-domain_read_all_entrypoint_programs(local_login_t)
+domain_read_all_entry_files(local_login_t)
 
-files_read_general_system_config(local_login_t)
-files_read_runtime_system_config(local_login_t)
-files_read_general_application_resources(local_login_t)
-files_manage_system_lock_files(var_lock_t)
+files_read_generic_etc_files(local_login_t)
+files_read_etc_runtime_files(local_login_t)
+files_read_usr_files(local_login_t)
+files_manage_generic_lock_files(var_lock_t)
 
-init_script_modify_runtime_data(local_login_t)
-init_ignore_use_file_descriptors(local_login_t)
+init_rw_script_pid(local_login_t)
+init_dontaudit_use_fd(local_login_t)
 
-libraries_use_dynamic_loader(local_login_t)
-libraries_use_shared_libraries(local_login_t)
+libs_use_ld_so(local_login_t)
+libs_use_shared_libs(local_login_t)
 
-logging_send_system_log_message(local_login_t)
+logging_send_syslog_msg(local_login_t)
 
 miscfiles_read_localization(local_login_t)
 
 selinux_read_config(local_login_t)
 selinux_read_default_contexts(local_login_t)
 
-userdomain_all_users_explicit_transition(local_login_t)
-userdomain_signal_all_userdomains(local_login_t)
-userdomain_search_all_users_home_dirs(local_login_t)
-userdomain_use_all_unprivileged_users_file_descriptors(local_login_t)
+userdom_spec_domtrans_all_users(local_login_t)
+userdom_signal_all_users(local_login_t)
+userdom_search_all_users_home(local_login_t)
+userdom_use_unpriv_users_fd(local_login_t)
 
 # Search for mail spool file.
-mta_get_mail_spool_attributes(local_login_t)
+mta_getattr_spool(local_login_t)
 
 # Red Hat systems seem to have a stray
 # fd open from the initrd
 optional_policy(`distro_redhat',`
 	kernel_dontaudit_use_fd(local_login_t)
-	files_ignore_read_rootfs_file(local_login_t)
+	files_dontaudit_read_root_file(local_login_t)
 ')
 
 ifdef(`TODO',`
@@ -210,24 +210,24 @@ allow sulogin_t self:msg { send receive };
 
 kernel_read_system_state(sulogin_t)
 
-init_script_get_process_group(sulogin_t)
+init_get_script_process_group(sulogin_t)
 
-files_read_general_system_config(sulogin_t)
+files_read_generic_etc_files(sulogin_t)
 # because file systems are not mounted:
-files_ignore_search_isid_type_dir(sulogin_t)
+files_dontaudit_search_isid_type_dir(sulogin_t)
 
-libraries_use_dynamic_loader(sulogin_t)
-libraries_use_shared_libraries(sulogin_t)
+libs_use_ld_so(sulogin_t)
+libs_use_shared_libs(sulogin_t)
 
-logging_send_system_log_message(sulogin_t)
+logging_send_syslog_msg(sulogin_t)
 
 selinux_read_config(sulogin_t)
 selinux_read_default_contexts(sulogin_t)
 
-authlogin_read_shadow_passwords(sulogin_t)
+auth_read_shadow(sulogin_t)
 
-userdomain_sysadm_shell_transition(sulogin_t)
-userdomain_use_all_unprivileged_users_file_descriptors(sulogin_t)
+userdom_shell_domtrans_sysadm(sulogin_t)
+userdom_use_unpriv_users_fd(sulogin_t)
 
 # suse and debian do not use pam with sulogin...
 ifdef(`monolithic_policy',`

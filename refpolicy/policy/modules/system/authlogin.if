@@ -26,15 +26,15 @@ define(`authlogin_per_userdomain_template',`
 	requires_block_template(`$0'_depend)
 
 	type $1_chkpwd_t, can_read_shadow_passwords; # , nscd_client_domain;
-	domain_make_domain($1_chkpwd_t)
-	domain_make_entrypoint_file($1_chkpwd_t,chkpwd_exec_t)
+	domain_type($1_chkpwd_t)
+	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
 	role $1_r types $1_chkpwd_t;
 	role $1_r types system_chkpwd_t;
 
 	allow $1_chkpwd_t self:capability setuid;
 	allow $1_chkpwd_t self:process getattr;
 
-	files_read_general_system_config_directory($1_chkpwd_t)
+	files_read_generic_etc_files_directory($1_chkpwd_t)
 	allow $1_chkpwd_t shadow_t:file { getattr read };
 
 	# is_selinux_enabled
@@ -42,16 +42,16 @@ define(`authlogin_per_userdomain_template',`
 
 	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
 
-	domain_use_widely_inheritable_file_descriptors($1_chkpwd_t)
+	domain_use_wide_inherit_fd($1_chkpwd_t)
 
-	libraries_use_dynamic_loader($1_chkpwd_t)
-	libraries_use_shared_libraries($1_chkpwd_t)
+	libs_use_ld_so($1_chkpwd_t)
+	libs_use_shared_libs($1_chkpwd_t)
 
-	files_read_general_system_config($1_chkpwd_t)
+	files_read_generic_etc_files($1_chkpwd_t)
 	# for nscd
-	files_ignore_search_system_state_data_directory($1_chkpwd_t)
+	files_dontaudit_search_var($1_chkpwd_t)
 
-	logging_send_system_log_message($1_chkpwd_t)
+	logging_send_syslog_msg($1_chkpwd_t)
 
 	miscfiles_read_localization($1_chkpwd_t)
 
@@ -84,11 +84,11 @@ define(`authlogin_per_userdomain_template',`
 		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
 		corenet_udp_bind_all_nodes($1_chkpwd_t)
 		corenet_udp_sendrecv_dns_port($1_chkpwd_t)
-		sysnetwork_read_network_config($1_chkpwd_t)
+		sysnet_read_config($1_chkpwd_t)
 	')
 
 	optional_policy(`selinux.te',`
-		selinux_newrole_use_file_descriptors($1_chkpwd_t)
+		selinux_use_newrole_fd($1_chkpwd_t)
 	')
 
 ') dnl end authlogin_per_userdomain_template
@@ -108,7 +108,7 @@ define(`authlogin_per_userdomain_template_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_make_login_program_entrypoint">
+## <interface name="auth_login_entry_type">
 ##	<description>
 ##		
 ##	</description>
@@ -123,20 +123,20 @@ define(`authlogin_per_userdomain_template_depend',`
 
 #######################################
 #
-# authlogin_make_login_program_entrypoint(domain)
+# auth_login_entry_type(domain)
 #
-define(`authlogin_make_login_program_entrypoint',`
+define(`auth_login_entry_type',`
 	requires_block_template(`$0'_depend)
 
-	domain_make_entrypoint_file($1,login_exec_t)
+	domain_entry_file($1,login_exec_t)
 ')
 
-define(`authlogin_make_login_program_entrypoint_depend',`
+define(`auth_login_entry_type_depend',`
 	type login_exec_t;
 ')
 
 ########################################
-## <interface name="authlogin_login_program_transition">
+## <interface name="auth_domtrans_login_program">
 ##	<description>
 ##		Execute a login_program in the target domain.
 ##	</description>
@@ -148,7 +148,7 @@ define(`authlogin_make_login_program_entrypoint_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`authlogin_login_program_transition',`
+define(`auth_domtrans_login_program',`
 	requires_block_template(`$0'_depend)
 
 	# FIXME: search bin_t
@@ -163,7 +163,7 @@ define(`authlogin_login_program_transition',`
 	allow $2 $1:process sigchld;
 ')
 
-define(`authlogin_login_program_transition_depend',`
+define(`auth_domtrans_login_program_depend',`
 	type login_exec_t;
 
 	class file rx_file_perms; 
@@ -173,7 +173,7 @@ define(`authlogin_login_program_transition_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_check_password_transition">
+## <interface name="auth_domtrans_chk_passwd">
 ##	<description>
 ##		
 ##	</description>
@@ -187,9 +187,9 @@ define(`authlogin_login_program_transition_depend',`
 #
 #######################################
 #
-# authlogin_check_password_transition(domain)
+# auth_domtrans_chk_passwd(domain)
 #
-define(`authlogin_check_password_transition',`
+define(`auth_domtrans_chk_passwd',`
 	requires_block_template(`$0'_depend)
 
 	domain_auto_trans($1,chkpwd_exec_t,system_chkpwd_t)
@@ -213,11 +213,11 @@ define(`authlogin_check_password_transition',`
 		corenet_raw_sendrecv_all_nodes($1)
 		corenet_udp_bind_all_nodes($1)
 		corenet_udp_sendrecv_dns_port($1)
-		sysnetwork_read_network_config($1)
+		sysnet_read_config($1)
 	')
 ')
 
-define(`authlogin_check_password_transition_depend',`
+define(`auth_domtrans_chk_passwd_depend',`
 	type system_chkpwd_t, chkpwd_exec_t, shadow_t;
 
 	class file rx_file_perms;
@@ -228,7 +228,7 @@ define(`authlogin_check_password_transition_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_ignore_get_shadow_passwords_attributes">
+## <interface name="auth_dontaudit_getattr_shadow">
 ##	<description>
 ##		
 ##	</description>
@@ -242,22 +242,22 @@ define(`authlogin_check_password_transition_depend',`
 #
 #######################################
 #
-# authlogin_ignore_get_shadow_passwords_attributes(domain)
+# auth_dontaudit_getattr_shadow(domain)
 #
-define(`authlogin_ignore_get_shadow_passwords_attributes',`
+define(`auth_dontaudit_getattr_shadow',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 shadow_t:file getattr;
 ')
 
-define(`authlogin_ignore_get_shadow_passwords_attributes_depend',`
+define(`auth_dontaudit_getattr_shadow_depend',`
 	type shadow_t;
 
 	class file stat_file_perms;
 ')
 
 ########################################
-## <interface name="authlogin_read_shadow_passwords">
+## <interface name="auth_read_shadow">
 ##	<description>
 ##		
 ##	</description>
@@ -271,17 +271,17 @@ define(`authlogin_ignore_get_shadow_passwords_attributes_depend',`
 #
 #######################################
 #
-# authlogin_read_shadow_passwords(domain)
+# auth_read_shadow(domain)
 #
-define(`authlogin_read_shadow_passwords',`
+define(`auth_read_shadow',`
 	requires_block_template(`$0'_depend)
 
-	files_read_general_system_config_directory($1)
+	files_read_generic_etc_files_directory($1)
 	allow $1 shadow_t:file r_file_perms;
 	typeattribute $1 can_read_shadow_passwords;
 ')
 
-define(`authlogin_read_shadow_passwords_depend',`
+define(`auth_read_shadow_depend',`
 	attribute can_read_shadow_passwords;
 
 	type shadow_t;
@@ -290,7 +290,7 @@ define(`authlogin_read_shadow_passwords_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_ignore_read_shadow_passwords">
+## <interface name="auth_dontaudit_read_shadow">
 ##	<description>
 ##		
 ##	</description>
@@ -304,22 +304,22 @@ define(`authlogin_read_shadow_passwords_depend',`
 #
 #######################################
 #
-# authlogin_ignore_read_shadow_passwords(domain)
+# auth_dontaudit_read_shadow(domain)
 #
-define(`authlogin_ignore_read_shadow_passwords',`
+define(`auth_dontaudit_read_shadow',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 shadow_t:file { getattr read };
 ')
 
-define(`authlogin_ignore_read_shadow_passwords_depend',`
+define(`auth_dontaudit_read_shadow_depend',`
 	type shadow_t;
 
 	class file r_file_perms;
 ')
 
 ########################################
-## <interface name="authlogin_modify_shadow_passwords">
+## <interface name="auth_rw_shadow">
 ##	<description>
 ##		
 ##	</description>
@@ -333,17 +333,17 @@ define(`authlogin_ignore_read_shadow_passwords_depend',`
 #
 #######################################
 #
-# authlogin_modify_shadow_passwords(domain)
+# auth_rw_shadow(domain)
 #
-define(`authlogin_modify_shadow_passwords',`
+define(`auth_rw_shadow',`
 	requires_block_template(`$0'_depend)
 
-	files_read_general_system_config_directory($1)
+	files_read_generic_etc_files_directory($1)
 	allow $1 shadow_t:file rw_file_perms;
 	typeattribute $1 can_read_shadow_passwords, can_write_shadow_passwords;
 ')
 
-define(`authlogin_modify_shadow_passwords_depend',`
+define(`auth_rw_shadow_depend',`
 	attribute can_read_shadow_passwords, can_write_shadow_passwords;
 
 	type shadow_t;
@@ -352,18 +352,18 @@ define(`authlogin_modify_shadow_passwords_depend',`
 
 #######################################
 #
-# authlogin_manage_shadow_passwords(domain)
+# auth_manage_shadow(domain)
 #
-define(`authlogin_manage_shadow_passwords',`
+define(`auth_manage_shadow',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 shadow_t:file create_file_perms;
-	files_create_private_config($1,shadow_t,file)
+	files_create_etc_config($1,shadow_t,file)
 
 	typeattribute $1 can_read_shadow_passwords, can_write_shadow_passwords;
 ')
 
-define(`authlogin_manage_shadow_passwords_depend',`
+define(`auth_manage_shadow_depend',`
 	attribute can_read_shadow_passwords, can_write_shadow_passwords;
 
 	type shadow_t;
@@ -373,17 +373,17 @@ define(`authlogin_manage_shadow_passwords_depend',`
 
 #######################################
 #
-# authlogin_relabel_to_shadow_passwords(domain)
+# auth_relabelto_shadow(domain)
 #
-define(`authlogin_relabel_to_shadow_passwords',`
+define(`auth_relabelto_shadow',`
 	requires_block_template(`$0'_depend)
 
-	files_search_general_system_config_directory($1)
+	files_search_etc($1)
 	allow $1 shadow_t:file relabelto;
 	typeattribute $1 can_relabelto_shadow_passwords;
 ')
 
-define(`authlogin_relabel_to_shadow_passwords_depend',`
+define(`auth_relabelto_shadow_depend',`
 	attribute can_relabelto_shadow_passwords;
 
 	type shadow_t;
@@ -393,16 +393,16 @@ define(`authlogin_relabel_to_shadow_passwords_depend',`
 
 #######################################
 #
-# authlogin_modify_login_failure_records(domain)
+# auth_rw_faillog(domain)
 #
-define(`authlogin_modify_login_failure_records',`
+define(`auth_rw_faillog',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 faillog_t:file rw_file_perms;
-	logging_search_system_log_directory($1)
+	logging_search_logs($1)
 ')
 
-define(`authlogin_modify_login_failure_records_depend',`
+define(`auth_rw_faillog_depend',`
 	type faillog_t;
 
 	class file rw_file_perms;
@@ -410,23 +410,23 @@ define(`authlogin_modify_login_failure_records_depend',`
 
 #######################################
 #
-# authlogin_modify_last_login_log(domain)
+# auth_rw_lastlog(domain)
 #
-define(`authlogin_modify_last_login_log',`
+define(`auth_rw_lastlog',`
 	requires_block_template(`$0'_depend)
 
-	logging_search_system_log_directory($1)
+	logging_search_logs($1)
 	allow $1 lastlog_t:file { getattr read write setattr };
 ')
 
-define(`authlogin_modify_last_login_log_depend',`
+define(`auth_rw_lastlog_depend',`
 	type lastlog_t;
 
 	class file { getattr read write setattr };
 ')
 
 ########################################
-## <interface name="authlogin_pam_transition">
+## <interface name="auth_domtrans_pam">
 ##	<description>
 ##		Execute pam programs in the pam domain.
 ##	</description>
@@ -435,7 +435,7 @@ define(`authlogin_modify_last_login_log_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`authlogin_pam_transition',`
+define(`auth_domtrans_pam',`
 	requires_block_template(`$0'_depend)
 
 	domain_auto_trans($1,pam_exec_t,pam_t)
@@ -446,7 +446,7 @@ define(`authlogin_pam_transition',`
 	allow pam_t $1:process sigchld;
 ')
 
-define(`authlogin_pam_transition_depend',`
+define(`auth_domtrans_pam_depend',`
 	type pam_t, pam_exec_t;
 
 	class file rx_file_perms;
@@ -456,7 +456,7 @@ define(`authlogin_pam_transition_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_pam_transition_add_role_use_terminal">
+## <interface name="auth_run_pam">
 ##	<description>
 ##		Execute pam programs in the PAM domain.
 ##	</description>
@@ -471,22 +471,22 @@ define(`authlogin_pam_transition_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`authlogin_pam_transition_add_role_use_terminal',`
+define(`auth_run_pam',`
 	requires_block_template(`$0'_depend)
 
-	authlogin_pam_transition($1)
+	auth_domtrans_pam($1)
 	role $2 types pam_t;
 	allow pam_t $3:chr_file rw_file_perms;
 ')
 
-define(`authlogin_pam_transition_add_role_use_terminal_depend',`
+define(`auth_run_pam_depend',`
 	type pam_t;
 
 	class chr_file rw_file_perms;
 ')
 
 ########################################
-## <interface name="authlogin_pam_execute">
+## <interface name="auth_exec_pam">
 ##	<description>
 ##		
 ##	</description>
@@ -500,15 +500,15 @@ define(`authlogin_pam_transition_add_role_use_terminal_depend',`
 #
 #######################################
 #
-# authlogin_pam_execute(domain)
+# auth_exec_pam(domain)
 #
-define(`authlogin_pam_execute',`
+define(`auth_exec_pam',`
 	requires_block_template(`$0'_depend)
 
 	can_exec($1,pam_exec_t)
 ')
 
-define(`authlogin_pam_execute_depend',`
+define(`auth_exec_pam_depend',`
 	type pam_exec_t;
 
 	class file { getattr read execute execute_no_trans };
@@ -516,18 +516,18 @@ define(`authlogin_pam_execute_depend',`
 
 #######################################
 #
-# authlogin_pam_read_runtime_data(domain)
+# auth_read_pam_pid(domain)
 #
-define(`authlogin_pam_read_runtime_data',`
+define(`auth_read_pam_pid',`
 	requires_block_template(`$0'_depend)
 
-	files_search_system_state_data_directory($1)
-	files_search_runtime_data_directory($1)
+	files_search_var($1)
+	files_search_pids($1)
 	allow $1 pam_var_run_t:dir r_dir_perms;
 	allow $1 pam_var_run_t:file r_file_perms;
 ')
 
-define(`authlogin_pam_read_runtime_data_depend',`
+define(`auth_read_pam_pid_depend',`
 	type pam_var_run_t;
 
 	class dir r_dir_perms;
@@ -535,7 +535,7 @@ define(`authlogin_pam_read_runtime_data_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_pam_remove_runtime_data">
+## <interface name="auth_delete_pam_pid">
 ##	<description>
 ##		
 ##	</description>
@@ -549,18 +549,18 @@ define(`authlogin_pam_read_runtime_data_depend',`
 #
 #######################################
 #
-# authlogin_pam_remove_runtime_data(domain)
+# auth_delete_pam_pid(domain)
 #
-define(`authlogin_pam_remove_runtime_data',`
+define(`auth_delete_pam_pid',`
 	requires_block_template(`$0'_depend)
 
-	files_search_system_state_data_directory($1)
-	files_search_runtime_data_directory($1)
+	files_search_var($1)
+	files_search_pids($1)
 	allow $1 pam_var_run_t:dir { getattr search read write remove_name };
 	allow $1 pam_var_run_t:file { getattr unlink };
 ')
 
-define(`authlogin_pam_remove_runtime_data_depend',`
+define(`auth_delete_pam_pid_depend',`
 	type pam_var_run_t;
 
 	class dir { getattr search read write remove_name };
@@ -569,9 +569,9 @@ define(`authlogin_pam_remove_runtime_data_depend',`
 
 #######################################
 #
-# authlogin_pam_console_transition(domain)
+# auth_domtrans_pam_console(domain)
 #
-define(`authlogin_pam_console_transition',`
+define(`auth_domtrans_pam_console',`
 	requires_block_template(`$0'_depend)
 
 	domain_auto_trans($1,pam_console_exec_t,pam_console_t)
@@ -582,7 +582,7 @@ define(`authlogin_pam_console_transition',`
 	allow pam_console_t $1:process sigchld;
 ')
 
-define(`authlogin_pam_console_transition_depend',`
+define(`auth_domtrans_pam_console_depend',`
 	type pam_console_t, pam_console_exec_t;
 
 	class file rx_file_perms;
@@ -592,7 +592,7 @@ define(`authlogin_pam_console_transition_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_pam_console_read_runtime_data_dir">
+## <interface name="auth_list_pam_console_data">
 ##	<description>
 ##		
 ##	</description>
@@ -606,17 +606,17 @@ define(`authlogin_pam_console_transition_depend',`
 #
 #######################################
 #
-# authlogin_pam_console_read_runtime_data_dir(domain)
+# auth_list_pam_console_data(domain)
 #
-define(`authlogin_pam_console_read_runtime_data_dir',`
+define(`auth_list_pam_console_data',`
 	requires_block_template(`$0'_depend)
 
-	files_search_system_state_data_directory($1)
-	files_search_runtime_data_directory($1)
+	files_search_var($1)
+	files_search_pids($1)
 	allow $1 pam_var_console_t:dir r_dir_perms;
 ')
 
-define(`authlogin_pam_console_read_runtime_data_dir_depend',`
+define(`auth_list_pam_console_data_depend',`
 	type pam_var_console_t;
 
 	class dir r_dir_perms;
@@ -624,18 +624,18 @@ define(`authlogin_pam_console_read_runtime_data_dir_depend',`
 
 #######################################
 #
-# authlogin_pam_console_read_runtime_data(domain)
+# auth_read_pam_console_data(domain)
 #
-define(`authlogin_pam_console_read_runtime_data',`
+define(`auth_read_pam_console_data',`
 	requires_block_template(`$0'_depend)
 
-	files_search_system_state_data_directory($1)
-	files_search_runtime_data_directory($1)
+	files_search_var($1)
+	files_search_pids($1)
 	allow $1 pam_var_console_t:dir r_dir_perms;
 	allow $1 pam_var_console_t:file r_file_perms;
 ')
 
-define(`authlogin_pam_console_read_runtime_data_depend',`
+define(`auth_read_pam_console_data_depend',`
 	type pam_var_console_t;
 
 	class dir r_dir_perms;
@@ -644,19 +644,19 @@ define(`authlogin_pam_console_read_runtime_data_depend',`
 
 #######################################
 #
-# authlogin_pam_console_manage_runtime_data(domain)
+# auth_manage_pam_console_data(domain)
 #
-define(`authlogin_pam_console_manage_runtime_data',`
+define(`auth_manage_pam_console_data',`
 	requires_block_template(`$0'_depend)
 
-	files_search_system_state_data_directory($1)
-	files_search_runtime_data_directory($1)
+	files_search_var($1)
+	files_search_pids($1)
 	allow $1 pam_var_console_t:dir rw_dir_perms;
 	allow $1 pam_var_console_t:file create_file_perms;
 	allow $1 pam_var_console_t:lnk_file create_lnk_perms;
 ')
 
-define(`authlogin_pam_console_manage_runtime_data_depend',`
+define(`auth_manage_pam_console_data_depend',`
 	type pam_var_console_t;
 
 	class dir rw_dir_perms;
@@ -665,7 +665,7 @@ define(`authlogin_pam_console_manage_runtime_data_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_relabel_all_files_except_shadow">
+## <interface name="auth_relabel_all_files_except_shadow">
 ##	<description>
 ##		Relabel all files on the filesystem, except
 ##		the shadow passwords and listed exceptions.
@@ -680,18 +680,18 @@ define(`authlogin_pam_console_manage_runtime_data_depend',`
 ## </interface>
 #
 
-define(`authlogin_relabel_all_files_except_shadow',`
+define(`auth_relabel_all_files_except_shadow',`
 	requires_block_template(`$0'_depend)
 
 	files_relabel_all_files($1,$2 -shadow_t)
 ')
 
-define(`authlogin_relabel_all_files_except_shadow_depend',`
+define(`auth_relabel_all_files_except_shadow_depend',`
 	type shadow_t;
 ')
 
 ########################################
-## <interface name="authlogin_manage_all_files_except_shadow">
+## <interface name="auth_manage_all_files_except_shadow">
 ##	<description>
 ##		Manage all files on the filesystem, except
 ##		the shadow passwords and listed exceptions.
@@ -706,18 +706,18 @@ define(`authlogin_relabel_all_files_except_shadow_depend',`
 ## </interface>
 #
 
-define(`authlogin_manage_all_files_except_shadow',`
+define(`auth_manage_all_files_except_shadow',`
 	requires_block_template(`$0'_depend)
 
 	files_manage_all_files($1,$2 -shadow_t)
 ')
 
-define(`authlogin_manage_all_files_except_shadow_depend',`
+define(`auth_manage_all_files_except_shadow_depend',`
 	type shadow_t;
 ')
 
 ########################################
-## <interface name="authlogin_utempter_transition">
+## <interface name="auth_domtrans_utempter">
 ##	<description>
 ##		Execute utempter programs in the utempter domain.
 ##	</description>
@@ -726,7 +726,7 @@ define(`authlogin_manage_all_files_except_shadow_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`authlogin_utempter_transition',`
+define(`auth_domtrans_utempter',`
 	requires_block_template(`$0'_depend)
 
 	domain_auto_trans($1,utempter_exec_t,utempter_t)
@@ -737,7 +737,7 @@ define(`authlogin_utempter_transition',`
 	allow utempter_t $1:process sigchld;
 ')
 
-define(`authlogin_utempter_transition_depend',`
+define(`auth_domtrans_utempter_depend',`
 	type utempter_t, utempter_exec_t;
 
 	class file rx_file_perms;
@@ -747,7 +747,7 @@ define(`authlogin_utempter_transition_depend',`
 ')
 
 ########################################
-## <interface name="authlogin_utempter_transition_add_role_use_terminal">
+## <interface name="auth_run_utempter">
 ##	<description>
 ##		Execute utempter programs in the utempter domain.
 ##	</description>
@@ -762,22 +762,22 @@ define(`authlogin_utempter_transition_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`authlogin_utempter_transition_add_role_use_terminal',`
+define(`auth_run_utempter',`
 	requires_block_template(`$0'_depend)
 
-	authlogin_utempter_transition($1)
+	auth_domtrans_utempter($1)
 	role $2 types utempter_t;
 	allow utempter_t $3:chr_file rw_file_perms;
 ')
 
-define(`authlogin_utempter_transition_add_role_use_terminal_depend',`
+define(`auth_run_utempter_depend',`
 	type utempter_t;
 
 	class chr_file rw_file_perms;
 ')
 
 ########################################
-## <interface name="authlogin_read_login_records">
+## <interface name="auth_read_login_records">
 ##	<description>
 ##		
 ##	</description>
@@ -791,23 +791,23 @@ define(`authlogin_utempter_transition_add_role_use_terminal_depend',`
 #
 #######################################
 #
-# authlogin_read_login_records(domain)
+# auth_read_login_records(domain)
 #
-define(`authlogin_read_login_records',`
+define(`auth_read_login_records',`
 	requires_block_template(`$0'_depend)
 
-	logging_search_system_log_directory($1)
+	logging_search_logs($1)
 	allow $1 wtmp_t:file r_file_perms;
 ')
 
-define(`authlogin_read_login_records_depend',`
+define(`auth_read_login_records_depend',`
 	type wtmp_t;
 
 	class file r_file_perms;
 ')
 
 ########################################
-## <interface name="authlogin_ignore_write_login_records">
+## <interface name="auth_dontaudit_write_login_records">
 ##	<description>
 ##		
 ##	</description>
@@ -818,15 +818,15 @@ define(`authlogin_read_login_records_depend',`
 #
 #######################################
 #
-# authlogin_ignore_write_login_records(domain)
+# auth_dontaudit_write_login_records(domain)
 #
-define(`authlogin_ignore_write_login_records',`
+define(`auth_dontaudit_write_login_records',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 wtmp_t:file write;
 ')
 
-define(`authlogin_read_login_records_depend',`
+define(`auth_read_login_records_depend',`
 	type wtmp_t;
 
 	class file write;
@@ -834,16 +834,16 @@ define(`authlogin_read_login_records_depend',`
 
 #######################################
 #
-# authlogin_modify_login_records(domain)
+# auth_rw_login_records(domain)
 #
-define(`authlogin_modify_login_records',`
+define(`auth_rw_login_records',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 wtmp_t:file rw_file_perms;
-	logging_search_system_log_directory($1)
+	logging_search_logs($1)
 ')
 
-define(`authlogin_modify_login_records_depend',`
+define(`auth_rw_login_records_depend',`
 type wtmp_t;
 class file rw_file_perms;
 ')

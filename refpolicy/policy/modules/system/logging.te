@@ -9,40 +9,40 @@ policy_module(logging,1.0)
 attribute logfile;
 
 type auditd_log_t;
-logging_make_log_file(auditd_t,auditd_log_t)
+logging_log_file(auditd_t,auditd_log_t)
 
 type auditd_t;
 type auditd_exec_t;
-init_make_daemon_domain(auditd_t,auditd_exec_t)
+init_daemon_domain(auditd_t,auditd_exec_t)
 
 type auditd_var_run_t;
-files_make_daemon_runtime_file(auditd_var_run_t)
+files_pid_file(auditd_var_run_t)
 
 type devlog_t;
-files_make_file(devlog_t)
+files_file_type(devlog_t)
 
 type klogd_t;
 type klogd_exec_t;
-init_make_daemon_domain(klogd_t,klogd_exec_t)
+init_daemon_domain(klogd_t,klogd_exec_t)
 
 type klogd_tmp_t;
-files_make_temporary_file(klogd_tmp_t)
+files_tmp_file(klogd_tmp_t)
 
 type klogd_var_run_t;
-files_make_daemon_runtime_file(klogd_var_run_t)
+files_pid_file(klogd_var_run_t)
 
 type syslogd_t;
 type syslogd_exec_t;
-init_make_daemon_domain(syslogd_t,syslogd_exec_t)
+init_daemon_domain(syslogd_t,syslogd_exec_t)
 
 type syslogd_tmp_t;
-files_make_temporary_file(syslogd_tmp_t)
+files_tmp_file(syslogd_tmp_t)
 
 type syslogd_var_run_t;
-files_make_daemon_runtime_file(syslogd_var_run_t)
+files_pid_file(syslogd_var_run_t)
 
 type var_log_t, logfile;
-files_make_file(var_log_t)
+files_file_type(var_log_t)
 
 ########################################
 #
@@ -56,7 +56,7 @@ allow auditd_t self:netlink_audit_socket { bind create getattr nlmsg_read nlmsg_
 allow auditd_t auditd_log_t:file create_file_perms;
 
 allow auditd_t auditd_var_run_t:file create_file_perms;
-files_create_daemon_runtime_data(auditd_t,auditd_var_run_t)
+files_create_pid(auditd_t,auditd_var_run_t)
 
 kernel_read_kernel_sysctl(auditd_t)
 kernel_read_hardware_state(auditd_t)
@@ -65,24 +65,24 @@ fs_getattr_all_fs(auditd_t)
 
 term_dontaudit_use_console(auditd_t)
 
-init_use_file_descriptors(auditd_t)
-init_script_use_pseudoterminal(auditd_t)
+init_use_fd(auditd_t)
+init_use_script_pty(auditd_t)
 
-domain_use_widely_inheritable_file_descriptors(auditd_t)
+domain_use_wide_inherit_fd(auditd_t)
 
-files_read_general_system_config(auditd_t)
+files_read_generic_etc_files(auditd_t)
 
-logging_send_system_log_message(auditd_t)
+logging_send_syslog_msg(auditd_t)
 
-libraries_use_dynamic_loader(auditd_t)
-libraries_use_shared_libraries(auditd_t)
+libs_use_ld_so(auditd_t)
+libs_use_shared_libs(auditd_t)
 
 miscfiles_read_localization(auditd_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(auditd_t)
 	terminal_ignore_use_general_pseudoterminal(auditd_t)
-	files_ignore_read_rootfs_file(auditd_t)
+	files_dontaudit_read_root_file(auditd_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -90,7 +90,7 @@ optional_policy(`selinux.te',`
 ')
 
 optional_policy(`udev.te', `
-	udev_read_database(auditd_t)
+	udev_read_db(auditd_t)
 ')
 
 ifdef(`TODO',`
@@ -115,7 +115,7 @@ allow auditd_t sysadm_tty_device_t:chr_file rw_file_perms;
 #
 
 allow klogd_t klogd_tmp_t:file create_file_perms;
-files_create_private_tmp_data(klogd_t,klogd_tmp_t)
+files_create_tmp_files(klogd_t,klogd_tmp_t)
 
 allow klogd_t klogd_var_run_t:file create_file_perms;
 
@@ -134,17 +134,17 @@ dev_read_raw_memory(klogd_t)
 
 fs_getattr_all_fs(klogd_t)
 
-files_create_daemon_runtime_data(klogd_t,klogd_var_run_t)
-files_read_runtime_system_config(klogd_t)
+files_create_pid(klogd_t,klogd_var_run_t)
+files_read_etc_runtime_files(klogd_t)
 # read /etc/nsswitch.conf
-files_read_general_system_config(klogd_t)
+files_read_generic_etc_files(klogd_t)
 
-init_use_file_descriptors(klogd_t)
+init_use_fd(klogd_t)
 
-libraries_use_dynamic_loader(klogd_t)
-libraries_use_shared_libraries(klogd_t)
+libs_use_ld_so(klogd_t)
+libs_use_shared_libs(klogd_t)
 
-logging_send_system_log_message(klogd_t)
+logging_send_syslog_msg(klogd_t)
 
 miscfiles_read_localization(klogd_t)
 
@@ -170,21 +170,21 @@ allow syslogd_t var_log_t:file create_file_perms;
 
 # manage temporary files
 allow syslogd_t syslogd_tmp_t:file create_file_perms;
-files_create_private_tmp_data(syslogd_t,syslogd_tmp_t)
+files_create_tmp_files(syslogd_t,syslogd_tmp_t)
 
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
-files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t,file)
+files_create_pid(syslogd_t,syslogd_var_run_t,file)
 
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file create_file_perms;
-files_create_daemon_runtime_data(syslogd_t,devlog_t,sock_file)
+files_create_pid(syslogd_t,devlog_t,sock_file)
 # I belive these are not needed:
 allow syslogd_t devlog_t:unix_stream_socket name_bind;
 allow syslogd_t devlog_t:unix_dgram_socket name_bind;
 
 # manage pid file
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
-files_create_daemon_runtime_data(syslogd_t,syslogd_var_run_t)
+files_create_pid(syslogd_t,syslogd_var_run_t)
 
 kernel_read_hardware_state(syslogd_t)
 kernel_read_kernel_sysctl(syslogd_t)
@@ -196,8 +196,8 @@ term_dontaudit_use_console(syslogd_t)
 term_write_unallocated_ttys(syslogd_t)
 
 # for sending messages to logged in users
-init_script_read_runtime_data(syslogd_t)
-init_script_ignore_write_runtime_data(syslogd_t)
+init_read_script_pid(syslogd_t)
+init_dontaudit_write_script_pid(syslogd_t)
 term_write_all_user_ttys(syslogd_t)
 
 corenet_raw_sendrecv_all_if(syslogd_t)
@@ -210,26 +210,26 @@ corenet_udp_bind_syslogd_port(syslogd_t)
 
 fs_getattr_all_fs(syslogd_t)
 
-init_use_file_descriptors(syslogd_t)
-init_script_use_pseudoterminal(syslogd_t)
+init_use_fd(syslogd_t)
+init_use_script_pty(syslogd_t)
 
-domain_use_widely_inheritable_file_descriptors(syslogd_t)
+domain_use_wide_inherit_fd(syslogd_t)
 
-files_read_general_system_config(syslogd_t)
+files_read_generic_etc_files(syslogd_t)
 
-libraries_use_dynamic_loader(syslogd_t)
-libraries_use_shared_libraries(syslogd_t)
+libs_use_ld_so(syslogd_t)
+libs_use_shared_libs(syslogd_t)
 
-sysnetwork_read_network_config(syslogd_t)
+sysnet_read_config(syslogd_t)
 
 miscfiles_read_localization(syslogd_t)
 
-userdomain_ignore_use_all_unprivileged_users_file_descriptors(syslogd_t)
+userdom_dontaudit_use_unpriv_user_fd(syslogd_t)
 
 #
 # /initrd is not umounted before minilog starts
 #
-files_ignore_search_isid_type_dir(syslogd_t)
+files_dontaudit_search_isid_type_dir(syslogd_t)
 #allow syslogd_t tmpfs_t:dir search;
 #dontaudit syslogd_t unlabeled_t:file read;
 #dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
@@ -246,7 +246,7 @@ ifdef(`klogd.te', `', `
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(syslogd_t)
 	terminal_ignore_use_general_pseudoterminal(syslogd_t)
-	files_ignore_read_rootfs_file(syslogd_t)
+	files_dontaudit_read_root_file(syslogd_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -254,11 +254,11 @@ optional_policy(`selinux.te',`
 ')
 
 optional_policy(`udev.te', `
-	udev_read_database(syslogd_t)
+	udev_read_db(syslogd_t)
 ')
 
 optional_policy(`cron.te',`
-	cron_modify_log(syslogd_t)
+	cron_rw_log(syslogd_t)
 ')
 
 ifdef(`TODO',`

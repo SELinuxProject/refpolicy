@@ -12,8 +12,8 @@ define(`base_user_domain',`
 	attribute $1_file_type;
 
 	type $1_t, userdomain;
-	domain_make_domain($1_t)
-	corecommands_make_shell_entrypoint($1_t)
+	domain_type($1_t)
+	corecmd_shell_entry_type($1_t)
 	role $1_r types $1_t;
 	allow system_r $1_r;
 
@@ -23,17 +23,17 @@ define(`base_user_domain',`
 
 	# type for contents of home directory
 	type $1_home_t, $1_file_type, home_type;
-	files_make_file($1_home_t)
+	files_file_type($1_home_t)
 
 	# type of home directory
 	type $1_home_dir_t, home_dir_type, home_type;
-	files_make_file($1_home_t)
+	files_file_type($1_home_t)
 
 	type $1_tmp_t, $1_file_type;
-	files_make_temporary_file($1_tmp_t)
+	files_tmp_file($1_tmp_t)
 
 	type $1_tmpfs_t;
-	files_make_tmpfs_file($1_tmpfs_t)
+	files_tmpfs_file($1_tmpfs_t)
 
 	type $1_tty_device_t; 
 	term_tty($1_t,$1_tty_device_t)
@@ -142,37 +142,37 @@ define(`base_user_domain',`
 	# for eject
 	storage_getattr_fixed_disk($1_t)
 
-	authlogin_read_login_records($1_t)
-	authlogin_ignore_write_login_records($1_t)
-	authlogin_pam_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
-	authlogin_utempter_transition_add_role_use_terminal($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+	auth_read_login_records($1_t)
+	auth_dontaudit_write_login_records($1_t)
+	auth_run_pam($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+	auth_run_utempter($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 
-	corecommands_execute_general_programs($1_t)
-	corecommands_execute_system_programs($1_t)
-	corecommands_execute_ls($1_t)
+	corecmd_exec_bin($1_t)
+	corecmd_exec_sbin($1_t)
+	corecmd_exec_ls($1_t)
 
-	domain_execute_all_entrypoint_programs($1_t)
-	domain_use_widely_inheritable_file_descriptors($1_t)
+	domain_exec_all_entry_files($1_t)
+	domain_use_wide_inherit_fd($1_t)
 
-	files_execute_system_config_script($1_t)
-	files_read_system_source_code($1_t)
+	files_exec_generic_etc_files($1_t)
+	files_read_usr_src($1_t)
 
 	# Caused by su - init scripts
-	init_script_ignore_use_pseudoterminal($1_t)
+	init_dontaudit_use_script_pty($1_t)
 
-	libraries_use_dynamic_loader($1_t)
-	libraries_use_shared_libraries($1_t)
-	libraries_execute_dynamic_loader($1_t)
-	libraries_execute_library_scripts($1_t)
+	libs_use_ld_so($1_t)
+	libs_use_shared_libs($1_t)
+	libs_exec_ld_so($1_t)
+	libs_exec_lib_files($1_t)
 
-	logging_ignore_get_all_logs_attributes($1_t)
+	logging_dontaudit_getattr_all_logs($1_t)
 
 	miscfiles_read_localization($1_t)
-	miscfiles_manage_man_page_cache($1_t)
+	miscfiles_rw_man_cache($1_t)
 
-	selinux_newrole_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+	selinux_run_newrole($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 
-	mta_modify_mail_spool($1_t)
+	mta_rw_spool($1_t)
 
 	if (allow_execmem) {
 		# Allow loading DSOs that require executable stack.
@@ -206,8 +206,8 @@ define(`base_user_domain',`
 	}
 
 	optional_policy(`usermanage.te',`
-		usermanage_chfn_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-		usermanage_passwd_transition_add_role_use_terminal($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+		usermanage_run_chfn($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+		usermanage_run_passwd($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 	')
 
 	ifdef(`TODO',`
@@ -411,7 +411,7 @@ define(`user_domain_template', `
 	base_user_domain($1)
 
 	typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
-	domain_make_file_descriptors_widely_inheritable($1_t)
+	domain_wide_inherit_fd($1_t)
 
 	#typeattribute $1_devpts_t userpty_type, user_tty_type;
 	#typeattribute $1_home_dir_t user_home_dir_type;
@@ -439,7 +439,7 @@ define(`user_domain_template', `
 	allow $1_t $1_tmp_t:dir create_dir_perms;
 	allow $1_t $1_tmp_t:sock_file create_file_perms;
 	allow $1_t $1_tmp_t:fifo_file create_file_perms;
-	files_create_private_tmp_data($1_t, $1_tmp_t, { dir notdevfile_class_set })
+	files_create_tmp_files($1_t, $1_tmp_t, { dir notdevfile_class_set })
 
 	# privileged home directory writers
 	allow privhome $1_home_t:file create_file_perms;
@@ -459,24 +459,24 @@ define(`user_domain_template', `
 	# port access is audited even if dac would not have allowed it, so dontaudit it here
 	corenet_dontaudit_tcp_bind_all_reserved_ports($1_t)
 
-	files_read_general_system_config($1_t)
-	files_list_home_directories($1_t)
-	files_read_general_application_resources($1_t)
+	files_read_generic_etc_files($1_t)
+	files_list_home($1_t)
+	files_read_usr_files($1_t)
 
-	init_script_read_runtime_data($1_t)
+	init_read_script_pid($1_t)
 	# The library functions always try to open read-write first,
 	# then fall back to read-only if it fails. 
-	init_script_ignore_write_runtime_data($1_t)
+	init_dontaudit_write_script_pid($1_t)
 	# Stop warnings about access to /dev/console
-	init_ignore_use_file_descriptors($1_t)
-	init_script_ignore_use_file_descriptors($1_t)
+	init_dontaudit_use_fd($1_t)
+	init_dontaudit_use_script_fd($1_t)
 
 	miscfiles_read_man_pages($1_t)
 
 	selinux_read_config($1_t)
 	# Allow users to execute checkpolicy without a domain transition
 	# so it can be used without privilege to write real binary policy file
-	selinux_checkpolicy_execute($1_t)
+	selinux_exec_checkpol($1_t)
 
 	if (user_dmesg) {
 		kernel_read_ring_buffer($1_t)
@@ -493,12 +493,12 @@ define(`user_domain_template', `
 
 	# for running depmod as part of the kernel packaging process
 	optional_policy(`modutils.te',`
-		modutils_read_kernel_module_loading_config($1_t)
+		modutils_read_module_conf($1_t)
 	')
 
 	optional_policy(`selinux.te',`
 		# for when the network connection is killed
-		selinux_newrole_ignore_signal($1_t)
+		selinux_dontaudit_newrole_signal($1_t)
 	')
 
 	# Need the following rule to allow users to run vpnc
@@ -612,7 +612,7 @@ define(`admin_domain_template',`
 	base_user_domain($1)
 
 	typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
-	kernel_make_object_identity_change_constraint_exception($1_t)
+	kernel_obj_id_change_exempt($1_t)
 	role system_r types $1_t;
 
 	#ifdef(`direct_sysadm_daemon', `, priv_system_role')
@@ -650,7 +650,7 @@ define(`admin_domain_template',`
 	allow $1_t $1_tmp_t:lnk_file create_file_perms;
 	allow $1_t $1_tmp_t:fifo_file create_file_perms;
 	allow $1_t $1_tmp_t:sock_file create_file_perms;
-	files_create_private_tmp_data($1_t, $1_tmp_t, { dir notdevfile_class_set })
+	files_create_tmp_files($1_t, $1_tmp_t, { dir notdevfile_class_set })
 
 	kernel_read_system_state($1_t)
 	kernel_read_network_state($1_t)
@@ -698,12 +698,12 @@ define(`admin_domain_template',`
 	term_use_all_user_ttys($1_t)
 
 	# Manage almost all files
-	authlogin_manage_all_files_except_shadow($1_t)
+	auth_manage_all_files_except_shadow($1_t)
 	# Relabel almost all files
-	authlogin_relabel_all_files_except_shadow($1_t)
+	auth_relabel_all_files_except_shadow($1_t)
 
-	domain_set_all_domains_priorities($1_t)
-	domain_read_all_domains_process_state($1_t)
+	domain_setpriority_all_domains($1_t)
+	domain_read_all_domains_state($1_t)
 	# signal all domains:
 	domain_kill_all_domains($1_t)
 	domain_signal_all_domains($1_t)
@@ -712,22 +712,22 @@ define(`admin_domain_template',`
 	domain_sigstop_all_domains($1_t)
 	domain_sigchld_all_domains($1_t)
 
-	files_execute_system_source_code_scripts($1_t)
+	files_exec_usr_files($1_t)
 
-	init_use_control_channel($1_t)
+	init_use_initctl($1_t)
 
-	logging_send_system_log_message($1_t)
+	logging_send_syslog_msg($1_t)
 
-	modutils_insmod_transition($1_t)
+	modutils_domtrans_insmod($1_t)
 
 	selinux_read_config($1_t)
 	# The following rule is temporary until such time that a complete
 	# policy management infrastructure is in place so that an administrator
 	# cannot directly manipulate policy files with arbitrary programs.
-	selinux_manage_source_policy($1_t)
+	selinux_manage_src_pol($1_t)
 	# Violates the goal of limiting write access to checkpolicy.
 	# But presently necessary for installing the file_contexts file.
-	selinux_manage_binary_policy($1_t)
+	selinux_manage_binary_pol($1_t)
 
 	optional_policy(`cron.te',`
 		cron_admin_template($1)
@@ -807,7 +807,7 @@ define(`admin_domain_template',`
 ')
 
 ########################################
-## <interface name="userdomain_all_users_explicit_transition">
+## <interface name="userdom_spec_domtrans_all_users">
 ##	<description>
 ##		Execute a shell in all user domains.  This
 ##		is an explicit transition, requiring the
@@ -818,17 +818,17 @@ define(`admin_domain_template',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_all_users_explicit_transition',`
+define(`userdom_spec_domtrans_all_users',`
 	requires_block_template(`$0'_depend)
-	corecommands_shell_explicit_transition($1,userdomain)
+	corecmd_shell_spec_domtrans($1,userdomain)
 ')
 
-define(`userdomain_all_users_explicit_transition_depend',`
+define(`userdom_spec_domtrans_all_users_depend',`
 	type sysadm_t;
 ')
 
 ########################################
-## <interface name="userdomain_sysadm_shell_transition">
+## <interface name="userdom_shell_domtrans_sysadm">
 ##	<description>
 ##		Execute a shell in the sysadm domain.
 ##	</description>
@@ -837,18 +837,18 @@ define(`userdomain_all_users_explicit_transition_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_sysadm_shell_transition',`
+define(`userdom_shell_domtrans_sysadm',`
 	requires_block_template(`$0'_depend)
 
-	corecommands_shell_transition($1,sysadm_t)
+	corecmd_domtrans_shell($1,sysadm_t)
 ')
 
-define(`userdomain_sysadm_shell_transition_depend',`
+define(`userdom_shell_domtrans_sysadm_depend',`
 	type sysadm_t;
 ')
 
 ########################################
-## <interface name="userdomain_use_admin_terminals">
+## <interface name="userdom_use_sysadm_terms">
 ##	<description>
 ##		Read and write administrative users
 ##		physical and pseudo terminals.
@@ -858,7 +858,7 @@ define(`userdomain_sysadm_shell_transition_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_use_admin_terminals',`
+define(`userdom_use_sysadm_terms',`
 	requires_block_template(`$0'_depend)
 
 	dev_list_all_dev_nodes($1)
@@ -866,14 +866,14 @@ define(`userdomain_use_admin_terminals',`
 	allow $1 admin_terminal:chr_file { getattr read write ioctl };
 ')
 
-define(`userdomain_use_admin_terminals_depend',`
+define(`userdom_use_sysadm_terms_depend',`
 	attribute admin_terminal;
 
 	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
-## <interface name="userdomain_dontaudit_use_admin_terminals">
+## <interface name="userdom_dontaudit_use_sysadm_terms">
 ##	<description>
 ##		Do not audit attempts to use admin ttys and ptys.
 ##	</description>
@@ -882,20 +882,20 @@ define(`userdomain_use_admin_terminals_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_dontaudit_use_admin_terminals',`
+define(`userdom_dontaudit_use_sysadm_terms',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 admin_terminal:chr_file { read write };
 ')
 
-define(`userdomain_dontaudit_use_admin_terminals_depend',`
+define(`userdom_dontaudit_use_sysadm_terms_depend',`
 	attribute admin_terminal;
 
 	class chr_file { read write };
 ')
 
 ########################################
-## <interface name="userdomain_search_all_users_home_dirs">
+## <interface name="userdom_search_all_users_home">
 ##	<description>
 ##		Search all users home directories.
 ##	</description>
@@ -904,21 +904,21 @@ define(`userdomain_dontaudit_use_admin_terminals_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_search_all_users_home_dirs',`
+define(`userdom_search_all_users_home',`
 	requires_block_template(`$0'_depend)
 
-	files_list_home_directories($1)
+	files_list_home($1)
 	allow $1 { home_dir_type home_type }:dir search;
 ')
 
-define(`userdomain_search_all_users_home_dirs_depend',`
+define(`userdom_search_all_users_home_depend',`
 	attribute home_dir_type, home_type;
 
 	class dir search;
 ')
 
 ########################################
-## <interface name="userdomain_read_all_users_data">
+## <interface name="userdom_read_all_user_data">
 ##	<description>
 ##		Read all files in all users home directories.
 ##	</description>
@@ -927,15 +927,15 @@ define(`userdomain_search_all_users_home_dirs_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_read_all_users_data',`
+define(`userdom_read_all_user_data',`
 	requires_block_template(`$0'_depend)
 
-	files_list_home_directories($1)
+	files_list_home($1)
 	allow $1 home_type:dir r_dir_perms;
 	allow $1 home_type:file r_file_perms;
 ')
 
-define(`userdomain_read_all_users_data_depend',`
+define(`userdom_read_all_user_data_depend',`
 	attribute home_type;
 
 	class dir r_dir_perms;
@@ -943,7 +943,7 @@ define(`userdomain_read_all_users_data_depend',`
 ')
 
 ########################################
-## <interface name="userdomain_use_all_users_file_descriptors">
+## <interface name="userdom_use_all_user_fd">
 ##	<description>
 ##		Inherit the file descriptors from all user domains
 ##	</description>
@@ -952,20 +952,20 @@ define(`userdomain_read_all_users_data_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_use_all_users_file_descriptors',`
+define(`userdom_use_all_user_fd',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 userdomain:fd use;
 ')
 
-define(`userdomain_use_all_users_file_descriptors_depend',`
+define(`userdom_use_all_user_fd_depend',`
 	attribute userdomain;
 
 	class fd use;
 ')
 
 ########################################
-## <interface name="userdomain_signal_all_userdomains">
+## <interface name="userdom_signal_all_users">
 ##	<description>
 ##		Send general signals to all user domains.
 ##	</description>
@@ -974,20 +974,20 @@ define(`userdomain_use_all_users_file_descriptors_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_signal_all_userdomains',`
+define(`userdom_signal_all_users',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 userdomain:process signal;
 ')
 
-define(`userdomain_signal_all_userdomains_depend',`
+define(`userdom_signal_all_users_depend',`
 	attribute userdomain;
 
 	class process signal;
 ')
 
 ########################################
-## <interface name="userdomain_use_all_unprivileged_users_file_descriptors">
+## <interface name="userdom_use_unpriv_users_fd">
 ##	<description>
 ##		Inherit the file descriptors from all user domains.
 ##	</description>
@@ -996,20 +996,20 @@ define(`userdomain_signal_all_userdomains_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_use_all_unprivileged_users_file_descriptors',`
+define(`userdom_use_unpriv_users_fd',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 unpriv_userdomain:fd use;
 ')
 
-define(`userdomain_use_all_unprivileged_users_file_descriptors_depend',`
+define(`userdom_use_unpriv_users_fd_depend',`
 	attribute unpriv_userdomain;
 
 	class fd use;
 ')
 
 ########################################
-## <interface name="userdomain_ignore_use_all_unprivileged_users_file_descriptors">
+## <interface name="userdom_dontaudit_use_unpriv_user_fd">
 ##	<description>
 ##		Do not audit attempts to inherit the
 ##		file descriptors from all user domains.
@@ -1019,13 +1019,13 @@ define(`userdomain_use_all_unprivileged_users_file_descriptors_depend',`
 ##	</parameter>
 ## </interface>
 #
-define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors',`
+define(`userdom_dontaudit_use_unpriv_user_fd',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 unpriv_userdomain:fd use;
 ')
 
-define(`userdomain_ignore_use_all_unprivileged_users_file_descriptors_depend',`
+define(`userdom_dontaudit_use_unpriv_user_fd_depend',`
 	attribute unpriv_userdomain;
 
 	class fd use;

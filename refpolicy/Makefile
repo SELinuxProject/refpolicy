@@ -434,9 +434,6 @@ clean:
 	rm -f $(FC)
 
 bare: clean
-	find . -name *~ -exec rm -f {} \;
-	find . -name "*#*" -exec rm -f {} \;
-	find . -name ".*#*" -exec rm -f {} \;
 	rm -f $(POLXML)
 	rm -f $(SUPPORT)/*.pyc
 	rm -f $(FCSORT)

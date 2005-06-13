@@ -8,30 +8,30 @@ policy_module(modutils,1.0)
 
 # module loading config
 type modules_conf_t;
-files_make_file(modules_conf_t)
+files_file_type(modules_conf_t)
 
 # module dependencies
 type modules_dep_t;
-files_make_file(modules_dep_t)
+files_file_type(modules_dep_t)
 
 type insmod_t;
 type insmod_exec_t;
 kernel_userland_entry(insmod_t,insmod_exec_t)
-init_make_system_domain(insmod_t,insmod_exec_t)
+init_system_domain(insmod_t,insmod_exec_t)
 role system_r types insmod_t;
 
 type depmod_t;
 type depmod_exec_t;
-init_make_system_domain(depmod_t,depmod_exec_t)
+init_system_domain(depmod_t,depmod_exec_t)
 role system_r types depmod_t;
 
 type update_modules_t;
 type update_modules_exec_t;
-init_make_system_domain(update_modules_t,update_modules_exec_t)
+init_system_domain(update_modules_t,update_modules_exec_t)
 role system_r types update_modules_t;
 
 type update_modules_tmp_t;
-files_make_temporary_file(update_modules_tmp_t)
+files_tmp_file(update_modules_tmp_t)
 
 ########################################
 #
@@ -68,37 +68,37 @@ dev_rw_agp_dev(insmod_t)
 
 fs_getattr_xattr_fs(insmod_t)
 
-corecommands_execute_general_programs(insmod_t)
-corecommands_execute_system_programs(insmod_t)
-corecommands_execute_shell(insmod_t)
+corecmd_exec_bin(insmod_t)
+corecmd_exec_sbin(insmod_t)
+corecmd_exec_shell(insmod_t)
 
 domain_signal_all_domains(insmod_t)
-domain_use_widely_inheritable_file_descriptors(insmod_t)
+domain_use_wide_inherit_fd(insmod_t)
 
-files_read_runtime_system_config(insmod_t)
-files_read_general_system_config(insmod_t)
-files_read_general_application_resources(insmod_t)
-files_execute_system_config_script(insmod_t)
+files_read_etc_runtime_files(insmod_t)
+files_read_generic_etc_files(insmod_t)
+files_read_usr_files(insmod_t)
+files_exec_generic_etc_files(insmod_t)
 # for nscd:
-files_ignore_search_runtime_data_directory(insmod_t)
+files_dontaudit_search_pids(insmod_t)
 # for when /var is not mounted early in the boot:
-files_ignore_search_isid_type_dir(insmod_t)
+files_dontaudit_search_isid_type_dir(insmod_t)
 
-init_use_control_channel(insmod_t)
-init_use_file_descriptors(insmod_t)
-init_script_use_file_descriptors(insmod_t)
-init_script_use_pseudoterminal(insmod_t)
+init_use_initctl(insmod_t)
+init_use_fd(insmod_t)
+init_use_script_fd(insmod_t)
+init_use_script_pty(insmod_t)
 
-libraries_use_dynamic_loader(insmod_t)
-libraries_use_shared_libraries(insmod_t)
+libs_use_ld_so(insmod_t)
+libs_use_shared_libs(insmod_t)
 
-logging_send_system_log_message(insmod_t)
-logging_search_system_log_directory(insmod_t)
+logging_send_syslog_msg(insmod_t)
+logging_search_logs(insmod_t)
 
 miscfiles_read_localization(insmod_t)
 
 optional_policy(`mount.te',`
-	mount_transition(insmod_t)
+	mount_domtrans(insmod_t)
 ')
 
 ifdef(`TODO',`
@@ -138,18 +138,18 @@ term_use_console(depmod_t)
 bootloader_read_kernel_symbol_table(depmod_t)
 bootloader_read_kernel_modules(depmod_t)
 
-init_use_file_descriptors(depmod_t)
-init_script_use_file_descriptors(depmod_t)
-init_script_use_pseudoterminal(depmod_t)
+init_use_fd(depmod_t)
+init_use_script_fd(depmod_t)
+init_use_script_pty(depmod_t)
 
-domain_use_widely_inheritable_file_descriptors(depmod_t)
+domain_use_wide_inherit_fd(depmod_t)
 
-files_read_runtime_system_config(depmod_t)
-files_read_general_system_config(depmod_t)
-files_read_system_source_code(depmod_t)
+files_read_etc_runtime_files(depmod_t)
+files_read_generic_etc_files(depmod_t)
+files_read_usr_src(depmod_t)
 
-libraries_use_dynamic_loader(depmod_t)
-libraries_use_shared_libraries(depmod_t)
+libs_use_ld_so(depmod_t)
+libs_use_shared_libs(depmod_t)
 
 ifdef(`TODO',`
 
@@ -177,14 +177,14 @@ can_exec(update_modules_t, update_modules_exec_t)
 # manage module loading configuration
 allow update_modules_t modules_conf_t:file create_file_perms;
 bootloader_create_private_module_dir_entry(update_modules_t,modules_conf_t)
-files_create_private_config(update_modules_t,modules_conf_t)
+files_create_etc_config(update_modules_t,modules_conf_t)
 
 # transition to depmod
 domain_auto_trans(update_modules_t, depmod_exec_t, depmod_t)
 
 allow update_modules_t update_modules_tmp_t:dir create_dir_perms;
 allow update_modules_t update_modules_tmp_t:file create_file_perms;
-files_create_private_tmp_data(update_modules_t, update_modules_tmp_t, { file dir })
+files_create_tmp_files(update_modules_t, update_modules_tmp_t, { file dir })
 
 kernel_read_kernel_sysctl(update_modules_t)
 kernel_read_system_state(update_modules_t)
@@ -195,24 +195,24 @@ fs_getattr_xattr_fs(update_modules_t)
 
 term_use_console(update_modules_t)
 
-init_use_file_descriptors(depmod_t)
-init_script_use_file_descriptors(depmod_t)
-init_script_use_pseudoterminal(depmod_t)
+init_use_fd(depmod_t)
+init_use_script_fd(depmod_t)
+init_use_script_pty(depmod_t)
 
-domain_use_widely_inheritable_file_descriptors(depmod_t)
+domain_use_wide_inherit_fd(depmod_t)
 
-files_read_runtime_system_config(update_modules_t)
-files_read_general_system_config(update_modules_t)
-files_execute_system_config_script(update_modules_t)
+files_read_etc_runtime_files(update_modules_t)
+files_read_generic_etc_files(update_modules_t)
+files_exec_generic_etc_files(update_modules_t)
 
-corecommands_execute_general_programs(update_modules_t)
-corecommands_execute_system_programs(update_modules_t)
-corecommands_execute_shell(update_modules_t)
+corecmd_exec_bin(update_modules_t)
+corecmd_exec_sbin(update_modules_t)
+corecmd_exec_shell(update_modules_t)
 
-libraries_use_dynamic_loader(update_modules_t)
-libraries_use_shared_libraries(update_modules_t)
+libs_use_ld_so(update_modules_t)
+libs_use_shared_libs(update_modules_t)
 
-logging_send_system_log_message(update_modules_t)
+logging_send_syslog_msg(update_modules_t)
 
 miscfiles_read_localization(update_modules_t)
 

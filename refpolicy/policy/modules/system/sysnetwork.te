@@ -9,33 +9,33 @@ policy_module(sysnetwork,1.0)
 # this is shared between dhcpc and dhcpd:
 type dhcp_etc_t; #, usercanread; 
 typealias dhcp_etc_t alias { etc_dhcp_t etc_dhcpc_t etc_dhcpd_t };
-files_make_file(dhcp_etc_t)
+files_file_type(dhcp_etc_t)
 
 # this is shared between dhcpc and dhcpd:
 type dhcp_state_t;
-files_make_file(dhcp_state_t)
+files_file_type(dhcp_state_t)
 
 type dhcpc_t;
 type dhcpc_exec_t;
-init_make_daemon_domain(dhcpc_t,dhcpc_exec_t)
+init_daemon_domain(dhcpc_t,dhcpc_exec_t)
 role system_r types dhcpc_t;
 
 type dhcpc_state_t;
-files_make_file(dhcpc_state_t)
+files_file_type(dhcpc_state_t)
 
 type dhcpc_tmp_t;
-files_make_temporary_file(dhcpc_tmp_t)
+files_tmp_file(dhcpc_tmp_t)
 
 type dhcpc_var_run_t;
-files_make_daemon_runtime_file(dhcpc_var_run_t)
+files_pid_file(dhcpc_var_run_t)
 
 type ifconfig_t;
 type ifconfig_exec_t;
-init_make_system_domain(ifconfig_t, ifconfig_exec_t)
+init_system_domain(ifconfig_t, ifconfig_exec_t)
 role system_r types ifconfig_t;
 
 type net_conf_t alias resolv_conf_t;
-files_make_file(net_conf_t)
+files_file_type(net_conf_t)
 
 ########################################
 #
@@ -62,17 +62,17 @@ type_transition dhcpc_t dhcp_state_t:file dhcpc_state_t;
 
 # create pid file
 allow dhcpc_t dhcpc_var_run_t:file create_file_perms;
-files_create_daemon_runtime_data(dhcpc_t,dhcpc_var_run_t)
+files_create_pid(dhcpc_t,dhcpc_var_run_t)
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
 # in /etc created by dhcpcd will be labelled net_conf_t.
 allow dhcpc_t net_conf_t:file create_file_perms;
-files_create_private_config(dhcpc_t,net_conf_t,file)
+files_create_etc_config(dhcpc_t,net_conf_t,file)
 
 # create temp files
 allow dhcpc_t dhcpc_tmp_t:dir create_dir_perms;
 allow dhcpc_t dhcpc_tmp_t:file create_file_perms;
-files_create_private_tmp_data(dhcpc_t, dhcpc_tmp_t, { file dir })
+files_create_tmp_files(dhcpc_t, dhcpc_tmp_t, { file dir })
 
 can_exec(dhcpc_t, dhcpc_exec_t)
 
@@ -111,45 +111,45 @@ term_dontaudit_use_all_user_ttys(dhcpc_t)
 term_dontaudit_use_all_user_ptys(dhcpc_t)
 term_dontaudit_use_unallocated_tty(dhcpc_t)
 
-corecommands_execute_general_programs(dhcpc_t)
-corecommands_execute_system_programs(dhcpc_t)
-corecommands_execute_shell(dhcpc_t)
+corecmd_exec_bin(dhcpc_t)
+corecmd_exec_sbin(dhcpc_t)
+corecmd_exec_shell(dhcpc_t)
 
-domain_use_widely_inheritable_file_descriptors(dhcpc_t)
+domain_use_wide_inherit_fd(dhcpc_t)
 
-files_read_general_system_config(dhcpc_t)
-files_read_runtime_system_config(dhcpc_t)
+files_read_generic_etc_files(dhcpc_t)
+files_read_etc_runtime_files(dhcpc_t)
 
-init_use_file_descriptors(dhcpc_t)
-init_script_use_pseudoterminal(dhcpc_t)
-init_script_modify_runtime_data(dhcpc_t)
+init_use_fd(dhcpc_t)
+init_use_script_pty(dhcpc_t)
+init_rw_script_pid(dhcpc_t)
 
-logging_send_system_log_message(dhcpc_t)
+logging_send_syslog_msg(dhcpc_t)
 
-libraries_use_dynamic_loader(dhcpc_t)
-libraries_use_shared_libraries(dhcpc_t)
+libs_use_ld_so(dhcpc_t)
+libs_use_shared_libs(dhcpc_t)
 
 miscfiles_read_localization(dhcpc_t)
 
-modutils_insmod_transition(dhcpc_t)
+modutils_domtrans_insmod(dhcpc_t)
 
 ifdef(`distro_redhat', `
-	files_execute_system_config_script(dhcpc_t)
+	files_exec_generic_etc_files(dhcpc_t)
 ')
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(dhcpc_t)
 	terminal_ignore_use_general_pseudoterminal(dhcpc_t)
 
-	files_ignore_read_rootfs_file(dhcpc_t)
+	files_dontaudit_read_root_file(dhcpc_t)
 ')
 
 optional_policy(`consoletype.te',`
-	consoletype_transition(dhcpc_t)
+	consoletype_domtrans(dhcpc_t)
 ')
 
 optional_policy(`hostname.te',`
-	hostname_transition(dhcpc_t)
+	hostname_domtrans(dhcpc_t)
 ')
 
 optional_policy(`nscd.te',`
@@ -161,17 +161,17 @@ optional_policy(`selinux.te',`
 ')
 
 optional_policy(`udev.te',`
-	udev_read_database(dhcpc_t)
+	udev_read_db(dhcpc_t)
 ')
 
 optional_policy(`userdomain.te',`
-	userdomain_use_all_users_file_descriptors(dhcpc_t)
+	userdom_use_all_user_fd(dhcpc_t)
 ')
 
 #
 # dhclient sometimes starts ypbind and ntpd
 #
-init_script_execute(dhcpc_t)
+init_exec_script(dhcpc_t)
 optional_policy(`ypbind.te',`
 	ypbind_transition(dhcpc_t)
 ')
@@ -257,7 +257,7 @@ allow ifconfig_t self:udp_socket create_socket_perms;
 # for /sbin/ip
 allow ifconfig_t self:netlink_route_socket create_netlink_socket_perms;
 allow ifconfig_t self:tcp_socket { create ioctl };
-files_read_general_system_config(ifconfig_t);
+files_read_generic_etc_files(ifconfig_t);
 
 kernel_use_fd(ifconfig_t)
 kernel_read_system_state(ifconfig_t)
@@ -270,24 +270,24 @@ fs_getattr_xattr_fs(ifconfig_t)
 term_dontaudit_use_all_user_ttys(ifconfig_t)
 term_dontaudit_use_all_user_ptys(ifconfig_t)
 
-domain_use_widely_inheritable_file_descriptors(ifconfig_t)
+domain_use_wide_inherit_fd(ifconfig_t)
 
-files_ignore_read_rootfs_file(ifconfig_t)
+files_dontaudit_read_root_file(ifconfig_t)
 
-init_use_file_descriptors(ifconfig_t)
-init_script_use_pseudoterminal(ifconfig_t)
+init_use_fd(ifconfig_t)
+init_use_script_pty(ifconfig_t)
 
-libraries_use_dynamic_loader(ifconfig_t)
-libraries_use_shared_libraries(ifconfig_t)
-libraries_read_library_resources(ifconfig_t)
+libs_use_ld_so(ifconfig_t)
+libs_use_shared_libs(ifconfig_t)
+libs_read_lib(ifconfig_t)
 
-logging_send_system_log_message(ifconfig_t)
+logging_send_syslog_msg(ifconfig_t)
 
 miscfiles_read_localization(ifconfig_t)
 
-selinux_run_init_use_file_descriptors(ifconfig_t)
+selinux_use_runinit_fd(ifconfig_t)
 
-userdomain_use_all_users_file_descriptors(ifconfig_t)
+userdom_use_all_user_fd(ifconfig_t)
 
 ifdef(`TODO',`
 

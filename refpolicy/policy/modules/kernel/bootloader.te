@@ -6,14 +6,14 @@ policy_module(bootloader,1.0)
 # Declarations
 #
 
-attribute can_modify_kernel_modules;
+attribute rw_kern_modules;
 
 #
 # boot_t is the type for files in /boot
 #
 type boot_t;
-files_make_file(boot_t)
-files_make_mountpoint(boot_t)
+files_file_type(boot_t)
+files_mountpoint(boot_t)
 
 #
 # boot_runtime_t is the type for /boot/kernel.h,
@@ -21,41 +21,41 @@ files_make_mountpoint(boot_t)
 # only for Red Hat
 #
 type boot_runtime_t;
-files_make_file(boot_runtime_t)
+files_file_type(boot_runtime_t)
 
 type bootloader_t;
-domain_make_domain(bootloader_t)
+domain_type(bootloader_t)
 role system_r types bootloader_t;
 
 type bootloader_exec_t;
-domain_make_entrypoint_file(bootloader_t,bootloader_exec_t)
+domain_entry_file(bootloader_t,bootloader_exec_t)
 
 #
 # bootloader_etc_t is the configuration file,
 # grub.conf, lilo.conf, etc.
 #
 type bootloader_etc_t alias etc_bootloader_t;
-files_make_file(bootloader_etc_t)
+files_file_type(bootloader_etc_t)
 
 #
 # The temp file is used for initrd creation;
 # it consists of files and device nodes
 #
 type bootloader_tmp_t;
-files_make_temporary_file(bootloader_tmp_t)
+files_tmp_file(bootloader_tmp_t)
 dev_node(bootloader_tmp_t)
 
 # kernel modules
 type modules_object_t;
-files_make_file(modules_object_t)
+files_file_type(modules_object_t)
 
-neverallow ~can_modify_kernel_modules modules_object_t:file { create append write };
+neverallow ~rw_kern_modules modules_object_t:file { create append write };
 
 #
 # system_map_t is for the system.map files in /boot
 #
 type system_map_t;
-files_make_file(system_map_t)
+files_file_type(system_map_t)
 
 ########################################
 #
@@ -73,16 +73,16 @@ allow bootloader_t boot_t:lnk_file { r_file_perms create unlink };
 allow bootloader_t bootloader_etc_t:file r_file_perms;
 # uncomment the following lines if you use "lilo -p"
 #allow bootloader_t bootloader_etc_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-#files_create_private_config(bootloader_t,bootloader_etc_t)
+#files_create_etc_config(bootloader_t,bootloader_etc_t)
 
 allow bootloader_t bootloader_tmp_t:dir create_dir_perms;
 allow bootloader_t bootloader_tmp_t:file create_file_perms;
 allow bootloader_t bootloader_tmp_t:chr_file create_file_perms;
 allow bootloader_t bootloader_tmp_t:blk_file create_file_perms;
 allow bootloader_t bootloader_tmp_t:lnk_file create_lnk_perms;
-files_create_private_tmp_data(bootloader_t,bootloader_tmp_t,{ dir file lnk_file chr_file blk_file })
+files_create_tmp_files(bootloader_t,bootloader_tmp_t,{ dir file lnk_file chr_file blk_file })
 # for tune2fs (cjp: ?)
-files_create_private_root_dir_entry(bootloader_t,bootloader_tmp_t)
+files_create_root(bootloader_t,bootloader_tmp_t)
 
 allow bootloader_t modules_object_t:dir r_dir_perms;
 allow bootloader_t modules_object_t:file r_file_perms;
@@ -110,34 +110,34 @@ fs_getattr_xattr_fs(bootloader_t)
 
 term_getattr_all_user_ttys(bootloader_t)
 
-init_get_control_channel_attributes(bootloader_t)
-init_script_use_pseudoterminal(bootloader_t)
-init_script_use_file_descriptors(bootloader_t)
+init_getattr_initctl(bootloader_t)
+init_use_script_pty(bootloader_t)
+init_use_script_fd(bootloader_t)
 
-domain_use_widely_inheritable_file_descriptors(bootloader_t)
+domain_use_wide_inherit_fd(bootloader_t)
 
-libraries_use_dynamic_loader(bootloader_t)
-libraries_use_shared_libraries(bootloader_t)
-libraries_read_library_resources(bootloader_t)
+libs_use_ld_so(bootloader_t)
+libs_use_shared_libs(bootloader_t)
+libs_read_lib(bootloader_t)
 
-files_read_general_system_config(bootloader_t)
-files_read_runtime_system_config(bootloader_t)
-files_read_system_source_code(bootloader_t)
-files_read_general_application_resources(bootloader_t)
+files_read_generic_etc_files(bootloader_t)
+files_read_etc_runtime_files(bootloader_t)
+files_read_usr_src(bootloader_t)
+files_read_usr_files(bootloader_t)
 # for nscd
-files_ignore_search_runtime_data_directory(bootloader_t)
+files_dontaudit_search_pids(bootloader_t)
 
-corecommands_execute_general_programs(bootloader_t)
-corecommands_execute_system_programs(bootloader_t)
-corecommands_execute_shell(bootloader_t)
+corecmd_exec_bin(bootloader_t)
+corecmd_exec_sbin(bootloader_t)
+corecmd_exec_shell(bootloader_t)
 
-logging_send_system_log_message(bootloader_t)
-logging_modify_system_logs(bootloader_t)
+logging_send_syslog_msg(bootloader_t)
+logging_rw_generic_logs(bootloader_t)
 
 miscfiles_read_localization(bootloader_t)
 
-selinux_read_binary_policy(bootloader_t)
-selinux_read_load_policy_binary(bootloader_t)
+selinux_read_binary_pol(bootloader_t)
+selinux_read_loadpol(bootloader_t)
 
 ifdef(`distro_debian', `
 allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
@@ -153,10 +153,10 @@ ifdef(`distro_redhat', `
 	allow bootloader_t boot_runtime_t:file { r_file_perms unlink };
 
 	# mkinitrd mount initrd on bootloader temp dir
-	files_make_mountpoint(bootloader_tmp_t)
+	files_mountpoint(bootloader_tmp_t)
 
 	# for mke2fs
-	mount_transition(bootloader_t)
+	mount_domtrans(bootloader_t)
 ')
 
 optional_policy(`filesystemtools.te', `
@@ -168,17 +168,17 @@ optional_policy(`filesystemtools.te', `
 optional_policy(`lvm.te', `
 	dev_rw_lvm_control(bootloader_t)
 
-	lvm_transition(bootloader_t)
+	lvm_domtrans(bootloader_t)
 	lvm_read_config(bootloader_t)
 ')
 
 optional_policy(`modutils.te',`
-	modutils_insmod_execute(insmod_t)
+	modutils_exec_insmod(insmod_t)
 	modutils_read_kernel_module_dependencies(bootloader_t)
-	modutils_read_kernel_module_loading_config(bootloader_t)
-	modutils_insmod_execute(bootloader_t)
-	modutils_depmod_execute(bootloader_t)
-	modutils_update_modules_execute(bootloader_t)
+	modutils_read_module_conf(bootloader_t)
+	modutils_exec_insmod(bootloader_t)
+	modutils_exec_depmod(bootloader_t)
+	modutils_exec_update_mods(bootloader_t)
 ')
 
 ifdef(`TODO',`
