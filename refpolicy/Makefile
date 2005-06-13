@@ -258,15 +258,23 @@ tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_fi
 			< tmp/all_te_files.conf > tmp/only_te_rules.conf
 
 $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/kernel/corenetwork.if.in
-	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in > $@
+	@echo "#" > $@
+	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
+	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
+	@echo "#" >> $@
+	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
 		| m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 	$(QUIET) echo "## </module>" >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
+	@echo "#" > $@
+	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
+	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
+	@echo "#" >> $@
 	$(QUIET) m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $^ \
-		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' > $@
+		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
 #
