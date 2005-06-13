@@ -266,7 +266,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
 	$(QUIET) m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $^ \
-		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
+		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' > $@
 
 ########################################
 #
