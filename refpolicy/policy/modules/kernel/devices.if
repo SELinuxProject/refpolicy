@@ -1,13 +1,39 @@
 ## <module name="devices" layer="kernel">
-## <summary>
-##	Policy for all devices except mass storage and terminal devices.
-## </summary>
+## <description>
+##	<p>
+##	This module creates the device node concept and provides
+##	the policy for many of the device files. Notable exceptions are
+##	the mass storage and terminal devices that are covered by other
+##	modules.
+##	</p>
+##	<p>
+##	This module creates the concept of a device node. That is a
+##	char or block device file, usually in /dev. All types that
+##	are used to label device nodes should use the dev_node macro.
+##	</p>
+##	<p>
+##	Additionally, this module controls access to three things:
+##		<ul>
+##			<li>the device directories containing device nodes</li>
+##			<li>device nodes as a group</li>
+##			<li>individual access to specific device nodes covered by
+##		  	this module.</li>
+##		</ul>
+##	</p>
+## </description>
 
 ########################################
+## <interface name="dev_node">
+##	<description>
+##		Make the passed in type a type appropriate for
+##		use on device nodes (usually files in /dev).
+##	</description>
+##	<parameter name="object_type">
+##		The object type that will be used on device nodes.
+##	</parameter>
+## </interface>
 #
-# devices_make_device_node(type)
-#
-define(`devices_make_device_node',`
+define(`dev_node',`
 	requires_block_template(`$0'_depend)
 
 	typeattribute $1 device_node;
@@ -15,19 +41,25 @@ define(`devices_make_device_node',`
 	fs_associate($1)
 
 	optional_policy(`distro_redhat',`
-		fs_associate_tmpfs($1)
+		fs_tmpfs_associate($1)
 	')
 ')
 
-define(`devices_make_device_node_depend',`
+define(`dev_node_depend',`
 	attribute device_node;
 ')
 
 ########################################
+## <interface name="dev_relabel_all_dev_nodes">
+##	<description>
+##		Allow full relabeling (to and from) of all device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed to relabel.
+##	</parameter>
+## </interface>
 #
-# devices_manage_all_devices_labels(domain)
-#
-define(`devices_manage_all_devices_labels',`
+define(`dev_relabel_all_dev_nodes',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_node:dir { getattr relabelfrom };
@@ -39,7 +71,7 @@ define(`devices_manage_all_devices_labels',`
 	allow $1 { device_t device_node }:chr_file { getattr relabelfrom relabelto };
 ')
 
-define(`devices_manage_all_devices_labels_depend',`
+define(`dev_relabel_all_dev_nodes_depend',`
 	attribute device_node;
 
 	type device_t;
@@ -54,99 +86,113 @@ define(`devices_manage_all_devices_labels_depend',`
 ')
 
 ########################################
+## <interface name="dev_list_all_dev_nodes">
+##	<description>
+##		List all of the device nodes in a device directory.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed to list device nodes.
+##	</parameter>
+## </interface>
 #
-# devices_list_device_nodes(domain)
-#
-define(`devices_list_device_nodes',`
+define(`dev_list_all_dev_nodes',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
-	allow $1 device_t:lnk_file r_file_perms;
+	allow $1 device_t:lnk_file { getattr read };
 ')
 
-define(`devices_list_device_nodes_depend',`
+define(`dev_list_all_dev_nodes_depend',`
 	type device_t;
 
 	class dir r_dir_perms;
-	class lnk_file r_file_perms;
+	class lnk_file { getattr read };
 ')
 
 ########################################
+## <interface name="dev_dontaudit_list_all_dev_nodes">
+##	<description>
+##		Dontaudit attempts to list all device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit listing of device nodes.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_list_device_nodes(domain)
-#
-define(`devices_ignore_list_device_nodes',`
+define(`dev_dontaudit_list_all_dev_nodes',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_t:dir r_dir_perms;
 ')
 
-define(`devices_ignore_list_device_nodes_depend',`
+define(`dev_dontaudit_list_all_dev_nodes_depend',`
 	type device_t;
 
 	class dir r_dir_perms;
 ')
 
 ########################################
+## <interface name="dev_create_dir">
+##	<description>
+##		Create a directory in the device directory.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed to create the directory.
+##	</parameter>
+## </interface>
 #
-# devices_add_dev_dir(domain)
-#
-define(`devices_add_dev_dir',`
+define(`dev_create_dir',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir { ra_dir_perms create };
 ')
 
-define(`devices_add_dev_dir_depend',`
+define(`dev_create_dir_depend',`
 	type device_t;
 
 	class dir { ra_dir_perms create };
 ')
 
 ########################################
+## <interface name="dev_dontaudit_getattr_generic_pipe">
+##	<description>
+##		Dontaudit getattr on generic pipes.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit.
+##	</parameter>
+## </interface>
 #
-# devices_relabel_dev_dirs(domain)
-#
-define(`devices_relabel_dev_dirs',`
-	requires_block_template(`$0'_depend)
-
-	allow $1 device_t:dir { r_dir_perms relabelfrom relabelto };
-')
-
-define(`devices_relabel_dev_dirs_depend',`
-	type device_t;
-
-	class dir { r_dir_perms relabelfrom relabelto };
-')
-
-########################################
-#
-# devices_ignore_get_generic_pipe_attributes(domain)
-#
-define(`devices_ignore_get_generic_pipe_attributes',`
+define(`dev_dontaudit_getattr_generic_pipe',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_t:fifo_file getattr;
 ')
 
-define(`devices_ignore_get_generic_pipe_attributes_depend',`
+define(`dev_dontaudit_getattr_generic_pipe_depend',`
 	type device_t;
 
 	class fifo_file getattr;
 ')
 
 ########################################
+## <interface name="dev_getattr_generic_blk_file">
+##	<description>
+##		Allow getattr on generic block devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_generic_block_device_attributes(domain)
-#
-define(`devices_get_generic_block_device_attributes',`
+define(`dev_getattr_generic_blk_file',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_t:blk_file getattr;
 ')
 
-define(`devices_get_generic_block_device_attributes_depend',`
+define(`ddev_getattr_generic_blk_file_depend',`
 	type device_t;
 
 	class dir r_dir_perms;
@@ -154,71 +200,96 @@ define(`devices_get_generic_block_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_dontaudit_getattr_generic_blk_file">
+##	<description>
+##		Dontaudit getattr on generic block devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_get_generic_block_device_attributes(domain)
-#
-define(`devices_ignore_get_generic_block_device_attributes',`
+define(`ddev_dontaudit_getattr_generic_blk_files',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_t:blk_file getattr;
 ')
 
-define(`devices_ignore_get_generic_block_device_attributes_depend',`
+define(`dev_dontaudit_getattr_generic_blk_files_depend',`
 	type device_t;
 
 	class blk_file getattr;
 ')
 
 ########################################
+## <interface name="dev_manage_generic_blk_file">
+##	<description>
+##		Allow read, write, create, and delete for generic
+##		block files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_generic_block_device(domain)
-#
-define(`devices_manage_generic_block_device',`
+define(`dev_manage_generic_blk_file',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
 	allow $1 device_t:blk_file create_file_perms;
 ')
 
-define(`devices_manage_generic_block_device_depend',`
+define(`dev_manage_generic_blk_file_depend',`
 	type device_t;
 
 	class blk_file create_file_perms;
 ')
 
 ########################################
+## <interface name="dev_create_generic_chr_file">
+##	<description>
+##		Allow read, write, and create for generic character device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_add_generic_character_device(domain)
-#
-define(`devices_add_generic_character_device',`
+define(`dev_create_generic_chr_file',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir ra_dir_perms;
+	allow $1 device_t:dir { getattr search read write add_name };
 	allow $1 device_t:chr_file create;
 
 	allow $1 self:capability mknod;
 ')
 
-define(`devices_add_generic_character_device_depend',`
+define(`dev_create_generic_chr_file_depend',`
 	type device_t;
 
-	class dir ra_dir_perms;
+	class dir { getattr search read write add_name };
 	class chr_file create;
 	class capability mknod;
 ')
 
 ########################################
+## <interface name="dev_getattr_generic_chr_file">
+##	<description>
+##		Allow getattr for generic character device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_generic_character_device_attributes(domain)
-#
-define(`devices_get_generic_character_device_attributes',`
+define(`dev_getattr_generic_chr_file',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_t:chr_file getattr;
 ')
 
-define(`devices_get_generic_character_device_attributes_depend',`
+define(`dev_getattr_generic_chr_file_depend',`
 	type device_t;
 
 	class dir r_dir_perms;
@@ -226,77 +297,95 @@ define(`devices_get_generic_character_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_dontaudit_getattr_generic_chr_file">
+##	<description>
+##		Dontaudit getattr for generic character device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_get_generic_character_device_attributes(domain)
-#
-define(`devices_ignore_get_generic_character_device_attributes',`
+define(`dev_dontaudit_getattr_generic_chr_file',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_t:chr_file getattr;
 ')
 
-define(`devices_ignore_get_generic_character_device_attributes_depend',`
+define(`dev_dontaudit_getattr_generic_chr_file',`
 	type device_t;
 
 	class chr_file getattr;
 ')
 
 ########################################
-## <interface name="devices_remove_dev_symbolic_links">
+## <interface name="dev_del_generic_symlinks">
 ##	<description>
-##		Delete symbolic links in /dev.
+##		Delete symbolic links in device directories.
 ##	</description>
 ##	<parameter name="domain">
-##		The type of the process performing this action.
+##		Domain allowed access.
 ##	</parameter>
 ## </interface>
 #
-define(`devices_remove_dev_symbolic_links',`
+define(`dev_del_generic_symlinks',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir { r_dir_perms write remove_name };
+	allow $1 device_t:dir { getattr read write remove_name };
 	allow $1 device_t:lnk_file unlink;
 ')
 
-define(`devices_remove_dev_symbolic_links_depend',`
+define(`dev_del_generic_symlinks_depend',`
 	attribute device_node, memory_raw_read, memory_raw_write;
 
 	type device_t;
 
-	class dir { r_dir_perms write remove_name };
+	class dir { getattr read write remove_name };
 	class lnk_file unlink;
 ')
 
 ########################################
+## <interface name="dev_manage_generic_symlinks">
+##	<description>
+##		Create, delete, read, and write symbolic links in device directories.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_dev_symbolic_links(domain)
-#
-define(`devices_manage_dev_symbolic_links',`
+define(`dev_manage_generic_symlinks',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir create_dir_perms;
-	allow $1 device_t:lnk_file create_lnk_perms;
+	allow $1 device_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+	allow $1 device_t:lnk_file { create read getattr setattr link unlink rename };
 ')
 
-define(`devices_manage_dev_symbolic_links_depend',`
+define(`dev_manage_generic_symlinks_depend',`
 	type device_t;
 
-	class dir create_dir_perms; 
-	class lnk_file create_lnk_perms;
+	class dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+	class lnk_file { create read getattr setattr link unlink rename };
 ')
 
 ########################################
+## <interface name="dev_manage_all_dev_nodes">
+##	<description>
+##		Create, delete, read, and write device nodes in device directories.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_device_nodes(domain)
-#
-define(`devices_manage_device_nodes',`
+define(`dev_manage_all_dev_nodes',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir { create_dir_perms relabelfrom relabelto };
-	allow $1 device_t:sock_file create_file_perms;
-	allow $1 device_t:lnk_file create_lnk_perms;
-	allow $1 device_t:{ chr_file blk_file } { create_file_perms relabelfrom relabelto };
-	allow $1 device_node:{ chr_file blk_file } { create_file_perms relabelfrom relabelto };
+	allow $1 device_t:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+	allow $1 device_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1 device_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1 device_t:{ chr_file blk_file } { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+	allow $1 device_node:{ chr_file blk_file } { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
 
 	# these next rules are to satisfy assertions broken by the above lines.
 	# the permissions hopefully can be cut back a lot
@@ -309,29 +398,35 @@ define(`devices_manage_device_nodes',`
 	typeattribute $1 memory_raw_write;
 ')
 
-define(`devices_manage_device_nodes_depend',`
+define(`dev_manage_all_dev_nodes_depend',`
 	attribute device_node, memory_raw_read, memory_raw_write;
 
 	type device_t;
 
-	class dir { create_dir_perms relabelfrom relabelto };
-	class sock_file create_file_perms;
-	class lnk_file create_lnk_perms;
-	class chr_file { create_file_perms relabelfrom relabelto };
-	class blk_file { create_file_perms relabelfrom relabelto };
+	class dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir relabelfrom relabelto };
+	class sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	class lnk_file { create read getattr setattr link unlink rename };
+	class chr_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
+	class blk_file { create ioctl read getattr lock write setattr append link unlink rename relabelfrom relabelto };
 ')
 
 ########################################
+## <interface name="dev_dontaudit_rw_generic_dev_nodes">
+##	<description>
+##		Dontaudit getattr for generic device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_modify_generic_devices(domain)
-#
-define(`devices_ignore_modify_generic_devices',`
+define(`dev_dontaudit_rw_generic_dev_nodes',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_t:{ chr_file blk_file } { getattr read write ioctl };
 ')
 
-define(`devices_ignore_modify_generic_devices_depend',`
+define(`dev_dontaudit_rw_generic_dev_nodes_depend',`
 	type device_t;
 
 	class chr_file { getattr read write ioctl };
@@ -339,17 +434,23 @@ define(`devices_ignore_modify_generic_devices_depend',`
 ')
 
 ########################################
+## <interface name="dev_manage_generic_blk_file">
+##	<description>
+##		Create, delete, read, and write block device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_generic_block_devices(domain)
-#
-define(`devices_manage_generic_block_devices',`
+define(`dev_manage_generic_blk_file',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
 	allow $1 device_t:blk_file create_file_perms;
 ')
 
-define(`devices_manage_generic_block_devices_depend',`
+define(`dev_manage_generic_blk_file_depend',`
 	type device_t;
 
 	class dir rw_dir_perms;
@@ -357,17 +458,23 @@ define(`devices_manage_generic_block_devices_depend',`
 ')
 
 ########################################
+## <interface name="dev_manage_generic_chr_file">
+##	<description>
+##		Create, delete, read, and write character device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_generic_character_devices(domain)
-#
-define(`devices_manage_generic_character_devices',`
+define(`dev_manage_generic_chr_file',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
 	allow $1 device_t:chr_file create_file_perms;
 ')
 
-define(`devices_manage_generic_character_devices_depend',`
+define(`dev_manage_generic_chr_file_depend',`
 	type device_t;
 
 	class dir rw_dir_perms;
@@ -375,38 +482,58 @@ define(`devices_manage_generic_character_devices_depend',`
 ')
 
 ########################################
+## <interface name="dev_create_dev_node">
+##	<description>
+##		Create, read, and write device nodes. The node
+##		will be transitioned to the type provided.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+##	<parameter name="file">
+##		Type to which the created node will be transitioned.
+##	</parameter>
+##	<parameter name="objectclass(es)">
+##		Object class(es) (single or set including {}) for which this
+##		the transition will occur.
+##	</parameter>
+## </interface>
 #
-# devices_create_dev_entry(domain,file,objectclass(es))
-#
-define(`devices_create_dev_entry',`
+define(`dev_create_dev_node',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
 	type_transition $1 device_t:$3 $2;
 
 	optional_policy(`distro_redhat',`
-		fs_associate_tmpfs($2)
+		fs_tmpfs_associate($2)
 	')
 ')
 
-define(`devices_set_dev_entry_depend',`
+define(`dev_create_dev_node_depend',`
 	type device_t;
 
 	class dir rw_dir_perms;
 ')
 
 ########################################
+## <interface name="dev_getattr_all_blk_files">
+##	<description>
+##		Getattr on all block file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_all_block_device_attributes(domain)
-#
-define(`devices_get_all_block_device_attributes',`
+define(`dev_getattr_all_blk_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_node:blk_file getattr;
 ')
 
-define(`devices_get_all_block_device_attributes_depend',`
+define(`dev_getattr_all_blk_files_depend',`
 	attribute device_node;
 
 	class blk_file getattr;
@@ -414,33 +541,45 @@ define(`devices_get_all_block_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_dontaudit_getattr_all_blk_files">
+##	<description>
+##		Dontaudit getattr on all block file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_get_all_block_device_attributes(domain)
-#
-define(`devices_ignore_get_all_block_device_attributes',`
+define(`dev_dontaudit_getattr_all_blk_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_node:blk_file getattr;
 ')
 
-define(`devices_ignore_get_all_block_device_attributes_depend',`
+define(`dev_dontaudit_getattr_all_blk_files_depend',`
 	attribute device_node;
 
 	class blk_file getattr;
 ')
 
 ########################################
+## <interface name="dev_getattr_all_chr_files">
+##	<description>
+##		Getattr on all character file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_all_character_device_attributes(domain)
-#
-define(`devices_get_all_character_device_attributes',`
+define(`dev_getattr_all_chr_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_node:chr_file getattr;
 ')
 
-define(`devices_get_all_character_device_attributes_depend',`
+define(`dev_getattr_all_chr_files_depend',`
 	attribute device_node;
 
 	class chr_file getattr;
@@ -448,33 +587,45 @@ define(`devices_get_all_character_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_dontaudit_getattr_all_chr_files">
+##	<description>
+##		Dontaudit getattr on all character file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_get_all_character_device_attributes(domain)
-#
-define(`devices_ignore_get_all_character_device_attributes',`
+define(`dev_dontaudit_getattr_all_chr_files',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 device_node:chr_file getattr;
 ')
 
-define(`devices_ignore_get_all_character_device_attributes_depend',`
+define(`dev_dontaudit_getattr_all_chr_files_depend',`
 	attribute device_node;
 
 	class chr_file getattr;
 ')
 
 ########################################
+## <interface name="dev_setattr_all_blk_files">
+##	<description>
+##		Setattr on all block file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_set_all_block_device_attributes(domain)
-#
-define(`devices_set_all_block_device_attributes',`
+define(`dev_setattr_all_blk_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_node:blk_file setattr;
 ')
 
-define(`devices_set_all_block_device_attributes_depend',`
+define(`dev_setattr_all_blk_files_depend',`
 	attribute device_node;
 
 	class dir r_dir_perms;
@@ -482,17 +633,23 @@ define(`devices_set_all_block_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_setattr_all_chr_files">
+##	<description>
+##		Setattr on all character file device nodes.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_set_all_character_device_attributes(domain)
-#
-define(`devices_set_all_character_device_attributes',`
+define(`dev_setattr_all_chr_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 device_node:chr_file setattr;
 ')
 
-define(`devices_set_all_character_device_attributes_depend',`
+define(`dev_setattr_all_chr_files_depend',`
 	attribute device_node;
 
 	class dir r_dir_perms;
@@ -500,10 +657,16 @@ define(`devices_set_all_character_device_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_manage_all_blk_files">
+##	<description>
+##		Read, write, create, and delete all block device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_all_block_devices(domain)
-#
-define(`devices_manage_all_block_devices',`
+define(`dev_manage_all_blk_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
@@ -516,7 +679,7 @@ define(`devices_manage_all_block_devices',`
 	storage_write_scsi_generic($1)
 ')
 
-define(`devices_manage_generic_block_devices_depend',`
+define(`dev_manage_all_blk_files_depend',`
 	attribute device_node;
 
 	class dir rw_dir_perms;
@@ -524,10 +687,16 @@ define(`devices_manage_generic_block_devices_depend',`
 ')
 
 ########################################
+## <interface name="dev_manage_all_chr_files">
+##	<description>
+##		Read, write, create, and delete all character device files.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_manage_all_character_devices(domain)
-#
-define(`devices_manage_all_character_devices',`
+define(`dev_manage_all_chr_files',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir rw_dir_perms;
@@ -536,7 +705,7 @@ define(`devices_manage_all_character_devices',`
 	typeattribute $1 memory_raw_read, memory_raw_write;
 ')
 
-define(`devices_manage_all_character_devices_depend',`
+define(`dev_manage_all_chr_files_depend',`
 	attribute device_node, memory_raw_read, memory_raw_write;
 
 	class dir rw_dir_perms;
@@ -544,10 +713,16 @@ define(`devices_manage_all_character_devices_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_raw_memory">
+##	<description>
+##		Read raw memory devices (e.g. /dev/mem).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_raw_read_memory(domain)
-#
-define(`devices_raw_read_memory',`
+define(`dev_read_raw_memory',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
@@ -557,19 +732,25 @@ define(`devices_raw_read_memory',`
 	typeattribute $1 memory_raw_read;
 ')
 
-define(`devices_raw_read_memory_depend',`
-type device_t, memory_device_t;
-attribute memory_raw_read;
-class dir r_dir_perms;
-class chr_file r_file_perms;
-class capability sys_rawio;
+define(`dev_read_raw_memory_depend',`
+	type device_t, memory_device_t;
+	attribute memory_raw_read;
+	class dir r_dir_perms;
+	class chr_file r_file_perms;
+	class capability sys_rawio;
 ')
 
 ########################################
+## <interface name="dev_write_raw_memory">
+##	<description>
+##		Write raw memory devices (e.g. /dev/mem).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_raw_write_memory(domain)
-#
-define(`devices_raw_write_memory',`
+define(`dev_write_raw_memory',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
@@ -579,60 +760,78 @@ define(`devices_raw_write_memory',`
 	typeattribute $1 memory_raw_write;
 ')
 
-define(`devices_raw_write_memory_depend',`
-type device_t, memory_device_t;
-attribute memory_raw_write;
-class dir r_dir_perms;
-class chr_file write;
-class capability sys_rawio;
+define(`dev_write_raw_memory_depend',`
+	type device_t, memory_device_t;
+	attribute memory_raw_write;
+	class dir r_dir_perms;
+	class chr_file write;
+	class capability sys_rawio;
 ')
 
 ########################################
+## <interface name="dev_rx_raw_memory">
+##	<description>
+##		Read and execute raw memory devices (e.g. /dev/mem).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_legacy_raw_read_memory(domain)
-#
-define(`devices_legacy_raw_read_memory',`
+define(`dev_rx_raw_memory',`
 	requires_block_template(`$0'_depend)
 
-	devices_raw_read_memory($1)
+	dev_read_raw_memory($1)
 	allow $1 memory_device_t:chr_file execute;
 ')
 
-define(`devices_legacy_raw_read_memory_depend',`
+define(`dev_rx_raw_memory_depend',`
 	type device_t, memory_device_t;
 
 	class chr_file execute;
 ')
 
 ########################################
+## <interface name="dev_wx_raw_memory">
+##	<description>
+##		Write and execute raw memory devices (e.g. /dev/mem).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_legacy_raw_write_memory(domain)
-#
-define(`devices_legacy_raw_write_memory',`
+define(`dev_wx_raw_memory',`
 	requires_block_template(`$0'_depend)
 
-	devices_raw_write_memory($1)
+	dev_write_raw_memory($1)
 	allow $1 memory_device_t:chr_file execute;
 ')
 
-define(`devices_legacy_raw_write_memory_depend',`
+define(`dev_wx_raw_memory_depend',`
 	type device_t, memory_device_t;
 
 	class chr_file execute;
 ')
 
 ########################################
+## <interface name="dev_read_rand">
+##	<description>
+##		Read from random devices (e.g., /dev/random)
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_random_data(domain)
-#
-define(`devices_get_random_data',`
+define(`dev_read_rand',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 random_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_get_random_data_depend',`
+define(`dev_read_rand_depend',`
 	type device_t, random_device_t;
 
 	class dir r_dir_perms;
@@ -640,17 +839,23 @@ define(`devices_get_random_data_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_urand">
+##	<description>
+##		Read from pseudo random devices (e.g., /dev/urandom)
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_pseudorandom_data(domain)
-#
-define(`devices_get_pseudorandom_data',`
+define(`dev_read_urand',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 urandom_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_get_pseudorandom_data_depend',`
+define(`dev_read_urand_depend',`
 	type device_t, urandom_device_t;
 
 	class dir r_dir_perms;
@@ -658,17 +863,25 @@ define(`devices_get_pseudorandom_data_depend',`
 ')
 
 ########################################
+## <interface name="dev_write_rand">
+##	<description>
+##		Write to the random device (e.g., /dev/random). This adds
+##		entropy used to generate the random data read from the
+##		random device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_add_entropy(domain)
-#
-define(`devices_add_entropy',`
+define(`dev_write_rand',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 random_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_add_entropy_depend',`
+define(`dev_write_rand_depend',`
 	type device_t, random_device_t;
 
 	class dir r_dir_perms;
@@ -676,17 +889,24 @@ define(`devices_add_entropy_depend',`
 ')
 
 ########################################
+## <interface name="dev_write_urand">
+##	<description>
+##		Write to the pseudo random device (e.g., /dev/urandom). This
+##		sets the random number generator seed.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_set_pseudorandom_seed(domain)
-#
-define(`devices_set_pseudorandom_seed',`
+define(`dev_write_urand',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 urandom_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_set_pseudorandom_seed_depend',`
+define(`dev_write_urand_depend',`
 	type device_t, urandom_device_t;
 
 	class dir r_dir_perms;
@@ -694,17 +914,23 @@ define(`devices_set_pseudorandom_seed_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_null_dev">
+##	<description>
+##		Read and write to the null device (/dev/null).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_use_dev_null(domain)
-#
-define(`devices_use_dev_null',`
+define(`dev_rw_null_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 null_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_use_dev_null_depend',`
+define(`dev_rw_null_dev_depend',`
 	type device_t, null_device_t;
 
 	class device_t:dir r_dir_perms;
@@ -712,17 +938,23 @@ define(`devices_use_dev_null_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_zero_dev">
+##	<description>
+##		Read and write to the zero device (/dev/zero).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_use_dev_zero(domain)
-#
-define(`devices_use_dev_zero',`
+define(`dev_rw_zero_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 zero_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_use_dev_zero_depend',`
+define(`dev_rw_zero_dev_depend',`
 	type device_t, zero_device_t;
 
 	class device_t:dir r_dir_perms;
@@ -730,51 +962,69 @@ define(`devices_use_dev_zero_depend',`
 ')
 
 ########################################
+## <interface name="dev_rwx_zero_dev">
+##	<description>
+##		Read, write, and execute the zero device (/dev/zero).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_legacy_use_dev_zero(domain)
-#
-define(`devices_legacy_use_dev_zero',`
+define(`dev_rwx_zero_dev',`
 	requires_block_template(`$0'_depend)
 
-	devices_use_dev_zero($1)
+	dev_rw_zero_dev($1)
 	allow $1 zero_device_t:chr_file execute;
 ')
 
-define(`devices_legacy_use_dev_zero_depend',`
+define(`dev_rwx_zero_dev_depend',`
 	type zero_device_t;
 
 	class chr_file execute;
 ')
 
 ########################################
+## <interface name="dev_read_realtime_clock">
+##	<description>
+##		Read the realtime clock (/dev/rtc).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_read_realtime_clock(domain)
-#
-define(`devices_read_realtime_clock',`
+define(`dev_read_realtime_clock',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 clock_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_read_realtime_clock_depend',`
+define(`dev_read_realtime_clock_depend',`
 type device_t, clock_device_t;
 class dir r_dir_perms;
 class chr_file r_file_perms;
 ')
 
 ########################################
+## <interface name="dev_write_realtime_clock">
+##	<description>
+##		Read the realtime clock (/dev/rtc).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_write_realtime_clock(domain)
-#
-define(`devices_write_realtime_clock',`
+define(`dev_write_realtime_clock',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 clock_device_t:chr_file { setattr lock write append ioctl };
 ')
 
-define(`devices_write_realtime_clock_depend',`
+define(`dev_write_realtime_clock_depend',`
 	type device_t, clock_device_t;
 
 	class dir r_dir_perms;
@@ -782,79 +1032,61 @@ define(`devices_write_realtime_clock_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_realtime_clock">
+##	<description>
+##		Read the realtime clock (/dev/rtc).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_modify_realtime_clock(domain)
-#
-define(`devices_modify_realtime_clock',`
-	devices_read_realtime_clock($1)
-	devices_write_realtime_clock($1)
+define(`dev_rw_realtime_clock',`
+	dev_read_realtime_clock($1)
+	dev_write_realtime_clock($1)
 ')
 
 ########################################
+## <interface name="dev_read_snd_dev">
+##	<description>
+##		Read the sound devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_record_sound_input(domain)
-#
-define(`devices_record_sound_input',`
+define(`dev_read_snd_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 sound_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_record_sound_input_depend',`
-type device_t, sound_device_t;
-class dir r_dir_perms;
-class chr_file r_file_perms;
-')
-
-########################################
-#
-# devices_play_sound(domain)
-#
-define(`devices_play_sound',`
-	requires_block_template(`$0'_depend)
-
-	allow $1 device_t:dir r_dir_perms;
-	allow $1 sound_device_t:chr_file { getattr write ioctl };
-')
-
-define(`devices_play_sound_depend',`
+define(`dev_read_snd_dev_depend',`
 	type device_t, sound_device_t;
-
-	class dir r_dir_perms;
-	class chr_file { getattr write ioctl };
-')
-
-########################################
-#
-# devices_read_sound_mixer_levels(domain)
-#
-define(`devices_read_sound_mixer_levels',`
-	requires_block_template(`$0'_depend)
-
-	allow $1 device_t:dir r_dir_perms;
-	allow $1 sound_device_t:chr_file r_file_perms;
-')
-
-define(`devices_read_sound_mixer_levels_depend',`
-	type device_t, sound_device_t;
-
 	class dir r_dir_perms;
 	class chr_file r_file_perms;
 ')
 
 ########################################
+## <interface name="dev_write_snd_dev">
+##	<description>
+##		Write the sound devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_write_sound_mixer_levels(domain)
-#
-define(`devices_write_sound_mixer_levels',`
+define(`dev_write_snd_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 sound_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_write_sound_mixer_levels_depend',`
+define(`dev_write_snd_dev_depend',`
 	type device_t, sound_device_t;
 
 	class dir r_dir_perms;
@@ -862,17 +1094,71 @@ define(`devices_write_sound_mixer_levels_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_snd_mixer_dev">
+##	<description>
+##		Read the sound mixer devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_direct_agp_access(domain)
+define(`dev_read_snd_mixer_dev',`
+	requires_block_template(`$0'_depend)
+
+	allow $1 device_t:dir r_dir_perms;
+	allow $1 sound_device_t:chr_file { getattr read ioctl };
+')
+
+define(`dev_read_snd_mixer_dev_depend',`
+	type device_t, sound_device_t;
+
+	class dir r_dir_perms;
+	class chr_file { getattr read ioctl };
+')
+
+########################################
+## <interface name="dev_write_snd_mixer_dev">
+##	<description>
+##		Write the sound mixer devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-define(`devices_direct_agp_access',`
+define(`dev_write_snd_mixer_dev',`
+	requires_block_template(`$0'_depend)
+
+	allow $1 device_t:dir r_dir_perms;
+	allow $1 sound_device_t:chr_file { getattr write ioctl };
+')
+
+define(`dev_write_snd_mixer_dev_depend',`
+	type device_t, sound_device_t;
+
+	class dir r_dir_perms;
+	class chr_file { getattr write ioctl };
+')
+
+########################################
+## <interface name="dev_rw_agp_dev">
+##	<description>
+##		Read and write the agp devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
+#
+define(`dev_rw_agp_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 agp_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_direct_agp_access_depend',`
+define(`dev_rw_agp_dev_depend',`
 	type device_t, agp_device_t;
 
 	class dir r_dir_perms;
@@ -880,17 +1166,23 @@ define(`devices_direct_agp_access_depend',`
 ')
 
 ########################################
+## <interface name="dev_getattr_agp_dev">
+##	<description>
+##		Getattr the agp devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_direct_rendering_interface_attributes(domain)
-#
-define(`devices_get_direct_rendering_interface_attributes',`
+define(`dev_getattr_agp_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 dri_device_t:chr_file getattr;
 ')
 
-define(`devices_get_direct_rendering_interface_attributes_depend',`
+define(`dev_getattr_agp_dev_depend',`
 	type device_t, dri_device_t;
 
 	class dir r_dir_perms;
@@ -898,17 +1190,23 @@ define(`devices_get_direct_rendering_interface_attributes_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_dri_dev">
+##	<description>
+##		Read and write the dri devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_use_direct_rendering_interface(domain)
-#
-define(`devices_use_direct_rendering_interface',`
+define(`dev_rw_dri_dev',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 dri_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_use_direct_rendering_interface_depend',`
+define(`dev_rw_dri_dev_depend',`
 	type device_t, dri_device_t;
 
 	class dir r_dir_perms;
@@ -916,33 +1214,45 @@ define(`devices_use_direct_rendering_interface_depend',`
 ')
 
 ########################################
+## <interface name="dev_dontaudit_rw_dri_dev">
+##	<description>
+##		Dontaudit read and write on the dri devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain to dontaudit access.
+##	</parameter>
+## </interface>
 #
-# devices_ignore_use_direct_rendering_interface(domain)
-#
-define(`devices_ignore_use_direct_rendering_interface',`
+define(`dev_dontaudit_rw_dri_dev',`
 	requires_block_template(`$0'_depend)
 
 	dontaudit $1 dri_device_t:chr_file { getattr read write ioctl };
 ')
 
-define(`devices_ignore_use_direct_rendering_interface_depend',`
+define(`dev_dontaudit_rw_dri_dev_depend',`
 	type dri_device_t;
 
 	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
+## <interface name="dev_read_mtrr">
+##	<description>
+##		Read the mtrr device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_read_mtrr(domain)
-#
-define(`devices_read_mtrr',`
+define(`dev_read_mtrr',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 mtrr_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_read_mtrr_depend',`
+define(`dev_read_mtrr_depend',`
 	type device_t, mtrr_device_t;
 
 	class dir r_dir_perms;
@@ -950,17 +1260,23 @@ define(`devices_read_mtrr_depend',`
 ')
 
 ########################################
+## <interface name="dev_write_mtrr">
+##	<description>
+##		Write the mtrr device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_write_mtrr(domain)
-#
-define(`devices_write_mtrr',`
+define(`dev_write_mtrr',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 mtrr_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_write_mtrr_depend',`
+define(`dev_write_mtrr_depend',`
 	type device_t, mtrr_device_t;
 
 	class dir r_dir_perms;
@@ -968,17 +1284,23 @@ define(`devices_write_mtrr_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_framebuffer">
+##	<description>
+##		Read the framebuffer device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_read_framebuffer(domain)
-#
-define(`devices_read_framebuffer',`
+define(`dev_read_framebuffer',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 framebuf_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_read_framebuffer_depend',`
+define(`dev_read_framebuffer_depend',`
 	type framebuf_device_t;
 
 	class dir r_dir_perms;
@@ -986,17 +1308,23 @@ define(`devices_read_framebuffer_depend',`
 ')
 
 ########################################
+## <interface name="dev_write_framebuffer">
+##	<description>
+##		Write the framebuffer device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_write_framebuffer(domain)
-#
-define(`devices_write_framebuffer',`
+define(`dev_write_framebuffer',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 framebuf_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_write_framebuffer_depend',`
+define(`dev_write_framebuffer_depend',`
 	type device_t, framebuf_device_t;
 
 	class dir r_dir_perms;
@@ -1004,17 +1332,23 @@ define(`devices_write_framebuffer_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_lvm_control">
+##	<description>
+##		Read the lvm comtrol device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_read_lvm_control_channel(domain)
-#
-define(`devices_read_lvm_control_channel',`
+define(`dev_read_lvm_control',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 lvm_control_t:chr_file r_file_perms;
 ')
 
-define(`devices_read_lvm_control_channel_depend',`
+define(`dev_read_lvm_control_depend',`
 	type device_t, lvm_control_t;
 
 	class dir r_dir_perms;
@@ -1022,17 +1356,23 @@ define(`devices_read_lvm_control_channel_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_lvm_control">
+##	<description>
+##		Read and write the lvm control device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_use_lvm_control_channel(domain)
-#
-define(`devices_use_lvm_control_channel',`
+define(`dev_rw_lvm_control',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 lvm_control_t:chr_file rw_file_perms;
 ')
 
-define(`devices_use_lvm_control_channel_depend',`
+define(`dev_rw_lvm_control_depend',`
 	type device_t, lvm_control_t;
 
 	class dir r_dir_perms;
@@ -1040,35 +1380,47 @@ define(`devices_use_lvm_control_channel_depend',`
 ')
 
 ########################################
+## <interface name="dev_delete_lvm_control">
+##	<description>
+##		Delete the lvm control device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_remove_lvm_control_channel(domain)
-#
-define(`devices_remove_lvm_control_channel',`
+define(`dev_delete_lvm_control',`
 	requires_block_template(`$0'_depend)
 
-	allow $1 device_t:dir { r_dir_perms write remove_name };
+	allow $1 device_t:dir { getattr search read write remove_name };
 	allow $1 lvm_control_t:chr_file unlink;
 ')
 
-define(`devices_remove_lvm_control_channel_depend',`
+define(`dev_delete_lvm_control_depend',`
 	type device_t, lvm_control_t;
 
-	class dir { r_dir_perms write remove_name };
+	class dir { getattr search read write remove_name };
 	class chr_file unlink;
 ')
 
 ########################################
+## <interface name="dev_read_misc">
+##	<description>
+##		Read miscellaneous devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_read_misc(domain)
-#
-define(`devices_read_misc',`
+define(`dev_read_misc',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 misc_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_read_misc_depend',`
+define(`dev_read_misc_depend',`
 	type device_t, misc_device_t;
 
 	class dir r_dir_perms;
@@ -1076,17 +1428,23 @@ define(`devices_read_misc_depend',`
 ')
 
 ########################################
+## <interface name="dev_write_misc">
+##	<description>
+##		Write miscellaneous devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_write_misc(domain)
-#
-define(`devices_write_misc',`
+define(`dev_write_misc',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 misc_device_t:chr_file { getattr write ioctl };
 ')
 
-define(`devices_write_misc_depend',`
+define(`dev_write_misc_depend',`
 	type device_t, misc_device_t;
 
 	class dir r_dir_perms;
@@ -1094,17 +1452,23 @@ define(`devices_write_misc_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_mouse">
+##	<description>
+##		Read the mouse devices.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_mouse_input(domain)
-#
-define(`devices_get_mouse_input',`
+define(`dev_read_mouse',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 mouse_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_get_mouse_input_depend',`
+define(`dev_read_mouse_depend',`
 	type device_t, mouse_device_t;
 
 	allow $1 device_t:dir r_dir_perms;
@@ -1112,17 +1476,23 @@ define(`devices_get_mouse_input_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_input">
+##	<description>
+##		Read the multiplexed input device (/dev/input).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_input_event(domain)
-#
-define(`devices_get_input_event',`
+define(`dev_read_input',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 event_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_get_input_event_depend',`
+define(`dev_read_input_depend',`
 	type device_t, event_device_t;
 
 	class dir r_dir_perms;
@@ -1130,17 +1500,23 @@ define(`devices_get_input_event_depend',`
 ')
 
 ########################################
+## <interface name="dev_read_cpuid">
+##	<description>
+##		Read the multiplexed input device (/dev/input).
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_get_cpuid(domain)
-#
-define(`devices_get_cpuid',`
+define(`dev_read_cpuid',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 cpu_device_t:chr_file r_file_perms;
 ')
 
-define(`devices_get_cpuid_depend',`
+define(`dev_read_cpuid_depend',`
 	type device_t, cpu_device_t;
 
 	class dir r_dir_perms;
@@ -1148,17 +1524,24 @@ define(`devices_get_cpuid_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_cpu_microcode">
+##	<description>
+##		Read and write the the cpu microcode device. This
+##		is required to load cpu microcode.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_load_cpu_microcode(domain)
-#
-define(`devices_load_cpu_microcode',`
+define(`dev_rw_cpu_microcode',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 cpu_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_load_cpu_microcode_depend',`
+define(`dev_rw_cpu_microcode_depend',`
 	type device_t, cpu_device_t;
 
 	class dir r_dir_perms;
@@ -1166,17 +1549,23 @@ define(`devices_load_cpu_microcode_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_scanner">
+##	<description>
+##		Read and write the the scanner device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_use_scanner(domain)
-#
-define(`devices_use_scanner',`
+define(`dev_rw_scanner',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 scanner_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_use_scanner_depend',`
+define(`dev_rw_scanner_depend',`
 	type device_t, scanner_device_t;
 
 	class dir r_dir_perms;
@@ -1184,17 +1573,23 @@ define(`devices_use_scanner_depend',`
 ')
 
 ########################################
+## <interface name="dev_rw_power_management">
+##	<description>
+##		Read and write the the power management device.
+##	</description>
+##	<parameter name="domain">
+##		Domain allowed access.
+##	</parameter>
+## </interface>
 #
-# devices_control_system_powermanagement(domain)
-#
-define(`devices_control_system_powermanagement',`
+define(`dev_rw_power_management',`
 	requires_block_template(`$0'_depend)
 
 	allow $1 device_t:dir r_dir_perms;
 	allow $1 power_device_t:chr_file rw_file_perms;
 ')
 
-define(`devices_control_system_powermanagement_depend',`
+define(`dev_rw_power_management_depend',`
 	type device_t, power_device_t;
 
 	class dir r_dir_perms;
