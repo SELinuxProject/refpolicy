@@ -141,6 +141,7 @@ ALL_TE_FILES := $(ALL_MODULES)
 POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
 
 ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
+HOMEDIR_TEMPLATE = tmp/homedir_template
 
 POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
 
@@ -290,9 +291,12 @@ enableaudit: policy.conf
 #
 # Construct file_contexts
 #
-$(FC): $(M4SUPPORT) $(ALL_FC_FILES)
+$(FC): $(M4SUPPORT) tmp/generated_definitions.conf $(ALL_FC_FILES) $(FCSORT)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) m4 $(M4PARAM) $^ > $@
+	$(QUIET) m4 $(M4PARAM) $(M4SUPPORT) tmp/generated_definitions.conf $(ALL_FC_FILES) > tmp/$@.tmp
+	$(QUIET) grep -e HOME -e ROLE tmp/$@.tmp > $(HOMEDIR_TEMPLATE)
+	$(QUIET) sed -i -e /HOME/d -e /ROLE/d tmp/$@.tmp
+	$(QUIET) $(FCSORT) tmp/$@.tmp $@
 
 ########################################
 #
@@ -301,9 +305,8 @@ $(FC): $(M4SUPPORT) $(ALL_FC_FILES)
 $(FCPATH): $(FC) $(USERPATH)/system.users
 	@mkdir -p $(CONTEXTPATH)/files
 	$(QUIET) install -m 644 $(FC) $(FCPATH)
-#	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
-#	$(QUIET) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(TYPE) $(USEPWD)
-	$(QUIET) $(FCSORT) $(FCPATH) $(FCPATH)
+	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
+	$(QUIET) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(NAME) $(USEPWD)
 
 ########################################
 #
