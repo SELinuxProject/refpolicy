@@ -133,7 +133,9 @@ GENERATED_TE := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te.in
 GENERATED_IF := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if.in)))
 GENERATED_FC := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc.in)))
 
-DETECTED_MODS := $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE)
+# sort here since it removes duplicates, which can happen
+# when a generated file is already generated
+DETECTED_MODS := $(sort $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE))
 ALL_MODULES := $(filter-out $(DISABLEMOD),$(DETECTED_MODS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
