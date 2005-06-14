@@ -205,10 +205,10 @@ reload tmp/load: $(LOADPATH) $(FCPATH)
 #
 policy.conf: $(POLICY_SECTIONS)
 	@echo "Creating $(NAME) policy.conf"
-	# checkpolicy can use the #line directives provided by -s for error reporting:
+# checkpolicy can use the #line directives provided by -s for error reporting:
 	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
-	# the ordering of these ocontexts matters:
+# the ordering of these ocontexts matters:
 	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^netifcon tmp/$@.tmp >> $@ || true
 	$(QUIET) grep ^nodecon tmp/$@.tmp >> $@ || true
@@ -217,8 +217,8 @@ tmp/pre_te_files.conf: $(PRE_TE_FILES)
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) cat $^ > $@
 
-tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(TUNABLES)
-	# per-userdomain templates:
+tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES)
+# per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
 	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_MODULES))); do \
@@ -226,7 +226,7 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES) $(TUNABLES)
 			>> $@ ;\
 	done
 	$(QUIET) echo "')" >> $@
-	# define foo.te
+# define foo.te
 	$(QUIET) for i in $(notdir $(ALL_MODULES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
@@ -265,7 +265,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
-		| m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| m4 $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 	$(QUIET) echo "## </module>" >> $@
 
@@ -274,7 +274,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 $(M4PARAM) -D monolithic_policy $(M4SUPPORT) $^ \
+	$(QUIET) m4 $(M4PARAM) $(M4SUPPORT) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
@@ -339,7 +339,9 @@ relabel:  $(FC) $(SETFILES)
 #
 # Create config files
 #
-conf $(MOD_DISABLE) $(TUNABLES): $(POLXML)
+conf: $(MOD_DISABLE) $(TUNABLES) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
+
+$(MOD_DISABLE) $(TUNABLES): $(POLXML)
 	@echo "Creating $(MOD_DISABLE) and $(TUNABLES)"
 	$(QUIET) cd $(DOCS) && ../$(GENDOC) -t ../$(TUNABLES) -m ../$(MOD_DISABLE) -x ../$(POLXML)
 
@@ -348,10 +350,10 @@ conf $(MOD_DISABLE) $(TUNABLES): $(POLXML)
 # Documentation generation
 #
 
-# no dependencies here, because we don't want to rebuild 
+# minimal dependencies here, because we don't want to rebuild 
 # this and its dependents every time the dependencies
 # change
-$(POLXML): $(GENERATED_IF)
+$(POLXML): $(ALL_INTERFACES)
 	@echo "Creating $@"
 	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
