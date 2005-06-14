@@ -238,10 +238,10 @@ define(`base_user_domain',`
 	# /initrd is left mounted, various programs try to look at it
 	dontaudit $1_t ramfs_t:dir getattr;
 
-	if (read_default_t) {
+	tunable_policy(`read_default_t',`
 		allow $1_t default_t:dir r_dir_perms;
 		allow $1_t default_t:notdevfile_class_set r_file_perms;
-	}
+	')
 
 	#
 	# Running ifconfig as a user generates the following
@@ -254,10 +254,10 @@ define(`base_user_domain',`
 
 	can_ypbind($1_t)
 
-	if (allow_execmod) {
+	tunable_policy(`allow_execmod',`
 		# Allow text relocations on system shared libraries, e.g. libGL.
 		allow $1_t texrel_shlib_t:file execmod;
-	}
+	')
 
 	allow $1_t fs_type:dir getattr;
 
@@ -275,17 +275,19 @@ define(`base_user_domain',`
 	allow $1_t autofs_t:dir { getattr search };
 
 	can_exec($1_t, { removable_t noexattrfile } )
-	if (user_rw_noexattrfile) {
+
+	tunable_policy(`user_rw_noexattrfile',`
 		create_dir_file($1_t, noexattrfile)
 		create_dir_file($1_t, removable_t)
 		# Write floppies 
 		allow $1_t removable_device_t:blk_file rw_file_perms;
 		allow $1_t usbtty_device_t:chr_file write;
-	} else {
+	',`
 		r_dir_file($1_t, noexattrfile)
 		r_dir_file($1_t, removable_t)
 		allow $1_t removable_device_t:blk_file r_file_perms;
-	}
+	')
+
 	allow $1_t usbtty_device_t:chr_file read;
 
 	can_exec($1_t, noexattrfile)
@@ -526,15 +528,15 @@ define(`user_domain_template', `
 	')
 
 	ifdef(`ftpd.te', `
-		if (ftp_home_dir) {
+		tunable_policy(`ftp_home_dir',`
 			file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
-		}
+		')
 	')
 
-	if (read_default_t) {
+	tunable_policy(`read_default_t',`
 		allow $1 default_t:dir r_dir_perms;
 		allow $1 default_t:notdevfile_class_set r_file_perms;
-	}
+	')
 
 	can_exec($1_t, usr_t)
 
@@ -557,11 +559,11 @@ define(`user_domain_template', `
 	allow $1_t var_lib_t:file { getattr read };
 
 	# Allow users to rw usb devices
-	if (user_rw_usb) {
+	tunable_policy(`user_rw_usb',`
 		rw_dir_create_file($1_t,usbdevfs_t)
-	} else {
+	',`
 		r_dir_file($1_t,usbdevfs_t)
-	}
+	')
 
 	# Do not audit write denials to /etc/ld.so.cache.
 	dontaudit $1_t ld_so_cache_t:file write;
@@ -765,10 +767,10 @@ define(`admin_domain_template',`
 
 	ifdef(`xdm.te', `
 		ifdef(`xauth.te', `
-			if (xdm_sysadm_login) {
+			tunable_policy(`xdm_sysadm_login',`
 				allow xdm_t $1_home_t:lnk_file read;
 				allow xdm_t $1_home_t:dir search;
-			}
+			')
 			allow $1_t xdm_t:fifo_file rw_file_perms;
 		')
 	')
