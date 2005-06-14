@@ -53,6 +53,7 @@ SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
+GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 
 SUPPORT := support
 GENDOC := $(SUPPORT)/sedoctool.py
@@ -121,7 +122,7 @@ MOD_DISABLE := $(POLDIR)/modules.conf
 TUNABLES := $(POLDIR)/tunables.conf
 
 APPDIR := $(CONTEXTPATH)
-APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
+APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media $(INSTALLDIR)/booleans
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/users 
 
@@ -388,7 +389,7 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
-$(USERPATH)/local.users: local.users
+$(USERPATH)/local.users: config/local.users
 	@mkdir -p $(USERPATH)
 	@echo "Installing local.users"
 	$(QUIET) install -C -b -m 644 $< $@
@@ -399,46 +400,52 @@ $(USERPATH)/local.users: local.users
 #
 install-appconfig: $(APPFILES)
 
+$(INSTALLDIR)/booleans: $(TUNABLES)
+	@mkdir -p $(INSTALLDIR)
+	$(QUIET) egrep '^[[:blank:]]*[[:alpha:]]' $(TUNABLES) \
+		| sed -e 's/false/0/g' -e 's/true/1/g' > tmp/booleans
+	$(QUIET) install -m 644 tmp/booleans $@
+
 $(CONTEXTPATH)/files/media: $(APPCONF)/media
-	mkdir -p $(CONTEXTPATH)/files/
-	install -m 644 $< $@
+	@mkdir -p $(CONTEXTPATH)/files/
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/default_contexts: $(APPCONF)/default_contexts
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/removable_context: $(APPCONF)/removable_context
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/customizable_types: policy.conf
-	mkdir -p $(APPDIR)
-	@grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
-	install -m 644 tmp/customizable_types $@ 
+	@mkdir -p $(APPDIR)
+	$(QUIET) grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
+	$(QUIET) install -m 644 tmp/customizable_types $@ 
 
 $(APPDIR)/default_type: $(APPCONF)/default_type
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/userhelper_context: $(APPCONF)/userhelper_context
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/initrc_context: $(APPCONF)/initrc_context
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/failsafe_context: $(APPCONF)/failsafe_context
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/dbus_contexts: $(APPCONF)/dbus_contexts
-	mkdir -p $(APPDIR)
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)
+	$(QUIET) install -m 644 $< $@
 
 $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
-	mkdir -p $(APPDIR)/users
-	install -m 644 $< $@
+	@mkdir -p $(APPDIR)/users
+	$(QUIET) install -m 644 $< $@
 
 clean:
 	rm -fR tmp
