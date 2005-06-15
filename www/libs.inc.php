@@ -9,8 +9,8 @@
 
   require_once (SMARTY_DIR."Smarty.class.php");
   $smarty = new Smarty;
-  $smarty->compile_dir = "/home/kmacmillan/public_html/t_c";
-  #$smarty->compile_dir = "/home/groups/s/se/serefpolicy/t_c";
+  #$smarty->compile_dir = "/home/kmacmillan/public_html/t_c";
+  $smarty->compile_dir = "/home/groups/s/se/serefpolicy/t_c";
   $smarty->template_dir = "$fixpath/html";
 
   $smarty->assign("border", "0");
