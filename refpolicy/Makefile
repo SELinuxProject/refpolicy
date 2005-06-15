@@ -461,12 +461,20 @@ install-src:
 	mkdir -p $(SRCPATH)/policy
 	cp -R . $(SRCPATH)/policy
 
+########################################
+#
+# Clean the sources
+#
 clean:
 	rm -fR tmp
 	rm -f policy.conf
 	rm -f policy.$(PV)
 	rm -f $(FC)
 
+########################################
+#
+# Clean everything
+#
 bare: clean
 	rm -f $(POLXML)
 	rm -f $(SUPPORT)/*.pyc
@@ -484,4 +492,4 @@ ifneq ($(GENERATED_FC),)
 	rm -f $(GENERATED_FC)
 endif
 
-.PHONY: default policy install reload enableaudit checklabels restorelabels relabel conf clean bare
+.PHONY: default policy install load reload enableaudit checklabels restorelabels relabel conf clean bare
