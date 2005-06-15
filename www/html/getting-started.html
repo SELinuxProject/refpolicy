@@ -34,8 +34,81 @@ This creates all fo the types needed for this module, including a type for the p
 Let's expand this example further by allowing some access for these types. My application needs access between it's own types and access to read random numbers. The access between private types is written exactly the same way current policy rules are written, i.e.:
 <div id="codeblock">
 <pre>
-allow myapp_t myapp_log_t : file ra_file_perms;
-allow myapp_t myapp_tmp_t : file rw_file_perms;
+allow myapp_t myapp_log_t:file ra_file_perms;
+allow myapp_t myapp_tmp_t:file create_file_perms;
 </pre>
 </div>
+This allows myapp_t to write to it's private types, but it needs to be able to
+create its temporary files in /tmp.  This requires a call to the files module.
+<div id="codeblock">
+<pre>
+files_create_tmp_files(myapp_t,myapp_tmp_t,file)
+</pre>
+</div>
+This call to the files module allows myapp_t to create myapp_tmp_t files in
+the /tmp directory.
+</p>
+<h3>Module IF Policy</h3>
+<p>
+First, let's create myapp.if and add the following:
+<div id="codeblock">
+<pre>
+## &lt;module name="myapp" layer="apps"&gt;
+## &lt;summary&gt;Myapp example policy&lt;/summary&gt;
+## &lt;description&gt;More descriptive text about myapp&lt;/description&gt;
+
+## &lt;interface name="myapp_domtrans"&gt;
+## &lt;summary&gt;
+##	Execute a domain transition to run myapp.
+## &lt;/summary&gt;
+## &lt;parameter name="domain"&gt;
+##	Domain allowed to transition.
+## &lt;/parameter&gt;
+## &lt;/interface&gt;
+define(`myapp_domtrans',`
+	gen_requires(`
+		type myapp_t, myapp_exec_t;
+		class fd use;
+		class process sigchld;
+		class fifo_file rw_file_perms;
+	')
+
+	domain_auto_trans($1,myapp_exec_t,myapp_t)
+
+	allow $1 myapp_t:fd use;
+	allow myapp_t $1:fd use;
+	allow $1 myapp_t:fifo_file rw_file_perms;
+	allow $1 myapp_t:process sigchld;
+')
+
+## &lt;interface name="myapp_read_log"&gt;
+## &lt;summary&gt;
+##	Read myapp log files.
+## &lt;/summary&gt;
+## &lt;parameter name="domain"&gt;
+##	Domain allowed to read the log files.
+## &lt;/parameter&gt;
+## &lt;/interface&gt;
+define(`myapp_read_log',`
+	gen_requires(`
+		type myapp_log_t;
+		class file r_file_perms;
+	')
+
+	logging_search_logs($1)
+	allow $1 myapp_log_t:file r_file_perms;
+')
+
+## &lt;/module&gt;
+</pre>
+</div>
+The first interface allows other domains to do a domain
+transition to myapp_t, by executing a program labeled myapp_exec_t.
+</p>
+<p>
+The second interface allows other domains to read myapp's log files.  Myapp's
+log files are in the /var/log directory, so the access to search the /var/log
+directory is also given by the interface.  The gen_requires() macro is used to
+support loadable policy modules, and must explicitly list the type, attributes,
+object classes, and permissions used by this interface.
 </p>
