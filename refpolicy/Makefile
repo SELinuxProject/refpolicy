@@ -55,6 +55,8 @@ LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 
+CFLAGS := -Wall
+
 SUPPORT := support
 GENDOC := $(SUPPORT)/sedoctool.py
 FCSORT := $(SUPPORT)/fc_sort
@@ -394,7 +396,7 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 $(USERPATH)/local.users: config/local.users
 	@mkdir -p $(USERPATH)
 	@echo "Installing local.users"
-	$(QUIET) install -C -b -m 644 $< $@
+	$(QUIET) install -b -m 644 $< $@
 
 ########################################
 #
