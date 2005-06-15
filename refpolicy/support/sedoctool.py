@@ -237,7 +237,7 @@ def gen_docs(doc, dir, templatedir):
 		interfaces = []
 		for interface in node.getElementsByTagName("interface"):
 			interface_parameters = []
-			interface_secdesc = interface_summary = None
+			interface_desc = interface_secdesc = interface_summary = None
 			for i,v in interface.attributes.items():
 				interface_name = v
 			for desc in interface.getElementsByTagName("description"):
