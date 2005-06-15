@@ -451,6 +451,16 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 	@mkdir -p $(APPDIR)/users
 	$(QUIET) install -m 644 $< $@
 
+########################################
+#
+# Install policy sources
+#
+install-src:
+	rm -rf $(SRCPATH)/policy.old
+	-mv $(SRCPATH)/policy $(SRCPATH)/policy.old
+	mkdir -p $(SRCPATH)/policy
+	cp -R . $(SRCPATH)/policy
+
 clean:
 	rm -fR tmp
 	rm -f policy.conf
