@@ -1,10 +1,11 @@
 <?php
   require_once ("./libs.inc.php");
  
-  if (!$_GET['page'])
-	$page == "index";
-  else 
-	$page == $_GET['page'];
+  $page = "index";
+  if ($_GET['page'])
+	$page = $_GET['page'];
+  
+  #echo "page is $page";
 /* Meh! this is a stupid hack because the stupid template system 
    doesn't like the { } in policy statements */
   $smarty->left_delimiter = '<!--{';
