@@ -7,11 +7,11 @@ policy_module(locallogin,1.0)
 #
 
 type local_login_t; #, nscd_client_domain;
+auth_login_entry_type(local_login_t)
+domain_type(local_login_t)
 domain_obj_id_change_exempt(local_login_t)
 domain_subj_id_change_exempt(local_login_t)
 domain_role_change_exempt(local_login_t)
-auth_login_entry_type(local_login_t)
-domain_type(local_login_t)
 domain_wide_inherit_fd(local_login_t)
 role system_r types local_login_t;
 
@@ -53,6 +53,10 @@ files_create_tmp_files(local_login_t, local_login_tmp_t, { file dir })
 
 kernel_read_system_state(local_login_t)
 kernel_read_kernel_sysctl(local_login_t)
+
+# for SSP/ProPolice
+dev_read_urand(local_login_t)
+
 selinux_get_fs_mount(local_login_t)
 selinux_validate_context(local_login_t)
 selinux_compute_access_vector(local_login_t)
@@ -60,8 +64,8 @@ selinux_compute_create_context(local_login_t)
 selinux_compute_relabel_context(local_login_t)
 selinux_compute_user_contexts(local_login_t)
 
-# for SSP/ProPolice
-dev_read_urand(local_login_t)
+storage_dontaudit_getattr_fixed_disk(local_login_t)
+storage_dontaudit_setattr_fixed_disk(local_login_t)
 
 term_use_all_user_ttys(local_login_t)
 term_use_unallocated_tty(local_login_t)
@@ -105,6 +109,16 @@ userdom_use_unpriv_users_fd(local_login_t)
 
 # Search for mail spool file.
 mta_getattr_spool(local_login_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_read_nfs_files(local_login_t)
+	fs_read_nfs_symlinks(local_login_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_read_cifs_files(local_login_t)
+	fs_read_cifs_symlinks(local_login_t)
+')
 
 # Red Hat systems seem to have a stray
 # fd open from the initrd
@@ -152,15 +166,16 @@ ifdef(`crack.te', `
 	allow local_login_t crack_db_t:file r_file_perms;
 ')
 
-allow local_login_t mouse_device_t:chr_file { getattr setattr };
-
 ifdef(`targeted_policy',`
 	unconfined_domain(local_login_t)
 	domain_auto_trans(local_login_t, shell_exec_t, unconfined_t)
 ')
 
+allow local_login_t mouse_device_t:chr_file { getattr setattr };
+allow local_login_t sound_device_t:chr_file { getattr setattr };
+allow local_login_t power_device_t:chr_file { getattr setattr };
+
 # Do not audit denied attempts to access devices.
-dontaudit local_login_t fixed_disk_device_t:blk_file { getattr setattr };
 dontaudit local_login_t removable_device_t:blk_file { getattr setattr };
 dontaudit local_login_t device_t:{ chr_file blk_file lnk_file } { getattr setattr };
 dontaudit local_login_t misc_device_t:{ chr_file blk_file } { getattr setattr };
@@ -175,20 +190,6 @@ dontaudit local_login_t mnt_t:dir r_dir_perms;
 
 optional_policy(`gpm.te',`
 	allow local_login_t gpmctl_t:sock_file { getattr setattr };
-')
-
-# Allow setting of attributes on sound devices.
-allow local_login_t sound_device_t:chr_file { getattr setattr };
-
-# Allow setting of attributes on power management devices.
-allow local_login_t power_device_t:chr_file { getattr setattr };
-
-tunable_policy(`use_nfs_home_dirs',`
-	r_dir_file(local_login_t, nfs_t)
-')
-
-tunable_policy(`use_samba_home_dirs',`
-	r_dir_file(local_login_t, cifs_t)
 ')
 
 ') dnl endif TODO
