@@ -12,18 +12,14 @@
 ## </interface>
 #
 define(`term_pty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ptynode;
+		type devpts_t;
+		class filesystem associate;
+	')
 
 	allow $1 devpts_t:filesystem associate;
 	typeattribute $1 ptynode;
-')
-
-define(`term_pty_depend',`
-	attribute ptynode;
-
-	type devpts_t;
-
-	class filesystem associate;
 ')
 
 ########################################
@@ -43,14 +39,12 @@ define(`term_pty_depend',`
 ## </interface>
 #
 define(`term_user_pty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute server_ptynode;
+	')
 
 	term_pty($1)
 	type_change $1 server_ptynode:chr_file $2;
-')
-
-define(`term_user_pty_depend',`
-	attribute server_ptynode;
 ')
 
 ########################################
@@ -64,7 +58,10 @@ define(`term_user_pty_depend',`
 ## </interface>
 #
 define(`term_tty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		type tty_device_t;
+	')
 
 	typeattribute $2 ttynode;
 	type_change $1 tty_device_t:chr_file $2;
@@ -72,18 +69,12 @@ define(`term_tty',`
 	# Debian login is from shadow utils and does not allow resetting the perms.
 	# have to fix this!
 	ifdef(`distro_debian',`
-		type_change $1 ttyfile:chr_file $2;
+		type_change $1 ttynode:chr_file $2;
 	')
 
 	ifdef(`distro_redhat',`
 		fs_associate_tmpfs($2)
 	')
-')
-
-define(`term_tty_depend',`
-	attribute ttynode;
-
-	type tty_device_t;
 ')
 
 ########################################
@@ -100,8 +91,12 @@ define(`term_tty_depend',`
 ## </interface>
 #
 define(`term_create_pty',`
-	gen_require(`$0'_depend)
-
+	gen_require(`
+		type bsdpty_device_t, devpts_t, ptmx_t;
+		class filesystem getattr;
+		class dir r_dir_perms;
+		class chr_file rw_file_perms;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ptmx_t:chr_file rw_file_perms;
@@ -110,14 +105,6 @@ define(`term_create_pty',`
 	allow $1 devpts_t:filesystem getattr;
 	dontaudit $1 bsdpty_device_t:chr_file { getattr read write };
 	type_transition $1 devpts_t:chr_file $2;
-')
-
-define(`term_create_pty_depend',`
-	type ptmx_t, devpts_t;
-
-	class filesystem getattr;
-	class dir r_dir_perms;
-	class chr_file rw_file_perms;
 ')
 
 ########################################
@@ -132,20 +119,16 @@ define(`term_create_pty_depend',`
 ## </interface>
 #
 define(`term_use_all_terms',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode, ptynode;
+		type console_device_t, devpts_t, tty_device_t;
+		class dir r_dir_perms;
+		class chr_file rw_file_perms;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 devpts_t:dir r_dir_perms;
 	allow $1 { console_device_t tty_device_t ttynode ptynode }:chr_file rw_file_perms;
-')
-
-define(`term_use_all_terms_depend',`
-	attribute ttynode, ptynode;
-
-	type console_device_t, devpts_t, tty_device_t;
-
-	class dir r_dir_perms;
-	class chr_file rw_file_perms;
 ')
 
 ########################################
@@ -159,15 +142,13 @@ define(`term_use_all_terms_depend',`
 ## </interface>
 #
 define(`term_write_console',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type console_device_t;
+		class chr_file write;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 console_device_t:chr_file write;
-')
-
-define(`term_use_console_depend',`
-	type console_device_t;
-	class chr_file write;
 ')
 
 ########################################
@@ -181,16 +162,13 @@ define(`term_use_console_depend',`
 ## </interface>
 #
 define(`term_use_console',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type console_device_t;
+		class chr_file rw_file_perms;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 console_device_t:chr_file rw_file_perms;
-')
-
-define(`term_use_console_depend',`
-	type console_device_t;
-
-	class chr_file rw_file_perms;
 ')
 
 ########################################
@@ -205,15 +183,12 @@ define(`term_use_console_depend',`
 ## </interface>
 #
 define(`term_dontaudit_use_console',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type console_device_t;
+		class chr_file { read write };
+	')
 
 	dontaudit $1 console_device_t:chr_file { read write };
-')
-
-define(`term_dontaudit_use_console_depend',`
-	type console_device_t;
-
-	class chr_file { read write };
 ')
 
 ########################################
@@ -228,16 +203,13 @@ define(`term_dontaudit_use_console_depend',`
 ## </interface>
 #
 define(`term_setattr_console',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type console_device_t;
+		class chr_file setattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 console_device_t:chr_file setattr;
-')
-
-define(`term_setattr_console_depend',`
-	type console_device_t;
-
-	class chr_file setattr;
 ')
 
 ########################################
@@ -252,16 +224,13 @@ define(`term_setattr_console_depend',`
 ## </interface>
 #
 define(`term_list_ptys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type devpts_t;
+		class dir r_dir_perms;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 devpts_t:dir r_dir_perms;
-')
-
-define(`term_list_ptys_depend',`
-	type devpts_t;
-
-	class dir r_dir_perms;
 ')
 
 ########################################
@@ -276,15 +245,12 @@ define(`term_list_ptys_depend',`
 ## </interface>
 #
 define(`term_dontaudit_list_ptys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type devpts_t;
+		class dir { getattr search read };
+	')
 
 	dontaudit $1 devpts_t:dir { getattr search read };
-')
-
-define(`term_dontaudit_list_ptys_depend',`
-	type devpts_t;
-
-	class dir { getattr search read };
 ')
 
 ########################################
@@ -300,16 +266,13 @@ define(`term_dontaudit_list_ptys_depend',`
 ## </interface>
 #
 define(`term_use_generic_pty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type devpts_t;
+		class chr_file { read write };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 devpts_t:chr_file { read write };
-')
-
-define(`term_use_generic_pty_depend',`
-	type devpts_t;
-
-	class chr_file { read write };
 ')
 
 ########################################
@@ -366,15 +329,12 @@ define(`term_use_controlling_term',`
 ## </interface>
 #
 define(`term_dontaudit_use_ptmx',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type ptmx_t;
+		class chr_file { getattr read write };
+	')
 
 	dontaudit $1 ptmx_t:chr_file { getattr read write };
-')
-
-define(`term_dontaudit_use_ptmx_depend',`
-	type ptmx_t;
-
-	class chr_file { getattr read write };
 ')
 
 ########################################
@@ -389,18 +349,15 @@ define(`term_dontaudit_use_ptmx_depend',`
 ## </interface>
 #
 define(`term_getattr_all_user_ptys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ptynode;
+		class dir r_dir_perms;
+		class chr_file getattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 devpts_t:dir r_dir_perms;
 	allow $1 ptynode:chr_file getattr;
-')
-
-define(`term_getattr_all_ptys_depend',`
-	attribute ptynode;
-
-	class dir r_dir_perms;
-	class chr_file getattr;
 ')
 
 ########################################
@@ -414,18 +371,15 @@ define(`term_getattr_all_ptys_depend',`
 ## </interface>
 #
 define(`term_use_all_user_ptys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ptynode;
+		class dir r_dir_perms;
+		class chr_file { getattr read write ioctl };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 devpts_t:dir r_dir_perms;
 	allow $1 ptynode:chr_file { getattr read write ioctl };
-')
-
-define(`term_use_all_user_ptys_depend',`
-	attribute ptynode;
-
-	class dir r_dir_perms;
-	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
@@ -440,15 +394,12 @@ define(`term_use_all_user_ptys_depend',`
 ## </interface>
 #
 define(`term_dontaudit_use_all_user_ptys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ptynode;
+		class chr_file { read write };
+	')
 
 	dontaudit $1 ptynode:chr_file { read write };
-')
-
-define(`term_dontaudit_use_all_user_ptys_depend',`
-	attribute ptynode;
-
-	class chr_file { read write };
 ')
 
 ########################################
@@ -463,16 +414,13 @@ define(`term_dontaudit_use_all_user_ptys_depend',`
 ## </interface>
 #
 define(`term_getattr_unallocated_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file getattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 tty_device_t:chr_file getattr;
-')
-
-define(`term_getattr_unallocated_ttys_depend',`
-	type tty_device_t;
-
-	class chr_file getattr;
 ')
 
 ########################################
@@ -487,16 +435,13 @@ define(`term_getattr_unallocated_ttys_depend',`
 ## </interface>
 #
 define(`term_setattr_unallocated_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file setattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 tty_device_t:chr_file setattr;
-')
-
-define(`term_setattr_unallocated_ttys_depend',`
-	type tty_device_t;
-
-	class chr_file setattr;
 ')
 
 ########################################
@@ -511,16 +456,13 @@ define(`term_setattr_unallocated_ttys_depend',`
 ## </interface>
 #
 define(`term_relabel_unallocated_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file { relabelfrom relabelto };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 tty_device_t:chr_file { relabelfrom relabelto };
-')
-
-define(`term_relabel_unallocated_ttys_depend',`
-	type tty_device_t;
-
-	class chr_file { relabelfrom relabelto };
 ')
 
 ########################################
@@ -535,18 +477,15 @@ define(`term_relabel_unallocated_ttys_depend',`
 ## </interface>
 #
 define(`term_reset_tty_labels',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		type tty_device_t;
+		class chr_file { relabelfrom relabelto };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file relabelfrom;
 	allow $1 tty_device_t:chr_file relabelto;
-')
-
-define(`term_reset_tty_labels_depend',`
-	attribute ttynode;
-
-	type tty_device_t;
-	class chr_file { relabelfrom relabelto };
 ')
 
 ########################################
@@ -560,16 +499,13 @@ define(`term_reset_tty_labels_depend',`
 ## </interface>
 #
 define(`term_write_unallocated_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file { getattr write };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 tty_device_t:chr_file { getattr write };
-')
-
-define(`term_write_unallocated_ttys_depend',`
-	type tty_device_t;
-
-	class chr_file { getattr write };
 ')
 
 ########################################
@@ -583,16 +519,13 @@ define(`term_write_unallocated_ttys_depend',`
 ## </interface>
 #
 define(`term_use_unallocated_tty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file { getattr read write ioctl };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 tty_device_t:chr_file { getattr read write ioctl };
-')
-
-define(`term_use_unallocated_tty_depend',`
-	type tty_device_t;
-
-	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
@@ -607,15 +540,12 @@ define(`term_use_unallocated_tty_depend',`
 ## </interface>
 #
 define(`term_dontaudit_use_unallocated_tty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type tty_device_t;
+		class chr_file { read write };
+	')
 
 	dontaudit $1 tty_device_t:chr_file { read write };
-')
-
-define(`term_dontaudit_use_unallocated_tty_depend',`
-	type tty_device_t;
-
-	class chr_file { read write };
 ')
 
 ########################################
@@ -630,16 +560,13 @@ define(`term_dontaudit_use_unallocated_tty_depend',`
 ## </interface>
 #
 define(`term_getattr_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file getattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file getattr;
-')
-
-define(`term_getattr_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file getattr;
 ')
 
 ########################################
@@ -655,16 +582,13 @@ define(`term_getattr_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_dontaudit_getattr_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file getattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	dontaudit $1 ttynode:chr_file getattr;
-')
-
-define(`term_dontaudit_getattr_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file getattr;
 ')
 
 ########################################
@@ -679,16 +603,13 @@ define(`term_dontaudit_getattr_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_setattr_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file setattr;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file setattr;
-')
-
-define(`term_setattr_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file setattr;
 ')
 
 ########################################
@@ -703,16 +624,13 @@ define(`term_setattr_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_relabel_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file { relabelfrom relabelto };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file { relabelfrom relabelto };
-')
-
-define(`term_relabel_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file { relabelfrom relabelto };
 ')
 
 ########################################
@@ -726,16 +644,13 @@ define(`term_relabel_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_write_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file { getattr write };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file { getattr write };
-')
-
-define(`term_write_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file { getattr write };
 ')
 
 ########################################
@@ -749,16 +664,13 @@ define(`term_write_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_use_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file { getattr read write ioctl };
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 ttynode:chr_file { getattr read write ioctl };
-')
-
-define(`term_use_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
@@ -773,15 +685,12 @@ define(`term_use_all_user_ttys_depend',`
 ## </interface>
 #
 define(`term_dontaudit_use_all_user_ttys',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute ttynode;
+		class chr_file { read write };
+	')
 
 	dontaudit $1 ttynode:chr_file { read write };
-')
-
-define(`term_dontaudit_use_all_user_ttys_depend',`
-	attribute ttynode;
-
-	class chr_file { read write };
 ')
 
 ## </module>
