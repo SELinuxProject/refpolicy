@@ -17,15 +17,12 @@ define(`create_netif_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_netif_t;
+		class netif { tcp_send tcp_recv };
+	')
 
 	allow dollarsone $1_netif_t:netif { tcp_send tcp_recv };
-')
-
-define(`corenet_tcp_sendrecv_$1_depend',`
-	type $1_netif_t;
-
-	class netif { tcp_send tcp_recv };
 ')
 
 ########################################
@@ -40,15 +37,12 @@ define(`corenet_tcp_sendrecv_$1_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_netif_t;
+		class netif udp_send;
+	')
 
 	allow dollarsone $1_netif_t:netif udp_send;
-')
-
-define(`corenet_udp_send_$1_depend',`
-	type $1_netif_t;
-
-	class netif udp_send;
 ')
 
 ########################################
@@ -63,15 +57,12 @@ define(`corenet_udp_send_$1_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_netif_t;
+		class netif udp_recv;
+	')
 
 	allow dollarsone $1_netif_t:netif udp_recv;
-')
-
-define(`corenet_udp_receive_$1_depend',`
-	type $1_netif_t;
-
-	class netif udp_recv;
 ')
 
 ########################################
@@ -102,17 +93,14 @@ define(`corenet_udp_sendrecv_$1',`
 ## </interface>
 #
 define(`corenet_raw_send_$1',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_netif_t;
+		class netif rawip_send;
+		class capability net_raw;
+	')
 
 	allow dollarsone $1_netif_t:netif rawip_send;
 	allow dollarsone self:capability net_raw;
-')
-
-define(`corenet_raw_send_$1_depend',`
-	type $1_netif_t;
-
-	class netif rawip_send;
-	class capability net_raw;
 ')
 
 ########################################
@@ -127,15 +115,12 @@ define(`corenet_raw_send_$1_depend',`
 ## </interface>
 #
 define(`corenet_raw_receive_$1',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_netif_t;
+		class netif rawip_recv;
+	')
 
 	allow dollarsone $1_netif_t:netif rawip_recv;
-')
-
-define(`corenet_raw_receive_$1_depend',`
-	type $1_netif_t;
-
-	class netif rawip_recv;
 ')
 
 ########################################
@@ -174,15 +159,12 @@ define(`create_node_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class node { tcp_send tcp_recv };
+	')
 
 	allow dollarsone $1_node_t:node { tcp_send tcp_recv };
-')
-
-define(`corenet_tcp_sendrecv_$1_node_depend',`
-	type $1_node_t;
-
-	class node { tcp_send tcp_recv };
 ')
 
 ########################################
@@ -197,15 +179,12 @@ define(`corenet_tcp_sendrecv_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class node udp_send;
+	')
 
 	allow dollarsone $1_node_t:node udp_send;
-')
-
-define(`corenet_udp_send_$1_node_depend',`
-	type $1_node_t;
-
-	class node udp_send;
 ')
 
 ########################################
@@ -220,15 +199,12 @@ define(`corenet_udp_send_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class node udp_recv;
+	')
 
 	allow dollarsone $1_node_t:node udp_recv;
-')
-
-define(`corenet_udp_receive_$1_node_depend',`
-	type $1_node_t;
-
-	class node udp_recv;
 ')
 
 ########################################
@@ -259,17 +235,12 @@ define(`corenet_udp_sendrecv_$1_node',`
 ## </interface>
 #
 define(`corenet_raw_send_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class node rawip_send;
+	')
 
 	allow dollarsone $1_node_t:node rawip_send;
-	allow dollarsone self:capability net_raw;
-')
-
-define(`corenet_raw_send_$1_node_depend',`
-	type $1_node_t;
-
-	class node rawip_send;
-	class capability net_raw;
 ')
 
 ########################################
@@ -284,15 +255,12 @@ define(`corenet_raw_send_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_raw_receive_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class node rawip_recv;
+	')
 
 	allow dollarsone $1_node_t:node rawip_recv;
-')
-
-define(`corenet_raw_receive_$1_node_depend',`
-	type $1_node_t;
-
-	class node rawip_recv;
 ')
 
 ########################################
@@ -323,15 +291,12 @@ define(`corenet_raw_sendrecv_$1_node',`
 ## </interface>
 #
 define(`corenet_tcp_bind_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class tcp_socket node_bind;
+	')
 
 	allow dollarsone $1_node_t:tcp_socket node_bind;
-')
-
-define(`corenet_tcp_bind_$1_node_depend',`
-	type $1_node_t;
-
-	class tcp_socket node_bind;
 ')
 
 ########################################
@@ -346,15 +311,12 @@ define(`corenet_tcp_bind_$1_node_depend',`
 ## </interface>
 #
 define(`corenet_udp_bind_$1_node',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_node_t;
+		class udp_socket node_bind;
+	')
 
 	allow dollarsone $1_node_t:udp_socket node_bind;
-')
-
-define(`corenet_udp_bind_$1_node_depend',`
-	type $1_node_t;
-
-	class udp_socket node_bind;
 ')
 '') dnl end create_node_interfaces
 
@@ -377,15 +339,12 @@ define(`create_port_interfaces',``
 ## </interface>
 #
 define(`corenet_tcp_sendrecv_$1_port',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_port_t;
+		class tcp_socket { send_msg recv_msg };
+	')
 
 	allow dollarsone $1_port_t:tcp_socket { send_msg recv_msg };
-')
-
-define(`corenet_tcp_sendrecv_$1_port_depend',`
-	type $1_port_t;
-
-	class tcp_socket { send_msg recv_msg };
 ')
 
 ########################################
@@ -400,15 +359,12 @@ define(`corenet_tcp_sendrecv_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_send_$1_port',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_port_t;
+		class udp_socket send_msg;
+	')
 
 	allow dollarsone $1_port_t:udp_socket send_msg;
-')
-
-define(`corenet_udp_send_$1_port_depend',`
-	type $1_port_t;
-
-	class udp_socket send_msg;
 ')
 
 ########################################
@@ -423,15 +379,12 @@ define(`corenet_udp_send_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_receive_$1_port',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_port_t;
+		class udp_socket recv_msg;
+	')
 
 	allow dollarsone $1_port_t:udp_socket recv_msg;
-')
-
-define(`corenet_udp_receive_$1_port_depend',`
-	type $1_port_t;
-
-	class udp_socket recv_msg;
 ')
 
 ########################################
@@ -462,16 +415,13 @@ define(`corenet_udp_sendrecv_$1_port',`
 ## </interface>
 #
 define(`corenet_tcp_bind_$1_port',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_port_t;
+		class tcp_socket name_bind;
+		$3
+	')
 	allow dollarsone $1_port_t:tcp_socket name_bind;
 	$2
-')
-
-define(`corenet_tcp_bind_$1_port_depend',`
-	type $1_port_t;
-
-	class tcp_socket name_bind;
-	$3
 ')
 
 ########################################
@@ -486,17 +436,14 @@ define(`corenet_tcp_bind_$1_port_depend',`
 ## </interface>
 #
 define(`corenet_udp_bind_$1_port',`
-	gen_require(`dollarszero'_depend)
+	gen_require(`
+		type $1_port_t;
+		class udp_socket name_bind;
+		$3
+	')
 
 	allow dollarsone $1_port_t:udp_socket name_bind;
 	$2
-')
-
-define(`corenet_udp_bind_$1_port_depend',`
-	type $1_port_t;
-
-	class udp_socket name_bind;
-	$3
 ')
 '') dnl end create_port_interfaces
 
