@@ -12,26 +12,20 @@
 ## </interface>
 #
 define(`iptables_domtrans',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type iptables_t, iptables_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
-	allow $1 iptables_exec_t:file rx_file_perms;
-	allow $1 iptables_t:process transition;
-	type_transition $1 iptables_exec_t:process iptables_t;
-	dontaudit $1 iptables_t:process { noatsecure siginh rlimitinh };
+	corecmd_search_sbin($1)
+	domain_auto_trans($1,iptables_exec_t,iptables_t)
 
 	allow $1 iptables_t:fd use;
 	allow iptables_t $1:fd use;
 	allow iptables_t $1:fifo_file rw_file_perms;
 	allow iptables_t $1:process sigchld;
-')
-
-define(`iptables_domtrans_depend',`
-	type iptables_t, iptables_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -52,17 +46,14 @@ define(`iptables_domtrans_depend',`
 ## </interface>
 #
 define(`iptables_run',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type iptables_t;
+		class chr_file rw_term_perms;
+	')
 
 	iptables_domtrans($1)
 	role $2 types iptables_t;
-	allow iptables_t $3:chr_file { getattr read write ioctl };
-')
-
-define(`iptables_run_depend',`
-	type iptables_t;
-
-	class chr_file { getattr read write ioctl };
+	allow iptables_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -76,16 +67,12 @@ define(`iptables_run_depend',`
 ## </interface>
 #
 define(`iptables_exec',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type iptables_exec_t;
+	')
 
+	corecmd_search_sbin($1)
 	can_exec($1,iptables_exec_t)
-
-')
-
-define(`iptables_exec_depend',`
-	type iptables_t, iptables_exec_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ## </module>

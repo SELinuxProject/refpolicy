@@ -12,17 +12,13 @@
 ## </interface>
 #
 define(`modutils_read_kernel_module_dependencies',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type modules_dep_t;
+		class file r_file_perms;
+	')
 
 	bootloader_list_kernel_modules($1)
 	allow $1 modules_dep_t:file r_file_perms;
-')
-
-define(`modutils_read_kernel_module_dependencies_depend',`
-	type modules_dep_t;
-
-	class file { getattr create read write setattr unlink };
-	class dir { search read write add_name remove_name };
 ')
 
 ########################################
@@ -37,22 +33,23 @@ define(`modutils_read_kernel_module_dependencies_depend',`
 ## </interface>
 #
 define(`modutils_read_module_conf',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type modules_conf_t;
+		class file r_file_perms;
+	')
+
+	# This file type can be in /etc or
+	# /lib(64)?/modules
+	files_search_etc($1)
+	bootloader_search_boot_dir($1)
 
 	allow $1 modules_conf_t:file r_file_perms;
-')
-
-define(`modutils_read_module_conf_depend',`
-	type modules_conf_t;
-
-	class file r_file_perms;
 ')
 
 ########################################
 ## <interface name="modutils_domtrans_insmod">
 ##	<description>
-##		Execute insmod in the insmod domain.  Has a
-##		sigchld backchannel.
+##		Execute insmod in the insmod domain.
 ##	</description>
 ##	<parameter name="domain">
 ##		The type of the process performing this action.
@@ -60,23 +57,20 @@ define(`modutils_read_module_conf_depend',`
 ## </interface>
 #
 define(`modutils_domtrans_insmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type insmod_t, insmod_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
+	corecmd_search_sbin($1)
 	domain_auto_trans($1, insmod_exec_t, insmod_t)
 
 	allow $1 insmod_t:fd use;
 	allow insmod_t $1:fd use;
 	allow insmod_t $1:fifo_file rw_file_perms;
 	allow insmod_t $1:process sigchld;
-')
-
-define(`modutils_domtrans_insmod_depend',`
-	type insmod_t;
-
-	class file { getattr read execute };
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -99,17 +93,14 @@ define(`modutils_domtrans_insmod_depend',`
 ## </interface>
 #
 define(`modutils_run_insmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type insmod_t;
+		class chr_file rw_term_perms;
+	')
 
 	modutils_domtrans_insmod($1)
 	role $2 types insmod_t;
-	allow insmod_t $3:chr_file { getattr read write ioctl };
-')
-
-define(`modutils_run_insmod_depend',`
-	type insmod_t;
-
-	class chr_file { getattr read write ioctl };
+	allow insmod_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -117,15 +108,12 @@ define(`modutils_run_insmod_depend',`
 # modutils_exec_insmod(domain)
 #
 define(`modutils_exec_insmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type insmod_t;
+	')
 
+	corecmd_search_sbin($1)
 	can_exec($1, insmod_exec_t)
-')
-
-define(`modutils_exec_insmod_depend',`
-	type insmod_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
@@ -139,23 +127,20 @@ define(`modutils_exec_insmod_depend',`
 ## </interface>
 #
 define(`modutils_domtrans_depmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type depmod_t, depmod_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
+	corecmd_search_sbin($1)
 	domain_auto_trans($1, depmod_exec_t, depmod_t)
 
 	allow $1 depmod_t:fd use;
 	allow depmod_t $1:fd use;
 	allow depmod_t $1:fifo_file rw_file_perms;
 	allow depmod_t $1:process sigchld;
-')
-
-define(`modutils_domtrans_depmod_depend',`
-	type depmod_t;
-
-	class file { getattr read execute };
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -175,17 +160,14 @@ define(`modutils_domtrans_depmod_depend',`
 ## </interface>
 #
 define(`modutils_run_depmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type depmod_t;
+		class chr_file rw_term_perms;
+	')
 
 	modutils_domtrans_depmod($1)
 	role $2 types insmod_t;
-	allow insmod_t $3:chr_file { getattr read write ioctl };
-')
-
-define(`modutils_run_depmod_depend',`
-	type depmod_t;
-
-	class chr_file { getattr read write ioctl };
+	allow insmod_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -193,15 +175,12 @@ define(`modutils_run_depmod_depend',`
 # modutils_exec_depmod(domain)
 #
 define(`modutils_exec_depmod',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type depmod_t;
+	')
 
+	corecmd_search_sbin($1)
 	can_exec($1, depmod_exec_t)
-')
-
-define(`modutils_exec_depmod_depend',`
-	type depmod_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
@@ -215,23 +194,20 @@ define(`modutils_exec_depmod_depend',`
 ## </interface>
 #
 define(`modutils_domtrans_update_mods',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type update_modules_t, update_modules_exec_t;
+		class process signal;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
+	corecmd_search_sbin($1)
 	domain_auto_trans($1, update_modules_exec_t, update_modules_t)
 
 	allow $1 update_modules_t:fd use;
 	allow update_modules_t $1:fd use;
 	allow update_modules_t $1:fifo_file rw_file_perms;
 	allow update_modules_t $1:process sigchld;
-')
-
-define(`modutils_domtrans_update_mods_depend',`
-	type update_modules_t;
-
-	class file { getattr read execute };
-	class process { transition noatsecure siginh rlimitinh signal };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -251,17 +227,14 @@ define(`modutils_domtrans_update_mods_depend',`
 ## </interface>
 #
 define(`modutils_run_update_mods',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type update_modules_t;
+		class chr_file rw_term_perms;
+	')
 
 	modutils_domtrans_update_mods($1)
 	role $2 types update_modules_t;
-	allow update_modules_t $3:chr_file rw_file_perms;
-')
-
-define(`modutils_run_update_mods_depend',`
-	type update_modules_t;
-
-	class chr_file rw_file_perms;
+	allow update_modules_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -269,15 +242,12 @@ define(`modutils_run_update_mods_depend',`
 # modutils_exec_update_mods(domain)
 #
 define(`modutils_exec_update_mods',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type update_modules_t;
+	')
 
+	corecmd_search_sbin($1)
 	can_exec($1, update_modules_exec_t)
-')
-
-define(`modutils_exec_update_mods_depend',`
-	type update_modules_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ## </module>

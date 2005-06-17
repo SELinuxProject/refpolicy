@@ -6,17 +6,20 @@
 # init_domain(domain,entrypointfile)
 #
 define(`init_domain',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t;
+		role system_r;
+		class fd use;
+		class fifo_file rw_file_perms;
+		class process sigchld;
+	')
 
 	domain_type($1)
 	domain_entry_file($1,$2)
 
 	role system_r types $1;
 
-	allow init_t $1:process transition;
-	allow init_t $2:file rx_file_perms;
-	dontaudit init_t $1:process { noatsecure siginh rlimitinh };
-	type_transition init_t $2:process $1;
+	domain_auto_trans(init_t,$2,$1)
 
 	allow $1 init_t:fd use;
 	allow init_t $1:fd use;
@@ -31,31 +34,25 @@ define(`init_domain',`
 	')
 ')
 
-define(`init_domain_depend',`
-	type init_t;
-	class file rx_file_perms;
-	class fd use;
-	class fifo_file rw_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	role system_r;
-')
-
 ########################################
 #
 # init_daemon_domain(domain,entrypointfile)
 #
 define(`init_daemon_domain',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		role system_r;
+		class fifo_file rw_file_perms;
+		class fd use;
+		class process sigchld;
+	')
 
 	domain_type($1)
 	domain_entry_file($1,$2)
 
 	role system_r types $1;
 
-	allow initrc_t $1:process transition;
-	allow initrc_t $2:file rx_file_perms;
-	dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
-	type_transition initrc_t $2:process $1;
+	domain_auto_trans(initrc_t,$2,$1)
 
 	allow initrc_t $1:fd use;
 	allow $1 initrc_t:fd use;
@@ -68,17 +65,6 @@ define(`init_daemon_domain',`
 		kernel_dontaudit_use_fd($1)
 		files_dontaudit_read_root_file($1)
 	')
-')
-
-define(`init_daemon_domain_depend',`
-	type initrc_t;
-
-	role system_r;
-
-	class file rx_file_perms;
-	class fifo_file rw_file_perms;
-	class fd use;
-	class process { transition noatsecure siginh rlimitinh sigchld };
 ')
 
 ########################################
@@ -86,17 +72,20 @@ define(`init_daemon_domain_depend',`
 # init_system_domain(domain,entrypointfile)
 #
 define(`init_system_domain',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		role system_r;
+		class fd use;
+		class fifo_file rw_file_perms;
+		class process sigchld;
+	')
 
 	domain_type($1)
 	domain_entry_file($1,$2)
 
 	role system_r types $1;
 
-	allow initrc_t $1:process transition;
-	allow initrc_t $2:file rx_file_perms;
-	dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
-	type_transition initrc_t $2:process $1;
+	domain_auto_trans(initrc_t,$2,$1)
 
 	allow initrc_t $1:fd use;
 	allow $1 initrc_t:fd use;
@@ -111,27 +100,19 @@ define(`init_system_domain',`
 	')
 ')
 
-define(`init_system_domain_depend',`
-	type initrc_t;
-	role system_r;
-
-	class file rx_file_perms;
-	class fd use;
-	class fifo_file rw_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-')
-
 ########################################
 #
 # init_domtrans(domain)
 #
 define(`init_domtrans',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t, init_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
-	allow $1 init_exec_t:file rx_file_perms;
-	allow $1 init_t:process transition;
-	type_transition $1 init_exec_t:process init_t;
-	dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
+	domain_auto_trans($1,init_exec_t,init_t)
 
 	allow $1 init_t:fd use;
 	allow init_t $1:fd use;
@@ -139,29 +120,17 @@ define(`init_domtrans',`
 	allow init_t $1:process sigchld;
 ')
 
-define(`init_domtrans_depend',`
-	type init_t, init_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
 ########################################
 #
 # init_get_process_group(domain)
 #
 define(`init_get_process_group',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t;
+		class process getpgid;
+	')
 
 	allow $1 init_t:process getpgid;
-')
-
-define(`init_get_process_group_depend',`
-	type init_t;
-
-	class process getpgid;
 ')
 
 ########################################
@@ -169,15 +138,12 @@ define(`init_get_process_group_depend',`
 # init_getattr_initctl(domain)
 #
 define(`init_getattr_initctl',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initctl_t;
+		class fifo_file getattr;
+	')
 
 	allow $1 initctl_t:fifo_file getattr;
-')
-
-define(`init_getattr_initctl_depend',`
-	type initctl_t;
-
-	class fifo_file getattr;
 ')
 
 ########################################
@@ -185,15 +151,12 @@ define(`init_getattr_initctl_depend',`
 # init_dontaudit_getattr_initctl(domain)
 #
 define(`init_dontaudit_getattr_initctl',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initctl_t;
+		class fifo_file getattr;
+	')
 
 	dontaudit $1 initctl_t:fifo_file getattr;
-')
-
-define(`init_getattr_initctl_depend',`
-	type initctl_t;
-
-	class fifo_file getattr;
 ')
 
 ########################################
@@ -201,16 +164,13 @@ define(`init_getattr_initctl_depend',`
 # init_use_initctl(domain)
 #
 define(`init_use_initctl',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initctl_t;
+		class fifo_file rw_file_perms;
+	')
 
 	dev_list_all_dev_nodes($1)
 	allow $1 initctl_t:fifo_file rw_file_perms;
-')
-
-define(`init_use_initctl_depend',`
-	type initctl_t;
-
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -218,15 +178,12 @@ define(`init_use_initctl_depend',`
 # init_dontaudit_use_initctl(domain)
 #
 define(`init_dontaudit_use_initctl',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initctl_t;
+		class fifo_file { read write };
+	')
 
 	dontaudit $1 initctl_t:fifo_file { read write };
-')
-
-define(`init_dontaudit_use_initctl_depend',`
-	type initctl_t;
-
-	class fifo_file { read write };
 ')
 
 ########################################
@@ -234,15 +191,12 @@ define(`init_dontaudit_use_initctl_depend',`
 # init_sigchld(domain)
 #
 define(`init_sigchld',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t;
+		class process sigchld;
+	')
 
 	allow $1 init_t:process sigchld;
-')
-
-define(`init_sigchld_depend',`
-	type init_t;
-
-	class process sigchld;
 ')
 
 ########################################
@@ -250,15 +204,12 @@ define(`init_sigchld_depend',`
 # init_use_fd(domain)
 #
 define(`init_use_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t;
+		class fd use;
+	')
 
 	allow $1 init_t:fd use;
-')
-
-define(`init_use_fd_depend',`
-	type init_t;
-
-	class fd use;
 ')
 
 ########################################
@@ -266,15 +217,12 @@ define(`init_use_fd_depend',`
 # init_dontaudit_use_fd(domain)
 #
 define(`init_dontaudit_use_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type init_t;
+		class fd use;
+	')
 
 	dontaudit $1 init_t:fd use;
-')
-
-define(`init_dontaudit_use_fd_depend',`
-	type init_t;
-
-	class fd use;
 ')
 
 ########################################
@@ -282,12 +230,15 @@ define(`init_dontaudit_use_fd_depend',`
 # init_domtrans_script(domain)
 #
 define(`init_domtrans_script',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t, initrc_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
-	allow $1 initrc_exec_t:file rx_file_perms;
-	allow $1 initrc_t:process transition;
-	type_transition $1 initrc_exec_t:process init_t;
-	dontaudit $1 init_t:process { noatsecure siginh rlimitinh };
+	files_list_etc($1)
+	domain_auto_trans($1,initrc_exec_t,initrc_t)
 
 	allow $1 initrc_t:fd use;
 	allow initrc_t $1:fd use;
@@ -295,30 +246,17 @@ define(`init_domtrans_script',`
 	allow initrc_t $1:process sigchld;
 ')
 
-define(`init_domtrans_script_depend',`
-	type initrc_t, initrc_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
 ########################################
 #
 # init_exec_script(domain)
 #
 define(`init_exec_script',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_exec_t;
+	')
 
+	files_list_etc($1)
 	can_exec($1,initrc_exec_t)
-
-')
-
-define(`init_exec_script_depend',`
-	type initrc_exec_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
@@ -332,8 +270,15 @@ define(`init_exec_script_depend',`
 ## </interface>
 #
 define(`init_read_script_process_state',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+		class lnk_file r_file_perms;
+		class process { getattr ptrace };
+	')
 
+	#FIXME: search proc dir
 	allow $1 initrc_t:dir r_dir_perms;
 	allow $1 initrc_t:{ file lnk_file } r_file_perms;
 	allow $1 initrc_t:process getattr;
@@ -345,29 +290,17 @@ define(`init_read_script_process_state',`
 	dontaudit $1 initrc_t:process ptrace;
 ')
 
-define(`init_read_script_process_state_depend',`
-	type initrc_t;
-
-	class dir r_dir_perms;
-	class file r_file_perms;
-	class lnk_file r_file_perms;
-	class process { getattr ptrace };
-')
-
 ########################################
 #
 # init_use_script_fd(domain)
 #
 define(`init_use_script_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		class fd use;
+	')
 
 	allow $1 initrc_t:fd use;
-')
-
-define(`init_use_script_fd_depend',`
-	type initrc_t;
-
-	class fd use;
 ')
 
 ########################################
@@ -375,15 +308,12 @@ define(`init_use_script_fd_depend',`
 # init_dontaudit_use_script_fd(domain)
 #
 define(`init_dontaudit_use_script_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		class fd use;
+	')
 
 	dontaudit $1 initrc_t:fd use;
-')
-
-define(`init_dontaudit_use_script_fd_depend',`
-	type initrc_t;
-
-	class fd use;
 ')
 
 ########################################
@@ -391,15 +321,12 @@ define(`init_dontaudit_use_script_fd_depend',`
 # init_get_script_process_group(domain)
 #
 define(`init_get_script_process_group',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_t;
+		class process getpgid;
+	')
 
 	allow $1 initrc_t:process getpgid;
-')
-
-define(`init_get_script_process_group_depend',`
-	type initrc_t;
-
-	class process getpgid;
 ')
 
 ########################################
@@ -407,16 +334,13 @@ define(`init_get_script_process_group_depend',`
 # init_use_script_pty(domain)
 #
 define(`init_use_script_pty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_devpts_t;
+		class chr_file rw_term_perms;
+	')
 
 	term_list_ptys($1)
-	allow $1 initrc_devpts_t:chr_file { getattr read write ioctl };
-')
-
-define(`init_use_script_pty_depend',`
-	type initrc_devpts_t;
-
-	class chr_file { getattr read write ioctl };
+	allow $1 initrc_devpts_t:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -424,15 +348,12 @@ define(`init_use_script_pty_depend',`
 # init_dontaudit_use_script_pty(domain)
 #
 define(`init_dontaudit_use_script_pty',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_devpts_t;
+		class chr_file { read write ioctl };
+	')
 
 	dontaudit $1 initrc_devpts_t:chr_file { read write ioctl };
-')
-
-define(`init_dontaudit_use_script_pty_depend',`
-	type initrc_devpts_t;
-
-	class chr_file { read write ioctl };
 ')
 
 ########################################
@@ -446,16 +367,13 @@ define(`init_dontaudit_use_script_pty_depend',`
 ## </interface>
 #
 define(`init_rw_script_tmp_files',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_var_run_t;
+		class file rw_file_perms;
+	')
 
-	# FIXME: read tmp_t
+	# FIXME: read tmp_t dir
 	allow $1 initrc_tmp_t:file rw_file_perms;
-')
-
-define(`init_rw_script_tmp_files_depend',`
-	type initrc_var_run_t;
-
-	class file rw_file_perms;
 ')
 
 ########################################
@@ -463,16 +381,13 @@ define(`init_rw_script_tmp_files_depend',`
 # init_read_script_pid(domain)
 #
 define(`init_read_script_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_var_run_t;
+		class file r_file_perms;
+	')
 
 	files_list_pids($1)
 	allow $1 initrc_var_run_t:file r_file_perms;
-')
-
-define(`init_read_script_pid_depend',`
-	type initrc_var_run_t;
-
-	class file r_file_perms;
 ')
 
 ########################################
@@ -480,15 +395,12 @@ define(`init_read_script_pid_depend',`
 # init_dontaudit_write_script_pid(domain)
 #
 define(`init_dontaudit_write_script_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_var_run_t;
+		class file { write lock };
+	')
 
 	dontaudit $1 initrc_var_run_t:file { write lock };
-')
-
-define(`init_dontaudit_write_script_pid_depend',`
-	type initrc_var_run_t;
-
-	class file { write lock };
 ')
 
 ########################################
@@ -496,16 +408,13 @@ define(`init_dontaudit_write_script_pid_depend',`
 # init_rw_script_pid(domain)
 #
 define(`init_rw_script_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_var_run_t;
+		class file rw_file_perms;
+	')
 
 	files_list_pids($1)
 	allow $1 initrc_var_run_t:file rw_file_perms;
-')
-
-define(`init_rw_script_pid_depend',`
-	type initrc_var_run_t;
-
-	class file rw_file_perms;
 ')
 
 ########################################
@@ -513,15 +422,12 @@ define(`init_rw_script_pid_depend',`
 # init_dontaudit_rw_script_pid(domain)
 #
 define(`init_dontaudit_rw_script_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type initrc_var_run_t;
+		class file rw_file_perms;
+	')
 
 	dontaudit $1 initrc_var_run_t:file { getattr read write append };
-')
-
-define(`init_dontaudit_rw_script_pid_depend',`
-	type initrc_var_run_t;
-
-	class file rw_file_perms;
 ')
 
 ## </module>

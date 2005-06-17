@@ -12,23 +12,20 @@
 ## </interface>
 #
 define(`libs_domtrans_ldconfig',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type ldconfig_t, ldconfig_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
+	corecmd_search_sbin($1)
 	domain_auto_trans($1,ldconfig_exec_t,ldconfig_t)
 
 	allow $1 ldconfig_t:fd use;
 	allow ldconfig_t $1:fd use;
 	allow ldconfig_t $1:fifo_file rw_file_perms;
 	allow ldconfig_t $1:process sigchld;
-')
-
-define(`libs_domtrans_ldconfig_depend',`
-	type ldconfig_t, ldconfig_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -48,17 +45,14 @@ define(`libs_domtrans_ldconfig_depend',`
 ## </interface>
 #
 define(`libs_run_ldconfig',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type ldconfig_t;
+		class chr_file rw_term_perms;
+	')
 
 	libs_domtrans_ldconfig($1)
 	role $2 types ldconfig_t;
-	allow ldconfig_t $3:chr_file { getattr read write ioctl };
-')
-
-define(`libs_run_ldconfig_depend',`
-	type ldconfig_t;
-
-	class chr_file { getattr read write ioctl };
+	allow ldconfig_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -73,22 +67,19 @@ define(`libs_run_ldconfig_depend',`
 ## </interface>
 #
 define(`libs_use_ld_so',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lib_t, ld_so_t, ld_so_cache_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file rx_file_perms;
+	')
 
-	files_read_generic_etc_files_directory($1)
+	files_list_etc($1)
 	allow $1 lib_t:dir r_dir_perms;
 	allow $1 lib_t:lnk_file r_file_perms;
 	allow $1 ld_so_t:lnk_file r_file_perms;
 	allow $1 ld_so_t:file rx_file_perms;
 	allow $1 ld_so_cache_t:file r_file_perms;
-')
-
-define(`libs_use_ld_so_depend',`
-	type lib_t, ld_so_t, ld_so_cache_t;
-
-	class dir r_dir_perms;
-	class lnk_file r_file_perms;
-	class file rx_file_perms;
 ')
 
 ########################################
@@ -103,17 +94,14 @@ define(`libs_use_ld_so_depend',`
 ## </interface>
 #
 define(`libs_legacy_use_ld_so',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type ld_so_t, ld_so_cache_t;
+		class file { execute execmod };
+	')
 
 	libs_use_ld_so($1)
 	allow $1 ld_so_t:file execmod;
 	allow $1 ld_so_cache_t:file execute;
-')
-
-define(`libs_legacy_use_ld_so_depend',`
-	type ld_so_t, ld_so_cache_t;
-
-	class file { execute execmod };
 ')
 
 ########################################
@@ -132,20 +120,16 @@ define(`libs_legacy_use_ld_so_depend',`
 ## </interface>
 #
 define(`libs_exec_ld_so',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lib_t, ld_so_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+	')
 
 	allow $1 lib_t:dir r_dir_perms;
 	allow $1 lib_t:lnk_file r_file_perms;
 	allow $1 ld_so_t:lnk_file r_file_perms;
-	allow $1 ld_so_t:file { r_file_perms execute execute_no_trans };
-')
-
-define(`libs_exec_ld_so_depend',`
-	type lib_t, ld_so_t;
-
-	class dir r_dir_perms;
-	class lnk_file r_file_perms;
-	class file { r_file_perms execute execute_no_trans };
+	can_exec($1,ld_so_t)
 ')
 
 ########################################
@@ -160,16 +144,32 @@ define(`libs_exec_ld_so_depend',`
 ## </interface>
 #
 define(`libs_rw_ld_so_cache',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type ld_so_cache_t;
+		class file rw_file_perms;
+	')
 
-	files_read_generic_etc_files_directory($1)
+	files_list_etc($1)
 	allow $1 ld_so_cache_t:file rw_file_perms;
 ')
 
-define(`libs_rw_ld_so_cache_depend',`
-	type ld_so_cache_t;
+########################################
+## <interface name="libs_search_lib">
+##	<description>
+##		Search lib directories.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+## </interface>
+#
+define(`libs_search_lib',`
+	gen_require(`
+		type lib_t;
+		class dir search;
+	')
 
-	class file rw_file_perms;
+	allow $1 lib_t:dir search;
 ')
 
 ########################################
@@ -184,18 +184,16 @@ define(`libs_rw_ld_so_cache_depend',`
 ## </interface>
 #
 define(`libs_read_lib',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lib_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file r_file_perms;
+	')
 
+	files_search_usr($1)
 	allow $1 lib_t:dir r_dir_perms;
 	allow $1 lib_t:{ file lnk_file } r_file_perms;
-')
-
-define(`libs_read_lib_depend',`
-	type lib_t;
-
-	class dir r_dir_perms;
-	class lnk_file r_file_perms;
-	class file r_file_perms;
 ')
 
 ########################################
@@ -209,19 +207,16 @@ define(`libs_read_lib_depend',`
 ## </interface>
 #
 define(`libs_exec_lib_files',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lib_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+	')
 
+	files_search_usr($1)
 	allow $1 lib_t:dir r_dir_perms;
 	allow $1 lib_t:lnk_file r_file_perms;
-	allow $1 lib_t:file { getattr read execute execute_no_trans };
-')
-
-define(`libs_exec_lib_files_depend',`
-	type lib_t;
-
-	class dir r_dir_perms;
-	class lnk_file r_file_perms;
-	class file { getattr read execute execute_no_trans };
+	can_exec($1,lib_t)
 ')
 
 ########################################
@@ -235,21 +230,18 @@ define(`libs_exec_lib_files_depend',`
 ## </interface>
 #
 define(`libs_use_shared_libs',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lib_t, shlib_t, texrel_shlib_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file rx_dir_perms;
+	')
 
 	files_search_usr($1)
 	allow $1 lib_t:dir r_dir_perms;
 	allow $1 lib_t:lnk_file r_file_perms;
 	allow $1 { shlib_t texrel_shlib_t }:lnk_file r_file_perms;
 	allow $1 { shlib_t texrel_shlib_t }:file rx_file_perms;
-')
-
-define(`libs_use_shared_libs_depend',`
-	type lib_t, shlib_t, texrel_shlib_t;
-
-	class dir r_dir_perms;
-	class lnk_file r_file_perms;
-	class file rx_dir_perms;
 ')
 
 ########################################
@@ -264,16 +256,13 @@ define(`libs_use_shared_libs_depend',`
 ## </interface>
 #
 define(`libs_legacy_use_shared_libs',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type shlib_t, texrel_shlib_t;
+		class file execmod;
+	')
 
 	libs_use_shared_libs($1)
 	allow $1 { shlib_t texrel_shlib_t }:file execmod;
-')
-
-define(`libs_legacy_use_shared_libs_depend',`
-	type shlib_t, texrel_shlib_t;
-
-	class file execmod;
 ')
 
 ## </module>
