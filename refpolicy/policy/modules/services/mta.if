@@ -8,8 +8,6 @@
 # mta_per_userdomain_template(userdomain_prefix)
 #
 define(`mta_per_userdomain_template',`
-	gen_require(`$0'_depend)
-
 	type $1_mail_t; # , user_mail_domain, nscd_client_domain;
 	domain_type($1_mail_t)
 	role $1_r types $1_mail_t;
@@ -136,23 +134,17 @@ define(`mta_per_userdomain_template',`
 	') dnl end TODO
 ')
 
-define(`mta_per_userdomain_template_depend',`
-
-')
-
 #######################################
 #
 # mta_mailserver(domain,entrypointtype)
 #
 define(`mta_mailserver',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute mailserver_domain;
+	')
 
 	init_daemon_domain($1,$2)
 	typeattribute $1 mailserver_domain;
-')
-
-define(`mta_mailserver_depend',`
-	attribute mailserver_domain;
 ')
 
 #######################################
@@ -160,13 +152,11 @@ define(`mta_mailserver_depend',`
 # mta_sendmail_mailserver(domain,entrypointtype)
 #
 define(`mta_sendmail_mailserver',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type sendmail_exec_t;
+	')
 
 	mta_mailserver($1,sendmail_exec_t)
-')
-
-define(`mta_sendmail_mailserver_depend',`
-	type sendmail_exec_t;
 ')
 
 #######################################
@@ -174,7 +164,13 @@ define(`mta_sendmail_mailserver_depend',`
 # mta_send_mail(domain)
 #
 define(`mta_send_mail',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type system_mail_t, sendmail_exec_t;
+		class lnk_file r_file_perms;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
 	allow $1 sendmail_exec_t:lnk_file r_file_perms;
 	domain_auto_trans($1, sendmail_exec_t, system_mail_t)
@@ -185,30 +181,16 @@ define(`mta_send_mail',`
 	allow system_mail_t $1:process sigchld;
 ')
 
-define(`mta_send_mail_depend',`
-	type system_mail_t, sendmail_exec_t;
-
-	class file { getattr read execute };
-	class lnk_file r_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
 #######################################
 #
 # mta_exec(domain)
 #
 define(`mta_exec',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type sendmail_exec_t;
+	')
 
 	can_exec($1, sendmail_exec_t)
-')
-
-define(`mta_exec_depend',`
-	type sendmail_exec_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 ########################################
@@ -222,15 +204,13 @@ define(`mta_exec_depend',`
 ## </interface>
 #
 define(`mta_read_aliases',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type etc_aliases_t;
+		class file r_file_perms;
+	')
 
+	files_search_etc($1)
 	allow $1 etc_aliases_t:file r_file_perms;
-')
-
-define(`mta_read_aliases_depend',`
-	type etc_aliases_t;
-
-	class file r_file_perms;
 ')
 
 #######################################
@@ -238,15 +218,13 @@ define(`mta_read_aliases_depend',`
 # mta_rw_aliases(domain)
 #
 define(`mta_rw_aliases',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type etc_aliases_t;
+		class file { rw_file_perms setattr };
+	')
 
+	files_search_etc($1)
 	allow sendmail_t etc_aliases_t:file { rw_file_perms setattr };
-')
-
-define(`mta_rw_aliases_depend',`
-	type etc_aliases_t;
-
-	class file { rw_file_perms setattr };
 ')
 
 #######################################
@@ -254,7 +232,12 @@ define(`mta_rw_aliases_depend',`
 # mta_getattr_spool(domain)
 #
 define(`mta_getattr_spool',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type mail_spool_t;
+		class dir r_dir_perms;
+		class file getattr;
+		class lnk_file read;
+	')
 
 	files_search_spool($1)
 	allow $1 mail_spool_t:dir r_dir_perms;
@@ -262,31 +245,20 @@ define(`mta_getattr_spool',`
 	allow $1 mail_spool_t:file getattr;
 ')
 
-define(`mta_getattr_spool_depend',`
-	type mail_spool_t;
-
-	class dir r_dir_perms;
-	class file getattr;
-	class lnk_file read;
-')
-
 #######################################
 #
 # mta_rw_spool(domain)
 #
 define(`mta_rw_spool',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type mail_spool_t;
+		class dir r_dir_perms;
+		class file { rw_file_perms setattr };
+	')
 
 	files_search_spool($1)
-	allow $1 mail_spool_t:dir rw_dir_perms;
+	allow $1 mail_spool_t:dir r_dir_perms;
 	allow $1 mail_spool_t:file { rw_file_perms setattr };
-')
-
-define(`mta_rw_spool_depend',`
-	type mail_spool_t;
-
-	class dir rw_dir_perms;
-	class file { rw_file_perms setattr };
 ')
 
 #######################################
@@ -294,18 +266,15 @@ define(`mta_rw_spool_depend',`
 # mta_manage_spool(domain)
 #
 define(`mta_manage_spool',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type mail_spool_t;
+		class dir rw_dir_perms;
+		class file create_file_perms;
+	')
 
 	files_search_spool($1)
 	allow $1 mail_spool_t:dir rw_dir_perms;
 	allow $1 mail_spool_t:file create_file_perms;
-')
-
-define(`mta_manage_spool_depend',`
-	type mail_spool_t;
-
-	class dir rw_dir_perms;
-	class file create_file_perms;
 ')
 
 #######################################
@@ -313,17 +282,15 @@ define(`mta_manage_spool_depend',`
 # mta_manage_queue(domain)
 #
 define(`mta_manage_queue',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type mqueue_spool_t;
+		class dir rw_dir_perms;
+		class file create_file_perms;
+	')
 
+	# FIXME: search /var/spool dir
 	allow $1 mqueue_spool_t:dir rw_dir_perms;
 	allow $1 mqueue_spool_t:file create_file_perms;
-')
-
-define(`mta_manage_queue_depend',`
-	type mqueue_spool_t;
-
-	class dir rw_dir_perms;
-	class file create_file_perms;
 ')
 
 ## </module>
