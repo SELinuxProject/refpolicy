@@ -1,21 +1,6 @@
 ## <module name="authlogin" layer="system">
 ## <summary>Common policy for authentication and user login.</summary>
 
-
-########################################
-## <interface name="authlogin_per_userdomain_template">
-##	<description>
-##		
-##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
-##	<parameter name="userdomain_prefix">
-##		
-##	</parameter>
-## </interface>
-#
-
 #######################################
 #
 # Per user domain template for this module
@@ -110,29 +95,19 @@ define(`authlogin_per_userdomain_template_depend',`
 ########################################
 ## <interface name="auth_login_entry_type">
 ##	<description>
-##		
+##		Use the login program as an entry point program.
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of process using the login program as entry point.
 ##	</parameter>
 ## </interface>
 #
-
-#######################################
-#
-# auth_login_entry_type(domain)
-#
 define(`auth_login_entry_type',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type login_exec_t;
+	')
 
 	domain_entry_file($1,login_exec_t)
-')
-
-define(`auth_login_entry_type_depend',`
-	type login_exec_t;
 ')
 
 ########################################
@@ -149,13 +124,15 @@ define(`auth_login_entry_type_depend',`
 ## </interface>
 #
 define(`auth_domtrans_login_program',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type login_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
-	# FIXME: search bin_t
-	allow $1 login_exec_t:file rx_file_perms;
-	allow $1 $2:process transition;
-	type_transition $1 login_exec_t:process $2;
-	dontaudit $1 $2:process { noatsecure siginh rlimitinh };
+	corecmd_search_bin($1)
+	domain_auto_trans($1,login_exec_t,$2)
 
 	allow $1 $2:fd use;
 	allow $2 $1:fd use;
@@ -163,35 +140,26 @@ define(`auth_domtrans_login_program',`
 	allow $2 $1:process sigchld;
 ')
 
-define(`auth_domtrans_login_program_depend',`
-	type login_exec_t;
-
-	class file rx_file_perms; 
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
 ########################################
 ## <interface name="auth_domtrans_chk_passwd">
 ##	<description>
-##		
+##		Run unix_chkpwd to check a password.
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_domtrans_chk_passwd(domain)
-#
 define(`auth_domtrans_chk_passwd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type system_chkpwd_t, chkpwd_exec_t, shadow_t;
+		class process sigchld;
+		class udp_socket create_socket_perms;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
+	corecmd_search_sbin($1)
 	domain_auto_trans($1,chkpwd_exec_t,system_chkpwd_t)
 
 	allow $1 system_chkpwd_t:fd use;
@@ -200,7 +168,6 @@ define(`auth_domtrans_chk_passwd',`
 	allow system_chkpwd_t $1:process sigchld;
 
 	dontaudit $1 shadow_t:file { getattr read };
-	#allow $1_t sbin_t:dir search;
 	#can_ypbind($1_t)
 	#can_kerberos($1_t)
 	#can_ldap($1_t)
@@ -217,137 +184,87 @@ define(`auth_domtrans_chk_passwd',`
 	')
 ')
 
-define(`auth_domtrans_chk_passwd_depend',`
-	type system_chkpwd_t, chkpwd_exec_t, shadow_t;
-
-	class file rx_file_perms;
-	class process { transition sigchld };                         
-	class udp_socket create_socket_perms;
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
 ########################################
 ## <interface name="auth_dontaudit_getattr_shadow">
 ##	<description>
 ##		
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_dontaudit_getattr_shadow(domain)
-#
 define(`auth_dontaudit_getattr_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type shadow_t;
+		class file stat_file_perms;
+	')
 
 	dontaudit $1 shadow_t:file getattr;
-')
-
-define(`auth_dontaudit_getattr_shadow_depend',`
-	type shadow_t;
-
-	class file stat_file_perms;
 ')
 
 ########################################
 ## <interface name="auth_read_shadow">
 ##	<description>
-##		
+##		Read the shadow passwords file (/etc/shadow)
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_read_shadow(domain)
-#
 define(`auth_read_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute can_read_shadow_passwords;
+		type shadow_t;
+		class file r_file_perms;
+	')
 
 	files_list_etc($1)
 	allow $1 shadow_t:file r_file_perms;
 	typeattribute $1 can_read_shadow_passwords;
 ')
 
-define(`auth_read_shadow_depend',`
-	attribute can_read_shadow_passwords;
-
-	type shadow_t;
-
-	class file r_file_perms;
-')
-
 ########################################
 ## <interface name="auth_dontaudit_read_shadow">
 ##	<description>
-##		
+##		Do not audit attempts to read the shadow
+##		password file (/etc/shadow).
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the domain to not audit.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_dontaudit_read_shadow(domain)
-#
 define(`auth_dontaudit_read_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type shadow_t;
+		class file r_file_perms;
+	')
 
 	dontaudit $1 shadow_t:file { getattr read };
-')
-
-define(`auth_dontaudit_read_shadow_depend',`
-	type shadow_t;
-
-	class file r_file_perms;
 ')
 
 ########################################
 ## <interface name="auth_rw_shadow">
 ##	<description>
-##		
+##		Read and write the shadow password file (/etc/shadow).
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_rw_shadow(domain)
-#
 define(`auth_rw_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute can_read_shadow_passwords, can_write_shadow_passwords;
+		type shadow_t;
+		class file rw_file_perms;
+	')
 
 	files_list_etc($1)
 	allow $1 shadow_t:file rw_file_perms;
 	typeattribute $1 can_read_shadow_passwords, can_write_shadow_passwords;
-')
-
-define(`auth_rw_shadow_depend',`
-	attribute can_read_shadow_passwords, can_write_shadow_passwords;
-
-	type shadow_t;
-	class file rw_file_perms;
 ')
 
 #######################################
@@ -355,7 +272,11 @@ define(`auth_rw_shadow_depend',`
 # auth_manage_shadow(domain)
 #
 define(`auth_manage_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute can_read_shadow_passwords, can_write_shadow_passwords;
+		type shadow_t;
+		class file create_file_perms;
+	')
 
 	allow $1 shadow_t:file create_file_perms;
 	files_create_etc_config($1,shadow_t,file)
@@ -363,32 +284,20 @@ define(`auth_manage_shadow',`
 	typeattribute $1 can_read_shadow_passwords, can_write_shadow_passwords;
 ')
 
-define(`auth_manage_shadow_depend',`
-	attribute can_read_shadow_passwords, can_write_shadow_passwords;
-
-	type shadow_t;
-
-	class file create_file_perms;
-')
-
 #######################################
 #
 # auth_relabelto_shadow(domain)
 #
 define(`auth_relabelto_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute can_relabelto_shadow_passwords;
+		type shadow_t;
+		class file relabelto;
+	')
 
 	files_search_etc($1)
 	allow $1 shadow_t:file relabelto;
 	typeattribute $1 can_relabelto_shadow_passwords;
-')
-
-define(`auth_relabelto_shadow_depend',`
-	attribute can_relabelto_shadow_passwords;
-
-	type shadow_t;
-
-	class file relabelto;
 ')
 
 #######################################
@@ -396,16 +305,13 @@ define(`auth_relabelto_shadow_depend',`
 # auth_rw_faillog(domain)
 #
 define(`auth_rw_faillog',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type faillog_t;
+		class file rw_file_perms;
+	')
 
-	allow $1 faillog_t:file rw_file_perms;
 	logging_search_logs($1)
-')
-
-define(`auth_rw_faillog_depend',`
-	type faillog_t;
-
-	class file rw_file_perms;
+	allow $1 faillog_t:file rw_file_perms;
 ')
 
 #######################################
@@ -413,16 +319,13 @@ define(`auth_rw_faillog_depend',`
 # auth_rw_lastlog(domain)
 #
 define(`auth_rw_lastlog',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type lastlog_t;
+		class file { getattr read write setattr };
+	')
 
 	logging_search_logs($1)
 	allow $1 lastlog_t:file { getattr read write setattr };
-')
-
-define(`auth_rw_lastlog_depend',`
-	type lastlog_t;
-
-	class file { getattr read write setattr };
 ')
 
 ########################################
@@ -436,7 +339,12 @@ define(`auth_rw_lastlog_depend',`
 ## </interface>
 #
 define(`auth_domtrans_pam',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_t, pam_exec_t;
+		class process sigchld;
+		class fd
+		class fifo_file rw_file_perms;
+	')
 
 	domain_auto_trans($1,pam_exec_t,pam_t)
 
@@ -444,15 +352,6 @@ define(`auth_domtrans_pam',`
 	allow pam_t $1:fd use;
 	allow pam_t $1:fifo_file rw_file_perms;
 	allow pam_t $1:process sigchld;
-')
-
-define(`auth_domtrans_pam_depend',`
-	type pam_t, pam_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -472,46 +371,32 @@ define(`auth_domtrans_pam_depend',`
 ## </interface>
 #
 define(`auth_run_pam',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_t;
+		class chr_file rw_file_perms;
+	')
 
 	auth_domtrans_pam($1)
 	role $2 types pam_t;
 	allow pam_t $3:chr_file rw_file_perms;
 ')
 
-define(`auth_run_pam_depend',`
-	type pam_t;
-
-	class chr_file rw_file_perms;
-')
-
 ########################################
 ## <interface name="auth_exec_pam">
 ##	<description>
-##		
+##		Execute the pam program.
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_exec_pam(domain)
-#
 define(`auth_exec_pam',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_exec_t;
+	')
 
 	can_exec($1,pam_exec_t)
-')
-
-define(`auth_exec_pam_depend',`
-	type pam_exec_t;
-
-	class file { getattr read execute execute_no_trans };
 ')
 
 #######################################
@@ -519,7 +404,11 @@ define(`auth_exec_pam_depend',`
 # auth_read_pam_pid(domain)
 #
 define(`auth_read_pam_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_var_run_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+	')
 
 	files_search_var($1)
 	files_search_pids($1)
@@ -527,32 +416,22 @@ define(`auth_read_pam_pid',`
 	allow $1 pam_var_run_t:file r_file_perms;
 ')
 
-define(`auth_read_pam_pid_depend',`
-	type pam_var_run_t;
-
-	class dir r_dir_perms;
-	class file r_file_perms;
-')
-
 ########################################
 ## <interface name="auth_delete_pam_pid">
 ##	<description>
-##		
+##		Delete pam PID files.
 ##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
 ##	<parameter name="domain">
-##		
+##		The type of the process performing this action.
 ##	</parameter>
 ## </interface>
 #
-#######################################
-#
-# auth_delete_pam_pid(domain)
-#
 define(`auth_delete_pam_pid',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_var_run_t;
+		class dir { getattr search read write remove_name };
+		class file { getattr unlink };
+	')
 
 	files_search_var($1)
 	files_search_pids($1)
@@ -560,19 +439,17 @@ define(`auth_delete_pam_pid',`
 	allow $1 pam_var_run_t:file { getattr unlink };
 ')
 
-define(`auth_delete_pam_pid_depend',`
-	type pam_var_run_t;
-
-	class dir { getattr search read write remove_name };
-	class file { getattr unlink };
-')
-
 #######################################
 #
 # auth_domtrans_pam_console(domain)
 #
 define(`auth_domtrans_pam_console',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_console_t, pam_console_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
 	domain_auto_trans($1,pam_console_exec_t,pam_console_t)
 
@@ -582,44 +459,19 @@ define(`auth_domtrans_pam_console',`
 	allow pam_console_t $1:process sigchld;
 ')
 
-define(`auth_domtrans_pam_console_depend',`
-	type pam_console_t, pam_console_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
-')
-
-########################################
-## <interface name="auth_list_pam_console_data">
-##	<description>
-##		
-##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
-##	<parameter name="domain">
-##		
-##	</parameter>
-## </interface>
-#
 #######################################
 #
 # auth_list_pam_console_data(domain)
 #
 define(`auth_list_pam_console_data',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_var_console_t;
+		class dir r_dir_perms;
+	')
 
 	files_search_var($1)
 	files_search_pids($1)
 	allow $1 pam_var_console_t:dir r_dir_perms;
-')
-
-define(`auth_list_pam_console_data_depend',`
-	type pam_var_console_t;
-
-	class dir r_dir_perms;
 ')
 
 #######################################
@@ -627,7 +479,11 @@ define(`auth_list_pam_console_data_depend',`
 # auth_read_pam_console_data(domain)
 #
 define(`auth_read_pam_console_data',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_var_console_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+	')
 
 	files_search_var($1)
 	files_search_pids($1)
@@ -635,33 +491,23 @@ define(`auth_read_pam_console_data',`
 	allow $1 pam_var_console_t:file r_file_perms;
 ')
 
-define(`auth_read_pam_console_data_depend',`
-	type pam_var_console_t;
-
-	class dir r_dir_perms;
-	class file r_file_perms;
-')
-
 #######################################
 #
 # auth_manage_pam_console_data(domain)
 #
 define(`auth_manage_pam_console_data',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type pam_var_console_t;
+		class dir rw_dir_perms;
+		class file create_file_perms;
+		class lnk_file create_lnk_perms;
+	')
 
 	files_search_var($1)
 	files_search_pids($1)
 	allow $1 pam_var_console_t:dir rw_dir_perms;
 	allow $1 pam_var_console_t:file create_file_perms;
 	allow $1 pam_var_console_t:lnk_file create_lnk_perms;
-')
-
-define(`auth_manage_pam_console_data_depend',`
-	type pam_var_console_t;
-
-	class dir rw_dir_perms;
-	class file create_file_perms;
-	class lnk_file create_lnk_perms;
 ')
 
 ########################################
@@ -681,13 +527,11 @@ define(`auth_manage_pam_console_data_depend',`
 #
 
 define(`auth_relabel_all_files_except_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type shadow_t;
+	')
 
 	files_relabel_all_files($1,$2 -shadow_t)
-')
-
-define(`auth_relabel_all_files_except_shadow_depend',`
-	type shadow_t;
 ')
 
 ########################################
@@ -707,13 +551,11 @@ define(`auth_relabel_all_files_except_shadow_depend',`
 #
 
 define(`auth_manage_all_files_except_shadow',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type shadow_t;
+	')
 
 	files_manage_all_files($1,$2 -shadow_t)
-')
-
-define(`auth_manage_all_files_except_shadow_depend',`
-	type shadow_t;
 ')
 
 ########################################
@@ -727,7 +569,12 @@ define(`auth_manage_all_files_except_shadow_depend',`
 ## </interface>
 #
 define(`auth_domtrans_utempter',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type utempter_t, utempter_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
 
 	domain_auto_trans($1,utempter_exec_t,utempter_t)
 
@@ -735,15 +582,6 @@ define(`auth_domtrans_utempter',`
 	allow utempter_t $1:fd use;
 	allow utempter_t $1:fifo_file rw_file_perms;
 	allow utempter_t $1:process sigchld;
-')
-
-define(`auth_domtrans_utempter_depend',`
-	type utempter_t, utempter_exec_t;
-
-	class file rx_file_perms;
-	class process { transition noatsecure siginh rlimitinh sigchld };
-	class fd use;
-	class fifo_file rw_file_perms;
 ')
 
 ########################################
@@ -763,73 +601,41 @@ define(`auth_domtrans_utempter_depend',`
 ## </interface>
 #
 define(`auth_run_utempter',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type utempter_t;
+		class chr_file rw_file_perms;
+	')
 
 	auth_domtrans_utempter($1)
 	role $2 types utempter_t;
 	allow utempter_t $3:chr_file rw_file_perms;
 ')
 
-define(`auth_run_utempter_depend',`
-	type utempter_t;
-
-	class chr_file rw_file_perms;
-')
-
-########################################
-## <interface name="auth_read_login_records">
-##	<description>
-##		
-##	</description>
-##      <securitydesc>
-##              ...
-##      </securitydesc>
-##	<parameter name="domain">
-##		
-##	</parameter>
-## </interface>
-#
 #######################################
 #
 # auth_read_login_records(domain)
 #
 define(`auth_read_login_records',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type wtmp_t;
+		class file r_file_perms;
+	')
 
 	logging_search_logs($1)
 	allow $1 wtmp_t:file r_file_perms;
 ')
 
-define(`auth_read_login_records_depend',`
-	type wtmp_t;
-
-	class file r_file_perms;
-')
-
-########################################
-## <interface name="auth_dontaudit_write_login_records">
-##	<description>
-##		
-##	</description>
-##	<parameter name="domain">
-##		
-##	</parameter>
-## </interface>
-#
 #######################################
 #
 # auth_dontaudit_write_login_records(domain)
 #
 define(`auth_dontaudit_write_login_records',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		type wtmp_t;
+		class file write;
+	')
 
 	dontaudit $1 wtmp_t:file write;
-')
-
-define(`auth_read_login_records_depend',`
-	type wtmp_t;
-
-	class file write;
 ')
 
 #######################################
