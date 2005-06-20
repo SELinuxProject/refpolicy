@@ -129,7 +129,7 @@ CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/users 
 
 DISABLEMOD := $(foreach mod,$(shell egrep -v '^[[:blank:]]*\#' $(MOD_DISABLE)),$(subst ./,,$(shell find -iname $(mod).te)))
-ALL_LAYERS := $(shell find $(wildcard policy/modules/*) -maxdepth 0 -type d)
+ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 
 GENERATED_TE := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te.in)))
 GENERATED_IF := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if.in)))
@@ -153,6 +153,7 @@ POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_
 DOCS = doc
 POLXML = $(DOCS)/policy.xml
 XMLDTD = $(DOCS)/policy.dtd
+LAYERXML = metadata.xml
 HTMLDIR = $(DOCS)/html
 DOCTEMPLATE = $(DOCS)/templates
 
@@ -364,9 +365,13 @@ $(POLXML): $(ALL_INTERFACES)
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
 	$(QUIET) echo "<policy>" >> $@
-# process this through m4 to eliminate the generated definitions templates.
-# currently these are only in corenetwork.if
-	$(QUIET) m4 $(ALL_INTERFACES) $(GLOBALTUN) | egrep -h "^##[[:blank:]]" | sed -e 's/^##[[:blank:]]//g' >> $@
+# do all modules, even disabled ones:
+	$(QUIET) for i in $(ALL_LAYERS); do \
+		cat $$i/$(LAYERXML) >> $@ ;\
+		egrep -h "^##[[:blank:]]" $$i/*.if | sed -e 's/^##[[:blank:]]//g' >> $@ ;\
+		echo "</layer>" >> $@;\
+	done
+	$(QUIET) egrep -h "^##[[:blank:]]" $(GLOBALTUN) | sed -e 's/^##[[:blank:]]//g' >> $@
 	$(QUIET) echo "</policy>" >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
