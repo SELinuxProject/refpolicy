@@ -56,15 +56,12 @@ def gen_module_conf(doc, file):
 	file.write("# creation, uncomment the line with its name.\n#\n")
 	for node in doc.getElementsByTagName("module"):
 		mod_name = mod_layer = None
-		for (name, value) in node.attributes.items():
-			if name == "name":
-				mod_name = value
-			if name == "layer":
-				mod_layer = value
 
-			if mod_name and mod_layer:
-				file.write("# Layer: %s\n# Module: %s\n#\n" % (mod_layer,mod_name))
+		mod_name = node.attributes.items()[0][1]
+		mod_layer = node.parentNode.attributes.items()[0][1]
 
+		if mod_name and mod_layer:
+			file.write("# Layer: %s\n# Module: %s\n#\n" % (mod_layer,mod_name))
 		for desc in node.getElementsByTagName("summary"):
 			if not desc.parentNode == node:
 				continue
@@ -159,18 +156,17 @@ def gen_docs(doc, dir, templatedir):
 	try:
 		os.chdir(dir)
 	except:
-		error("Could now chdir to target directory")	
+		error("Could not chdir to target directory")	
 
 
 #arg, i have to go through this dom tree ahead of time to build up the menus
 	module_list = {}
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = interface_buf = ''
-		for (name, value) in node.attributes.items():
-			if name == "name":
-				mod_name = value
-			if name == "layer":
-				mod_layer = value
+
+		mod_name = node.attributes.items()[0][1]
+		mod_layer = node.parentNode.attributes.items()[0][1]
+
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node and desc:
 				mod_summary = format_html_desc(desc)
@@ -222,11 +218,10 @@ def gen_docs(doc, dir, templatedir):
 	all_interfaces = []
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = mod_desc = interface_buf = ''
-		for (name, value) in node.attributes.items():
-			if name == "name":
-				mod_name = value
-			if name == "layer":
-				mod_layer = value
+
+		mod_name = node.attributes.items()[0][1]
+		mod_layer = node.parentNode.attributes.items()[0][1]
+
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node:
 				mod_summary = format_html_desc(desc)
