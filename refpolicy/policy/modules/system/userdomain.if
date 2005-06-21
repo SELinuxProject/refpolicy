@@ -869,10 +869,30 @@ define(`userdom_shell_domtrans_sysadm_depend',`
 ')
 
 ########################################
+## <interface name="userdom_use_sysadm_tty">
+##	<description>
+##		Read and write sysadm ttys.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+## </interface>
+#
+define(`userdom_use_sysadm_tty',`
+	gen_require(`
+		type sysadm_tty_device_t;
+		class chr_file { getattr read write ioctl };
+	')
+
+	dev_list_all_dev_nodes($1)
+	term_list_ptys($1)
+	allow $1 sysadm_tty_device_t:chr_file { getattr read write ioctl };
+')
+
+########################################
 ## <interface name="userdom_use_sysadm_terms">
 ##	<description>
-##		Read and write administrative users
-##		physical and pseudo terminals.
+##		Read and write sysadm ttys and ptys.
 ##	</description>
 ##	<parameter name="domain">
 ##		The type of the process performing this action.
@@ -880,17 +900,14 @@ define(`userdom_shell_domtrans_sysadm_depend',`
 ## </interface>
 #
 define(`userdom_use_sysadm_terms',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute admin_terminal;
+		class chr_file { getattr read write ioctl };
+	')
 
 	dev_list_all_dev_nodes($1)
 	term_list_ptys($1)
 	allow $1 admin_terminal:chr_file { getattr read write ioctl };
-')
-
-define(`userdom_use_sysadm_terms_depend',`
-	attribute admin_terminal;
-
-	class chr_file { getattr read write ioctl };
 ')
 
 ########################################
@@ -904,15 +921,12 @@ define(`userdom_use_sysadm_terms_depend',`
 ## </interface>
 #
 define(`userdom_dontaudit_use_sysadm_terms',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute admin_terminal;
+		class chr_file { read write };
+	')
 
 	dontaudit $1 admin_terminal:chr_file { read write };
-')
-
-define(`userdom_dontaudit_use_sysadm_terms_depend',`
-	attribute admin_terminal;
-
-	class chr_file { read write };
 ')
 
 ########################################
@@ -926,16 +940,13 @@ define(`userdom_dontaudit_use_sysadm_terms_depend',`
 ## </interface>
 #
 define(`userdom_search_all_users_home',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute home_dir_type, home_type;
+		class dir search;
+	')
 
 	files_list_home($1)
 	allow $1 { home_dir_type home_type }:dir search;
-')
-
-define(`userdom_search_all_users_home_depend',`
-	attribute home_dir_type, home_type;
-
-	class dir search;
 ')
 
 ########################################
@@ -949,18 +960,15 @@ define(`userdom_search_all_users_home_depend',`
 ## </interface>
 #
 define(`userdom_read_all_user_data',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute home_type;
+		class dir r_dir_perms;
+		class file r_file_perms;
+	')
 
 	files_list_home($1)
 	allow $1 home_type:dir r_dir_perms;
 	allow $1 home_type:file r_file_perms;
-')
-
-define(`userdom_read_all_user_data_depend',`
-	attribute home_type;
-
-	class dir r_dir_perms;
-	class file r_file_perms;
 ')
 
 ########################################
@@ -974,15 +982,12 @@ define(`userdom_read_all_user_data_depend',`
 ## </interface>
 #
 define(`userdom_use_all_user_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute userdomain;
+		class fd use;
+	')
 
 	allow $1 userdomain:fd use;
-')
-
-define(`userdom_use_all_user_fd_depend',`
-	attribute userdomain;
-
-	class fd use;
 ')
 
 ########################################
@@ -996,15 +1001,31 @@ define(`userdom_use_all_user_fd_depend',`
 ## </interface>
 #
 define(`userdom_signal_all_users',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute userdomain;
+		class process signal;
+	')
 
 	allow $1 userdomain:process signal;
 ')
 
-define(`userdom_signal_all_users_depend',`
-	attribute userdomain;
+########################################
+## <interface name="userdom_signal_unpriv_users">
+##	<description>
+##		Send general signals to unprivileged user domains.
+##	</description>
+##	<parameter name="domain">
+##		The type of the process performing this action.
+##	</parameter>
+## </interface>
+#
+define(`userdom_signal_unpriv_users',`
+	gen_require(`
+		attribute unpriv_userdomain;
+		class process signal;
+	')
 
-	class process signal;
+	allow $1 unpriv_userdomain:process signal;
 ')
 
 ########################################
@@ -1018,15 +1039,12 @@ define(`userdom_signal_all_users_depend',`
 ## </interface>
 #
 define(`userdom_use_unpriv_users_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute unpriv_userdomain;
+		class fd use;
+	')
 
 	allow $1 unpriv_userdomain:fd use;
-')
-
-define(`userdom_use_unpriv_users_fd_depend',`
-	attribute unpriv_userdomain;
-
-	class fd use;
 ')
 
 ########################################
@@ -1041,15 +1059,12 @@ define(`userdom_use_unpriv_users_fd_depend',`
 ## </interface>
 #
 define(`userdom_dontaudit_use_unpriv_user_fd',`
-	gen_require(`$0'_depend)
+	gen_require(`
+		attribute unpriv_userdomain;
+		class fd use;
+	')
 
 	dontaudit $1 unpriv_userdomain:fd use;
-')
-
-define(`userdom_dontaudit_use_unpriv_user_fd_depend',`
-	attribute unpriv_userdomain;
-
-	class fd use;
 ')
 
 ## </module>

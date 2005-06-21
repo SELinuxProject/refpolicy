@@ -1,0 +1,229 @@
+
+policy_module(ssh,1.0)
+
+########################################
+#
+# Declarations
+#
+
+# Allow ssh logins as sysadm_r:sysadm_t
+bool ssh_sysadm_login false;
+
+# Allow ssh to run from inetd instead of as a daemon.
+bool run_ssh_inetd false;
+
+# Type for the ssh-agent executable.
+type ssh_agent_exec_t;
+files_file_type(ssh_agent_exec_t)
+
+# ssh client executable.
+type ssh_exec_t;
+files_file_type(ssh_exec_t)
+
+type ssh_keygen_t;
+type ssh_keygen_exec_t;
+init_daemon_domain(ssh_keygen_t,ssh_keygen_exec_t)
+role system_r types ssh_keygen_t;
+
+# ssh server executable
+type sshd_exec_t;
+files_file_type(sshd_exec_t)
+
+type sshd_key_t;
+files_file_type(sshd_key_t)
+
+type sshd_tmp_t;
+files_tmp_file(sshd_tmp_t)
+
+#################################
+#
+# sshd local policy
+#
+# sshd_t is the domain for the sshd program.
+#
+
+sshd_program_domain(sshd)
+
+allow sshd_t sshd_tmp_t:dir create_dir_perms;
+allow sshd_t sshd_tmp_t:file create_file_perms;
+allow sshd_t sshd_tmp_t:sock_file create_file_perms;
+files_create_tmp_files(sshd_t, sshd_tmp_t, { dir file sock_file })
+
+# for X forwarding
+corenet_tcp_bind_xserver_port(sshd_t)
+
+auth_exec_pam(sshd_t)
+
+seutil_read_config(sshd_t)
+
+ifdef(`TODO',`
+if (ssh_sysadm_login) {
+	userdom_spec_domtrans_all_users(sshd_t)
+	userdom_signal_all_users(sshd_t)
+
+	ifdef(`xauth.te',`
+		domain_trans(sshd_t, xauth_exec_t, userdomain)
+	')
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_t ptyfile:chr_file { relabelto read write getattr ioctl setattr };
+	# inheriting stream sockets is needed for "ssh host command" as no pty
+	# is allocated
+	allow userdomain sshd_t:unix_stream_socket rw_stream_socket_perms;
+} else {
+	userdom_spec_domtrans_unpriv_users(sshd_t)
+	userdom_signal_unpriv_users(sshd_t)
+
+	ifdef(`xauth.te',`
+		domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
+	')
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
+	# inheriting stream sockets is needed for "ssh host command" as no pty
+	# is allocated
+	allow userdomain sshd_t:unix_stream_socket rw_stream_socket_perms;
+}
+
+# for when the network connection breaks after running newrole -r sysadm_r
+dontaudit sshd_t sysadm_devpts_t:chr_file setattr;
+
+# Allow checking users mail at login
+allow sshd_t { var_spool_t mail_spool_t }:dir search;
+allow sshd_t mail_spool_t:lnk_file read;
+allow sshd_t mail_spool_t:file getattr;
+') dnl endif TODO
+
+#################################
+#
+# sshd_extern local policy
+#
+# sshd_extern_t is the domain for ssh from outside our network
+#
+ifdef(`TODO',`
+sshd_program_domain(sshd_extern)
+
+domain_trans(sshd_extern_t, shell_exec_t, user_mini_domain)
+# Signal the user domains.
+allow sshd_extern_t user_mini_domain:process signal;
+
+ifdef(`xauth.te', `
+domain_trans(sshd_extern_t, xauth_exec_t, user_mini_domain)
+')
+
+# Relabel and access ptys created by sshd
+# ioctl is necessary for logout() processing for utmp entry and for w to
+# display the tty.
+# some versions of sshd on the new SE Linux require setattr
+allow sshd_extern_t user_mini_domain:chr_file { relabelto read write getattr ioctl setattr };
+
+# inheriting stream sockets is needed for "ssh host command" as no pty
+# is allocated
+allow user_mini_domain sshd_extern_t:unix_stream_socket rw_stream_socket_perms;
+
+optional_policy(`inetd.te',`
+	if (run_ssh_inetd) {
+		allow inetd_t ssh_port_t:tcp_socket name_bind;
+		domain_auto_trans(inetd_t, sshd_exec_t, sshd_t)
+		domain_trans(inetd_t, sshd_exec_t, sshd_extern_t)
+	} else {
+		domain_auto_trans(initrc_t, sshd_exec_t, sshd_t)
+		domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
+		dontaudit initrc_t sshd_key_t:file { getattr read };
+	}
+',`
+	# These rules should match the else block
+	# of the run_ssh_inetd conditional directly above
+	domain_auto_trans(initrc_t, sshd_exec_t, sshd_t)
+	domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
+	dontaudit initrc_t sshd_key_t:file { getattr read };
+')
+
+ifdef(`direct_sysadm_daemon', `
+# Direct execution by sysadm_r.
+domain_auto_trans(sysadm_t, sshd_exec_t, sshd_t)
+role_transition sysadm_r sshd_exec_t system_r;
+')
+
+# so a tunnel can point to another ssh tunnel...
+allow sshd_t self:tcp_socket { acceptfrom connectto recvfrom };
+allow sshd_t kernel_t:tcp_socket recvfrom;
+allow sshd_t kernel_t:tcp_socket recvfrom;
+
+# for port forwarding
+allow userdomain sshd_t:tcp_socket { connectto recvfrom };
+allow sshd_t userdomain:tcp_socket { acceptfrom recvfrom };
+allow userdomain kernel_t:tcp_socket recvfrom;
+allow sshd_t kernel_t:tcp_socket recvfrom;
+') dnl endif TODO
+
+########################################
+#
+# ssh_keygen local policy
+#
+
+# ssh_keygen_t is the type of the ssh-keygen program when run at install time
+# and by sysadm_t
+
+dontaudit ssh_keygen_t self:capability sys_tty_config;
+allow ssh_keygen_t self:process { sigchld sigkill sigstop signull signal };
+
+allow ssh_keygen_t self:unix_stream_socket create_stream_socket_perms;
+
+allow ssh_keygen_t sshd_key_t:file create_file_perms;
+files_create_etc_config(ssh_keygen_t,sshd_key_t,file)
+
+kernel_read_kernel_sysctl(ssh_keygen_t)
+
+dev_read_sysfs(ssh_keygen_t)
+dev_read_urand(ssh_keygen_t)
+
+term_dontaudit_use_console(ssh_keygen_t)
+
+domain_use_wide_inherit_fd(ssh_keygen_t)
+
+files_read_generic_etc_files(ssh_keygen_t)
+
+init_use_fd(ssh_keygen_t)
+init_use_script_pty(ssh_keygen_t)
+
+libs_use_ld_so(ssh_keygen_t)
+libs_use_shared_libs(ssh_keygen_t)
+
+logging_send_syslog_msg(ssh_keygen_t)
+
+allow ssh_keygen_t proc_t:dir r_dir_perms;
+allow ssh_keygen_t proc_t:lnk_file read;
+
+userdom_use_sysadm_tty(ssh_keygen_t)
+userdom_dontaudit_use_unpriv_user_fd(ssh_keygen_t)
+
+ifdef(`direct_sysadm_daemon',`
+	userdom_dontaudit_use_sysadm_terms(ssh_keygen_t)
+')
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(ssh_keygen_t)
+	term_dontaudit_use_generic_pty(ssh_keygen_t)
+	files_dontaudit_read_root_file(ssh_keygen_t)
+')
+
+optional_policy(`rhgb.te', `
+	rhgb_domain(ssh_keygen_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_newrole_sigchld(ssh_keygen_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(ssh_keygen_t)
+')
+
+ifdef(`TODO',`
+allow ssh_keygen_t autofs_t:dir { search getattr };
+')
