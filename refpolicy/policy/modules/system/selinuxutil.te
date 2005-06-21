@@ -128,11 +128,6 @@ libs_use_shared_libs(checkpolicy_t)
 
 userdom_use_all_user_fd(checkpolicy_t)
 
-ifdef(`TODO',`
-# Read the devpts root directory.  
-ifdef(`sshd.te',`allow checkpolicy_t sshd_devpts_t:dir r_dir_perms;')
-') dnl endif TODO
-
 ########################################
 #
 # Load_policy local policy
@@ -210,6 +205,8 @@ selinux_compute_user_contexts(newrole_t)
 
 term_use_all_user_ttys(newrole_t)
 term_use_all_user_ptys(newrole_t)
+term_relabel_all_user_ttys(newrole_t)
+term_relabel_all_user_ptys(newrole_t)
 
 auth_domtrans_chk_passwd(newrole_t)
 
@@ -229,6 +226,14 @@ miscfiles_read_localization(newrole_t)
 
 userdom_use_unpriv_users_fd(newrole_t)
 
+# if secure mode is enabled, then newrole
+# can only transition to unprivileged users
+if(secure_mode) {
+	userdom_spec_domtrans_unpriv_users(newrole_t)
+} else {
+	userdom_spec_domtrans_all_users(newrole_t)
+}
+
 ifdef(`TODO',`
 
 can_ypbind(newrole)
@@ -239,28 +244,9 @@ allow newrole_t autofs_t:dir { search getattr };
 # for when the user types "exec newrole" at the command line
 allow newrole_t privfd:process sigchld;
  
-# Execute /sbin/pwdb_chkpwd to check the password.
-allow newrole_t sbin_t:dir r_dir_perms;
-
-# Execute shells
-allow newrole_t bin_t:dir r_dir_perms;
-allow newrole_t bin_t:lnk_file read;
-
-# Allow newrole_t to transition to user domains.
-bool secure_mode false;
-domain_trans(newrole_t, shell_exec_t, unpriv_userdomain)
-if(!secure_mode)
-{
-	# if we are not in secure mode then we can transition to sysadm_t
-	domain_trans(newrole_t, shell_exec_t, sysadm_t)
-}
-
 # Read /var.
 allow newrole_t var_t:dir r_dir_perms;
 allow newrole_t var_t:notdevfile_class_set r_file_perms;
-
-# Relabel terminals.
-allow newrole_t { ttyfile ptyfile }:chr_file { relabelfrom relabelto };
 
 ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
 
@@ -308,10 +294,6 @@ logging_send_syslog_msg(restorecon_t)
 
 userdom_use_all_user_fd(restorecon_t)
 
-optional_policy(`hotplug.te',`
-	hotplug_use_fd(restorecon_t)
-')
-
 # relabeling rules
 kernel_relabel_unlabeled(restorecon_t)
 dev_relabel_all_dev_nodes(restorecon_t)
@@ -326,6 +308,10 @@ ifdef(`distro_redhat', `
 	fs_use_tmpfs_block_devices(restorecon_t)
 	fs_relabel_tmpfs_block_devices(restorecon_t)
 	fs_relabel_tmpfs_character_devices(restorecon_t)
+')
+
+optional_policy(`hotplug.te',`
+	hotplug_use_fd(restorecon_t)
 ')
 
 ifdef(`TODO',`
@@ -395,13 +381,15 @@ ifdef(`targeted_policy',`',`
 	logging_send_syslog_msg(run_init_t)
 ') dnl end ifdef targeted policy
 
+
 ifdef(`TODO',`
 
 ifdef(`distro_gentoo', `
 	# Gentoo integrated run_init+open_init_pty-runscript:
-	domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
 	domain_entry_file(run_init_t,initrc_exec_t)
+	domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
 ')
+
 ') dnl end TODO
 
 ########################################
