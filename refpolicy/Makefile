@@ -238,9 +238,9 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES)
 	done
 	$(QUIET) $(SETTUN) $(TUNABLES) >> $@
 
-tmp/all_interfaces.conf: $(ALL_INTERFACES)
+tmp/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
+	$(QUIET) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
 
 tmp/all_te_files.conf: $(ALL_TE_FILES)
 	@test -d tmp || mkdir -p tmp

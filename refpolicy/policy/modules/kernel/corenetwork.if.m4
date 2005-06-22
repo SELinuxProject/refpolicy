@@ -16,7 +16,7 @@ define(`create_netif_interfaces',``
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_tcp_sendrecv_$1',`
+interface(`corenet_tcp_sendrecv_$1',`
 	gen_require(`
 		type $1_netif_t;
 		class netif { tcp_send tcp_recv };
@@ -36,7 +36,7 @@ define(`corenet_tcp_sendrecv_$1',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_send_$1',`
+interface(`corenet_udp_send_$1',`
 	gen_require(`
 		type $1_netif_t;
 		class netif udp_send;
@@ -56,7 +56,7 @@ define(`corenet_udp_send_$1',`
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_receive_$1',`
+interface(`corenet_udp_receive_$1',`
 	gen_require(`
 		type $1_netif_t;
 		class netif udp_recv;
@@ -76,7 +76,7 @@ define(`corenet_udp_receive_$1',`
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_sendrecv_$1',`
+interface(`corenet_udp_sendrecv_$1',`
 	corenet_udp_send_$1(dollarsone)
 	corenet_udp_receive_$1(dollarsone)
 ')
@@ -92,7 +92,7 @@ define(`corenet_udp_sendrecv_$1',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_send_$1',`
+interface(`corenet_raw_send_$1',`
 	gen_require(`
 		type $1_netif_t;
 		class netif rawip_send;
@@ -114,7 +114,7 @@ define(`corenet_raw_send_$1',`
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_receive_$1',`
+interface(`corenet_raw_receive_$1',`
 	gen_require(`
 		type $1_netif_t;
 		class netif rawip_recv;
@@ -134,7 +134,7 @@ define(`corenet_raw_receive_$1',`
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_sendrecv_$1',`
+interface(`corenet_raw_sendrecv_$1',`
 	corenet_raw_send_$1(dollarsone)
 	corenet_raw_receive_$1(dollarsone)
 ')
@@ -158,7 +158,7 @@ define(`create_node_interfaces',``
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_tcp_sendrecv_$1_node',`
+interface(`corenet_tcp_sendrecv_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class node { tcp_send tcp_recv };
@@ -178,7 +178,7 @@ define(`corenet_tcp_sendrecv_$1_node',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_send_$1_node',`
+interface(`corenet_udp_send_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class node udp_send;
@@ -198,7 +198,7 @@ define(`corenet_udp_send_$1_node',`
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_receive_$1_node',`
+interface(`corenet_udp_receive_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class node udp_recv;
@@ -218,7 +218,7 @@ define(`corenet_udp_receive_$1_node',`
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_sendrecv_$1_node',`
+interface(`corenet_udp_sendrecv_$1_node',`
 	corenet_udp_send_$1_node(dollarsone)
 	corenet_udp_receive_$1_node(dollarsone)
 ')
@@ -234,7 +234,7 @@ define(`corenet_udp_sendrecv_$1_node',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_send_$1_node',`
+interface(`corenet_raw_send_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class node rawip_send;
@@ -254,7 +254,7 @@ define(`corenet_raw_send_$1_node',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_receive_$1_node',`
+interface(`corenet_raw_receive_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class node rawip_recv;
@@ -274,7 +274,7 @@ define(`corenet_raw_receive_$1_node',`
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_raw_sendrecv_$1_node',`
+interface(`corenet_raw_sendrecv_$1_node',`
 	corenet_raw_send_$1_node(dollarsone)
 	corenet_raw_receive_$1_node(dollarsone)
 ')
@@ -290,7 +290,7 @@ define(`corenet_raw_sendrecv_$1_node',`
 ##	<infoflow type="none"/>
 ## </interface>
 #
-define(`corenet_tcp_bind_$1_node',`
+interface(`corenet_tcp_bind_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class tcp_socket node_bind;
@@ -310,7 +310,7 @@ define(`corenet_tcp_bind_$1_node',`
 ##	<infoflow type="none"/>
 ## </interface>
 #
-define(`corenet_udp_bind_$1_node',`
+interface(`corenet_udp_bind_$1_node',`
 	gen_require(`
 		type $1_node_t;
 		class udp_socket node_bind;
@@ -338,7 +338,7 @@ define(`create_port_interfaces',``
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_tcp_sendrecv_$1_port',`
+interface(`corenet_tcp_sendrecv_$1_port',`
 	gen_require(`
 		type $1_port_t;
 		class tcp_socket { send_msg recv_msg };
@@ -358,7 +358,7 @@ define(`corenet_tcp_sendrecv_$1_port',`
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_send_$1_port',`
+interface(`corenet_udp_send_$1_port',`
 	gen_require(`
 		type $1_port_t;
 		class udp_socket send_msg;
@@ -378,7 +378,7 @@ define(`corenet_udp_send_$1_port',`
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_receive_$1_port',`
+interface(`corenet_udp_receive_$1_port',`
 	gen_require(`
 		type $1_port_t;
 		class udp_socket recv_msg;
@@ -398,7 +398,7 @@ define(`corenet_udp_receive_$1_port',`
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
-define(`corenet_udp_sendrecv_$1_port',`
+interface(`corenet_udp_sendrecv_$1_port',`
 	corenet_udp_send_$1_port(dollarsone)
 	corenet_udp_receive_$1_port(dollarsone)
 ')
@@ -414,7 +414,7 @@ define(`corenet_udp_sendrecv_$1_port',`
 ##	<infoflow type="none"/>
 ## </interface>
 #
-define(`corenet_tcp_bind_$1_port',`
+interface(`corenet_tcp_bind_$1_port',`
 	gen_require(`
 		type $1_port_t;
 		class tcp_socket name_bind;
@@ -435,7 +435,7 @@ define(`corenet_tcp_bind_$1_port',`
 ##	<infoflow type="none"/>
 ## </interface>
 #
-define(`corenet_udp_bind_$1_port',`
+interface(`corenet_udp_bind_$1_port',`
 	gen_require(`
 		type $1_port_t;
 		class udp_socket name_bind;
