@@ -7,12 +7,12 @@
 define(`create_netif_interfaces',``
 ########################################
 ## <interface name="corenet_tcp_sendrecv_$1">
-##	<description>
+##	<desc>
 ##		Send and receive TCP network traffic on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -27,12 +27,12 @@ interface(`corenet_tcp_sendrecv_$1',`
 
 ########################################
 ## <interface name="corenet_udp_send_$1">
-##	<description>
+##	<desc>
 ##		Send UDP network traffic on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -47,12 +47,12 @@ interface(`corenet_udp_send_$1',`
 
 ########################################
 ## <interface name="corenet_udp_receive_$1">
-##	<description>
+##	<desc>
 ##		Receive UDP network traffic on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
@@ -67,12 +67,12 @@ interface(`corenet_udp_receive_$1',`
 
 ########################################
 ## <interface name="corenetwork_sendrecv_udp_on_$1_interface">
-##	<description>
+##	<desc>
 ##		Send and receive UDP network traffic on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -83,12 +83,12 @@ interface(`corenet_udp_sendrecv_$1',`
 
 ########################################
 ## <interface name="corenet_raw_send_$1">
-##	<description>
+##	<desc>
 ##		Send raw IP packets on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -105,12 +105,12 @@ interface(`corenet_raw_send_$1',`
 
 ########################################
 ## <interface name="corenet_raw_receive_$1">
-##	<description>
+##	<desc>
 ##		Receive raw IP packets on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
@@ -125,12 +125,12 @@ interface(`corenet_raw_receive_$1',`
 
 ########################################
 ## <interface name="corenet_raw_sendrecv_$1">
-##	<description>
+##	<desc>
 ##		Send and receive raw IP packets on the $1 interface.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -149,12 +149,12 @@ interface(`corenet_raw_sendrecv_$1',`
 define(`create_node_interfaces',``
 ########################################
 ## <interface name="corenet_tcp_sendrecv_$1_node">
-##	<description>
+##	<desc>
 ##		Send and receive TCP traffic on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -169,12 +169,12 @@ interface(`corenet_tcp_sendrecv_$1_node',`
 
 ########################################
 ## <interface name="corenet_udp_send_$1_node">
-##	<description>
+##	<desc>
 ##		Send UDP traffic on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -189,12 +189,12 @@ interface(`corenet_udp_send_$1_node',`
 
 ########################################
 ## <interface name="corenet_udp_receive_$1_node">
-##	<description>
+##	<desc>
 ##		Receive UDP traffic on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
@@ -209,12 +209,12 @@ interface(`corenet_udp_receive_$1_node',`
 
 ########################################
 ## <interface name="corenet_udp_sendrecv_$1_node">
-##	<description>
+##	<desc>
 ##		Send and receive UDP traffic on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -225,12 +225,12 @@ interface(`corenet_udp_sendrecv_$1_node',`
 
 ########################################
 ## <interface name="corenet_raw_send_$1_node">
-##	<description>
+##	<desc>
 ##		Send raw IP packets on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -245,12 +245,12 @@ interface(`corenet_raw_send_$1_node',`
 
 ########################################
 ## <interface name="corenet_raw_receive_$1_node">
-##	<description>
+##	<desc>
 ##		Receive raw IP packets on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -265,12 +265,12 @@ interface(`corenet_raw_receive_$1_node',`
 
 ########################################
 ## <interface name="corenet_raw_sendrecv_$1_node">
-##	<description>
+##	<desc>
 ##		Send and receive raw IP packets on the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -281,12 +281,12 @@ interface(`corenet_raw_sendrecv_$1_node',`
 
 ########################################
 ## <interface name="corenet_tcp_bind_$1_node">
-##	<description>
+##	<desc>
 ##		Bind TCP sockets to node $1.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="none"/>
 ## </interface>
 #
@@ -301,12 +301,12 @@ interface(`corenet_tcp_bind_$1_node',`
 
 ########################################
 ## <interface name="corenet_udp_bind_$1_node">
-##	<description>
+##	<desc>
 ##		Bind UDP sockets to the $1 node.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="none"/>
 ## </interface>
 #
@@ -329,12 +329,12 @@ interface(`corenet_udp_bind_$1_node',`
 define(`create_port_interfaces',``
 ########################################
 ## <interface name="corenet_tcp_sendrecv_$1_port">
-##	<description>
+##	<desc>
 ##		Send and receive TCP traffic on the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -349,12 +349,12 @@ interface(`corenet_tcp_sendrecv_$1_port',`
 
 ########################################
 ## <interface name="corenet_udp_send_$1_port">
-##	<description>
+##	<desc>
 ##		Send UDP traffic on the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="write" weight="10"/>
 ## </interface>
 #
@@ -369,12 +369,12 @@ interface(`corenet_udp_send_$1_port',`
 
 ########################################
 ## <interface name="corenet_udp_receive_$1_port">
-##	<description>
+##	<desc>
 ##		Receive UDP traffic on the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="read" weight="10"/>
 ## </interface>
 #
@@ -389,12 +389,12 @@ interface(`corenet_udp_receive_$1_port',`
 
 ########################################
 ## <interface name="corenetwork_sendrecv_udp_on_$1_port">
-##	<description>
+##	<desc>
 ##		Send and receive UDP traffic on the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="both" weight="10"/>
 ## </interface>
 #
@@ -405,12 +405,12 @@ interface(`corenet_udp_sendrecv_$1_port',`
 
 ########################################
 ## <interface name="corenet_tcp_bind_$1_port">
-##	<description>
+##	<desc>
 ##		Bind TCP sockets to the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="none"/>
 ## </interface>
 #
@@ -426,12 +426,12 @@ interface(`corenet_tcp_bind_$1_port',`
 
 ########################################
 ## <interface name="corenet_udp_bind_$1_port">
-##	<description>
+##	<desc>
 ##		Bind UDP sockets to the $1 port.
-##	</description>
-##	<parameter name="domain">
+##	</desc>
+##	<param name="domain">
 ##		The type of the process performing this action.
-##	</parameter>
+##	</param>
 ##	<infoflow type="none"/>
 ## </interface>
 #
