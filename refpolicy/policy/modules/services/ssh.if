@@ -39,6 +39,30 @@ template(`ssh_per_userdomain_template',`
 	# Read the ssh key file.
 	allow $1_ssh_t sshd_key_t:file r_file_perms;
 
+	# Access the ssh temporary files.
+	allow $1_ssh_t sshd_tmp_t:dir create_dir_perms;
+	allow $1_ssh_t sshd_tmp_t:file create_file_perms;
+	files_create_tmp_files($1_ssh_t, sshd_tmp_t, { file dir })
+
+	# for rsync
+	allow $1_ssh_t $1_t:unix_stream_socket rw_socket_perms;
+	allow $1_ssh_t $1_t:unix_stream_socket connectto;
+
+	# user can manage the keys and config
+	allow $1_t $1_home_ssh_t:dir rw_dir_perms;
+	allow $1_t $1_home_ssh_t:file create_file_perms;
+	allow $1_t $1_home_ssh_t:lnk_file create_lnk_perms;
+	allow $1_t $1_home_ssh_t:sock_file create_file_perms;
+
+	# ssh client can manage the keys and config
+	allow $1_ssh_t $1_home_ssh_t:file create_file_perms;
+	allow $1_ssh_t $1_home_ssh_t:lnk_file { getattr read };
+
+	# ssh servers can read the user keys and config
+	allow ssh_server $1_home_ssh_t:dir r_dir_perms;
+	allow ssh_server $1_home_ssh_t:lnk_file r_file_perms;
+	allow ssh_server $1_home_ssh_t:file r_file_perms;
+
 	kernel_read_kernel_sysctl($1_ssh_t)
 
 	corenet_tcp_sendrecv_all_if($1_ssh_t)
@@ -75,6 +99,8 @@ template(`ssh_per_userdomain_template',`
 
 	sysnet_read_config($1_ssh_t)
 
+	userdom_use_unpriv_users_fd($1_ssh_t)
+
 	tunable_policy(`use_dns',`
 		allow $1_ssh_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
 		corenet_udp_sendrecv_all_if($1_ssh_t)
@@ -99,7 +125,6 @@ template(`ssh_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-	allow $1_ssh_t unpriv_userdomain:fd use;
 	can_ypbind($1_ssh_t)
 
 	allow $1_ssh_t autofs_t:dir { search getattr };
@@ -125,22 +150,14 @@ template(`ssh_per_userdomain_template',`
 	can_ypbind($1_ssh_t)
 	can_kerberos($1_ssh_t)
 
-	# Access the ssh temporary files.
-	file_type_auto_trans($1_ssh_t, tmp_t, sshd_tmp_t)
 	allow $1_ssh_t $1_tmp_t:dir r_dir_perms;
-
-	# for rsync
-	allow $1_ssh_t $1_t:unix_stream_socket rw_socket_perms;
 
 	# Access the users .ssh directory.
 	file_type_auto_trans({ sysadm_ssh_t $1_ssh_t }, $1_home_dir_t, $1_home_ssh_t, dir)
 	file_type_auto_trans($1_ssh_t, $1_home_dir_t, $1_home_ssh_t, sock_file)
-	allow $1_t $1_home_ssh_t:sock_file create_file_perms;
-	allow { sysadm_ssh_t $1_ssh_t } $1_home_ssh_t:file create_file_perms;
-	allow { sysadm_ssh_t $1_ssh_t } $1_home_ssh_t:lnk_file { getattr read };
+	allow sysadm_ssh_t $1_home_ssh_t:file create_file_perms;
+	allow sysadm_ssh_t $1_home_ssh_t:lnk_file { getattr read };
 	dontaudit $1_ssh_t $1_home_t:dir { getattr search };
-	r_dir_file({ sshd_t sshd_extern_t }, $1_home_ssh_t)
-	rw_dir_create_file($1_t, $1_home_ssh_t)
 
 	# for /bin/sh used to execute xauth
 	dontaudit $1_ssh_t proc_t:dir search;
@@ -154,8 +171,6 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t devpts_t:dir { read search getattr };
 	allow $1_ssh_t $1_devpts_t:chr_file { read write getattr ioctl };
 
-	# Allow the user shell to signal the ssh program.
-	allow $1_t $1_ssh_t:process signal;
 	# allow ps to show ssh
 	can_ps($1_t, $1_ssh_t)
 
@@ -267,7 +282,6 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_agent_t { home_root_t $1_home_dir_t }:dir search;
 
 	allow $1_ssh_t $1_tmp_t:sock_file write;
-	allow $1_ssh_t $1_t:unix_stream_socket connectto;
 
 	ifdef(`xdm.te', `
 	allow $1_ssh_agent_t xdm_t:fd use;
@@ -295,8 +309,7 @@ template(`ssh_per_userdomain_template',`
 #
 #
 template(`sshd_program_domain', `
-	# auth_chkpwd is for running unix_chkpwd and unix_verify.
-	type $1_t; #, nscd_client_domain;
+	type $1_t, ssh_server; #, nscd_client_domain;
 	role system_r types $1_t;
 
 	type $1_devpts_t;
