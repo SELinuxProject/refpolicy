@@ -64,9 +64,9 @@ def getFileBase(file_name):
 	# encountered, ignores hidden files denoted by a leading ','.
 	for i in range(1,len(file_name)-1):
 		if file_name[-i] == '.':
-			return file_name[:-i]
+			return os.path.basename(file_name[:-i])
 
-	return file_name
+	return os.path.basename(file_name)
 
 def getXMLComment(line):
 	'''
@@ -275,11 +275,11 @@ def getTunableXML(file_name):
 		# and give it the data from the temprorary buffer.
 		if params:
 			tunable_buf.append\
-				("<tunable name=\"%s\" dftval=\"%s\">"
+				("<tunable name=\"%s\" dftval=\"%s\">\n"
 				% (params[0], params[1]))
 			tunable_buf += temp_buf
 			temp_buf = []
-			tunable_buf.append("</tunable>")
+			tunable_buf.append("</tunable>\n")
 
 	# If there are XML comments at the end of the file, they arn't
 	# attributed to anything. These are ignored.
