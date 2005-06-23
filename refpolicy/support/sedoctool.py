@@ -225,7 +225,7 @@ def gen_docs(doc, dir, templatedir):
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node:
 				mod_summary = format_html_desc(desc)
-		for desc in node.getElementsByTagName("description"):
+		for desc in node.getElementsByTagName("desc"):
 			if desc.parentNode == node:
 				mod_desc = format_html_desc(desc)
 
@@ -235,15 +235,15 @@ def gen_docs(doc, dir, templatedir):
 			interface_desc = interface_secdesc = interface_summary = None
 			for i,v in interface.attributes.items():
 				interface_name = v
-			for desc in interface.getElementsByTagName("description"):
+			for desc in interface.getElementsByTagName("desc"):
 				interface_desc = format_html_desc(desc)
-			for desc in interface.getElementsByTagName("securitydesc"):
+			for desc in interface.getElementsByTagName("secdesc"):
 				if desc:
 					interface_secdesc = format_html_desc(desc)
 			for desc in interface.getElementsByTagName("summary"):
 				interface_summary = format_html_desc(desc)
 			
-			for args in interface.getElementsByTagName("parameter"):
+			for args in interface.getElementsByTagName("param"):
 				paramdesc = args.firstChild.data
 				paramname = None
 				paramopt = "No"
