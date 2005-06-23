@@ -58,6 +58,7 @@ GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 CFLAGS := -Wall
 
 SUPPORT := support
+GENXML := $(SUPPORT)/segenxml.py
 GENDOC := $(SUPPORT)/sedoctool.py
 FCSORT := $(SUPPORT)/fc_sort
 SETTUN := $(SUPPORT)/set_tunables
@@ -363,16 +364,8 @@ $(POLXML): $(ALL_INTERFACES)
 	@echo "Creating $@"
 	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(QUIET) echo '<!DOCTYPE policy SYSTEM "policy.dtd">' >> $@
-	$(QUIET) echo "<policy>" >> $@
-# do all modules, even disabled ones:
-	$(QUIET) for i in $(ALL_LAYERS); do \
-		cat $$i/$(LAYERXML) >> $@ ;\
-		egrep -h "^##[[:blank:]]" $$i/*.if | sed -e 's/^##[[:blank:]]//g' >> $@ ;\
-		echo "</layer>" >> $@;\
-	done
-	$(QUIET) egrep -h "^##[[:blank:]]" $(GLOBALTUN) | sed -e 's/^##[[:blank:]]//g' >> $@
-	$(QUIET) echo "</policy>" >> $@
+	$(QUIET) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
+	$(QUIET) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) $(ALL_LAYERS) >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
