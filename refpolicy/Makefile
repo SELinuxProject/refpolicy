@@ -274,7 +274,6 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
 		| m4 $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
-	$(QUIET) echo "## </module>" >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
 	@echo "#" > $@
