@@ -191,8 +191,11 @@ def getModuleXML(file_name):
 				if len(temp_buf):
 					module_buf += temp_buf
 				else:
+					module_buf.append("<summary>\n")
+					module_buf.append("Summary is unspecified.\n")
+					module_buf.append("</summary>\n")
 					module_buf.append("<param name=\"?\">\n")
-					module_buf.append("Parameters unspecified.\n")
+					module_buf.append("Parameters are unspecified.\n")
 					module_buf.append("</param>\n")
 				temp_buf = []
 				module_buf.append("</interface>\n")
@@ -200,7 +203,15 @@ def getModuleXML(file_name):
 			elif getParams(line,TEMPLATE):
 				module_buf.append("<template name =\"%s\">\n"\
 					% getParams(line,TEMPLATE)[0])
-				module_buf += temp_buf
+				if len(temp_buf):
+					module_buf += temp_buf
+				else:
+					module_buf.append("<summary>\n")
+					module_buf.append("Summary is unspecified.\n")
+					module_buf.append("</summary>\n")
+					module_buf.append("<param name=\"?\">\n")
+					module_buf.append("Parameters unspecified.\n")
+					module_buf.append("</param>\n")
 				temp_buf = []
 				module_buf.append("</template>\n")
 
