@@ -1,5 +1,26 @@
 ## <summary>Secure shell client and server policy.</summary>
 
+#######################################
+## <summary>
+##	The per user domain template for the ssh module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for ssh client sessions and user ssh agents.  A derived
+##	type is also created to protect the user ssh keys.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+#
 template(`ssh_per_userdomain_template',`
 	##############################
 	#
@@ -103,6 +124,8 @@ template(`ssh_per_userdomain_template',`
 
 	userdom_use_unpriv_users_fd($1_ssh_t)
 
+	nis_use_ypbind($1_ssh_t)
+
 	tunable_policy(`use_dns',`
 		allow $1_ssh_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
 		corenet_udp_sendrecv_all_if($1_ssh_t)
@@ -147,9 +170,6 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t var_run_t:dir r_dir_perms;
 	allow $1_ssh_t var_run_t:{ file lnk_file } r_file_perms;
 
-	# Grant permissions needed to create TCP and UDP sockets and
-	# to access the network.
-	can_ypbind($1_ssh_t)
 	can_kerberos($1_ssh_t)
 
 	allow $1_ssh_t $1_tmp_t:dir r_dir_perms;
@@ -306,9 +326,23 @@ template(`ssh_per_userdomain_template',`
 	') dnl endif TODO
 ')
 
-########################################
-#
-#
+#######################################
+## <summary>
+##	The template to define a ssh server.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a domains to be used for
+##	creating a ssh server.  This is typically done
+##	to have multiple ssh servers of different sensitivities,
+##	such as for an internal network-facing ssh server, and
+##	a external network-facing ssh server.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
 #
 template(`sshd_program_domain', `
 	type $1_t, ssh_server; #, nscd_client_domain;
