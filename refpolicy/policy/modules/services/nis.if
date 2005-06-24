@@ -1,0 +1,89 @@
+## <summary>Policy for NIS (YP) servers and clients</summary>
+
+########################################
+## <summary>
+##	Use the ypbind service to access NIS services.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`nis_use_ypbind',`
+	gen_require(`
+		type var_yp_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file r_file_perms;
+		class capability net_bind_service;
+		class tcp_socket create_stream_socket_perms;
+		class udp_socket create_socket_perms;
+	')
+
+	tunable_policy(`allow_ypbind',`
+		dontaudit $1 self:capability net_bind_service;
+
+		allow $1 self:tcp_socket { listen accept };
+		allow $1 self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+		allow $1 self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+
+		allow $1 var_yp_t:dir r_dir_perms;
+		allow $1 var_yp_t:lnk_file r_file_perms;
+		allow $1 var_yp_t:file r_file_perms;
+
+		corenet_tcp_sendrecv_all_if($1)
+		corenet_udp_sendrecv_all_if($1)
+		corenet_raw_sendrecv_all_if($1)
+		corenet_tcp_sendrecv_all_nodes($1)
+		corenet_udp_sendrecv_all_nodes($1)
+		corenet_raw_sendrecv_all_nodes($1)
+		corenet_tcp_bind_all_nodes($1)
+		corenet_udp_bind_all_nodes($1)
+		corenet_tcp_sendrecv_all_ports($1)
+		corenet_udp_sendrecv_all_ports($1)
+		corenet_tcp_bind_generic_port($1)
+		corenet_udp_bind_generic_port($1)
+		corenet_tcp_bind_reserved_port($1)
+		corenet_udp_bind_reserved_port($1)
+		corenet_dontaudit_tcp_bind_all_reserved_ports($1)
+		corenet_dontaudit_udp_bind_all_reserved_ports($1)
+
+	',`
+		dontaudit $1 var_yp_t:dir search;
+	')
+')
+
+########################################
+## <summary>
+##	Send UDP network traffic to NIS clients.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`nis_list_var_yp',`
+	gen_require(`
+		type ypbind_t;
+		class dir r_dir_perms;
+	')
+
+	files_search_var($1)
+	allow $1 var_yp_t:dir r_dir_perms;
+')
+
+########################################
+## <summary>
+##	Send UDP network traffic to NIS clients.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`nis_udp_sendto_ypbind',`
+	gen_require(`
+		type ypbind_t;
+		class udp_socket { sendto recvfrom };
+	')
+
+	allow $1 ypbind_t:udp_socket sendto;
+	allow ypbind_t $1:udp_socket recvfrom;
+')

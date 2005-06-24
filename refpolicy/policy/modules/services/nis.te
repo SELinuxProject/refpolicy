@@ -1,0 +1,227 @@
+
+policy_module(nis,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type var_yp_t;
+files_file_type(var_yp_t)
+
+type ypbind_t;
+type ypbind_exec_t;
+init_daemon_domain(ypbind_t,ypbind_exec_t)
+
+type ypbind_tmp_t;
+files_tmp_file(ypbind_tmp_t)
+
+type ypbind_var_run_t;
+files_pid_file(ypbind_var_run_t)
+
+type ypserv_t;
+type ypserv_exec_t;
+init_daemon_domain(ypserv_t,ypserv_exec_t)
+
+type ypserv_conf_t;
+files_file_type(ypserv_conf_t)
+
+type ypserv_tmp_t;
+files_tmp_file(ypserv_tmp_t)
+
+type ypserv_var_run_t;
+files_pid_file(ypserv_var_run_t)
+
+########################################
+#
+# ypbind local policy
+
+dontaudit ypbind_t self:capability { net_admin sys_tty_config };
+allow ypbind_t self:fifo_file rw_file_perms;
+allow ypbind_t self:{ unix_dgram_socket unix_stream_socket } create_socket_perms;
+allow ypbind_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow ypbind_t self:tcp_socket { listen accept };
+allow ypbind_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+allow ypbind_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown };
+
+allow ypbind_t ypbind_tmp_t:dir create_dir_perms;
+allow ypbind_t ypbind_tmp_t:file create_file_perms;
+files_create_tmp_files(ypbind_t, ypbind_tmp_t, { file dir })
+
+allow ypbind_t ypbind_var_run_t:file { getattr create read write append setattr unlink };
+files_create_pid(ypbind_t,ypbind_var_run_t)
+
+allow ypbind_t var_yp_t:dir rw_dir_perms;
+allow ypbind_t var_yp_t:file create_file_perms;
+
+kernel_read_kernel_sysctl(ypbind_t)
+
+corenet_tcp_sendrecv_all_if(ypbind_t)
+corenet_udp_sendrecv_all_if(ypbind_t)
+corenet_raw_sendrecv_all_if(ypbind_t)
+corenet_tcp_sendrecv_all_nodes(ypbind_t)
+corenet_udp_sendrecv_all_nodes(ypbind_t)
+corenet_raw_sendrecv_all_nodes(ypbind_t)
+corenet_tcp_bind_all_nodes(ypbind_t)
+corenet_udp_bind_all_nodes(ypbind_t)
+corenet_tcp_sendrecv_all_ports(ypbind_t)
+corenet_udp_sendrecv_all_ports(ypbind_t)
+corenet_tcp_bind_generic_port(ypbind_t)
+corenet_udp_bind_generic_port(ypbind_t)
+corenet_tcp_bind_reserved_port(ypbind_t)
+corenet_udp_bind_reserved_port(ypbind_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(ypbind_t)
+corenet_dontaudit_udp_bind_all_reserved_ports(ypbind_t)
+
+dev_read_sysfs(ypbind_t)
+
+fs_getattr_all_fs(ypbind_t)
+
+term_dontaudit_use_console(ypbind_t)
+
+domain_use_wide_inherit_fd(ypbind_t)
+
+files_read_generic_etc_files(ypbind_t)
+
+init_use_fd(ypbind_t)
+init_use_script_pty(ypbind_t)
+init_udp_sendto_script(ypbind_t)
+
+libs_use_ld_so(ypbind_t)
+libs_use_shared_libs(ypbind_t)
+
+logging_send_syslog_msg(ypbind_t)
+
+miscfiles_read_localization(ypbind_t)
+
+sysnet_read_config(ypbind_t)
+
+userdom_dontaudit_use_unpriv_user_fd(ypbind_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(ypbind_t)
+	term_dontaudit_use_generic_pty(ypbind_t)
+	files_dontaudit_read_root_file(ypbind_t)
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(ypbind_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_newrole_sigchld(ypbind_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(ypbind_t)
+')
+
+ifdef(`TODO',`
+allow ypbind_t proc_t:dir r_dir_perms;
+allow ypbind_t proc_t:lnk_file read;
+
+allow ypbind_t autofs_t:dir { search getattr };
+dontaudit ypbind_t sysadm_home_dir_t:dir search;
+
+can_udp_send(ypbind_t, portmap_t)
+
+optional_policy(`rhgb.te', `
+	rhgb_domain(ypbind_t)
+')
+
+') dnl end TODO
+
+########################################
+#
+# ypserv local policy
+#
+
+dontaudit ypserv_t self:capability sys_tty_config;
+allow ypserv_t self:fifo_file rw_file_perms;
+allow ypserv_t self:unix_dgram_socket create_socket_perms;
+allow ypserv_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow ypserv_t self:tcp_socket { listen accept connected_socket_perms };
+
+allow ypserv_t var_yp_t:dir rw_dir_perms;
+allow ypserv_t var_yp_t:file create_file_perms;
+
+allow ypserv_t ypserv_conf_t:file { getattr read };
+
+allow ypserv_t ypserv_tmp_t:dir create_dir_perms;
+allow ypserv_t ypserv_tmp_t:file create_file_perms;
+files_create_tmp_files(ypserv_t, ypserv_tmp_t, { file dir })
+
+allow ypserv_t ypserv_var_run_t:file { getattr create read write append setattr unlink };
+files_create_pid(ypserv_t,ypserv_var_run_t)
+
+kernel_read_kernel_sysctl(ypserv_t)
+
+corenet_tcp_sendrecv_all_if(ypserv_t)
+corenet_raw_sendrecv_all_if(ypserv_t)
+corenet_tcp_sendrecv_all_nodes(ypserv_t)
+corenet_raw_sendrecv_all_nodes(ypserv_t)
+corenet_tcp_sendrecv_all_ports(ypserv_t)
+corenet_tcp_bind_all_nodes(ypserv_t)
+corenet_tcp_bind_reserved_port(ypserv_t)
+corenet_udp_bind_reserved_port(ypserv_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(ypserv_t)
+corenet_dontaudit_udp_bind_all_reserved_ports(ypserv_t)
+
+dev_read_sysfs(ypserv_t)
+
+fs_getattr_all_fs(ypserv_t)
+
+term_dontaudit_use_console(ypserv_t)
+
+domain_use_wide_inherit_fd(ypserv_t)
+
+init_use_fd(ypserv_t)
+init_use_script_pty(ypserv_t)
+init_udp_sendto_script(ypserv_t)
+
+libs_use_ld_so(ypserv_t)
+libs_use_shared_libs(ypserv_t)
+
+logging_send_syslog_msg(ypserv_t)
+
+miscfiles_read_localization(ypserv_t)
+
+sysnet_read_config(ypserv_t)
+
+userdom_dontaudit_use_unpriv_user_fd(ypserv_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(ypserv_t)
+	term_dontaudit_use_generic_pty(ypserv_t)
+	files_dontaudit_read_root_file(ypserv_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_newrole_sigchld(ypserv_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(ypserv_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te', `
+rhgb_domain(ypserv_t)
+')
+
+allow ypserv_t proc_t:dir r_dir_perms;
+allow ypserv_t proc_t:lnk_file read;
+
+allow ypserv_t autofs_t:dir { search getattr };
+dontaudit ypserv_t sysadm_home_dir_t:dir search;
+
+# Send to portmap and initrc.
+can_udp_send(ypserv_t, portmap_t)
+
+# Read and write /var/yp.
+ifdef(`rpcd.te', `
+allow rpcd_t ypserv_conf_t:file { getattr read };
+')
+') dnl end TODO
