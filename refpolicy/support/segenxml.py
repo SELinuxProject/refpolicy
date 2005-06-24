@@ -40,6 +40,7 @@ class dec_style:
 
 
 INTERFACE = dec_style("interface(`",1,None,"'")
+TEMPLATE = dec_style("template(`",1,None,"'")
 TUNABLE = dec_style("gen_tunable(",2,",",")")
 # boolean FIXME: may have to change in the future.
 BOOLEAN = dec_style("gen_bool(",2,",",")")
@@ -55,19 +56,6 @@ tunable_files = []
 
 
 # FUNCTIONS
-def getFileBase(file_name):
-	'''
-	Return the file base, the file name without the extension.
-	'''
-
-	# Start from the end of the string and stop when the first '.' is
-	# encountered, ignores hidden files denoted by a leading ','.
-	for i in range(1,len(file_name)-1):
-		if file_name[-i] == '.':
-			return os.path.basename(file_name[:-i])
-
-	return os.path.basename(file_name)
-
 def getXMLComment(line):
 	'''
 	Returns the XML comment, (removes "## " from the front of the line).
@@ -111,13 +99,13 @@ def getParams(line, style):
 	temp_line = temp_line[:style.params]
 
 	# Remove the end of the declaration, specified by style.
-	end = temp_line[len(temp_line)-1].find(style.close_str)
+	end = temp_line[-1].find(style.close_str)
 	if end == -1:
 		warning("line \"%s\" may be syntactically incorrect"\
 			% line.strip())
 		return False
 
-	temp_line[len(temp_line)-1] = temp_line[len(temp_line)-1][:end]
+	temp_line[-1] = temp_line[-1][:end]
 
 	# Remove whitespace
 	for i in range(0,len(temp_line)-1):
@@ -141,8 +129,9 @@ def getModuleXML(file_name):
 
 	module_buf = []
 
-	# Infer the module name.
-	module_buf.append("<module name=\"%s\">\n" % getFileBase(file_name))
+	# Infer the module name, which is the base of the file name.
+	module_buf.append("<module name=\"%s\">\n" 
+		% os.path.splitext(os.path.split(file_name)[-1])[0])
 
 	temp_buf = []
 
@@ -155,7 +144,7 @@ def getModuleXML(file_name):
 	# Go line by line and figure out what to do with it.
 	for line in module_code:
 		# In this phase, whitespace and stray code is ignored at the
-		# top fo the file.
+		# top of the file.
 		if phase == "find header":
 			if line.isspace():
 				continue
@@ -165,7 +154,8 @@ def getModuleXML(file_name):
 				phase = "get header"
 			# If an interface is found, there is no header, and no
 			# documentation for the interface.
-			elif getParams(line,INTERFACE):
+			elif getParams(line,INTERFACE)\
+				 or getParams(line,TEMPLATE):
 				phase = "find interface"
 
 		# In this phase, XML comments are being retrieved for the file.
@@ -183,7 +173,8 @@ def getModuleXML(file_name):
 			# Oops! The comments we have been getting weren't part
 			# of the header so attribute them to an interface
 			# instead.
-			elif getParams(line,INTERFACE):
+			elif getParams(line,INTERFACE)\
+				 or getParams(line,TEMPLATE):
 				phase = "find interface"
 
 		# In this phase, XML comments are being attributed
@@ -197,10 +188,21 @@ def getModuleXML(file_name):
 			elif getParams(line,INTERFACE):
 				module_buf.append("<interface name=\"%s\">\n"\
 					% getParams(line,INTERFACE)[0])
-				module_buf += temp_buf
+				if len(temp_buf):
+					module_buf += temp_buf
+				else:
+					module_buf.append("<param name=\"?\">\n")
+					module_buf.append("Parameters unspecified.\n")
+					module_buf.append("</param>\n")
 				temp_buf = []
 				module_buf.append("</interface>\n")
 				continue
+			elif getParams(line,TEMPLATE):
+				module_buf.append("<template name =\"%s\">\n"\
+					% getParams(line,TEMPLATE)[0])
+				module_buf += temp_buf
+				temp_buf = []
+				module_buf.append("</template>\n")
 
 	# If there are XML comments at the end of the file, they arn't
 	# attributed to anything. These are ignored.
