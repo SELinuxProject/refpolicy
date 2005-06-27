@@ -1,0 +1,219 @@
+
+policy_module(inetd,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type inetd_t; # ifdef(`unlimitedInetd', `,admin, etc_writer, fs_domain, auth_write, privmem')
+type inetd_exec_t;
+init_daemon_domain(inetd_t,inetd_exec_t)
+
+type inetd_log_t;
+logging_log_file(inetd_log_t)
+
+type inetd_tmp_t;
+files_tmp_file(inetd_tmp_t)
+
+type inetd_var_run_t;
+files_pid_file(inetd_var_run_t)
+
+type inetd_child_t; #, nscd_client_domain;
+type inetd_child_exec_t;
+inetd_service_domain(inetd_child_t,inetd_child_exec_t)
+role system_r types inetd_child_t;
+
+type inetd_child_tmp_t;
+files_tmp_file(inetd_child_tmp_t)
+
+type inetd_child_var_run_t;
+files_pid_file(inetd_child_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow inetd_t self:capability { setuid setgid };
+dontaudit inetd_t self:capability sys_tty_config;
+allow inetd_t self:process setsched;
+allow inetd_t self:fifo_file rw_file_perms;
+allow inetd_t self:tcp_socket create_stream_socket_perms;
+allow inetd_t self:udp_socket { connect connected_socket_perms };
+
+allow inetd_t inetd_log_t:file create_file_perms;
+logging_create_log(inetd_t,inetd_log_t)
+
+allow inetd_t inetd_tmp_t:dir create_dir_perms;
+allow inetd_t inetd_tmp_t:file create_file_perms;
+files_create_tmp_files(inetd_t, inetd_tmp_t, { file dir })
+
+allow inetd_t inetd_var_run_t:file create_file_perms;
+files_create_pid(inetd_t,inetd_var_run_t)
+
+kernel_read_kernel_sysctl(inetd_t)
+
+# networking:
+corenet_tcp_sendrecv_all_if(inetd_t)
+corenet_udp_sendrecv_all_if(inetd_t)
+corenet_raw_sendrecv_all_if(inetd_t)
+corenet_tcp_sendrecv_all_nodes(inetd_t)
+corenet_udp_sendrecv_all_nodes(inetd_t)
+corenet_raw_sendrecv_all_nodes(inetd_t)
+corenet_tcp_sendrecv_all_ports(inetd_t)
+corenet_udp_sendrecv_all_ports(inetd_t)
+corenet_tcp_bind_all_nodes(inetd_t)
+corenet_udp_bind_all_nodes(inetd_t)
+
+# listen on service ports:
+#corenet_udp_bind_comsat_port(inetd_t)
+corenet_tcp_bind_dbskkd_port(inetd_t)
+corenet_udp_bind_dbskkd_port(inetd_t)
+corenet_udp_bind_ftp_port(inetd_t)
+corenet_tcp_bind_inetd_child_port(inetd_t)
+corenet_tcp_bind_inetd_child_port(inetd_t)
+corenet_udp_bind_ktalkd_port(inetd_t)
+corenet_udp_bind_rsh_port(inetd_t)
+corenet_tcp_bind_rsync_port(inetd_t)
+corenet_udp_bind_rsync_port(inetd_t)
+#corenet_tcp_bind_stunnel_port(inetd_t)
+corenet_tcp_bind_swat_port(inetd_t)
+corenet_udp_bind_swat_port(inetd_t)
+
+dev_read_sysfs(inetd_t)
+
+fs_getattr_all_fs(inetd_t)
+fs_search_auto_mountpoints(inetd_t)
+
+term_dontaudit_use_console(inetd_t)
+
+domain_use_wide_inherit_fd(inetd_t)
+
+files_read_generic_etc_files(inetd_t)
+
+init_use_fd(inetd_t)
+init_use_script_pty(inetd_t)
+
+libs_use_ld_so(inetd_t)
+libs_use_shared_libs(inetd_t)
+
+logging_send_syslog_msg(inetd_t)
+
+miscfiles_read_localization(inetd_t)
+
+sysnet_read_config(inetd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(inetd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(inetd_t)
+	term_dontaudit_use_generic_pty(inetd_t)
+	files_dontaudit_read_root_file(inetd_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(inetd_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_newrole_sigchld(inetd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(inetd_t)
+')
+
+ifdef(`TODO',`
+allow inetd_t proc_t:dir r_dir_perms;
+allow inetd_t proc_t:lnk_file read;
+dontaudit inetd_t sysadm_home_dir_t:dir search;
+
+ifdef(`mount.te', `
+allow inetd_t mount_t:udp_socket rw_socket_perms;
+')
+
+# allow any domain to connect to inetd
+can_tcp_connect(userdomain, inetd_t)
+
+# Run other daemons in the inetd_child_t domain.
+allow inetd_t { bin_t sbin_t }:dir search;
+allow inetd_t sbin_t:lnk_file read;
+
+# Bind to the telnet, ftp, rlogin and rsh ports.
+ifdef(`talk.te', `
+allow inetd_t talk_port_t:tcp_socket name_bind;
+allow inetd_t ntalk_port_t:tcp_socket name_bind;
+')
+
+# Communicate with the portmapper.
+ifdef(`portmap.te', `can_udp_send(inetd_t, portmap_t)')
+
+ifdef(`unconfined.te', `
+domain_auto_trans(inetd_t, unconfined_exec_t, unconfined_t)
+')
+
+ifdef(`unlimitedInetd', `
+unconfined_domain(inetd_t) 
+')
+
+') dnl TODO
+
+########################################
+#
+# inetd child local_policy
+#
+
+allow inetd_child_t self:process signal_perms;
+allow inetd_child_t self:fifo_file rw_file_perms;
+allow inetd_child_t self:tcp_socket { listen accept connected_socket_perms };
+
+# for identd
+# cjp: this should probably only be inetd_child rules?
+allow inetd_child_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
+allow inetd_child_t self:capability { setuid setgid };
+allow inetd_child_t self:dir search;
+allow inetd_child_t self:{ lnk_file file } { getattr read };
+#allow inetd_child_t home_root_t:dir search;
+#can_kerberos(inetd_child_t)
+
+allow inetd_child_t inetd_child_tmp_t:dir create_dir_perms;
+allow inetd_child_t inetd_child_tmp_t:file create_file_perms;
+files_create_tmp_files(inetd_child_t, inetd_child_tmp_t, { file dir })
+
+allow inetd_child_t inetd_child_var_run_t:file create_file_perms;
+files_create_pid(inetd_child_t,inetd_child_var_run_t)
+
+kernel_read_kernel_sysctl(inetd_child_t)
+kernel_read_system_state(inetd_child_t)
+kernel_read_network_state(inetd_child_t)
+
+corenet_tcp_sendrecv_all_if(inetd_child_t)
+corenet_raw_sendrecv_all_if(inetd_child_t)
+corenet_tcp_sendrecv_all_nodes(inetd_child_t)
+corenet_raw_sendrecv_all_nodes(inetd_child_t)
+corenet_tcp_bind_all_nodes(inetd_child_t)
+corenet_tcp_sendrecv_all_ports(inetd_child_t)
+
+dev_read_urand(inetd_child_t)
+
+fs_getattr_xattr_fs(inetd_child_t)
+
+files_read_generic_etc_files(inetd_child_t)
+
+libs_use_ld_so(inetd_child_t)
+libs_use_shared_libs(inetd_child_t)
+
+logging_send_syslog_msg(inetd_child_t)
+
+miscfiles_read_localization(inetd_child_t)
+
+sysnet_read_config(inetd_child_t)
+
+tunable_policy(`run_ssh_inetd',`
+	corenet_tcp_bind_ssh_port(inetd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(inetd_child_t)
+')
