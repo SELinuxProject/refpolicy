@@ -126,6 +126,7 @@ files_read_generic_etc_files(bootloader_t)
 files_read_etc_runtime_files(bootloader_t)
 files_read_usr_src(bootloader_t)
 files_read_usr_files(bootloader_t)
+files_read_var_file(bootloader_t)
 # for nscd
 files_dontaudit_search_pids(bootloader_t)
 
@@ -141,13 +142,16 @@ miscfiles_read_localization(bootloader_t)
 seutil_read_binary_pol(bootloader_t)
 seutil_read_loadpol(bootloader_t)
 
-ifdef(`distro_debian', `
-allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
-allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
-allow bootloader_t boot_t:file relabelfrom;
+ifdef(`distro_debian',`
+	allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
+	allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
+	allow bootloader_t boot_t:file relabelfrom;
+
+	# for /usr/share/initrd-tools/scripts
+	files_exec_usr_files(bootloader_t)
 ')
 
-ifdef(`distro_redhat', `
+ifdef(`distro_redhat',`
 	# for memlock
 	allow bootloader_t self:capability ipc_lock;
 
@@ -157,17 +161,22 @@ ifdef(`distro_redhat', `
 	# mkinitrd mount initrd on bootloader temp dir
 	files_mountpoint(bootloader_tmp_t)
 
+	# new file system defaults to file_t, granting file_t access is still bad.
+	files_manage_isid_type_dir(bootloader_t)
+	files_manage_isid_type_file(bootloader_t)
+	files_manage_isid_type_symlink(bootloader_t)
+	files_manage_isid_type_blk_node(bootloader_t)
+	files_manage_isid_type_chr_node(bootloader_t)
+
 	# for mke2fs
 	mount_domtrans(bootloader_t)
 ')
 
-optional_policy(`filesystemtools.te', `
+optional_policy(`filesystemtools.te',`
 	filesystemtools_execute(bootloader_t)
 ')
 
-# LVM2 / Device Mapper's /dev/mapper/control
-# maybe we should change the labeling for this
-optional_policy(`lvm.te', `
+optional_policy(`lvm.te',`
 	dev_rw_lvm_control(bootloader_t)
 
 	lvm_domtrans(bootloader_t)
@@ -185,8 +194,9 @@ optional_policy(`modutils.te',`
 
 ifdef(`TODO',`
 
-allow bootloader_t var_t:dir search;
-allow bootloader_t var_t:file { getattr read };
+dontaudit bootloader_t selinux_config_t:dir search;
+dontaudit bootloader_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+dontaudit bootloader_t devpts_t:dir create_dir_perms;
 
 ifdef(`distro_debian', `
 	allow bootloader_t { usr_t lib_t fsadm_exec_t }:file relabelto;
@@ -197,18 +207,6 @@ ifdef(`distro_debian', `
 	allow bootloader_t dpkg_var_lib_t:dir r_dir_perms;
 	allow bootloader_t dpkg_var_lib_t:file { getattr read };
 
-	# for /usr/share/initrd-tools/scripts
-	can_exec(bootloader_t, usr_t)
 ')
 
-ifdef(`distro_redhat', `
-	# new file system defaults to file_t, granting file_t access is still bad.
-	allow bootloader_t file_t:dir create_dir_perms;
-	allow bootloader_t file_t:{ file blk_file chr_file } create_file_perms;
-	allow bootloader_t file_t:lnk_file create_lnk_perms;
-')
-
-dontaudit bootloader_t selinux_config_t:dir search;
-dontaudit bootloader_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
-dontaudit bootloader_t devpts_t:dir create_dir_perms;
 ') dnl end TODO

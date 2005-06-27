@@ -1,0 +1,143 @@
+
+policy_module(fstools,1.0)
+
+########################################
+#
+# Declarations
+#
+type fsadm_t;
+type fsadm_exec_t;
+init_system_domain(fsadm_t,fsadm_exec_t)
+role system_r types fsadm_t;
+
+type fsadm_tmp_t;
+files_tmp_file(fsadm_tmp_t)
+
+type swapfile_t;
+files_file_type(swapfile_t)
+
+########################################
+
+# ipc_lock is for losetup
+allow fsadm_t self:capability { ipc_lock sys_rawio sys_admin sys_tty_config };
+allow fsadm_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow fsadm_t self:fd use;
+allow fsadm_t self:fifo_file rw_file_perms;
+allow fsadm_t self:unix_dgram_socket create_socket_perms;
+allow fsadm_t self:unix_stream_socket create_stream_socket_perms;
+allow fsadm_t self:unix_dgram_socket sendto;
+allow fsadm_t self:unix_stream_socket connectto;
+allow fsadm_t self:shm create_shm_perms;
+allow fsadm_t self:sem create_sem_perms;
+allow fsadm_t self:msgq create_msgq_perms;
+allow fsadm_t self:msg { send receive };
+
+can_exec(fsadm_t, fsadm_exec_t)
+
+allow fsadm_t fsadm_tmp_t:dir create_dir_perms;
+allow fsadm_t fsadm_tmp_t:file create_file_perms;
+files_create_tmp_files(fsadm_t, fsadm_tmp_t, { file dir })
+
+# Enable swapping to files
+allow fsadm_t swapfile_t:file { getattr swapon };
+
+kernel_read_system_state(fsadm_t)
+kernel_read_kernel_sysctl(fsadm_t)
+# Allow console log change (updfstab)
+kernel_change_ring_buffer_level(fsadm_t)
+
+# mkreiserfs and other programs need this for UUID
+dev_read_rand(fsadm_t)
+dev_read_urand(fsadm_t)
+# Recreate /dev/cdrom.
+dev_manage_generic_symlinks(fsadm_t)
+# Access to /initrd devices
+dev_search_usbfs(fsadm_t)
+
+fs_search_auto_mountpoints(fsadm_t)
+fs_getattr_xattr_fs(fsadm_t)
+# remount file system to apply changes
+fs_remount_xattr_fs(fsadm_t)
+
+storage_raw_read_fixed_disk(fsadm_t)
+storage_raw_write_fixed_disk(fsadm_t)
+storage_raw_read_removable_device(fsadm_t)
+storage_raw_write_removable_device(fsadm_t)
+storage_read_scsi_generic(fsadm_t)
+
+domain_use_wide_inherit_fd(fsadm_t)
+
+files_list_home(fsadm_t)
+files_read_usr_files(fsadm_t)
+files_read_generic_etc_files(fsadm_t)
+files_list_mnt(fsadm_t)
+# Write to /etc/mtab.
+files_manage_etc_runtime_files(fsadm_t)
+# Access to /initrd devices
+files_rw_isid_type_dir(fsadm_t)
+files_rw_isid_type_blk_node(fsadm_t)
+
+init_use_fd(fsadm_t)
+init_use_script_pty(fsadm_t)
+
+libs_use_ld_so(fsadm_t)
+libs_use_shared_libs(fsadm_t)
+
+logging_send_syslog_msg(fsadm_t)
+
+miscfiles_read_localization(fsadm_t)
+
+modutils_read_module_conf(fsadm_t)
+
+seutil_read_config(fsadm_t)
+
+userdom_use_unpriv_users_fd(fsadm_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(fsadm_t)
+')
+
+ifdef(`TODO',`
+# for swapon
+allow fsadm_t sysfs_t:dir { search getattr };
+
+# for /dev/shm
+allow fsadm_t tmpfs_t:dir { getattr search };
+
+allow fsadm_t bin_t:dir r_dir_perms;
+allow fsadm_t bin_t:notdevfile_class_set r_file_perms;
+allow fsadm_t sbin_t:dir r_dir_perms;
+allow fsadm_t sbin_t:notdevfile_class_set r_file_perms;
+if (read_default_t) {
+allow fsadm_t default_t:dir r_dir_perms;
+allow fsadm_t default_t:notdevfile_class_set r_file_perms;
+}
+
+# mkreiserfs needs this
+allow fsadm_t proc_t:filesystem getattr;
+
+# Access lost+found.
+allow fsadm_t lost_found_t:dir create_dir_perms;
+allow fsadm_t lost_found_t:{ file sock_file fifo_file } create_file_perms;
+allow fsadm_t lost_found_t:lnk_file create_lnk_perms;
+
+allow fsadm_t file_t:dir { search read getattr rmdir create };
+
+# Recreate /mnt/cdrom.
+allow fsadm_t mnt_t:dir { rmdir create };
+
+# Enable swapping to devices and files
+allow fsadm_t fixed_disk_device_t:blk_file { getattr swapon };
+
+# Access terminals.
+ifdef(`gnome-pty-helper.te', `allow fsadm_t sysadm_gph_t:fd use;')
+
+# for smartctl cron jobs
+system_crond_entry(fsadm_exec_t, fsadm_t)
+
+# Access to /initrd devices
+allow fsadm_t unlabeled_t:dir rw_dir_perms;
+allow fsadm_t unlabeled_t:blk_file rw_file_perms;
+allow fsadm_t usbfs_t:dir getattr;
+
+') dnl end TODO
