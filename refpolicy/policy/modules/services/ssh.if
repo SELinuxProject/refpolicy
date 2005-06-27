@@ -211,7 +211,7 @@ template(`ssh_per_userdomain_template',`
 
 	#allow ssh to access keys stored on removable media
 	# Should we have a boolean around this?
-	allow $1_ssh_t mnt_t:dir search;
+	files_search_mnt($1_ssh_t)
 	r_dir_file($1_ssh_t, removable_t) 
 
 	ifdef(`xdm.te', `
@@ -404,6 +404,10 @@ template(`sshd_program_domain', `
 	auth_rw_login_records($1_t)
 	auth_rw_lastlog($1_t)
 
+	corecmd_read_bin_symlink($1_t)
+	# for sshd subsystems, such as sftp-server.
+	corecmd_getattr_bin_file($1_t)
+
 	domain_wide_inherit_fd($1_t)
 	domain_subj_id_change_exempt($1_t)
 	domain_role_change_exempt($1_t)
@@ -436,43 +440,36 @@ template(`sshd_program_domain', `
 		fs_read_cifs_files($1_t)
 	')
 
+	optional_policy(`inetd.te',`
+		tunable_policy(`run_ssh_inetd',`
+			allow $1_t self:process signal;
+			files_list_pids($1_t)
+		',`
+			corenet_tcp_bind_ssh_port($1_t)
+			init_use_fd($1_t)
+			init_use_script_pty($1_t)
+		')
+	',`
+		# These rules should match the else block
+		# of the run_ssh_inetd tunable directly above
+		corenet_tcp_bind_ssh_port($1_t)
+		init_use_fd($1_t)
+		init_use_script_pty($1_t)
+	')
+
 	optional_policy(`mount.te', `
 		mount_send_nfs_client_request($1_t)
 	')
 
 	ifdef(`TODO',`
 
-	allow $1_t bin_t:dir search;
-	allow $1_t bin_t:lnk_file read;
-
-	# for sshd subsystems, such as sftp-server.
-	allow $1_t bin_t:file getattr;
-
 	# Read /var.
 	allow $1_t var_t:dir getattr;
 
-	allow $1_t { home_root_t home_dir_type }:dir getattr;
+	allow $1_t home_dir_type:dir getattr;
 
 	dontaudit sshd_t userpty_type:chr_file relabelfrom;
 
-	optional_policy(`inetd.te',`
-		if (run_ssh_inetd) {
-			allow $1_t self:process signal;
-			allow $1_t inetd_t:tcp_socket rw_socket_perms;
-			allow $1_t var_run_t:dir getattr;
-			files_search_pids($1_t)
-		} else {
-			corenet_tcp_bind_ssh_port($1_t)
-			init_use_fd($1_t)
-			init_use_script_pty($1_t)
-		}
-	',`
-		# These rules should match the else block
-		# of the run_ssh_inetd conditional directly above
-		corenet_tcp_bind_ssh_port($1_t)
-		init_use_fd($1_t)
-		init_use_script_pty($1_t)
-	')
 	') dnl end TODO
 ')
 
