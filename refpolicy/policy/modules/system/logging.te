@@ -63,6 +63,7 @@ kernel_read_kernel_sysctl(auditd_t)
 dev_read_sysfs(auditd_t)
 
 fs_getattr_all_fs(auditd_t)
+fs_search_auto_mountpoints(auditd_t)
 
 term_dontaudit_use_console(auditd_t)
 
@@ -79,6 +80,8 @@ libs_use_ld_so(auditd_t)
 libs_use_shared_libs(auditd_t)
 
 miscfiles_read_localization(auditd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(auditd_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(auditd_t)
@@ -97,14 +100,12 @@ optional_policy(`udev.te', `
 ifdef(`TODO',`
 allow auditd_t proc_t:dir r_dir_perms;
 allow auditd_t proc_t:lnk_file read;
-dontaudit auditd_t unpriv_userdomain:fd use;
-allow auditd_t autofs_t:dir { search getattr };
-dontaudit auditd_t sysadm_home_dir_t:dir search;
+
 optional_policy(`rhgb.te', `
-allow auditd_t rhgb_t:process sigchld;
-allow auditd_t rhgb_t:fd use;
-allow auditd_t rhgb_t:fifo_file { read write };
+rhgb_domain(auditd_t)
 ')
+
+dontaudit auditd_t sysadm_home_dir_t:dir search;
 
 # cjp: this is questionable:
 allow auditd_t sysadm_tty_device_t:chr_file rw_file_perms;
@@ -192,6 +193,8 @@ kernel_read_kernel_sysctl(syslogd_t)
 dev_create_dev_node(syslogd_t,devlog_t,sock_file)
 dev_read_sysfs(syslogd_t)
 
+fs_search_auto_mountpoints(syslogd_t)
+
 term_dontaudit_use_console(syslogd_t)
 # Allow syslog to a terminal
 term_write_unallocated_ttys(syslogd_t)
@@ -250,6 +253,14 @@ ifdef(`targeted_policy', `
 	files_dontaudit_read_root_file(syslogd_t)
 ')
 
+optional_policy(`cron.te',`
+	cron_rw_log(syslogd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(syslogd_t)
+')
+
 optional_policy(`selinux.te',`
 	seutil_newrole_sigchld(syslogd_t)
 ')
@@ -258,18 +269,11 @@ optional_policy(`udev.te', `
 	udev_read_db(syslogd_t)
 ')
 
-optional_policy(`cron.te',`
-	cron_rw_log(syslogd_t)
-')
-
 ifdef(`TODO',`
 allow syslogd_t proc_t:lnk_file read;
-allow syslogd_t autofs_t:dir { search getattr };
 dontaudit syslogd_t sysadm_home_dir_t:dir search;
 optional_policy(`rhgb.te', `
-	allow syslogd_t rhgb_t:process sigchld;
-	allow syslogd_t rhgb_t:fd use;
-	allow syslogd_t rhgb_t:fifo_file { read write };
+	rhgb_domain(syslogd_t)
 ')
 tunable_policy(`direct_sysadm_daemon',`
 	dontaudit syslogd_t admin_tty_type:chr_file rw_file_perms;
@@ -279,9 +283,6 @@ ifdef(`distro_suse', `
 	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
 	file_type_auto_trans(syslogd_t, var_lib_t, devlog_t, sock_file)
 ')
-
-# can_network is for the UDP socket
-can_ypbind(syslogd_t)
 
 # log to the xconsole
 allow syslogd_t xconsole_device_t:fifo_file { ioctl read write };

@@ -105,6 +105,7 @@ dev_read_sysfs(dhcpc_t)
 dev_read_urand(dhcpc_t)
 
 fs_getattr_all_fs(dhcpc_t)
+fs_search_auto_mountpoints(dhcpc_t)
 
 term_dontaudit_use_console(dhcpc_t)
 term_dontaudit_use_all_user_ttys(dhcpc_t)
@@ -152,8 +153,21 @@ optional_policy(`hostname.te',`
 	hostname_domtrans(dhcpc_t)
 ')
 
+optional_policy(`nis.te',`
+	nis_use_ypbind(dhcpc_t)
+	# dhclient sometimes starts ypbind
+	init_exec_script(dhcpc_t)
+	#nis_domtrans_ypbind(dhcpc_t)
+')
+
 optional_policy(`nscd.te',`
 	nscd_domtrans(dhcpc_t)
+')
+
+optional_policy(`ntpd.te',`
+	# dhclient sometimes starts ntpd
+	init_exec_script(dhcpc_t)
+	ntpd_domtrans(dhcpc_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -168,28 +182,12 @@ optional_policy(`userdomain.te',`
 	userdom_use_all_user_fd(dhcpc_t)
 ')
 
-#
-# dhclient sometimes starts ypbind and ntpd
-#
-init_exec_script(dhcpc_t)
-optional_policy(`ypbind.te',`
-	ypbind_domtrans(dhcpc_t)
-')
-optional_policy(`ntpd.te',`
-	ntpd_domtrans(dhcpc_t)
-')
-
 ifdef(`TODO',`
-allow dhcpc_t autofs_t:dir { search getattr };
 dontaudit dhcpc_t sysadm_home_dir_t:dir search;
 
-optional_policy(`rhgb.te', `
-allow dhcpc_t rhgb_t:process sigchld;
-allow dhcpc_t rhgb_t:fd use;
-allow dhcpc_t rhgb_t:fifo_file { read write };
+optional_policy(`rhgb.te',`
+rhgb_domain(dhcpc_t)
 ')
-
-can_ypbind(dhcpc_t)
 
 ifdef(`cardmgr.te', `
 domain_auto_trans(cardmgr_t, dhcpc_exec_t, dhcpc_t)
@@ -208,15 +206,17 @@ logging_syslogd_transition(dhcpc_t)
 ')dnl end hotplug.te
 
 # for the dhcp client to run ping to check IP addresses
-ifdef(`ping.te', `
-domain_auto_trans(dhcpc_t, ping_exec_t, ping_t)
-ifdef(`hotplug.te',`
-allow ping_t hotplug_t:fd use;
-') dnl end if hotplug
-ifdef(`cardmgr.te', `
-allow ping_t cardmgr_t:fd use;
-') dnl end if cardmgr
-') dnl end if ping
+optional_policy(`netutils.te',`
+	netutils_domtrans_ping(dhcpc_t)
+
+	optional_policy(`hotplug.te',`
+		allow ping_t hotplug_t:fd use;
+	')
+
+	ifdef(`cardmgr.te',`
+		allow ping_t cardmgr_t:fd use;
+	')
+')
 
 ifdef(`distro_redhat', `
 allow initrc_t dhcp_etc_t:file rw_file_perms;
@@ -266,6 +266,7 @@ kernel_dontaudit_search_sysctl_dir(ifconfig_t)
 kernel_dontaudit_search_network_sysctl_dir(ifconfig_t)
 
 fs_getattr_xattr_fs(ifconfig_t)
+fs_search_auto_mountpoints(ifconfig_t)
 
 term_dontaudit_use_all_user_ttys(ifconfig_t)
 term_dontaudit_use_all_user_ptys(ifconfig_t)
@@ -289,22 +290,18 @@ seutil_use_runinit_fd(ifconfig_t)
 
 userdom_use_all_user_fd(ifconfig_t)
 
-ifdef(`TODO',`
-
-can_ypbind(ifconfig_t)
-ifdef(`automount.te', `
-allow ifconfig_t autofs_t:dir { search getattr };
+optional_policy(`nis.te',`
+	nis_use_ypbind(ifconfig_t)
 ')
 
-# Access terminals.
+ifdef(`TODO',`
+
 ifdef(`gnome-pty-helper.te', `allow ifconfig_t sysadm_gph_t:fd use;')
 
 allow ifconfig_t tun_tap_device_t:chr_file { read write };
 
 optional_policy(`rhgb.te', `
-allow ifconfig_t rhgb_t:process sigchld;
-allow ifconfig_t rhgb_t:fd use;
-allow ifconfig_t rhgb_t:fifo_file { read write };
+rhgb_domain(ifconfig_t)
 ')
 
 ') dnl endif TODO

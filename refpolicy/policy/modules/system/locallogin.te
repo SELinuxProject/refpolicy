@@ -71,6 +71,8 @@ dev_dontaudit_setattr_scanner(local_login_t)
 # for SSP/ProPolice
 dev_read_urand(local_login_t)
 
+fs_search_auto_mountpoints(local_login_t)
+
 selinux_get_fs_mount(local_login_t)
 selinux_validate_context(local_login_t)
 selinux_compute_access_vector(local_login_t)
@@ -126,6 +128,13 @@ userdom_use_unpriv_users_fd(local_login_t)
 # Search for mail spool file.
 mta_getattr_spool(local_login_t)
 
+# Red Hat systems seem to have a stray
+# fd open from the initrd
+ifdef(`distro_redhat',`
+	kernel_dontaudit_use_fd(local_login_t)
+	files_dontaudit_read_root_file(local_login_t)
+')
+
 tunable_policy(`use_nfs_home_dirs',`
 	fs_read_nfs_files(local_login_t)
 	fs_read_nfs_symlinks(local_login_t)
@@ -136,19 +145,11 @@ tunable_policy(`use_samba_home_dirs',`
 	fs_read_cifs_symlinks(local_login_t)
 ')
 
-# Red Hat systems seem to have a stray
-# fd open from the initrd
-optional_policy(`distro_redhat',`
-	kernel_dontaudit_use_fd(local_login_t)
-	files_dontaudit_read_root_file(local_login_t)
+optional_policy(`nis.te',`
+	nis_use_ypbind(local_login_t)
 ')
 
 ifdef(`TODO',`
-
-can_ypbind(local_login_t)
-ifdef(`automount.te', `
-	allow local_login_t autofs_t:dir { search getattr };
-')
 
 allow local_login_t bin_t:dir r_dir_perms;
 allow local_login_t bin_t:notdevfile_class_set r_file_perms;
@@ -170,7 +171,6 @@ allow local_login_t var_t:lnk_file read;
 
 dontaudit local_login_t sysfs_t:dir search;
 
-allow local_login_t autofs_t:dir r_dir_perms;
 allow local_login_t mnt_t:dir r_dir_perms;
 
 # FIXME: what is this for?
@@ -221,11 +221,13 @@ allow sulogin_t self:msg { send receive };
 
 kernel_read_system_state(sulogin_t)
 
-init_get_script_process_group(sulogin_t)
+fs_search_auto_mountpoints(sulogin_t)
 
 files_read_generic_etc_files(sulogin_t)
 # because file systems are not mounted:
 files_dontaudit_search_isid_type_dir(sulogin_t)
+
+init_get_script_process_group(sulogin_t)
 
 libs_use_ld_so(sulogin_t)
 libs_use_shared_libs(sulogin_t)
@@ -259,14 +261,11 @@ ifdef(`sulogin_no_pam', `
 	selinux_compute_user_contexts(sulogin_t)
 ')
 
-ifdef(`TODO',`
-
-allow sulogin_t sysadm_devpts_t:chr_file { getattr ioctl read write };
-
-can_ypbind(sulogin_t)
-ifdef(`automount.te', `
-	allow sulogin_t autofs_t:dir { search getattr };
+optional_policy(`nis.te',`
+	nis_use_ypbind(sulogin_t)
 ')
 
+ifdef(`TODO',`
+allow sulogin_t sysadm_devpts_t:chr_file { getattr ioctl read write };
 allow sulogin_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
 ') dnl endif TODO

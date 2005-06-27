@@ -88,18 +88,20 @@ term_use_all_user_ttys(chfn_t)
 term_use_all_user_ptys(chfn_t)
 
 fs_getattr_xattr_fs(chfn_t)
+fs_search_auto_mountpoints(chfn_t)
 
 # for SSP
 dev_read_urand(chfn_t)
-
-# /usr/bin/passwd asks for w access to utmp, but it will operate
-# correctly without it.  Do not audit write denials to utmp.
-init_dontaudit_rw_script_pid(chfn_t)
 
 domain_use_wide_inherit_fd(chfn_t)
 
 files_manage_generic_etc_files(chfn_t)
 files_read_etc_runtime_files(chfn_t)
+files_dontaudit_search_var(chfn_t)
+
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_dontaudit_rw_script_pid(chfn_t)
 
 libs_use_ld_so(chfn_t)
 libs_use_shared_libs(chfn_t)
@@ -111,19 +113,17 @@ logging_send_syslog_msg(chfn_t)
 auth_domtrans_chk_passwd(chfn_t)
 auth_dontaudit_read_shadow(chfn_t)
 
+userdom_use_unpriv_users_fd(chfn_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(chfn_t)
+')
+
 ifdef(`TODO',`
 role sysadm_r types chfn_t;
 in_user_role(chfn_t)
 
 domain_auto_trans({ userdomain ifdef(`firstboot.te', `firstboot_t') }, chfn_exec_t, chfn_t)
-
-dontaudit chfn_t var_t:dir search;
-
-allow chfn_t unpriv_userdomain:fd use;
-can_ypbind(chfn_t)
-ifdef(`automount.te', `
-allow chfn_t autofs_t:dir { search getattr };
-')
 
 ifdef(`gnome-pty-helper.te', `allow chfn_t gphdomain:fd use;')
 
@@ -181,7 +181,6 @@ ifdef(`TODO',`
 ifdef(`crond.te', `
 domain_auto_trans(system_crond_t, crack_exec_t, crack_t)
 allow crack_t crond_t:fifo_file rw_file_perms;
-# a rule for privfd may make this obsolete
 allow crack_t crond_t:fd use;
 allow crack_t crond_t:process sigchld;
 ')
@@ -209,6 +208,9 @@ allow groupadd_t self:sem create_sem_perms;
 allow groupadd_t self:msgq create_msgq_perms;
 allow groupadd_t self:msg { send receive };
 
+fs_getattr_xattr_fs(groupadd_t)
+fs_search_auto_mountpoints(groupadd_t)
+
 # Allow access to context for shadow file
 selinux_get_fs_mount(groupadd_t)
 selinux_validate_context(groupadd_t)
@@ -217,13 +219,12 @@ selinux_compute_create_context(groupadd_t)
 selinux_compute_relabel_context(groupadd_t)
 selinux_compute_user_contexts(groupadd_t)
 
-fs_getattr_xattr_fs(groupadd_t)
-
 term_use_all_user_ttys(groupadd_t)
 term_use_all_user_ptys(groupadd_t)
 
 init_use_fd(groupadd_t)
 init_read_script_pid(groupadd_t)
+init_dontaudit_write_script_pid(groupadd_t)
 
 domain_use_wide_inherit_fd(groupadd_t)
 
@@ -245,15 +246,13 @@ auth_rw_lastlog(groupadd_t)
 
 seutil_read_config(groupadd_t)
 
-ifdef(`TODO',`
-role sysadm_r types groupadd_t;
-domain_auto_trans(sysadm_t, groupadd_exec_t, groupadd_t)
+userdom_use_unpriv_users_fd(groupadd_t)
 
-allow groupadd_t unpriv_userdomain:fd use;
-can_ypbind(groupadd_t)
-ifdef(`automount.te', `
-allow groupadd_t autofs_t:dir { search getattr };
+optional_policy(`nis.te',`
+	nis_use_ypbind(groupadd_t)
 ')
+
+ifdef(`TODO',`
 
 # Update /etc/shadow and /etc/passwd
 allow groupadd_t { etc_t shadow_t }:file { relabelfrom relabelto };
@@ -263,7 +262,6 @@ ifdef(`gnome-pty-helper.te', `allow groupadd_t gphdomain:fd use;')
 
 # for when /root is the cwd
 dontaudit groupadd_t sysadm_home_dir_t:dir search;
-dontaudit groupadd_t initrc_var_run_t:file write;
 ') dnl end TODO
 
 ########################################
@@ -285,17 +283,21 @@ allow passwd_t self:sem create_sem_perms;
 allow passwd_t self:msgq create_msgq_perms;
 allow passwd_t self:msg { send receive };
 
+allow passwd_t crack_db_t:dir r_dir_perms;
+allow passwd_t crack_db_t:file r_file_perms;
+
+# for SSP
+dev_read_urand(passwd_t)
+
+fs_getattr_xattr_fs(passwd_t)
+fs_search_auto_mountpoints(passwd_t)
+
 selinux_get_fs_mount(passwd_t)
 selinux_validate_context(passwd_t)
 selinux_compute_access_vector(passwd_t)
 selinux_compute_create_context(passwd_t)
 selinux_compute_relabel_context(passwd_t)
 selinux_compute_user_contexts(passwd_t)
-
-# for SSP
-dev_read_urand(passwd_t)
-
-fs_getattr_xattr_fs(passwd_t)
 
 # /usr/bin/passwd asks for w access to utmp, but it will operate
 # correctly without it.  Do not audit write denials to utmp.
@@ -305,6 +307,7 @@ domain_use_wide_inherit_fd(passwd_t)
 
 files_read_etc_runtime_files(passwd_t)
 files_manage_generic_etc_files(passwd_t)
+files_search_var(passwd_t)
 
 libs_use_ld_so(passwd_t)
 libs_use_shared_libs(passwd_t)
@@ -315,6 +318,12 @@ miscfiles_read_localization(passwd_t)
 
 auth_manage_shadow(passwd_t)
 
+userdom_use_unpriv_users_fd(passwd_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(passwd_t)
+')
+
 ifdef(`TODO',`
 
 ifdef(`firstboot.te',`
@@ -323,12 +332,6 @@ domain_auto_trans(firstboot_t, passwd_exec_t, passwd_t)
 
 # Update /etc/shadow and /etc/passwd
 allow passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
-
-allow passwd_t unpriv_userdomain:fd use;
-can_ypbind(passwd_t)
-ifdef(`automount.te', `
-allow passwd_t autofs_t:dir { search getattr };
-')
 
 # Inherit and use descriptors from login.
 ifdef(`gnome-pty-helper.te', `allow passwd_t gphdomain:fd use;')
@@ -347,14 +350,7 @@ allow passwd_t userdomain:process getattr;
 
 dontaudit passwd_t selinux_config_t:dir search;
 
-ifdef(`crack.te', `
-allow passwd_t var_t:dir search;
 dontaudit passwd_t var_run_t:dir search;
-allow passwd_t crack_db_t:dir r_dir_perms;
-allow passwd_t crack_db_t:file r_file_perms;
-', `
-dontaudit passwd_t var_t:dir search;
-')
 ') dnl endif TODO
 
 ########################################
@@ -395,23 +391,26 @@ kernel_read_system_state(sysadm_passwd_t)
 dev_read_urand(sysadm_passwd_t)
 
 fs_getattr_xattr_fs(sysadm_passwd_t)
+fs_search_auto_mountpoints(sysadm_passwd_t)
 
 term_use_all_user_ttys(sysadm_passwd_t)
 term_use_all_user_ptys(sysadm_passwd_t)
 
-# /usr/bin/passwd asks for w access to utmp, but it will operate
-# correctly without it.  Do not audit write denials to utmp.
-init_dontaudit_rw_script_pid(sysadm_passwd_t)
+auth_manage_shadow(sysadm_passwd_t)
+
+# allow vipw to exec the editor
+corecmd_exec_bin(sysadm_passwd_t)
+corecmd_exec_shell(sysadm_passwd_t)
+files_read_usr_files(sysadm_passwd_t)
 
 domain_use_wide_inherit_fd(sysadm_passwd_t)
 
 files_manage_generic_etc_files(sysadm_passwd_t)
 files_read_etc_runtime_files(sysadm_passwd_t)
 
-# allow vipw to exec the editor
-corecmd_exec_bin(sysadm_passwd_t)
-corecmd_exec_shell(sysadm_passwd_t)
-files_read_usr_files(sysadm_passwd_t)
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_dontaudit_rw_script_pid(sysadm_passwd_t)
 
 libs_use_ld_so(sysadm_passwd_t)
 libs_use_shared_libs(sysadm_passwd_t)
@@ -420,17 +419,15 @@ miscfiles_read_localization(sysadm_passwd_t)
 
 logging_send_syslog_msg(sysadm_passwd_t)
 
-auth_manage_shadow(sysadm_passwd_t)
+userdom_use_unpriv_users_fd(sysadm_passwd_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(sysadm_passwd_t)
+')
 
 ifdef(`TODO',`
 role sysadm_r types sysadm_passwd_t;
 domain_auto_trans(sysadm_t, admin_passwd_exec_t, sysadm_passwd_t)
-
-allow sysadm_passwd_t unpriv_userdomain:fd use;
-can_ypbind(sysadm_passwd_t)
-ifdef(`automount.te', `
-allow sysadm_passwd_t autofs_t:dir { search getattr };
-')
 
 # Inherit and use descriptors from login.
 ifdef(`gnome-pty-helper.te', `allow sysadm_passwd_t gphdomain:fd use;')
@@ -483,45 +480,45 @@ selinux_compute_user_contexts(useradd_t)
 # for getting the number of groups
 kernel_read_kernel_sysctl(useradd_t)
 
+fs_search_auto_mountpoints(useradd_t)
 fs_getattr_xattr_fs(useradd_t)
 
 term_use_all_user_ttys(useradd_t)
 term_use_all_user_ptys(useradd_t)
 
-init_use_fd(useradd_t)
-init_rw_script_pid(useradd_t)
-
-domain_use_wide_inherit_fd(useradd_t)
-
-files_manage_generic_etc_files(useradd_t)
-
-libs_use_ld_so(useradd_t)
-libs_use_shared_libs(useradd_t)
+auth_manage_shadow(useradd_t)
+auth_rw_lastlog(useradd_t)
 
 corecmd_exec_shell(useradd_t)
 # Execute /usr/bin/{passwd,chfn,chsh} and /usr/sbin/{useradd,vipw}.
 corecmd_exec_bin(useradd_t)
 corecmd_exec_sbin(useradd_t)
 
+domain_use_wide_inherit_fd(useradd_t)
+
+files_manage_generic_etc_files(useradd_t)
+
+init_use_fd(useradd_t)
+init_rw_script_pid(useradd_t)
+
+libs_use_ld_so(useradd_t)
+libs_use_shared_libs(useradd_t)
+
+logging_send_syslog_msg(useradd_t)
+
 miscfiles_read_localization(useradd_t)
 
 seutil_read_config(useradd_t)
 
-logging_send_syslog_msg(useradd_t)
+userdom_use_unpriv_users_fd(useradd_t)
 
-auth_manage_shadow(useradd_t)
-auth_rw_lastlog(useradd_t)
+mta_manage_spool(useradd_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(useradd_t)
+')
 
 ifdef(`TODO',`
-
-role sysadm_r types useradd_t;
-domain_auto_trans(sysadm_t, useradd_exec_t, useradd_t)
-
-allow useradd_t unpriv_userdomain:fd use;
-can_ypbind(useradd_t)
-ifdef(`automount.te', `
-allow useradd_t autofs_t:dir { search getattr };
-')
 
 # Update /etc/shadow and /etc/passwd
 allow useradd_t { etc_t shadow_t }:file { relabelfrom relabelto };
@@ -536,10 +533,7 @@ dontaudit useradd_t sysadm_home_dir_t:dir search;
 file_type_auto_trans(useradd_t, home_root_t, user_home_dir_t, dir)
 file_type_auto_trans(useradd_t, user_home_dir_t, user_home_t)
 
-# create/delete mail spool file in /var/mail
-allow useradd_t var_spool_t:dir search;
-allow useradd_t mail_spool_t:dir { search write add_name remove_name };
-allow useradd_t mail_spool_t:file create_file_perms;
 # /var/mail is a link to /var/spool/mail
 allow useradd_t mail_spool_t:lnk_file read;
+
 ') dnl end TODO

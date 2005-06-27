@@ -93,6 +93,8 @@ files_create_tmp_files(pam_t, pam_tmp_t, { file dir })
 
 kernel_read_system_state(pam_t)
 
+fs_search_auto_mountpoints(pam_t)
+
 term_use_all_user_ttys(pam_t)
 term_use_all_user_ptys(pam_t)
 
@@ -112,12 +114,11 @@ optional_policy(`locallogin.te',`
 	locallogin_use_fd(pam_t)
 ')
 
-ifdef(`TODO',`
-can_ypbind(pam_t)
-ifdef(`automount.te', `
-	allow pam_t autofs_t:dir { search getattr };
+optional_policy(`nis.te',`
+	nis_use_ypbind(pam_t)
 ')
 
+ifdef(`TODO',`
 ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
 ') dnl endif TODO
 
@@ -155,6 +156,8 @@ dev_getattr_snd_dev(pam_console_t)
 dev_setattr_snd_dev(pam_console_t)
 dev_getattr_video_dev(pam_console_t)
 dev_setattr_video_dev(pam_console_t)
+
+fs_search_auto_mountpoints(pam_console_t)
 
 storage_getattr_fixed_disk(pam_console_t)
 storage_setattr_fixed_disk(pam_console_t)
@@ -210,11 +213,8 @@ optional_policy(`udev.te', `
 
 ifdef(`TODO',`
 optional_policy(`rhgb.te', `
-	allow pam_console_t rhgb_t:process sigchld;
-	allow pam_console_t rhgb_t:fd use;
-	allow pam_console_t rhgb_t:fifo_file { read write };
+	rhgb_domain(pam_console_t)
 ')
-allow pam_console_t autofs_t:dir { search getattr };
 
 allow pam_console_t apm_bios_t:chr_file { getattr setattr };
 
@@ -268,8 +268,11 @@ tunable_policy(`use_dns',`
 	sysnet_read_config(system_chkpwd_t)
 ')
 
+optional_policy(`nis.te',`
+	nis_use_ypbind(system_chkpwd_t)
+')
+
 ifdef(`TODO',`
-can_ypbind(system_chkpwd_t)
 can_kerberos(system_chkpwd_t)
 can_ldap(system_chkpwd_t)
 
@@ -303,10 +306,10 @@ libs_use_shared_libs(utempter_t)
 
 logging_search_logs(utempter_t)
 
-ifdef(`TODO',`
 # Allow utemper to write to /tmp/.xses-*
-allow utempter_t user_tmpfile:file { getattr write append };
+userdom_write_unpriv_user_tmp(utempter_t)
 
+ifdef(`TODO',`
 ifdef(`xdm.te', `
 allow utempter_t xdm_t:fd use;
 allow utempter_t xdm_t:fifo_file { write getattr };

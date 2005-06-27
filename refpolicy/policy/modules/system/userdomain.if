@@ -137,6 +137,7 @@ template(`base_user_domain',`
 
 	fs_get_all_fs_quotas($1_t)
 	fs_getattr_all_fs($1_t)
+	fs_search_auto_mountpoints($1_t)
 
 	# for eject
 	storage_getattr_fixed_disk($1_t)
@@ -204,6 +205,10 @@ template(`base_user_domain',`
 		term_getattr_all_user_ttys($1_t)
 	')
 
+	optional_policy(`nis.te',`
+		nis_use_ypbind($1_t)
+	')
+
 	optional_policy(`usermanage.te',`
 		usermanage_run_chfn($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 		usermanage_run_passwd($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
@@ -251,8 +256,6 @@ template(`base_user_domain',`
 
 	r_dir_file($1_t, usercanread)
 
-	can_ypbind($1_t)
-
 	tunable_policy(`allow_execmod',`
 		# Allow text relocations on system shared libraries, e.g. libGL.
 		allow $1_t texrel_shlib_t:file execmod;
@@ -270,8 +273,6 @@ template(`base_user_domain',`
 	# /proc
 	dontaudit $1_t sysctl_t:dir_file_class_set getattr;
 	dontaudit $1_t proc_fs:dir { read search };
-
-	allow $1_t autofs_t:dir { getattr search };
 
 	can_exec($1_t, { removable_t noexattrfile } )
 
@@ -298,8 +299,6 @@ template(`base_user_domain',`
 	# Run programs developed by other users in the same domain.
 
 	can_resmgrd_connect($1_t)
-
-	can_ypbind($1_t)
 
 	allow $1_t var_lock_t:dir search;
 
@@ -385,10 +384,6 @@ template(`base_user_domain',`
 		allow $1_t apmd_var_run_t:sock_file write;
 	')
 
-	ifdef(`automount.te', `
-		allow $1_t autofs_t:dir { getattr search };
-	')
-
 	ifdef(`pamconsole.te', `
 		allow $1_t pam_var_console_t:dir search;
 	')
@@ -418,7 +413,7 @@ template(`user_domain_template', `
 	#typeattribute $1_home_dir_t user_home_dir_type;
 	#typeattribute $1_home_t user_home_type;
 
-	#typeattribute $1_tmp_t, user_tmpfile;
+	typeattribute $1_tmp_t user_tmpfile;
 
 	#typeattribute $1_tty_device_t user_tty_type;
  
@@ -808,11 +803,11 @@ template(`admin_domain_template',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Execute a shell in all user domains.  This
 ##	is an explicit transition, requiring the
 ##	caller to use setexeccon().
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -826,11 +821,11 @@ interface(`userdom_spec_domtrans_all_users',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Execute a shell in all unprivileged user domains.  This
 ##	is an explicit transition, requiring the
 ##	caller to use setexeccon().
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -844,9 +839,9 @@ interface(`userdom_spec_domtrans_unpriv_users',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Execute a shell in the sysadm domain.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -860,9 +855,9 @@ interface(`userdom_shell_domtrans_sysadm',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Read and write sysadm ttys.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -879,9 +874,9 @@ interface(`userdom_use_sysadm_tty',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Read and write sysadm ttys and ptys.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -898,9 +893,9 @@ interface(`userdom_use_sysadm_terms',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Do not audit attempts to use admin ttys and ptys.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -915,9 +910,9 @@ interface(`userdom_dontaudit_use_sysadm_terms',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Search all users home directories.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -933,9 +928,9 @@ interface(`userdom_search_all_users_home',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Read all files in all users home directories.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -953,9 +948,26 @@ interface(`userdom_read_all_user_data',`
 ')
 
 ########################################
-## <desc>
+## <summary>
+##	Write all unprivileged users files in /tmp
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_write_unpriv_user_tmp',`
+	gen_require(`
+		attribute user_tmpfile;
+		class file { getattr write append };
+	')
+
+	allow $1 user_tmpfile:file { getattr write append };
+')
+
+########################################
+## <summary>
 ##	Inherit the file descriptors from all user domains
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -970,9 +982,9 @@ interface(`userdom_use_all_user_fd',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Send general signals to all user domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -987,9 +999,9 @@ interface(`userdom_signal_all_users',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Send general signals to unprivileged user domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -1004,9 +1016,9 @@ interface(`userdom_signal_unpriv_users',`
 ')
 
 ########################################
-## <desc>
-##	Inherit the file descriptors from all user domains.
-## </desc>
+## <summary>
+##	Inherit the file descriptors from unprivileged user domains.
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -1021,10 +1033,10 @@ interface(`userdom_use_unpriv_users_fd',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Do not audit attempts to inherit the
 ##	file descriptors from all user domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>

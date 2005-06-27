@@ -57,8 +57,14 @@ corenet_tcp_bind_smtp_port(sendmail_t)
 dev_read_urand(sendmail_t)
 
 fs_getattr_all_fs(sendmail_t)
+fs_search_auto_mountpoints(sendmail_t)
 
 term_dontaudit_use_console(sendmail_t)
+
+domain_use_wide_inherit_fd(sendmail_t)
+
+files_read_generic_etc_files(sendmail_t)
+files_search_spool(sendmail_t)
 
 init_use_fd(sendmail_t)
 init_use_script_pty(sendmail_t)
@@ -66,19 +72,16 @@ init_use_script_pty(sendmail_t)
 init_read_script_pid(sendmail_t)
 init_dontaudit_write_script_pid(sendmail_t)
 
-domain_use_wide_inherit_fd(sendmail_t)
-
-files_read_generic_etc_files(sendmail_t)
-files_search_spool(sendmail_t)
-
-logging_send_syslog_msg(sendmail_t)
-
 libs_use_ld_so(sendmail_t)
 libs_use_shared_libs(sendmail_t)
 # Read /usr/lib/sasl2/.*
 libs_read_lib(sendmail_t)
 
+logging_send_syslog_msg(sendmail_t)
+
 miscfiles_read_localization(sendmail_t)
+
+sysnet_read_config(sendmail_t)
 
 # Write to /etc/aliases and /etc/mail.
 mta_rw_aliases(sendmail_t)
@@ -86,12 +89,14 @@ mta_rw_aliases(sendmail_t)
 mta_manage_queue(sendmail_t)
 mta_manage_spool(sendmail_t)
 
-sysnet_read_config(sendmail_t)
-
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(sendmail_t)
 	term_dontaudit_use_generic_pty(sendmail_t)
 	files_dontaudit_read_root_file(sendmail_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(sendmail_t)
 ')
 
 optional_policy(`selinux.te',`
@@ -105,17 +110,12 @@ optional_policy(`udev.te', `
 ifdef(`TODO',`
 
 optional_policy(`rhgb.te', `
-allow sendmail_t rhgb_t:process sigchld;
-allow sendmail_t rhgb_t:fd use;
-allow sendmail_t rhgb_t:fifo_file { read write };
+rhgb_domain(sendmail_t)
 ')
 allow sendmail_t proc_t:dir r_dir_perms;
 allow sendmail_t proc_t:lnk_file read;
 dontaudit sendmail_t unpriv_userdomain:fd use;
-allow sendmail_t autofs_t:dir { search getattr };
 dontaudit sendmail_t sysadm_home_dir_t:dir search;
-
-can_ypbind(sendmail_t)
 
 #
 #  Need this transition to create /etc/aliases.db 
@@ -144,7 +144,7 @@ dontaudit system_mail_t { staff_home_dir_t sysadm_home_dir_t}:dir { getattr sear
 # Run procmail in its own domain, if defined.
 ifdef(`procmail.te',`
 corecmd_search_bin(sendmail_t)
-procmail_transition(sendmail_t)
+procmail_domtrans(sendmail_t)
 domain_auto_trans(system_mail_t, procmail_exec_t, procmail_t)
 ')
 
