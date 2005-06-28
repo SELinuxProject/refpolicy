@@ -269,9 +269,46 @@ template(`cron_admin_template',`
 ')
 
 ########################################
+## <summary>
+##	Make the specified program domain accessable
+##	from the system cron jobs.
+## </summary>
+## <param name="domain">
+##	The type of the process to transition to.
+## </param>
+## <param name="entrypoint">
+##	The type of the file used as an entrypoint to this domain.
+## </param>
 #
-# cron_rw_log(domain)
-#
+interface(`cron_system_entry',`
+	gen_require(`
+		type crond_t, system_crond_t;
+		class fd use;
+		class fifo_file rw_file_perms;
+		class process sigchld;
+	')
+
+	domain_auto_trans(system_crond_t, $2, $1)
+
+	# cjp: perhaps these four rules from the old
+	# domain_auto_trans are not needed?
+	allow system_crond_t $1:fd use;
+	allow $1 system_crond_t:fd use;
+	allow $1 system_crond_t:fifo_file rw_file_perms;
+	allow $1 system_crond_t:process sigchld;
+
+	allow $1 crond_t:fifo_file { getattr read write ioctl };
+	allow $1 crond_t:fd use;
+	allow $1 crond_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read and write the cron daemon log files.
+## </summary>
+## <param name="domain">
+##	The type of the process to performing this action.
+## </param>
 interface(`cron_rw_log',`
 	gen_require(`
 		type crond_log_t;
