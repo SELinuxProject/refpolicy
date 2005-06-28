@@ -27,7 +27,12 @@ MOD_DISABLED = "off"
 TUN_ENABLED = "true"
 TUN_DISABLED = "false"
 
+
 def read_policy_xml(filename):
+	"""
+	Takes in XML from a file and returns a parsed file.
+	"""
+
 	try:
 		xml_fh = open(filename)
 	except:
@@ -43,6 +48,11 @@ def read_policy_xml(filename):
 	return doc
 
 def gen_tunable_conf(doc, file, namevalue_list):
+	"""
+	Generates the tunable configuration file using the XML provided and the
+	previous tunable configuration.
+	"""
+
 	for node in doc.getElementsByTagName("tunable"):
 		s = string.split(format_txt_desc(node), "\n")
 		for line in s:
@@ -64,8 +74,13 @@ def gen_tunable_conf(doc, file, namevalue_list):
 				tun_name = tun_val = None
 
 def gen_module_conf(doc, file, namevalue_list):
+	"""
+	Generates the module configuration file using the XML provided and the
+	previous module configuration.
+	"""
 	# If file exists, preserve settings and modify if needed.
 	# Otherwise, create it.
+
 	file.write("#\n# This file contains a listing of available modules.\n")
 	file.write("# To prevent a module from  being used in policy\n")
 	file.write("# creation, set the module name to %s.\n#\n" % MOD_DISABLED)
@@ -89,31 +104,59 @@ def gen_module_conf(doc, file, namevalue_list):
 			else:
 				file.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
 
-def get_old_conf(conf):
-	'''
-	Returns the objects in the config file with their values.
-	'''
+def get_conf(conf):
+	"""
+	Returns a list of [name, value] pairs from a config file with the format
+	name = value
+	"""
 
 	conf_lines = conf.readlines()
 
 	namevalue_list = []
-	for line in conf_lines:
+	for i in range(0,len(conf_lines)):
+		line = conf_lines[i]
 		if line.strip() != '' and line.strip()[0] != "#":
 			namevalue = line.strip().split("=")
+			if len(namevalue) != 2:
+				warning("line %d: \"%s\" is not a valid line, skipping"\
+					 % (i, line.strip()))
+				continue
+
 			namevalue[0] = namevalue[0].strip()
+			if len(namevalue[0].split()) > 1:
+				warning("line %d: \"%s\" is not a valid line, skipping"\
+					 % (i, line.strip()))
+				continue
+
 			namevalue[1] = namevalue[1].strip()
+			if len(namevalue[1].split()) > 1:
+				warning("line %d: \"%s\" is not a valid line, skipping"\
+					 % (i, line.strip()))
+				continue
+
 			namevalue_list.append(namevalue)
-			
 
 	return namevalue_list
 
-def stupid_cmp(a, b):
+def first_cmp(a, b):
+	"""
+	Compares the two first elements of a list instead of the entire list.
+	"""
+
 	return cmp(a[0], b[0])
 
 def int_cmp(a, b):
+	"""
+	Compares two interfaces.
+	"""
+
 	return cmp(a["interface_name"], b["interface_name"])
 			
 def gen_doc_menu(mod_layer, module_list):
+	"""
+	Generates the HTML document menu.
+	"""
+
 	menu = []
 	for layer, value in module_list.iteritems():
 		cur_menu = (layer, [])
@@ -124,12 +167,15 @@ def gen_doc_menu(mod_layer, module_list):
 		for mod, desc in value.iteritems():
 			cur_menu[1].append((mod, desc))
 
-	menu.sort(stupid_cmp)
+	menu.sort(first_cmp)
 	for x in menu:
-		x[1].sort(stupid_cmp)
+		x[1].sort(first_cmp)
 	return menu
 
 def format_html_desc(node):
+	"""
+	Formats a XML node into a HTML format.
+	"""
 
 	desc_buf = ''
 	for desc in node.childNodes:
@@ -149,6 +195,9 @@ def format_html_desc(node):
 	return desc_buf
 
 def format_txt_desc(node):
+	"""
+	Formats a XML node into a plain text format.
+	"""
 
 	desc_buf = ''
 	for desc in node.childNodes:
@@ -165,6 +214,9 @@ def format_txt_desc(node):
 	return desc_buf
 
 def gen_docs(doc, dir, templatedir):
+	"""
+	Generates all the documentation.
+	"""
 
 	try:
 		#get the template data ahead of time so we don't reopen them over and over
@@ -356,12 +408,28 @@ def gen_docs(doc, dir, templatedir):
 		int_fh.close()
 
 def error(error):
+	"""
+	Print an error message and exit.
+	"""
+
         sys.stderr.write("%s exiting for: " % sys.argv[0])
         sys.stderr.write("%s\n" % error)
         sys.stderr.flush()
         sys.exit(1)
 
+def warning(warn):
+	"""
+	Print a warning message.
+	"""
+
+	sys.stderr.write("%s warning: " % sys.argv[0])
+	sys.stderr.write("%s\n" % warn)
+
 def usage():
+	"""
+	Describes the proper usage of this tool.
+	"""
+
 	sys.stdout.write("%s [-tmdT] -x <xmlfile>\n\n" % sys.argv[0])
 	sys.stdout.write("Options:\n")
 	sys.stdout.write("-t --tunables	<file>		--	write tunable config to <file>\n")
@@ -370,6 +438,8 @@ def usage():
 	sys.stdout.write("-x --xml <file>		--	filename to read xml data from\n")
 	sys.stdout.write("-T --templates <dir>		--	template directory for documents\n")
 
+
+# MAIN PROGRAM
 try:
 	opts, args = getopt.getopt(sys.argv[1:], "t:m:d:x:T:", ["tunables","modules","docs","xml", "templates"])
 except getopt.GetoptError:
@@ -402,7 +472,7 @@ if tunables:
 		except:
 			error("Could not open tunables file for reading")
 
-		namevalue_list = get_old_conf(conf)
+		namevalue_list = get_conf(conf)
 
 		conf.close()
 
@@ -422,7 +492,7 @@ if modules:
 			conf = open(modules, 'r')
 		except:
 			error("Could not open modules file for reading")
-		namevalue_list = get_old_conf(conf)	
+		namevalue_list = get_conf(conf)	
 		conf.close()
 
 	try:
