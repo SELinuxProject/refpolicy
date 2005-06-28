@@ -19,9 +19,13 @@ import os
 import string
 from xml.dom.minidom import parse, parseString
 
-#modules.conf default enabled and disabled values
-ENABLED = "on"
-DISABLED = "off"
+#modules enabled and disabled values
+MOD_ENABLED = "on"
+MOD_DISABLED = "off"
+
+#tunables enabled and disabled values
+TUN_ENABLED = "true"
+TUN_DISABLED = "false"
 
 def read_policy_xml(filename):
 	try:
@@ -38,7 +42,7 @@ def read_policy_xml(filename):
 	xml_fh.close()	
 	return doc
 
-def gen_tunable_conf(doc, file):
+def gen_tunable_conf(doc, file, namevalue_list):
 	for node in doc.getElementsByTagName("tunable"):
 		s = string.split(format_txt_desc(node), "\n")
 		for line in s:
@@ -50,16 +54,21 @@ def gen_tunable_conf(doc, file):
 			elif name == "dftval":
 				tun_val = value
 
+			if [tun_name,TUN_ENABLED] in namevalue_list:
+				tun_val = TUN_ENABLED
+			elif [tun_name,TUN_DISABLED] in namevalue_list:
+				tun_val = TUN_DISABLED
+
 			if tun_name and tun_val:
 	            		file.write("%s = %s\n\n" % (tun_name, tun_val))
 				tun_name = tun_val = None
 
-def gen_module_conf(doc, file, old_conf):
+def gen_module_conf(doc, file, namevalue_list):
 	# If file exists, preserve settings and modify if needed.
 	# Otherwise, create it.
 	file.write("#\n# This file contains a listing of available modules.\n")
 	file.write("# To prevent a module from  being used in policy\n")
-	file.write("# creation, set the module name to %s.\n#\n" % DISABLED)
+	file.write("# creation, set the module name to %s.\n#\n" % MOD_DISABLED)
 	for node in doc.getElementsByTagName("module"):
 		mod_name = mod_layer = None
 
@@ -75,25 +84,28 @@ def gen_module_conf(doc, file, old_conf):
 			for line in s:
 				file.write("# %s\n" % line)
 
-			if mod_name in old_conf:
-				file.write("%s = %s\n\n" % (mod_name, DISABLED))
+			if [mod_name, MOD_DISABLED] in namevalue_list:
+				file.write("%s = %s\n\n" % (mod_name, MOD_DISABLED))
 			else:
-				file.write("%s = %s\n\n" % (mod_name, ENABLED))
+				file.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
 
 def get_old_conf(conf):
 	'''
-	Returns the disabled modules in the config file.
+	Returns the objects in the config file with their values.
 	'''
 
 	conf_lines = conf.readlines()
 
-	module_list = []
+	namevalue_list = []
 	for line in conf_lines:
 		if line.strip() != '' and line.strip()[0] != "#":
-			module = line.strip().split("=")
-			if module[1].strip() == DISABLED:
-				module_list.append(module[0].strip())
-	return module_list
+			namevalue = line.strip().split("=")
+			namevalue[0] = namevalue[0].strip()
+			namevalue[1] = namevalue[1].strip()
+			namevalue_list.append(namevalue)
+			
+
+	return namevalue_list
 
 def stupid_cmp(a, b):
 	return cmp(a[0], b[0])
@@ -383,29 +395,41 @@ for opt, val in opts:
 doc = read_policy_xml(xmlfile)
 		
 if tunables:
+	namevalue_list = []
+	if os.path.exists(tunables):
+		try:
+			conf = open(tunables, 'r')
+		except:
+			error("Could not open tunables file for reading")
+
+		namevalue_list = get_old_conf(conf)
+
+		conf.close()
+
 	try:
 		conf = open(tunables, 'w')
 	except:
 		error("Could not open tunables file for writing")
-	gen_tunable_conf(doc, conf)
+
+	gen_tunable_conf(doc, conf, namevalue_list)
 	conf.close()
 
 
 if modules:
-	old_conf = []
+	namevalue_list = []
 	if os.path.exists(modules):
 		try:
 			conf = open(modules, 'r')
 		except:
 			error("Could not open modules file for reading")
-		old_conf = get_old_conf(conf)	
+		namevalue_list = get_old_conf(conf)	
 		conf.close()
 
 	try:
 		conf = open(modules, 'w')
 	except:
 		error("Could not open modules file for writing")
-	gen_module_conf(doc, conf, old_conf)
+	gen_module_conf(doc, conf, namevalue_list)
 	conf.close()
 
 if docsdir: 
