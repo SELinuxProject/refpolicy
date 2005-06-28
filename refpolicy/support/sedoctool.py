@@ -151,7 +151,14 @@ def int_cmp(a, b):
 	"""
 
 	return cmp(a["interface_name"], b["interface_name"])
-			
+		
+def temp_cmp(a, b):
+	"""
+	Compares two templates.
+	"""
+
+	return cmp(a["template_name"], b["template_name"])
+	
 def gen_doc_menu(mod_layer, module_list):
 	"""
 	Generates the HTML document menu.
@@ -226,6 +233,9 @@ def gen_docs(doc, dir, templatedir):
 		intfile = open(templatedir + "/interface.html", "r")
 		intdata = intfile.read()
 		intfile.close()
+		templatefile = open(templatedir + "/template.html", "r")
+		templatedata = templatefile.read()
+		templatefile.close()
 		menufile = open(templatedir + "/menu.html", "r")
 		menudata = menufile.read()
 		menufile.close()
@@ -238,6 +248,9 @@ def gen_docs(doc, dir, templatedir):
 		intlistfile = open(templatedir + "/int_list.html", "r")
 		intlistdata = intlistfile.read()
 		intlistfile.close()
+		templistfile = open(templatedir + "/temp_list.html", "r")
+		templistdata = templistfile.read()
+		templistfile.close()
 	except:
 		error("Could not open templates")
 
@@ -305,6 +318,7 @@ def gen_docs(doc, dir, templatedir):
 #now generate the individual module pages
 
 	all_interfaces = []
+	all_templates = []
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = mod_desc = interface_buf = ''
 
@@ -363,6 +377,55 @@ def gen_docs(doc, dir, templatedir):
 		interface_tpl = pyplate.Template(intdata)
 		interface_buf = interface_tpl.execute_string({"interfaces" : interfaces})
 	
+
+# now generate individual template pages
+		templates = []
+		for template in node.getElementsByTagName("template"):
+			template_parameters = []
+			template_desc = template_secdesc = template_summary = None
+			for i,v in template.attributes.items():
+				template_name = v
+			for desc in template.getElementsByTagName("desc"):
+				template_desc = format_html_desc(desc)
+			for desc in template.getElementsByTagName("secdesc"):
+				if desc:
+					template_secdesc = format_html_desc(desc)
+			for desc in template.getElementsByTagName("summary"):
+				template_summary = format_html_desc(desc)
+			
+			for args in template.getElementsByTagName("param"):
+				paramdesc = args.firstChild.data
+				paramname = None
+				paramopt = "No"
+				for name,val in args.attributes.items():
+					if name == "name":
+						paramname = val
+					if name == "optional":
+						if val == "true":
+							paramopt = "yes"
+				parameter = { "name" : paramname,
+					      "desc" : paramdesc,
+					      "optional" : paramopt }
+				template_parameters.append(parameter)
+			templates.append( { "template_name" : template_name,
+					   "template_summary" : template_summary,
+					   "template_desc" : template_desc,
+					   "template_parameters" : template_parameters,
+					   "template_secdesc" : template_secdesc })
+			#all_templates is for the main interface index with all templates
+			all_templates.append( { "template_name" : template_name,
+					   "template_summary" : template_summary,
+					   "template_desc" : template_desc,
+					   "template_parameters" : template_parameters,
+					   "template_secdesc" : template_secdesc,
+					   "mod_name": mod_name,
+					   "mod_layer" : mod_layer })
+
+		templates.sort(temp_cmp)	
+		template_tpl = pyplate.Template(templatedata)
+		template_buf = template_tpl.execute_string({"templates" : templates})
+
+
 		menu = gen_doc_menu(mod_layer, module_list)
 
 		menu_tpl = pyplate.Template(menudata)
@@ -372,7 +435,8 @@ def gen_docs(doc, dir, templatedir):
 			      "mod_name" : mod_name,	
 			      "mod_summary" : mod_summary,
 			      "mod_desc" : mod_desc,
-			      "interfaces" : interface_buf }
+			      "interfaces" : interface_buf,
+			      "templates": template_buf }
 
 		module_tpl = pyplate.Template(moduledata)
 		module_buf = module_tpl.execute_string(module_args)
@@ -386,14 +450,14 @@ def gen_docs(doc, dir, templatedir):
 		body_tpl.execute(module_fh, body_args)
 		module_fh.close()
 
-		#and last build the interface index
-	
+		
 		menu = gen_doc_menu(None, module_list)
 		menu_args = { "menulist" : menu,
 			      "mod_layer" : None }
 		menu_tpl = pyplate.Template(menudata)
 		menu_buf = menu_tpl.execute_string(menu_args)
 	
+		#build the interface index
 		all_interfaces.sort(int_cmp)
 		interface_tpl = pyplate.Template(intlistdata)
 		interface_buf = interface_tpl.execute_string({"interfaces" : all_interfaces})
@@ -406,6 +470,21 @@ def gen_docs(doc, dir, templatedir):
 
 		body_tpl.execute(int_fh, body_args)
 		int_fh.close()
+
+
+		#build the template index
+		all_templates.sort(temp_cmp)
+		template_tpl = pyplate.Template(templistdata)
+		template_buf = template_tpl.execute_string({"templates" : all_templates})
+		temp_file = "templates.html"
+		temp_fh = open(temp_file, "w")
+		body_tpl = pyplate.Template(bodydata)
+
+		body_args = { "menu" : menu_buf, 
+			      "content" : template_buf }
+
+		body_tpl.execute(temp_fh, body_args)
+		temp_fh.close()
 
 def error(error):
 	"""
