@@ -19,6 +19,10 @@ import os
 import string
 from xml.dom.minidom import parse, parseString
 
+#modules.conf default enabled and disabled values
+ENABLED = "on"
+DISABLED = "off"
+
 def read_policy_xml(filename):
 	try:
 		xml_fh = open(filename)
@@ -50,10 +54,12 @@ def gen_tunable_conf(doc, file):
 	            		file.write("%s = %s\n\n" % (tun_name, tun_val))
 				tun_name = tun_val = None
 
-def gen_module_conf(doc, file):
+def gen_module_conf(doc, file, old_conf):
+	# If file exists, preserve settings and modify if needed.
+	# Otherwise, create it.
 	file.write("#\n# This file contains a listing of available modules.\n")
 	file.write("# To prevent a module from  being used in policy\n")
-	file.write("# creation, uncomment the line with its name.\n#\n")
+	file.write("# creation, set the module name to %s.\n#\n" % DISABLED)
 	for node in doc.getElementsByTagName("module"):
 		mod_name = mod_layer = None
 
@@ -67,8 +73,27 @@ def gen_module_conf(doc, file):
 				continue
 			s = string.split(format_txt_desc(desc), "\n")
 			for line in s:
-				file.write("# %s\n" % line)	
-			file.write("#%s\n\n" % mod_name)
+				file.write("# %s\n" % line)
+
+			if mod_name in old_conf:
+				file.write("%s = %s\n\n" % (mod_name, DISABLED))
+			else:
+				file.write("%s = %s\n\n" % (mod_name, ENABLED))
+
+def get_old_conf(conf):
+	'''
+	Returns the disabled modules in the config file.
+	'''
+
+	conf_lines = conf.readlines()
+
+	module_list = []
+	for line in conf_lines:
+		if line.strip() != '' and line.strip()[0] != "#":
+			module = line.strip().split("=")
+			if module[1].strip() == DISABLED:
+				module_list.append(module[0].strip())
+	return module_list
 
 def stupid_cmp(a, b):
 	return cmp(a[0], b[0])
@@ -367,11 +392,20 @@ if tunables:
 
 
 if modules:
+	old_conf = []
+	if os.path.exists(modules):
+		try:
+			conf = open(modules, 'r')
+		except:
+			error("Could not open modules file for reading")
+		old_conf = get_old_conf(conf)	
+		conf.close()
+
 	try:
 		conf = open(modules, 'w')
 	except:
 		error("Could not open modules file for writing")
-	gen_module_conf(doc, conf)
+	gen_module_conf(doc, conf, old_conf)
 	conf.close()
 
 if docsdir: 
