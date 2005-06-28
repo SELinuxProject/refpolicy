@@ -1,0 +1,163 @@
+
+policy_module(logrotate,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type logrotate_t; #, priv_system_role, nscd_client_domain;
+domain_type(logrotate_t)
+domain_obj_id_change_exempt(logrotate_t)
+role system_r types logrotate_t;
+
+type logrotate_exec_t;
+files_file_type(logrotate_exec_t)
+
+type logrotate_tmp_t;
+files_tmp_file(logrotate_tmp_t)
+
+type logrotate_var_lib_t;
+files_file_type(logrotate_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+# Change ownership on log files.
+allow logrotate_t self:capability { chown dac_override dac_read_search kill fsetid fowner sys_resource sys_nice };
+# for mailx
+dontaudit logrotate_t self:capability { setuid setgid };
+
+allow logrotate_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+
+# Set a context other than the default one for newly created files.
+allow logrotate_t self:process setfscreate;
+
+allow logrotate_t self:fd use;
+allow logrotate_t self:fifo_file rw_file_perms;
+allow logrotate_t self:unix_dgram_socket create_socket_perms;
+allow logrotate_t self:unix_stream_socket create_stream_socket_perms;
+allow logrotate_t self:unix_dgram_socket sendto;
+allow logrotate_t self:unix_stream_socket connectto;
+allow logrotate_t self:shm create_shm_perms;
+allow logrotate_t self:sem create_sem_perms;
+allow logrotate_t self:msgq create_msgq_perms;
+allow logrotate_t self:msg { send receive };
+
+can_exec(logrotate_t, logrotate_tmp_t)
+
+allow logrotate_t logrotate_tmp_t:dir create_dir_perms;
+allow logrotate_t logrotate_tmp_t:file create_file_perms;
+files_create_tmp_files(logrotate_t, logrotate_tmp_t, { file dir })
+
+allow logrotate_t logrotate_var_lib_t:dir { create rw_dir_perms };
+
+kernel_read_system_state(logrotate_t)
+kernel_read_kernel_sysctl(logrotate_t)
+
+dev_read_urand(logrotate_t)
+
+fs_search_auto_mountpoints(logrotate_t)
+fs_getattr_xattr_fs(logrotate_t)
+
+selinux_get_fs_mount(logrotate_t)
+
+auth_manage_login_records(logrotate_t)
+
+# Run helper programs.
+corecmd_exec_bin(logrotate_t)
+corecmd_exec_sbin(logrotate_t)
+corecmd_exec_shell(logrotate_t)
+corecmd_exec_ls(logrotate_t)
+
+domain_signal_all_domains(logrotate_t)
+domain_use_wide_inherit_fd(logrotate_t)
+
+files_read_usr_files(logrotate_t)
+files_read_generic_etc_files(logrotate_t)
+files_read_etc_runtime_files(logrotate_t)
+files_manage_generic_lock_files(logrotate_t)
+files_read_all_pids(logrotate_t)
+# Write to /var/spool/slrnpull - should be moved into its own type.
+files_manage_spools(logrotate_t)
+files_manage_spool_dirs(logrotate_t)
+
+hostname_exec(logrotate_t)
+
+# cjp: why is this needed?
+init_domtrans_script(logrotate_t)
+
+logging_manage_all_logs(logrotate_t)
+# cjp: why is this needed?
+logging_exec_all_logs(logrotate_t)
+
+libs_use_ld_so(logrotate_t)
+libs_use_shared_libs(logrotate_t)
+
+miscfiles_read_localization(logrotate_t)
+
+sysnet_read_config(logrotate_t)
+
+userdom_use_unpriv_users_fd(logrotate_t)
+
+cron_system_entry(logrotate_t, logrotate_exec_t)
+cron_search_spool(logrotate_t)
+
+mta_send_mail(logrotate_t)
+
+ifdef(`distro_debian', `
+	allow logrotate_t logrotate_tmp_t:file { relabelfrom relabelto };
+	# for savelog
+	can_exec(logrotate_t, logrotate_exec_t)
+')
+
+optional_policy(`consoletype.te',`
+	consoletype_exec(logrotate_t)
+
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(logrotate_t)
+')
+
+ifdef(`TODO',`
+
+#from privmail this needs more work:
+allow mta_user_agent logrotate_t:fd use;
+allow mta_user_agent logrotate_t:process sigchld;
+allow mta_user_agent logrotate_t:fifo_file { read write };
+
+ifdef(`gnome-pty-helper.te', `allow logrotate_t sysadm_gph_t:fd use;')
+
+# it should not require this
+allow logrotate_t {staff_home_dir_t sysadm_home_dir_t}:dir { getattr read search };
+
+# Read /proc/PID directories for all domains.
+allow logrotate_t domain:notdevfile_class_set r_file_perms;
+allow logrotate_t domain:dir r_dir_perms;
+allow logrotate_t exec_type:file getattr;
+
+#this should go to squid:
+ifdef(`squid.te', `
+allow squid_t { system_crond_t crond_t }:fd use;
+allow squid_t crond_t:fifo_file { read write };
+allow squid_t system_crond_t:fifo_file write;
+allow squid_t self:capability kill;
+')
+
+# for /var/lib/logrotate.status and /var/lib/logcheck
+file_type_auto_trans(logrotate_t, var_lib_t, logrotate_var_lib_t, file)
+
+allow crond_t logrotate_var_lib_t:dir search;
+
+# for /var/backups on Debian
+ifdef(`backup.te', `
+rw_dir_create_file(logrotate_t, backup_store_t)
+')
+
+allow logrotate_t syslogd_t:unix_dgram_socket sendto;
+
+dontaudit logrotate_t selinux_config_t:dir search;
+') dnl end TODO

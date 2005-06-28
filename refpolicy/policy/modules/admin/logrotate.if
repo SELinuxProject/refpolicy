@@ -1,0 +1,84 @@
+## <summary>Rotate and archive system logs</summary>
+
+########################################
+## <summary>
+##	Execute logrotate in the logrotate domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`logrotate_domtrans',`
+	gen_require(`
+		type logrotate_t, logrotate_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	domain_auto_trans($1,logrotate_exec_t,logrotate_t)
+
+	allow $1 logrotate_t:fd use;
+	allow logrotate_t $1:fd use;
+	allow logrotate_t $1:fifo_file rw_file_perms;
+	allow logrotate_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute logrotate in the logrotate domain, and
+##	allow the specified role the logrotate domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+## <param name="role">
+##	The role to be allowed the logrotate domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the logrotate domain to use.
+## </param>
+#
+interface(`logrotate_run',`
+	gen_require(`
+		type logrotate_t;
+		class chr_file rw_term_perms;
+	')
+
+	logrotate_domtrans($1)
+	role $2 types logrotate_t;
+	allow logrotate_t $3:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Execute logrotate in the caller domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`logrotate_exec',`
+	gen_require(`
+		type logrotate_exec_t;
+	')
+
+	can_exec($1,logrotate_exec_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to inherit logrotate file descriptors.
+## </summary>
+## <param name="domain">
+##	The type of the process to not audit.
+## </param>
+#
+interface(`logrotate_dontaudit_use_fd',`
+	gen_require(`
+		type logrotate_t;
+		class fd;
+	')
+
+	dontaudit $1 logrotate_t:fd use;
+')
