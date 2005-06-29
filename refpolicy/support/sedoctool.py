@@ -431,6 +431,21 @@ def gen_docs(doc, dir, templatedir):
 		menu_tpl = pyplate.Template(menudata)
 		menu_buf = menu_tpl.execute_string({ "menulist" : menu })
 
+
+		# pyplate's execute_string gives us a line of whitespace in
+		# template_buf or interface_buf if there are no interfaces or
+		# templates for this module. This is problematic because the
+		# HTML templates use a conditional if on interface_buf or
+		# template_buf being 'None' to decide if the "Template:" or
+		# "Interface:" headers need to be printed in the module pages.
+		# This detects if either of these are just whitespace, and sets
+		# their values to 'None' so that when applying it to the
+		# templates, they are properly recognized as not existing.
+		if not interface_buf.strip():
+			interface_buf = None
+		if not template_buf.strip():
+			template_buf = None
+
 		module_args = { "mod_layer" : mod_layer,
 			      "mod_name" : mod_name,	
 			      "mod_summary" : mod_summary,
