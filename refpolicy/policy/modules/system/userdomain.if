@@ -122,6 +122,8 @@ template(`base_user_template',`
 	kernel_get_sysvipc_info($1_t)
 	# Find CDROM devices:
 	kernel_read_device_sysctl($1_t)
+
+	dev_rw_power_management($1_t)
 	# GNOME checks for usb and other devices:
 	dev_rw_usbfs($1_t)
 
@@ -172,6 +174,7 @@ template(`base_user_template',`
 
 	files_exec_etc_files($1_t)
 	files_read_usr_src_files($1_t)
+	files_search_generic_locks($1_t)
 
 	# Caused by su - init scripts
 	init_dontaudit_use_script_pty($1_t)
@@ -242,9 +245,6 @@ template(`base_user_template',`
 	#
 	dontaudit $1_t usr_t:file setattr;
 
-	# Access the power device.
-	allow $1_t power_device_t:chr_file rw_file_perms;
-
 	# Check to see if cdrom is mounted
 	allow $1_t mnt_t:dir { getattr search };
 
@@ -296,7 +296,9 @@ template(`base_user_template',`
 		create_dir_file($1_t, noexattrfile)
 		create_dir_file($1_t, removable_t)
 		# Write floppies 
-		allow $1_t removable_device_t:blk_file rw_file_perms;
+		storage_raw_read_removable_device($1_t)
+		storage_raw_write_removable_device($1_t)
+		# cjp: what does this have to do with removable devices?
 		allow $1_t usbtty_device_t:chr_file write;
 	',`
 		r_dir_file($1_t, noexattrfile)
@@ -312,11 +314,7 @@ template(`base_user_template',`
 	r_dir_file($1_t, tetex_data_t)
 	can_exec($1_t, tetex_data_t)
 
-	# Run programs developed by other users in the same domain.
-
 	can_resmgrd_connect($1_t)
-
-	allow $1_t var_lock_t:dir search;
 
 	# Grant permissions to access the system DBus
 	ifdef(`dbusd.te', `
@@ -442,7 +440,7 @@ template(`unpriv_user_template', `
 
 	typeattribute $1_tmp_t user_tmpfile;
 
-	#typeattribute $1_tty_device_t user_tty_type;
+	typeattribute $1_tty_device_t user_ttynode;
  
 	##############################
 	#
@@ -1105,3 +1103,20 @@ interface(`userdom_dontaudit_use_unpriv_user_fd',`
 	dontaudit $1 unpriv_userdomain:fd use;
 ')
 
+########################################
+## <summary>
+##	Do not audit attempts to use unprivileged
+##	user ttys.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_dontaudit_use_unpriv_user_tty',`
+	gen_require(`
+		attribute user_ttynode;
+		class chr_file rw_file_perms;
+	')
+
+	dontaudit $1 user_ttynode:chr_file rw_file_perms;
+')

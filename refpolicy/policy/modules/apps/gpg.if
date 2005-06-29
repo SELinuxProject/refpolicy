@@ -79,6 +79,9 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_t $1_gpg_secret_t:file create_file_perms;
 	allow $1_gpg_t $1_gpg_secret_t:lnk_file create_lnk_perms;
 
+	allow $1_t $1_gpg_secret_t:file getattr;
+	allow $1_t $1_gpg_secret_t:dir rw_dir_perms;
+
 	corenet_tcp_sendrecv_all_if($1_gpg_t)
 	corenet_raw_sendrecv_all_if($1_gpg_t)
 	corenet_udp_sendrecv_all_if($1_gpg_t)
@@ -95,8 +98,13 @@ template(`gpg_per_userdomain_template',`
 
 	fs_getattr_xattr_fs($1_gpg_t)
 
+	domain_use_wide_inherit_fd($1_gpg_t)
+
 	files_read_etc_files($1_gpg_t)
 	files_read_usr_files($1_gpg_t)
+	files_dontaudit_search_var($1_gpg_t)
+	# should not need read access...
+	files_list_home($1_gpg_t)
 
 	libs_use_shared_libs($1_gpg_t)
 	libs_use_ld_so($1_gpg_t)
@@ -135,19 +143,11 @@ template(`gpg_per_userdomain_template',`
 
 	ifdef(`TODO',`
 
-	allow $1_t $1_gpg_secret_t:file getattr;
-
 	access_terminal($1_gpg_t, $1)
 	ifdef(`gnome-pty-helper.te', `allow $1_gpg_t $1_gph_t:fd use;')
 
-	# Inherit and use descriptors
-	allow $1_gpg_t { privfd $1_t }:fd use;
-
 	# allow ps to show gpg
 	can_ps($1_t, $1_gpg_t)
-
-	# should not need read access...
-	allow $1_gpg_t home_root_t:dir { read search };
 
 	# use $1_gpg_secret_t for files it creates
 	# NB we are doing the type transition for directory creation only!
@@ -164,9 +164,6 @@ template(`gpg_per_userdomain_template',`
 
 	rw_dir_create_file($1_gpg_t, $1_file_type)
 
-	allow $1_t $1_gpg_secret_t:dir rw_dir_perms;
-
-	dontaudit $1_gpg_t var_t:dir search;
 	') dnl end TODO
 
 	########################################
@@ -246,10 +243,25 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_agent_t self:unix_stream_socket create_stream_socket_perms ;
 	allow $1_gpg_agent_t self:fifo_file rw_file_perms;
 
+	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
+	allow $1_gpg_agent_t $1_gpg_secret_t:dir create_dir_perms;
+	allow $1_gpg_agent_t $1_gpg_secret_t:file create_file_perms;
+	allow $1_gpg_agent_t $1_gpg_secret_t:lnk_file create_lnk_perms;
+
+	# allow gpg to connect to the gpg agent
+	allow $1_gpg_t $1_gpg_agent_tmp_t:dir search;
+	allow $1_gpg_t $1_gpg_agent_tmp_t:sock_file write;
+	allow $1_gpg_t $1_gpg_agent_t:unix_stream_socket connectto;
+
+	# Allow the user shell to signal the gpg-agent program.
+	allow $1_t $1_gpg_agent_t:process { signal sigkill };
+
 	allow $1_t $1_gpg_agent_tmp_t:dir create_dir_perms;
 	allow $1_t $1_gpg_agent_tmp_t:file create_file_perms;
 	allow $1_t $1_gpg_agent_tmp_t:sock_file create_file_perms;
 	files_create_tmp_files($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
+
+	corecmd_search_bin($1_gpg_agent_t)
 
 	# Transition from the user domain to the derived domain.
 	domain_auto_trans($1_t, gpg_agent_exec_t, $1_gpg_agent_t)
@@ -280,24 +292,15 @@ template(`gpg_per_userdomain_template',`
 	# Write to the user domain tty.
 	access_terminal($1_gpg_agent_t, $1)
 
-	# Allow the user shell to signal the gpg-agent program.
-	allow $1_t $1_gpg_agent_t:process { signal sigkill };
 	# allow ps to show gpg-agent
 	can_ps($1_t, $1_gpg_agent_t)
 
 	allow $1_gpg_agent_t proc_t:dir search;
 	allow $1_gpg_agent_t proc_t:lnk_file read;
 
-	allow $1_gpg_agent_t device_t:dir r_file_perms;
-
 	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
 	allow $1_gpg_agent_t { home_root_t $1_home_dir_t }:dir search;
-	create_dir_file($1_gpg_agent_t, $1_gpg_secret_t)
 
-	# gpg connect
-	allow $1_gpg_t $1_gpg_agent_tmp_t:dir search;
-	allow $1_gpg_t $1_gpg_agent_tmp_t:sock_file write;
-	can_unix_connect($1_gpg_t, $1_gpg_agent_t)
 	') dnl endif TODO
 
 	##############################
@@ -330,14 +333,20 @@ template(`gpg_per_userdomain_template',`
 	miscfiles_read_fonts($1_gpg_pinentry_t)
 	miscfiles_read_localization($1_gpg_pinentry_t)
 
-	ifdef(`TODO',`
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_read_nfs_files($1_gpg_pinentry_t)
+	')
 
-	allow $1_gpg_agent_t bin_t:dir search;
+	tunable_policy(`use_samba_home_dirs',`
+		fs_read_cifs_files($1_gpg_pinentry_t)
+	')
+
+	ifdef(`TODO',`
 
 	ifdef(`xdm.te', `
 		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:dir search;
 		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:sock_file { read write };
-		can_unix_connect($1_gpg_pinentry_t, xdm_xserver_t)
+		allow $1_gpg_pinentry_t xdm_xserver_t:unix_stream_socket connectto;
 		allow $1_gpg_pinentry_t xdm_t:fd use;
 	')
 
@@ -351,16 +360,12 @@ template(`gpg_per_userdomain_template',`
 	dontaudit $1_gpg_pinentry_t $1_home_t:file write;
 
 	tunable_policy(`use_nfs_home_dirs',`
-		allow $1_gpg_pinentry_t nfs_t:dir { getattr search };
-		allow $1_gpg_pinentry_t nfs_t:file r_file_perms;
-		dontaudit $1_gpg_pinentry_t nfs_t:dir { read write };
+		dontaudit $1_gpg_pinentry_t nfs_t:dir write;
 		dontaudit $1_gpg_pinentry_t nfs_t:file write;
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
-		allow $1_gpg_pinentry_t cifs_t:dir { getattr search };
-		allow $1_gpg_pinentry_t cifs_t:file r_file_perms;
-		dontaudit $1_gpg_pinentry_t cifs_t:dir { read write };
+		dontaudit $1_gpg_pinentry_t cifs_t:dir write;
 		dontaudit $1_gpg_pinentry_t cifs_t:file write;
 	')
 

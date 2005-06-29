@@ -212,11 +212,14 @@ term_relabel_all_user_ptys(newrole_t)
 auth_domtrans_chk_passwd(newrole_t)
 
 domain_use_wide_inherit_fd(newrole_t)
+# for when the user types "exec newrole" at the command line:
+domain_sigchld_wide_inherit_fd(newrole_t)
 
 # Write to utmp.
 init_rw_script_pid(newrole_t)
 
 files_read_etc_files(newrole_t)
+files_read_var_files(newrole_t)
 
 libs_use_ld_so(newrole_t)
 libs_use_shared_libs(newrole_t)
@@ -240,13 +243,6 @@ optional_policy(`nis.te',`
 ')
 
 ifdef(`TODO',`
-# for when the user types "exec newrole" at the command line
-allow newrole_t privfd:process sigchld;
- 
-# Read /var.
-allow newrole_t var_t:dir r_dir_perms;
-allow newrole_t var_t:notdevfile_class_set r_file_perms;
-
 ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
 
 # for some PAM modules and for cwd
@@ -303,10 +299,10 @@ files_list_all_dirs(restorecon_t)
 auth_relabelto_shadow(restorecon_t)
 
 ifdef(`distro_redhat', `
-	fs_use_tmpfs_character_devices(restorecon_t)
-	fs_use_tmpfs_block_devices(restorecon_t)
-	fs_relabel_tmpfs_block_devices(restorecon_t)
-	fs_relabel_tmpfs_character_devices(restorecon_t)
+	fs_use_tmpfs_chr_dev(restorecon_t)
+	fs_use_tmpfs_blk_dev(restorecon_t)
+	fs_relabel_tmpfs_blk_dev(restorecon_t)
+	fs_relabel_tmpfs_chr_dev(restorecon_t)
 ')
 
 optional_policy(`hotplug.te',`
@@ -323,6 +319,10 @@ allow restorecon_t fs_type:dir r_dir_perms;
 
 allow restorecon_t device_t:file { read write };
 allow restorecon_t kernel_t:fifo_file { read write };
+
+tunable_policy(`hide_broken_symptoms',`
+dontaudit restorecon_t udev_t:unix_dgram_socket { read write };
+')
 ') dnl endif TODO
 
 #################################
