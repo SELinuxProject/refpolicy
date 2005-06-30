@@ -1,0 +1,259 @@
+
+policy_module(kerberos,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type kadmind_t;
+type kadmind_exec_t;
+init_daemon_domain(kadmind_t,kadmind_exec_t)
+
+type kadmind_log_t;
+logging_log_file(kadmind_log_t)
+
+type kadmind_tmp_t;
+files_tmp_file(kadmind_tmp_t)
+
+type kadmind_var_run_t;
+files_pid_file(kadmind_var_run_t)
+
+type krb5_conf_t;
+files_type(krb5_conf_t)
+
+# types for general configuration files in /etc
+type krb5_keytab_t; #, secure_file_type;
+files_type(krb5_keytab_t)
+
+# types for KDC configs and principal file(s)
+type krb5kdc_conf_t;
+files_type(krb5kdc_conf_t)
+
+# types for KDC principal file(s)
+type krb5kdc_principal_t;
+files_type(krb5kdc_principal_t)
+
+type krb5kdc_t;
+type krb5kdc_exec_t;
+init_daemon_domain(krb5kdc_t,krb5kdc_exec_t)
+
+type krb5kdc_log_t;
+logging_log_file(krb5kdc_log_t)
+
+type krb5kdc_tmp_t;
+files_tmp_file(krb5kdc_tmp_t)
+
+type krb5kdc_var_run_t;
+files_pid_file(krb5kdc_var_run_t)
+
+########################################
+#
+# kadmind local policy
+#
+
+# Use capabilities. Surplus capabilities may be allowed.
+allow kadmind_t self:capability { setuid setgid chown fowner dac_override sys_nice };
+dontaudit kadmind_t self:capability sys_tty_config;
+allow kadmind_t self:tcp_socket connected_stream_socket_perms;
+allow kadmind_t self:netlink_route_socket r_netlink_socket_perms;
+allow kadmind_t self:unix_dgram_socket { connect create write };
+
+allow kadmind_t kadmind_log_t:file create_file_perms;
+logging_create_log(kadmind_t,kadmind_log_t)
+
+allow kadmind_t krb5_conf_t:file r_file_perms;
+dontaudit kadmind_t krb5_conf_t:file write;
+
+allow kadmind_t krb5kdc_conf_t:dir search;
+allow kadmind_t krb5kdc_conf_t:file r_file_perms;
+dontaudit kadmind_t krb5kdc_conf_t:file write;
+
+allow kadmind_t krb5kdc_principal_t:file { getattr lock read write setattr };
+
+can_exec(kadmind_t, kadmind_exec_t)
+
+allow kadmind_t kadmind_tmp_t:dir create_dir_perms;
+allow kadmind_t kadmind_tmp_t:file create_file_perms;
+files_create_tmp_files(kadmind_t, kadmind_tmp_t, { file dir })
+
+allow kadmind_t kadmind_var_run_t:file { getattr create read write append setattr unlink };
+files_create_pid(kadmind_t,kadmind_var_run_t)
+
+kernel_read_kernel_sysctl(kadmind_t)
+
+corenet_tcp_sendrecv_all_if(kadmind_t)
+corenet_raw_sendrecv_all_if(kadmind_t)
+corenet_tcp_sendrecv_all_nodes(kadmind_t)
+corenet_raw_sendrecv_all_nodes(kadmind_t)
+corenet_tcp_sendrecv_all_ports(kadmind_t)
+corenet_tcp_bind_all_nodes(kadmind_t)
+corenet_tcp_bind_kerberos_admin_port(kadmind_t)
+corenet_udp_bind_kerberos_admin_port(kadmind_t)
+corenet_tcp_bind_reserved_port(kadmind_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(kadmind_t)
+
+dev_read_sysfs(kadmind_t)
+dev_read_rand(kadmind_t)
+dev_read_urand(kadmind_t)
+
+fs_getattr_all_fs(kadmind_t)
+fs_search_auto_mountpoints(kadmind_t)
+
+term_dontaudit_use_console(kadmind_t)
+
+domain_use_wide_inherit_fd(kadmind_t)
+
+files_read_etc_files(kadmind_t)
+
+init_use_fd(kadmind_t)
+init_use_script_pty(kadmind_t)
+
+libs_use_ld_so(kadmind_t)
+libs_use_shared_libs(kadmind_t)
+
+logging_send_syslog_msg(kadmind_t)
+
+miscfiles_read_localization(kadmind_t)
+
+sysnet_read_config(kadmind_t)
+
+userdom_dontaudit_use_unpriv_user_fd(kadmind_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(kadmind_t)
+	term_dontaudit_use_generic_pty(kadmind_t)
+	files_dontaudit_read_root_file(kadmind_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(kadmind_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_sigchld_newrole(kadmind_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(kadmind_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(kadmind_t)
+')
+allow kadmind_t proc_t:dir r_dir_perms;
+allow kadmind_t proc_t:lnk_file read;
+dontaudit kadmind_t sysadm_home_dir_t:dir search;
+
+# cjp: not sure, but I think this has no effect
+can_tcp_connect(kerberos_admin_port_t, kadmind_t)
+') dnl end TODO
+
+########################################
+#
+# Krb5kdc local policy
+#
+
+# Use capabilities. Surplus capabilities may be allowed.
+allow krb5kdc_t self:capability { setuid setgid net_admin chown fowner dac_override sys_nice };
+dontaudit krb5kdc_t self:capability sys_tty_config;
+allow krb5kdc_t self:tcp_socket connected_stream_socket_perms;
+allow krb5kdc_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow krb5kdc_t krb5_conf_t:file r_file_perms;
+dontaudit krb5kdc_t krb5_conf_t:file write;
+
+can_exec(krb5kdc_t, krb5kdc_exec_t)
+
+allow krb5kdc_t krb5kdc_conf_t:dir search;
+allow krb5kdc_t krb5kdc_conf_t:file r_file_perms;
+dontaudit krb5kdc_t krb5kdc_conf_t:file write;
+
+allow krb5kdc_t krb5kdc_log_t:file create_file_perms;
+logging_create_log(krb5kdc_t,krb5kdc_log_t)
+
+allow krb5kdc_t krb5kdc_principal_t:file r_file_perms;
+dontaudit krb5kdc_t krb5kdc_principal_t:file write;
+
+allow krb5kdc_t krb5kdc_tmp_t:dir create_dir_perms;
+allow krb5kdc_t krb5kdc_tmp_t:file create_file_perms;
+files_create_tmp_files(krb5kdc_t, krb5kdc_tmp_t, { file dir })
+
+allow krb5kdc_t krb5kdc_var_run_t:file { getattr create read write append setattr unlink };
+files_create_pid(krb5kdc_t,krb5kdc_var_run_t)
+
+kernel_read_system_state(krb5kdc_t)
+kernel_read_kernel_sysctl(krb5kdc_t)
+
+corenet_tcp_sendrecv_all_if(krb5kdc_t)
+corenet_raw_sendrecv_all_if(krb5kdc_t)
+corenet_tcp_sendrecv_all_nodes(krb5kdc_t)
+corenet_raw_sendrecv_all_nodes(krb5kdc_t)
+corenet_tcp_sendrecv_all_ports(krb5kdc_t)
+corenet_tcp_bind_all_nodes(krb5kdc_t)
+corenet_tcp_bind_kerberos_port(krb5kdc_t)
+corenet_udp_bind_kerberos_port(krb5kdc_t)
+
+dev_read_sysfs(krb5kdc_t)
+dev_read_urand(krb5kdc_t)
+
+fs_getattr_all_fs(krb5kdc_t)
+fs_search_auto_mountpoints(krb5kdc_t)
+
+term_dontaudit_use_console(krb5kdc_t)
+
+domain_use_wide_inherit_fd(krb5kdc_t)
+
+files_read_etc_files(krb5kdc_t)
+
+init_use_fd(krb5kdc_t)
+init_use_script_pty(krb5kdc_t)
+
+libs_use_ld_so(krb5kdc_t)
+libs_use_shared_libs(krb5kdc_t)
+
+logging_send_syslog_msg(krb5kdc_t)
+
+miscfiles_read_localization(krb5kdc_t)
+
+sysnet_read_config(krb5kdc_t)
+
+userdom_dontaudit_use_unpriv_user_fd(krb5kdc_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(krb5kdc_t)
+	term_dontaudit_use_generic_pty(krb5kdc_t)
+	files_dontaudit_read_root_file(krb5kdc_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(krb5kdc_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_sigchld_newrole(krb5kdc_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(krb5kdc_t)
+')
+
+ifdef(`TODO',`
+allow krb5kdc_t proc_t:dir r_dir_perms;
+allow krb5kdc_t proc_t:lnk_file read;
+dontaudit krb5kdc_t sysadm_home_dir_t:dir search;
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(krb5kdc_t)
+')
+
+# Allow user programs to talk to KDC
+allow krb5kdc_t userdomain:udp_socket recvfrom;
+allow userdomain krb5kdc_t:udp_socket recvfrom;
+
+# cjp: not sure, but I think these have no effect
+can_udp_send(kerberos_port_t, krb5kdc_t)
+can_udp_send(krb5kdc_t, kerberos_port_t)
+can_tcp_connect(kerberos_port_t, krb5kdc_t)
+') dnl end TODO
