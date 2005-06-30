@@ -120,6 +120,7 @@ domain_use_wide_inherit_fd(dhcpc_t)
 
 files_read_etc_files(dhcpc_t)
 files_read_etc_runtime_files(dhcpc_t)
+files_search_home(dhcpc_t)
 
 init_use_fd(dhcpc_t)
 init_use_script_pty(dhcpc_t)
@@ -151,6 +152,11 @@ optional_policy(`consoletype.te',`
 
 optional_policy(`hostname.te',`
 	hostname_domtrans(dhcpc_t)
+')
+
+# for the dhcp client to run ping to check IP addresses
+optional_policy(`netutils.te',`
+	netutils_domtrans_ping(dhcpc_t)
 ')
 
 optional_policy(`nis.te',`
@@ -189,10 +195,18 @@ optional_policy(`rhgb.te',`
 rhgb_domain(dhcpc_t)
 ')
 
-ifdef(`cardmgr.te', `
+ifdef(`cardmgr.te',`
 domain_auto_trans(cardmgr_t, dhcpc_exec_t, dhcpc_t)
-allow cardmgr_t dhcpc_var_run_t:file { getattr read };
-allow cardmgr_t dhcpc_t:process signal_perms;
+')
+
+#this goes to pcmcia module
+optional_policy(`sysnetwork.te',`
+	sysnet_read_dhcpc_pid(cardmgr_t)
+	sysnet_kill_dhcpc(cardmgr_t)
+	sysnet_sigchld_dhcpc(cardmgr_t)
+	sysnet_signal_dhcpc(cardmgr_t)
+	sysnet_signull_dhcpc(cardmgr_t)
+	sysnet_sigstop_dhcpc(cardmgr_t)
 ')
 
 optional_policy(`hotplug.te', `
@@ -203,17 +217,7 @@ optional_policy(`hotplug.te', `
 	')
 ')
 
-# for the dhcp client to run ping to check IP addresses
-optional_policy(`netutils.te',`
-	netutils_domtrans_ping(dhcpc_t)
-
-	ifdef(`cardmgr.te',`
-		allow ping_t cardmgr_t:fd use;
-	')
-')
-
 allow dhcpc_t var_lib_t:dir search;
-allow dhcpc_t home_root_t:dir search;
 dontaudit dhcpc_t var_lock_t:dir search;
 dontaudit dhcpc_t selinux_config_t:dir search;
 dontaudit dhcpc_t domain:dir getattr;

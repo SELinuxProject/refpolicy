@@ -909,6 +909,27 @@ interface(`userdom_shell_domtrans_sysadm',`
 
 ########################################
 ## <summary>
+##	Read files in the staff users home directory.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_read_staff_home_files',`
+	gen_require(`
+		type staff_home_dir_t, staff_home_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+		class lnk_file r_file_perms;
+	')
+
+	files_search_home($1)
+	allow $1 { staff_home_dir_t staff_home_t }:dir r_dir_perms;
+	allow $1 staff_home_t:{ file lnk_file } r_file_perms;
+')
+
+########################################
+## <summary>
 ##	Read and write sysadm ttys.
 ## </summary>
 ## <param name="domain">
@@ -918,12 +939,31 @@ interface(`userdom_shell_domtrans_sysadm',`
 interface(`userdom_use_sysadm_tty',`
 	gen_require(`
 		type sysadm_tty_device_t;
-		class chr_file { getattr read write ioctl };
+		class chr_file rw_term_perms;
 	')
 
 	dev_list_all_dev_nodes($1)
 	term_list_ptys($1)
-	allow $1 sysadm_tty_device_t:chr_file { getattr read write ioctl };
+	allow $1 sysadm_tty_device_t:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Read and write sysadm ptys.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_use_sysadm_pty',`
+	gen_require(`
+		type sysadm_devpts_t;
+		class chr_file rw_term_perms;
+	')
+
+	dev_list_all_dev_nodes($1)
+	term_list_ptys($1)
+	allow $1 sysadm_devpts_t:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -937,12 +977,12 @@ interface(`userdom_use_sysadm_tty',`
 interface(`userdom_use_sysadm_terms',`
 	gen_require(`
 		attribute admin_terminal;
-		class chr_file { getattr read write ioctl };
+		class chr_file rw_term_perms;
 	')
 
 	dev_list_all_dev_nodes($1)
 	term_list_ptys($1)
-	allow $1 admin_terminal:chr_file { getattr read write ioctl };
+	allow $1 admin_terminal:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -960,6 +1000,61 @@ interface(`userdom_dontaudit_use_sysadm_terms',`
 	')
 
 	dontaudit $1 admin_terminal:chr_file { read write };
+')
+
+########################################
+## <summary>
+##	Inherit and use sysadm file descriptors
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_use_sysadm_fd',`
+	gen_require(`
+		type sysadm_t;
+		class fd use;
+	')
+
+	allow $1 sysadm_t:fd use;
+')
+
+########################################
+## <summary>
+##	Read and write sysadm user unnamed pipes.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_rw_sysadm_pipe',`
+	gen_require(`
+		type sysadm_t;
+		class fd use;
+	')
+
+	allow $1 sysadm_t:fd use;
+')
+
+########################################
+## <summary>
+##	Read files in the sysadm users home directory.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`userdom_read_sysadm_home_files',`
+	gen_require(`
+		type sysadm_home_dir_t, sysadm_home_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+		class lnk_file r_file_perms;
+	')
+
+	files_search_home($1)
+	allow $1 { sysadm_home_dir_t sysadm_home_t }:dir r_dir_perms;
+	allow $1 sysadm_home_t:{ file lnk_file } r_file_perms;
 ')
 
 ########################################
@@ -988,7 +1083,7 @@ interface(`userdom_search_all_users_home',`
 ##	The type of the process performing this action.
 ## </param>
 #
-interface(`userdom_read_all_user_data',`
+interface(`userdom_read_all_user_files',`
 	gen_require(`
 		attribute home_type;
 		class dir r_dir_perms;
