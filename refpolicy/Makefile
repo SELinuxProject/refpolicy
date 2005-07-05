@@ -139,8 +139,19 @@ GENERATED_FC := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc.in
 # when a generated file is already generated
 DETECTED_MODS := $(sort $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE))
 
-MODON = on
-ENABLEMOD := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODON)") print $$1 }' $(MOD_CONF)),$(subst ./,,$(shell find -iname $(mod).te)))
+MODBASE := base
+MODMOD := module
+BASE_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF)),$(subst ./,,$(shell find -iname $(mod).te)))
+MOD_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF)),$(subst ./,,$(shell find -iname $(mod).te)))
+
+# for monolithic policy use all base and module to create policy
+# for modular policy, use only base
+ifeq ($(MONOLITHIC),y)
+	ENABLEMOD := $(BASE_MODS) $(MOD_MODS)
+else
+	ENABLEMOD := $(BASE_MODS)
+endif
+
 ALL_MODULES := $(filter $(ENABLEMOD),$(DETECTED_MODS))
 
 PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
