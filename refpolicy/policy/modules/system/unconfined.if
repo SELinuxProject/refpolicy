@@ -1,0 +1,75 @@
+## <summary>The unconfined domain.</summary>
+
+########################################
+## <summary>
+##	A template to make the specified domain unconfined.
+## </summary>
+## <param name="domain">
+##	Domain to make unconfined.
+## </param>
+#
+template(`unconfined_access_template',`
+
+	# Use any Linux capability.
+	allow $1 self:capability *;
+
+	# Transition to myself, to make get_ordered_context_list happy.
+	allow $1 self:process transition;
+
+	# Write access is for setting attributes under /proc/self/attr.
+	allow $1 self:file rw_file_perms;
+
+	# Userland object managers
+	allow $1 self:nscd *;
+	allow $1 self:dbus *;
+	allow $1 self:passwd *;
+
+	kernel_unconfined($1)
+	dev_unconfined($1)
+	fs_unconfined($1)
+	selinux_unconfined($1)
+
+	domain_unconfined($1)
+	files_unconfined($1)
+
+	tunable_policy(`allow_execmem',`
+		# Allow loading DSOs that require executable stack.
+		allow $1 self:process execmem;
+	')
+
+	# to satisfy assertions:
+	optional_policy(`authlogin.te',`
+		auth_manage_shadow($1)
+		auth_relabelto_shadow($1)
+	')
+
+	optional_policy(`bootloader.te',`
+		bootloader_manage_kernel_modules($1)
+	')
+
+	optional_policy(`selinuxutil.te',`
+		seutil_create_binary_pol($1)
+		seutil_relabelto_binary_pol($1)
+	')
+
+	optional_policy(`storage.te',`
+		storage_unconfined($1)
+	')
+
+	ifdef(`TODO',`
+	if (allow_execmod) {
+		# Allow text relocations on system shared libraries, e.g. libGL.
+		allow $1 texrel_shlib_t:file execmod;
+	}
+
+	ifdef(`dbusd.te', `
+		# Communicate via dbusd.
+		allow $1 system_dbusd_t:dbus *;
+	')
+
+	ifdef(`nscd.te', `
+		# Get info via nscd.
+		allow $1 nscd_t:nscd *;
+	')
+	') dnl end TODO
+')

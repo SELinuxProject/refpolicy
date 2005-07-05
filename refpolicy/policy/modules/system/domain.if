@@ -452,6 +452,45 @@ interface(`domain_read_all_entry_files',`
 	allow $1 entry_type:file r_file_perms;
 ')
 
+########################################
+## <summary>
+##	Unconfined access to domains.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_unconfined',`
+	gen_require(`
+		attribute domain, set_curr_context;
+		class fd use;
+		class fifo_file rw_file_perms;
+		class process { transition dyntransition execmem };
+		class dir r_dir_perms;
+		class file r_file_perms;
+		class lnk_file r_file_perms;
+	')
+
+	# Use/sendto/connectto sockets created by any domain.
+	allow $1 domain:{ socket_class_set socket key_socket } *;
+
+	# Use descriptors and pipes created by any domain.
+	allow $1 domain:fd use;
+	allow $1 domain:fifo_file rw_file_perms;
+
+	# Act upon any other process.
+	allow $1 domain:process ~{ transition dyntransition execmem };
+	typeattribute $1 set_curr_context;
+
+	# Create/access any System V IPC objects.
+	allow $1 domain:{ sem msgq shm } *;
+	allow $1 domain:msg { send receive };
+
+	# For /proc/pid
+	allow $1 domain:dir r_dir_perms;
+	allow $1 domain:file r_file_perms;
+	allow $1 domain:lnk_file r_file_perms;
+')
 
 #
 # These next macros are not interfaces, but actually are 
