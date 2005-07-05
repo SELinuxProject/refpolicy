@@ -20,7 +20,8 @@ import string
 from xml.dom.minidom import parse, parseString
 
 #modules enabled and disabled values
-MOD_ENABLED = "on"
+MOD_BASE = "base"
+MOD_ENABLED = "module"
 MOD_DISABLED = "off"
 
 #tunables enabled and disabled values
@@ -47,7 +48,7 @@ def read_policy_xml(filename):
 	xml_fh.close()	
 	return doc
 
-def gen_tunable_conf(doc, file, namevalue_list):
+def gen_tunable_conf(doc, file_name, namevalue_list):
 	"""
 	Generates the tunable configuration file using the XML provided and the
 	previous tunable configuration.
@@ -56,7 +57,7 @@ def gen_tunable_conf(doc, file, namevalue_list):
 	for node in doc.getElementsByTagName("tunable"):
 		s = string.split(format_txt_desc(node), "\n")
 		for line in s:
-			file.write("# %s\n" % line)
+			file_name.write("# %s\n" % line)
 		tun_name = tun_val = None
         	for (name, value) in node.attributes.items():
 			if name == "name":
@@ -70,10 +71,10 @@ def gen_tunable_conf(doc, file, namevalue_list):
 				tun_val = TUN_DISABLED
 
 			if tun_name and tun_val:
-	            		file.write("%s = %s\n\n" % (tun_name, tun_val))
+	            		file_name.write("%s = %s\n\n" % (tun_name, tun_val))
 				tun_name = tun_val = None
 
-def gen_module_conf(doc, file, namevalue_list):
+def gen_module_conf(doc, file_name, namevalue_list):
 	"""
 	Generates the module configuration file using the XML provided and the
 	previous module configuration.
@@ -81,28 +82,53 @@ def gen_module_conf(doc, file, namevalue_list):
 	# If file exists, preserve settings and modify if needed.
 	# Otherwise, create it.
 
-	file.write("#\n# This file contains a listing of available modules.\n")
-	file.write("# To prevent a module from  being used in policy\n")
-	file.write("# creation, set the module name to %s.\n#\n" % MOD_DISABLED)
-	for node in doc.getElementsByTagName("module"):
-		mod_name = mod_layer = None
+	file_name.write("#\n# This file contains a listing of available modules.\n")
+	file_name.write("# To prevent a module from  being used in policy\n")
+	file_name.write("# creation, set the module name to \"%s\".\n#\n" % MOD_DISABLED)
+	file_name.write("# For monolithic policies, modules set to \"%s\" and \"%s\"\n" % (MOD_BASE, MOD_ENABLED))
+	file_name.write("# will be built into the policy.\n#\n")
+	file_name.write("# For modular policies, modules set to \"%s\" will be\n" % MOD_BASE)
+	file_name.write("# included in the base module.  \"%s\" will be compiled\n" % MOD_ENABLED)
+	file_name.write("# as individual loadable modules.\n#\n\n")
 
-		mod_name = node.attributes.items()[0][1]
-		mod_layer = node.parentNode.attributes.items()[0][1]
+	# For required in [True,False] is present so that the requiered modules
+	# are at the top of the config file.
+	for required in [True,False]:
+		for node in doc.getElementsByTagName("module"):
+			mod_req = False
+			for req in node.getElementsByTagName("required"):
+				if req.getAttribute("val") == "true":
+					mod_req = True
 
-		if mod_name and mod_layer:
-			file.write("# Layer: %s\n# Module: %s\n#\n" % (mod_layer,mod_name))
-		for desc in node.getElementsByTagName("summary"):
-			if not desc.parentNode == node:
+			# Skip if we arnt working on the right set of modules.
+			if mod_req and not required or not mod_req and required:
 				continue
-			s = string.split(format_txt_desc(desc), "\n")
-			for line in s:
-				file.write("# %s\n" % line)
 
-			if [mod_name, MOD_DISABLED] in namevalue_list:
-				file.write("%s = %s\n\n" % (mod_name, MOD_DISABLED))
-			else:
-				file.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
+
+			mod_name = mod_layer = None
+
+			mod_name = node.getAttribute("name")	
+			mod_layer = node.parentNode.getAttribute("name")
+
+			if mod_name and mod_layer:
+				file_name.write("# Layer: %s\n# Module: %s\n" % (mod_layer,mod_name))
+				if required:
+					file_name.write("# Required in base\n")
+				file_name.write("#\n")
+
+			for desc in node.getElementsByTagName("summary"):
+				if not desc.parentNode == node:
+					continue
+				s = string.split(format_txt_desc(desc), "\n")
+				for line in s:
+					file_name.write("# %s\n" % line)
+
+				if [mod_name, MOD_DISABLED] in namevalue_list:
+					file_name.write("%s = %s\n\n" % (mod_name, MOD_DISABLED))
+				elif [mod_name, MOD_ENABLED] in namevalue_list:
+					file_name.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
+				else:
+					file_name.write("%s = %s\n\n" % (mod_name, MOD_BASE))
 
 def get_conf(conf):
 	"""
@@ -218,9 +244,9 @@ def format_txt_desc(node):
 					for li in chld.getElementsByTagName("li"):
 						desc_buf += "\t -" + li.firstChild.data + "\n"
 
-	return desc_buf
+	return desc_buf.strip() + "\n"
 
-def gen_docs(doc, dir, templatedir):
+def gen_docs(doc, working_dir, templatedir):
 	"""
 	Generates all the documentation.
 	"""
@@ -256,7 +282,7 @@ def gen_docs(doc, dir, templatedir):
 
 
 	try:
-		os.chdir(dir)
+		os.chdir(working_dir)
 	except:
 		error("Could not chdir to target directory")	
 
@@ -266,8 +292,8 @@ def gen_docs(doc, dir, templatedir):
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = interface_buf = ''
 
-		mod_name = node.attributes.items()[0][1]
-		mod_layer = node.parentNode.attributes.items()[0][1]
+		mod_name = node.getAttribute("name")
+		mod_layer = node.parentNode.getAttribute("name")
 
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node and desc:
@@ -322,8 +348,13 @@ def gen_docs(doc, dir, templatedir):
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = mod_desc = interface_buf = ''
 
-		mod_name = node.attributes.items()[0][1]
-		mod_layer = node.parentNode.attributes.items()[0][1]
+		mod_name = node.getAttribute("name")
+		mod_layer = node.parentNode.getAttribute("name")
+
+		mod_req = None
+		for req in node.getElementsByTagName("required"):
+			if req.getAttribute("val") == "true":
+				mod_req = True
 
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node:
@@ -450,6 +481,7 @@ def gen_docs(doc, dir, templatedir):
 			      "mod_name" : mod_name,	
 			      "mod_summary" : mod_summary,
 			      "mod_desc" : mod_desc,
+			      "mod_req" : mod_req,
 			      "interfaces" : interface_buf,
 			      "templates": template_buf }
 
