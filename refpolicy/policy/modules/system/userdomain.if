@@ -902,11 +902,16 @@ interface(`userdom_spec_domtrans_unpriv_users',`
 ## </param>
 #
 interface(`userdom_shell_domtrans_sysadm',`
-	gen_require(`
-		type sysadm_t;
-	')
+	ifdef(`targeted_policy',`
+		#cjp: need to doublecheck this one
+		unconfined_domtrans_shell($1)
+	',`
+		gen_require(`
+			type sysadm_t;
+		')
 
-	corecmd_domtrans_shell($1,sysadm_t)
+		corecmd_domtrans_shell($1,sysadm_t)
+	')
 ')
 
 ########################################
@@ -939,14 +944,18 @@ interface(`userdom_read_staff_home_files',`
 ## </param>
 #
 interface(`userdom_use_sysadm_tty',`
-	gen_require(`
-		type sysadm_tty_device_t;
-		class chr_file rw_term_perms;
-	')
+	ifdef(`targeted_policy',`
+		term_use_unallocated_tty($1)
+	',`
+		gen_require(`
+			type sysadm_tty_device_t;
+			class chr_file rw_term_perms;
+		')
 
-	dev_list_all_dev_nodes($1)
-	term_list_ptys($1)
-	allow $1 sysadm_tty_device_t:chr_file rw_term_perms;
+		dev_list_all_dev_nodes($1)
+		term_list_ptys($1)
+		allow $1 sysadm_tty_device_t:chr_file rw_term_perms;
+	')
 ')
 
 ########################################
@@ -958,14 +967,18 @@ interface(`userdom_use_sysadm_tty',`
 ## </param>
 #
 interface(`userdom_use_sysadm_pty',`
-	gen_require(`
-		type sysadm_devpts_t;
-		class chr_file rw_term_perms;
-	')
+	ifdef(`targeted_policy',`
+		term_use_generic_pty($1)
+	',`
+		gen_require(`
+			type sysadm_devpts_t;
+			class chr_file rw_term_perms;
+		')
 
-	dev_list_all_dev_nodes($1)
-	term_list_ptys($1)
-	allow $1 sysadm_devpts_t:chr_file rw_term_perms;
+		dev_list_all_dev_nodes($1)
+		term_list_ptys($1)
+		allow $1 sysadm_devpts_t:chr_file rw_term_perms;
+	')
 ')
 
 ########################################
@@ -977,14 +990,8 @@ interface(`userdom_use_sysadm_pty',`
 ## </param>
 #
 interface(`userdom_use_sysadm_terms',`
-	gen_require(`
-		attribute admin_terminal;
-		class chr_file rw_term_perms;
-	')
-
-	dev_list_all_dev_nodes($1)
-	term_list_ptys($1)
-	allow $1 admin_terminal:chr_file rw_term_perms;
+	userdom_use_sysadm_tty($1)
+	userdom_use_sysadm_pty($1)
 ')
 
 ########################################
@@ -996,12 +1003,16 @@ interface(`userdom_use_sysadm_terms',`
 ## </param>
 #
 interface(`userdom_dontaudit_use_sysadm_terms',`
-	gen_require(`
-		attribute admin_terminal;
-		class chr_file { read write };
-	')
+	ifdef(`targeted_policy',`
+		term_dontaudit_use_generic_pty($1)
+	',`
+		gen_require(`
+			attribute admin_terminal;
+			class chr_file { read write };
+		')
 
-	dontaudit $1 admin_terminal:chr_file { read write };
+		dontaudit $1 admin_terminal:chr_file { read write };
+	')
 ')
 
 ########################################
@@ -1013,12 +1024,17 @@ interface(`userdom_dontaudit_use_sysadm_terms',`
 ## </param>
 #
 interface(`userdom_use_sysadm_fd',`
-	gen_require(`
-		type sysadm_t;
-		class fd use;
-	')
+	ifdef(`targeted_policy',`
+		#cjp: need to doublecheck this one
+		unconfined_use_fd($1)
+	',`
+		gen_require(`
+			type sysadm_t;
+			class fd use;
+		')
 
-	allow $1 sysadm_t:fd use;
+		allow $1 sysadm_t:fd use;
+	')
 ')
 
 ########################################
@@ -1030,12 +1046,17 @@ interface(`userdom_use_sysadm_fd',`
 ## </param>
 #
 interface(`userdom_rw_sysadm_pipe',`
-	gen_require(`
-		type sysadm_t;
-		class fd use;
-	')
+	ifdef(`targeted_policy',`
+		#cjp: need to doublecheck this one
+		unconfined_rw_pipe($1)
+	',`
+		gen_require(`
+			type sysadm_t;
+			class fifo_file rw_file_perms;
+		')
 
-	allow $1 sysadm_t:fd use;
+		allow $1 sysadm_t:fifo_file rw_file_perms;
+	')
 ')
 
 ########################################
@@ -1216,4 +1237,22 @@ interface(`userdom_dontaudit_use_unpriv_user_tty',`
 	')
 
 	dontaudit $1 user_ttynode:chr_file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Unconfined access to user domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_unconfined',`
+	gen_require(`
+		type user_home_dir_t;
+		class dir create_dir_perms;
+	')
+
+	allow $1 user_home_dir_t:dir create_dir_perms;
+	files_create_home_dirs($1,user_home_dir_t)
 ')

@@ -33,38 +33,65 @@
 # SELinux process identity change constraint:
 #
 constrain process transition
-	( u1 == u2 or ( t1 == can_change_process_identity and t2 == userdomain )
-ifdef(`crond.te', `
-         or (t1 == crond_t and (t2 == user_crond_domain or u2 == system_u))
+	( u1 == u2 or 
+
+ifdef(`targeted_policy',`
+	t1 == can_change_process_identity
+',`
+	( t1 == can_change_process_identity and t2 == userdomain )
+	ifdef(`crond.te',`
+        	or (
+			t1 == crond_t
+			and (
+				t2 == user_crond_domain
+				or u2 == system_u
+			)
+		)
+	')
+
+	ifdef(`userhelper.te',`
+		or (t1 == userhelperdomain)
+	')
+
+	ifdef(`TODO',`
+	or (t1 == priv_system_role and u2 == system_u )
+	') dnl end TODO
 ')
-ifdef(`userhelper.te', 
-	`or (t1 == userhelperdomain)
-')
-ifdef(`TODO',`
-	 or (t1 == priv_system_role and u2 == system_u )
-') dnl end TODO
-        );
+);
 
 #
 # SELinux process role change constraint:
 #
 constrain process transition 
-	( r1 == r2 or ( t1 == can_change_process_role and t2 == userdomain )
-ifdef(`crond.te', `
-         or (t1 == crond_t and t2 == user_crond_domain)
+	( r1 == r2 or
+ifdef(`targeted_policy',`
+	t1 == can_change_process_role
+',`
+	( t1 == can_change_process_role and t2 == userdomain )
+
+	ifdef(`crond.te',`
+        	or (t1 == crond_t and t2 == user_crond_domain)
+	')
+
+	ifdef(`userhelper.te',`
+		or (t1 == userhelperdomain)
+	')
+
+	ifdef(`postfix.te',`
+		ifdef(`direct_sysadm_daemon',`
+			or (
+				t1 == sysadm_mail_t
+				and t2 == system_mail_t
+				and r2 == system_r
+			)
+		')
+	')
+
+	ifdef(`TODO',`
+	or (t1 == priv_system_role and r2 == system_r )
+	') dnl end TODO
 ')
-ifdef(`userhelper.te', 
-	`or (t1 == userhelperdomain)
-')
-ifdef(`postfix.te', `
-ifdef(`direct_sysadm_daemon',
-	`or (t1 == sysadm_mail_t and t2 == system_mail_t and r2 == system_r )
-')
-')
-ifdef(`TODO',`
-	 or (t1 == priv_system_role and r2 == system_r )
-') dnl end TODO
-        );
+);
 
 #
 # SELinux dynamic transition constraint:

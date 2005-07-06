@@ -117,7 +117,11 @@ MODDIR = $(POLDIR)/modules
 
 BASE_MODULE = $(MODDIR)/kernel
 FLASKDIR = $(POLDIR)/flask
-APPCONF = config/appconfig
+ifneq ($(findstring targeted,$(TYPE)),)
+	APPCONF := config/appconfig-targeted
+else
+	APPCONF := config/appconfig-strict
+endif
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
 GLOBALTUN := $(POLDIR)/global_tunables

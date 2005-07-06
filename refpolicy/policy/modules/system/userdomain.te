@@ -32,16 +32,11 @@ attribute userdomain;
 # unprivileged user domains
 attribute unpriv_userdomain;
 
-admin_user_template(sysadm)
-unpriv_user_template(staff)
-unpriv_user_template(user)
-
 ########################################
 #
 # Local policy
 #
 
-# user role change rules:
 define(`role_change',`
 	allow $1_r $2_r;
 	type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
@@ -50,102 +45,129 @@ define(`role_change',`
 	dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
 ')
 
-# sysadm_r can change to user roles
-role_change(sysadm, user)
-role_change(sysadm, staff)
+ifdef(`targeted_policy',`
+	# User home directory type.
+	type user_home_t alias { staff_home_t sysadm_home_t}, home_type;
+	type user_home_dir_t alias { staff_home_dir_t sysadm_home_dir_t }, home_dir_type;
 
-# only staff_r can change to sysadm_r
-role_change(staff, sysadm)
+	unconfined_role(user_r)
+	unconfined_role(sysadm_r)
 
-# this should be tunable_policy, but
-# currently type_change and RBAC allow
-# do not work in conditionals
-ifdef(`user_canbe_sysadm',`
-	role_change(user,sysadm)
-')
+	# dont need to use the full role_change()
+	allow sysadm_r system_r;
+	allow user_r system_r;
+	allow user_r sysadm_r;
+	allow system_r sysadm_r;
+	allow system_r sysadm_r;
 
-ifdef(`TODO',`
-allow privhome home_root_t:dir { getattr search };
-
-# Add/remove user home directories
-file_type_auto_trans(sysadm_t, home_root_t, user_home_dir_t, dir)
-')
-
-########################################
-#
-# Sysadm local policy
-#
-
-# for su
-allow sysadm_t userdomain:fd use;
-
-optional_policy(`bootloader.te',`
-	bootloader_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`clock.te',`
-	clock_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`fstools.te',`
-	fstools_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`hostname.te',`
-	hostname_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`iptables.te',`
-	iptables_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`libraries.te',`
-	libs_run_ldconfig(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`lvm.te',`
-	lvm_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`modutils.te',`
-	modutils_run_depmod(sysadm_t,sysadm_r,admin_terminal)
-	modutils_run_insmod(sysadm_t,sysadm_r,admin_terminal)
-	modutils_run_update_mods(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`logrotate.te',`
-	logrotate_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`mount.te',`
-	mount_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`netutils.te',`
-	netutils_run(sysadm_t,sysadm_r,admin_terminal)
-	netutils_run_ping(sysadm_t,sysadm_r,admin_terminal)
-	netutils_run_traceroute(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`rpm.te',`
-	rpm_run(sysadm_t,sysadm_r,admin_terminal)
-')
-
-optional_policy(`selinux.te',`
-	seutil_run_checkpol(sysadm_t,sysadm_r,admin_terminal)
-	seutil_run_loadpol(sysadm_t,sysadm_r,admin_terminal)
-	seutil_run_restorecon(sysadm_t,sysadm_r,admin_terminal)
-	seutil_run_setfiles(sysadm_t,sysadm_r,admin_terminal)
-	optional_policy(`targeted_policy',`',`
-		seutil_run_runinit(sysadm_t,sysadm_r,admin_terminal)
+	ifdef(`TODO',`
+	allow privhome home_root_t:dir { getattr search };
+	file_type_auto_trans(privhome, user_home_dir_t, user_home_t)
 	')
-')
+',`
+	admin_user_template(sysadm)
+	unpriv_user_template(staff)
+	unpriv_user_template(user)
 
-optional_policy(`sysnetwork.te',`
-	sysnet_run_ifconfig(sysadm_t,sysadm_r,admin_terminal)
-')
+	# user role change rules:
+	# sysadm_r can change to user roles
+	role_change(sysadm, user)
+	role_change(sysadm, staff)
 
-optional_policy(`usermanage.te',`
-	usermanage_run_groupadd(sysadm_t,sysadm_r,admin_terminal)
-	usermanage_run_useradd(sysadm_t,sysadm_r,admin_terminal)
+	# only staff_r can change to sysadm_r
+	role_change(staff, sysadm)
+
+	# this should be tunable_policy, but
+	# currently type_change and RBAC allow
+	# do not work in conditionals
+	ifdef(`user_canbe_sysadm',`
+		role_change(user,sysadm)
+	')
+
+	ifdef(`TODO',`
+	allow privhome home_root_t:dir { getattr search };
+	')
+
+	########################################
+	#
+	# Sysadm local policy
+	#
+
+	# for su
+	allow sysadm_t userdomain:fd use;
+
+	# Add/remove user home directories
+	allow sysadm_t user_home_dir_t:dir create_dir_perms;
+	files_create_home_dirs(sysadm_t,user_home_dir_t)
+
+	optional_policy(`bootloader.te',`
+		bootloader_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`clock.te',`
+		clock_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`fstools.te',`
+		fstools_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`hostname.te',`
+		hostname_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`iptables.te',`
+		iptables_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`libraries.te',`
+		libs_run_ldconfig(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`lvm.te',`
+		lvm_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`modutils.te',`
+		modutils_run_depmod(sysadm_t,sysadm_r,admin_terminal)
+		modutils_run_insmod(sysadm_t,sysadm_r,admin_terminal)
+		modutils_run_update_mods(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`logrotate.te',`
+		logrotate_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`mount.te',`
+		mount_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`netutils.te',`
+		netutils_run(sysadm_t,sysadm_r,admin_terminal)
+		netutils_run_ping(sysadm_t,sysadm_r,admin_terminal)
+		netutils_run_traceroute(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`rpm.te',`
+		rpm_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`selinux.te',`
+		seutil_run_checkpol(sysadm_t,sysadm_r,admin_terminal)
+		seutil_run_loadpol(sysadm_t,sysadm_r,admin_terminal)
+		seutil_run_restorecon(sysadm_t,sysadm_r,admin_terminal)
+		seutil_run_setfiles(sysadm_t,sysadm_r,admin_terminal)
+		optional_policy(`targeted_policy',`',`
+			seutil_run_runinit(sysadm_t,sysadm_r,admin_terminal)
+		')
+	')
+
+	optional_policy(`sysnetwork.te',`
+		sysnet_run_ifconfig(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`usermanage.te',`
+		usermanage_run_groupadd(sysadm_t,sysadm_r,admin_terminal)
+		usermanage_run_useradd(sysadm_t,sysadm_r,admin_terminal)
+	')
 ')
