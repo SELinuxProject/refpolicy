@@ -21,7 +21,7 @@
 #
 
 # Override default policy version
-OUTPUT_POLICY = 18
+#OUTPUT_POLICY = 18
 
 # Policy Type
 # strict, targeted, strict-mls, targeted-mls
@@ -31,7 +31,7 @@ TYPE = strict
 # If set, this will be used as the policy
 # name.  Otherwise the policy type will be
 # used for the name.
-NAME = 
+NAME = refpolicy
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
