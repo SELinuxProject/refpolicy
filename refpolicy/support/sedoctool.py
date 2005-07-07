@@ -308,8 +308,14 @@ def gen_docs(doc, working_dir, templatedir):
 	for mod_layer,modules in module_list.iteritems():
 		menu = gen_doc_menu(mod_layer, module_list)
 
+		layer_summary = None
+		for desc in doc.getElementsByTagName("summary"):
+			if desc.parentNode.getAttribute("name") == mod_layer:
+				layer_summary = format_html_desc(desc)
+
 		menu_args = { "menulist" : menu,
-			      "mod_layer" : mod_layer }
+			      "mod_layer" : mod_layer,
+			      "layer_summary" : layer_summary }
 		menu_tpl = pyplate.Template(menudata)
 		menu_buf = menu_tpl.execute_string(menu_args)
 
