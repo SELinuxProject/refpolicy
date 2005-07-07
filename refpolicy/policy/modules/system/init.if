@@ -1,8 +1,15 @@
 ## <summary>System initialization programs (init and init scripts).</summary>
 
 ########################################
-#
-# init_domain(domain,entrypointfile)
+## <summary>
+##	Create a domain which can be started by init.
+## </summary>
+## <param name="domain">
+##	Type to be used as a domain.
+## </param>
+## <param name="entry_point">
+##	Type of the program to be used as an entry point to this domain.
+## </param>
 #
 interface(`init_domain',`
 	gen_require(`
@@ -34,16 +41,25 @@ interface(`init_domain',`
 ')
 
 ########################################
-#
-# init_daemon_domain(domain,entrypointfile)
+## <summary>
+##	Create a domain for long running processes
+##	(daemons) which can be started by init scripts.
+## </summary>
+## <param name="domain">
+##	Type to be used as a domain.
+## </param>
+## <param name="entry_point">
+##	Type of the program to be used as an entry point to this domain.
+## </param>
 #
 interface(`init_daemon_domain',`
 	gen_require(`
+		attribute direct_run_init, direct_init, direct_init_entry;
 		type initrc_t;
 		role system_r;
 		class fifo_file rw_file_perms;
 		class fd use;
-		class process sigchld;
+		class process { noatsecure siginh rlimitinh sigchld };
 	')
 
 	domain_type($1)
@@ -54,9 +70,23 @@ interface(`init_daemon_domain',`
 	domain_auto_trans(initrc_t,$2,$1)
 
 	allow initrc_t $1:fd use;
+	allow initrc_t $1:process { noatsecure siginh rlimitinh };
 	allow $1 initrc_t:fd use;
 	allow $1 initrc_t:fifo_file rw_file_perms;
 	allow $1 initrc_t:process sigchld;
+
+	ifdef(`direct_sysadm_daemon',`
+		domain_auto_trans(direct_run_init,$2,$1)
+
+		allow direct_run_init $1:fd use;
+		allow direct_run_init $1:process { noatsecure siginh rlimitinh };
+		allow $1 direct_run_init:fd use;
+		allow $1 direct_run_init:fifo_file rw_file_perms;
+		allow $1 direct_run_init:process sigchld;
+
+		typeattribute $1 direct_init;
+		typeattribute $2 direct_init_entry;
+	')
 
 	# Red Hat systems seem to have a stray
 	# fd open from the initrd
@@ -67,8 +97,16 @@ interface(`init_daemon_domain',`
 ')
 
 ########################################
-#
-# init_system_domain(domain,entrypointfile)
+## <summary>
+##	Create a domain for short running processes
+##	which can be started by init scripts.
+## </summary>
+## <param name="domain">
+##	Type to be used as a domain.
+## </param>
+## <param name="entry_point">
+##	Type of the program to be used as an entry point to this domain.
+## </param>
 #
 interface(`init_system_domain',`
 	gen_require(`
@@ -257,6 +295,32 @@ interface(`init_domtrans_script',`
 	allow initrc_t $1:fd use;
 	allow initrc_t $1:fifo_file rw_file_perms;
 	allow initrc_t $1:process sigchld;
+')
+
+########################################
+## <desc>
+##	Start and stop daemon programs directly.
+## </desc>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+## <param name="role">
+##	The role to be performing this action.
+## </param>
+## <param name="terminal">
+##	The type of the terminal of the user.
+## </param>
+#
+interface(`init_run_daemon',`
+	gen_require(`
+		attribute direct_run_init, direct_init, direct_init_entry;
+		role system_r;
+		class chr_file rw_file_perms;
+	')
+
+	typeattribute $1 direct_run_init;
+	role_transition $2 direct_init_entry system_r;
+	dontaudit direct_init $3:chr_file rw_file_perms;
 ')
 
 ########################################
