@@ -279,20 +279,22 @@ def getTunableXML(file_name):
 
 		# Get the parameters of a TUNABLE style line.
 		params = getParams(line,TUNABLE)
+		tag = "tunable"
 
 		# If the line is not a TUNABLE style declaration, try BOOLEAN.
 		if not params:
 			params = getParams(line,BOOLEAN)
+			tag = "boolean"
 
 		# If the line is one of the two styles above, add a tunable tag
 		# and give it the data from the temprorary buffer.
 		if params:
 			tunable_buf.append\
-				("<tunable name=\"%s\" dftval=\"%s\">\n"
-				% (params[0], params[1]))
+				("<%s name=\"%s\" dftval=\"%s\">\n"
+				% (tag, params[0], params[1]))
 			tunable_buf += temp_buf
 			temp_buf = []
-			tunable_buf.append("</tunable>\n")
+			tunable_buf.append("</%s>\n" % tag)
 
 	# If there are XML comments at the end of the file, they arn't
 	# attributed to anything. These are ignored.
