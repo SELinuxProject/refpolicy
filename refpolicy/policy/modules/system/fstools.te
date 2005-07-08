@@ -49,6 +49,11 @@ kernel_read_system_state(fsadm_t)
 kernel_read_kernel_sysctl(fsadm_t)
 # Allow console log change (updfstab)
 kernel_change_ring_buffer_level(fsadm_t)
+# mkreiserfs needs this
+kernel_getattr_proc(fsadm_t)
+# Access to /initrd devices
+kernel_rw_unlabeled_dir(fsadm_t)
+kernel_use_unlabeled_blk_dev(fsadm_t)
 
 # mkreiserfs and other programs need this for UUID
 dev_read_rand(fsadm_t)
@@ -60,11 +65,16 @@ dev_search_usbfs(fsadm_t)
 # for swapon
 dev_getattr_sysfs_dir(fsadm_t)
 dev_search_sysfs(fsadm_t)
+# Access to /initrd devices
+dev_getattr_usbfs_dir(fsadm_t)
 
 fs_search_auto_mountpoints(fsadm_t)
 fs_getattr_xattr_fs(fsadm_t)
 # remount file system to apply changes
 fs_remount_xattr_fs(fsadm_t)
+# for /dev/shm
+fs_search_tmpfs(fsadm_t)
+fs_getattr_tmpfs_dir(fsadm_t)
 
 storage_raw_read_fixed_disk(fsadm_t)
 storage_raw_write_fixed_disk(fsadm_t)
@@ -78,13 +88,15 @@ domain_use_wide_inherit_fd(fsadm_t)
 files_list_home(fsadm_t)
 files_read_usr_files(fsadm_t)
 files_read_etc_files(fsadm_t)
-files_list_mnt(fsadm_t)
 files_manage_lost_found(fsadm_t)
+files_manage_isid_type_dir(fsadm_t)
 # Write to /etc/mtab.
 files_manage_etc_runtime_files(fsadm_t)
 # Access to /initrd devices
 files_rw_isid_type_dir(fsadm_t)
 files_rw_isid_type_blk_node(fsadm_t)
+# Recreate /mnt/cdrom.
+files_manage_mnt_dirs(fsadm_t)
 
 init_use_fd(fsadm_t)
 init_use_script_pty(fsadm_t)
@@ -102,6 +114,14 @@ seutil_read_config(fsadm_t)
 
 userdom_use_unpriv_users_fd(fsadm_t)
 
+tunable_policy(`read_default_t',`
+	files_list_default(fsadm_t)
+	files_read_default_files(fsadm_t)
+	files_read_default_symlinks(fsadm_t)
+	files_read_default_sockets(fsadm_t)
+	files_read_default_pipes(fsadm_t)
+')
+
 optional_policy(`cron.te',`
 	# for smartctl cron jobs
 	cron_system_entry(fsadm_t,fsadm_exec_t)
@@ -112,32 +132,13 @@ optional_policy(`nis.te',`
 ')
 
 ifdef(`TODO',`
-# for /dev/shm
-allow fsadm_t tmpfs_t:dir { getattr search };
 
 allow fsadm_t bin_t:dir r_dir_perms;
 allow fsadm_t bin_t:notdevfile_class_set r_file_perms;
 allow fsadm_t sbin_t:dir r_dir_perms;
 allow fsadm_t sbin_t:notdevfile_class_set r_file_perms;
-if (read_default_t) {
-allow fsadm_t default_t:dir r_dir_perms;
-allow fsadm_t default_t:notdevfile_class_set r_file_perms;
-}
-
-# mkreiserfs needs this
-allow fsadm_t proc_t:filesystem getattr;
-
-allow fsadm_t file_t:dir { search read getattr rmdir create };
-
-# Recreate /mnt/cdrom.
-allow fsadm_t mnt_t:dir { rmdir create };
 
 # Access terminals.
 ifdef(`gnome-pty-helper.te', `allow fsadm_t sysadm_gph_t:fd use;')
-
-# Access to /initrd devices
-allow fsadm_t unlabeled_t:dir rw_dir_perms;
-allow fsadm_t unlabeled_t:blk_file rw_file_perms;
-allow fsadm_t usbfs_t:dir getattr;
 
 ') dnl end TODO
