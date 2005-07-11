@@ -565,8 +565,10 @@ def gen_docs(doc, working_dir, templatedir):
 		if tunable.parentNode.nodeName == "policy":
 			tunable_name = tunable.getAttribute("name")
 			default_value = tunable.getAttribute("dftval")
+			description = format_html_desc(tunable)
 			global_tun_buf.append( { "tun_name" : tunable_name,
-						"def_val" : default_value } )
+						"def_val" : default_value,
+						"desc" : description } )
 	global_tun_buf.sort(tun_cmp)
 	global_tun_tpl = pyplate.Template(tunlistdata)
 	global_tun_buf = global_tun_tpl.execute_string({"tunables" : global_tun_buf})
@@ -587,8 +589,10 @@ def gen_docs(doc, working_dir, templatedir):
 		if boolean.parentNode.nodeName == "policy":
 			bool_name = boolean.getAttribute("name")
 			default_value = boolean.getAttribute("dftval")
+			description = format_html_desc(boolean)
 			global_bool_buf.append( { "bool_name" : bool_name,
-						"def_val" : default_value } )
+						"def_val" : default_value,
+						"desc" : description } )
 	global_bool_buf.sort(bool_cmp)
 	global_bool_tpl = pyplate.Template(boollistdata)
 	global_bool_buf = global_bool_tpl.execute_string({"booleans" : global_bool_buf})
