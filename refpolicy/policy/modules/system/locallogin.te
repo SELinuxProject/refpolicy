@@ -68,6 +68,7 @@ dev_dontaudit_getattr_generic_blk_file(local_login_t)
 dev_dontaudit_setattr_generic_blk_file(local_login_t)
 dev_dontaudit_getattr_generic_chr_file(local_login_t)
 dev_dontaudit_setattr_generic_chr_file(local_login_t)
+dev_dontaudit_setattr_generic_symlink(local_login_t)
 dev_dontaudit_getattr_misc(local_login_t)
 dev_dontaudit_setattr_misc(local_login_t)
 dev_dontaudit_getattr_scanner(local_login_t)
@@ -107,6 +108,18 @@ auth_rw_faillog(local_login_t)
 auth_exec_pam(local_login_t)
 auth_manage_pam_console_data(local_login_t)
 
+corecmd_list_bin(local_login_t)
+corecmd_list_sbin(local_login_t)
+corecmd_read_bin_symlink(local_login_t)
+corecmd_read_sbin_symlink(local_login_t)
+# cjp: these are probably not needed:
+corecmd_read_bin_file(local_login_t)
+corecmd_read_bin_pipe(local_login_t)
+corecmd_read_bin_socket(local_login_t)
+corecmd_read_sbin_file(local_login_t)
+corecmd_read_sbin_pipe(local_login_t)
+corecmd_read_sbin_socket(local_login_t)
+
 domain_read_all_entry_files(local_login_t)
 
 files_read_etc_files(local_login_t)
@@ -114,6 +127,13 @@ files_read_etc_runtime_files(local_login_t)
 files_read_usr_files(local_login_t)
 files_manage_generic_locks(var_lock_t)
 files_list_mnt(local_login_t)
+files_list_world_readable(local_login_t)
+files_read_world_readable_files(local_login_t)
+files_read_world_readable_symlinks(local_login_t)
+files_read_world_readable_pipes(local_login_t)
+files_read_world_readable_sockets(local_login_t)
+# for when /var/mail is a symlink
+files_read_var_symlink(local_login_t)
 
 init_rw_script_pid(local_login_t)
 init_dontaudit_use_fd(local_login_t)
@@ -175,22 +195,6 @@ optional_policy(`usermanage.te',`
 ')
 
 ifdef(`TODO',`
-
-allow local_login_t bin_t:dir r_dir_perms;
-allow local_login_t bin_t:notdevfile_class_set r_file_perms;
-allow local_login_t sbin_t:dir r_dir_perms;
-allow local_login_t sbin_t:notdevfile_class_set r_file_perms;
-
-# Read directories and files with the readable_t type.
-# This type is a general type for "world"-readable files.
-allow local_login_t readable_t:dir r_dir_perms;
-allow local_login_t readable_t:notdevfile_class_set r_file_perms;
-
-# for when /var/mail is a sym-link
-allow local_login_t var_t:lnk_file read;
-
-dontaudit local_login_t device_t:lnk_file setattr;
-
 # this goes to xdm:
 optional_policy(`locallogin.te',`
 	# FIXME: what is this for?
@@ -200,7 +204,6 @@ optional_policy(`locallogin.te',`
 optional_policy(`gpm.te',`
 	allow local_login_t gpmctl_t:sock_file { getattr setattr };
 ')
-
 ') dnl endif TODO
 
 #################################
@@ -243,12 +246,14 @@ auth_read_shadow(sulogin_t)
 userdom_shell_domtrans_sysadm(sulogin_t)
 userdom_use_unpriv_users_fd(sulogin_t)
 userdom_use_sysadm_pty(sulogin_t)
+userdom_search_staff_home_dir(sulogin_t)
+userdom_search_sysadm_home_dir(sulogin_t)
 
 # suse and debian do not use pam with sulogin...
 ifdef(`monolithic_policy',`
 	ifdef(`distro_suse', `define(`sulogin_no_pam')')
 	ifdef(`distro_debian', `define(`sulogin_no_pam')')
-') dnl end monolithic_policy
+')
 
 ifdef(`sulogin_no_pam', `
 	allow sulogin_t self:capability sys_tty_config;
@@ -266,7 +271,3 @@ ifdef(`sulogin_no_pam', `
 optional_policy(`nis.te',`
 	nis_use_ypbind(sulogin_t)
 ')
-
-ifdef(`TODO',`
-allow sulogin_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
-') dnl endif TODO
