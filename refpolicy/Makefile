@@ -20,7 +20,10 @@
 # Configurable portions of the Makefile
 #
 
-# Override default policy version
+# Policy version
+# By default, checkpolicy will create the highest
+# version policy it supports.  Setting this will
+# override the version.
 #OUTPUT_POLICY = 18
 
 # Policy Type
@@ -28,10 +31,20 @@
 # strict and strict-mls are currently supported.
 TYPE = strict
 
+# Policy Name
 # If set, this will be used as the policy
 # name.  Otherwise the policy type will be
 # used for the name.
 NAME = refpolicy
+
+# Distribution
+# Some distributions have portions of policy
+# for programs or configurations specific to the
+# distribution.  Setting this will enable options
+# for the distribution.
+# redhat, gentoo, debian, and suse are current options.
+# Fedora users should enable redhat.
+#DISTRO = redhat
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
@@ -74,6 +87,11 @@ endif
 # compile targeted policy if requested.
 ifneq ($(findstring targeted,$(TYPE)),)
 	override M4PARAM += -D targeted_policy
+endif
+
+# enable distribution-specific policy
+ifneq ($(DISTRO),)
+	override M4PARAM += -D distro_$(DISTRO)
 endif
 
 ifeq ($(MONOLITHIC),y)
