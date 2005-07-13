@@ -40,6 +40,11 @@ storage_raw_read_fixed_disk($1)
 storage_raw_write_fixed_disk($1)
 
 #
+# nscd_client_domain: complete
+#
+nscd_use_socket($1)
+
+#
 # privfd: complete
 #
 domain_wide_inherit_fd($1)
@@ -77,6 +82,21 @@ domain_role_change_exempt($1)
 # privuser: complete
 #
 domain_subj_id_change_exempt($1)
+
+#
+# userspace_objmgr: complete
+#
+allow $1 self:process getattr;
+# Receive notifications of policy reloads and enforcing status changes.
+allow $1 self:netlink_selinux_socket { create bind read };
+selinux_get_fs_mount($1)
+selinux_validate_context($1)
+selinux_compute_access_vector($1)
+selinux_compute_create_context($1)
+selinux_compute_relabel_context($1)
+selinux_compute_user_contexts($1)
+seutil_read_config($1)
+seutil_read_default_contexts($1)
 
 ########################################
 #
@@ -157,10 +177,13 @@ allow $1 sbin_t:dir r_dir_perms;
 allow $1 sbin_t:notdevfile_class_set r_file_perms;
 kernel_read_kernel_sysctl($1)
 seutil_read_config($1)
-if (read_default_t) {
-allow $1 default_t:dir r_dir_perms;
-allow $1 default_t:notdevfile_class_set r_file_perms;
-}
+tunable_policy(`read_default_t',`
+	files_list_default($1)
+	files_read_default_files($1)
+	files_read_default_symlinks($1)
+	files_read_default_sockets($1)
+	files_read_default_pipes($1)
+')
 
 #
 # base_pty_perms():
@@ -219,7 +242,7 @@ libs_exec_ld_so($1)
 libs_exec_lib_files($1)
 
 #
-# can_getcon():
+# can_getcon(): complete
 #
 allow $1 self:process getattr;
 kernel_read_system_state($1)
@@ -509,6 +532,8 @@ dontaudit $1_t self:capability sys_tty_config;
 allow $1_t $1_var_run_t:file { getattr create read write append setattr unlink };
 files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
+kernel_list_proc($1_t)
+kernel_read_proc_symlink($1_t)
 dev_read_sysfs($1_t)
 fs_getattr_all_fs($1_t)
 fs_search_auto_mountpoints($1_t)
@@ -521,6 +546,7 @@ libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
 miscfiles_read_localization($1_t)
 userdom_dontaudit_use_unpriv_user_fd($1_t)
+userdom_dontaudit_search_sysadm_home_dir($1_t)
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty($1_t)
 	term_dontaudit_use_generic_pty($1_t)
@@ -529,15 +555,12 @@ ifdef(`targeted_policy', `
 optional_policy(`rhgb.te',`
 	rhgb_domain($1_t)
 ')
-optional_policy(`selinux.te',`
-	seutil_newrole_sigchld($1_t)
+optional_policy(`selinuxutils.te',`
+	seutil_sigchld_newrole($1_t)
 ')
 optional_policy(`udev.te', `
 	udev_read_db($1_t)
 ')
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
-dontaudit $1_t sysadm_home_dir_t:dir search;
 
 #
 # daemon_sub_domain():
