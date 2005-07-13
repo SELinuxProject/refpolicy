@@ -35,7 +35,7 @@ template(`authlogin_per_userdomain_template',`
 		class fifo_file rw_file_perms;
 	')
 
-	type $1_chkpwd_t, can_read_shadow_passwords; # , nscd_client_domain;
+	type $1_chkpwd_t, can_read_shadow_passwords;
 	domain_type($1_chkpwd_t)
 	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
 	role $1_r types $1_chkpwd_t;
@@ -101,6 +101,10 @@ template(`authlogin_per_userdomain_template',`
 
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1_chkpwd_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_chkpwd_t)
 	')
 
 	optional_policy(`selinuxutil.te',`
@@ -203,17 +207,36 @@ interface(`auth_domtrans_chk_passwd',`
 ')
 
 ########################################
-## <desc>
-##	
-## </desc>
+## <summary>
+##	Get the attributes of the shadow passwords file.
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
+## </param>
+#
+interface(`auth_getattr_shadow',`
+	gen_require(`
+		type shadow_t;
+		class file getattr;
+	')
+
+	files_search_etc($1)
+	allow $1 shadow_t:file getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the attributes
+##	of the shadow passwords file.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
 ## </param>
 #
 interface(`auth_dontaudit_getattr_shadow',`
 	gen_require(`
 		type shadow_t;
-		class file stat_file_perms;
+		class file getattr;
 	')
 
 	dontaudit $1 shadow_t:file getattr;
