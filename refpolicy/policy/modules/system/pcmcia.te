@@ -15,6 +15,9 @@ init_daemon_domain(cardmgr_t,cardmgr_exec_t)
 type cardmgr_lnk_t;
 files_type(cardmgr_lnk_t)
 
+type cardmgr_var_lib_t;
+files_type(cardmgr_var_lib_t)
+
 type cardmgr_var_run_t;
 files_pid_file(cardmgr_var_run_t)
 
@@ -35,6 +38,10 @@ allow cardmgr_t self:fifo_file rw_file_perms;
 
 allow cardmgr_t cardmgr_lnk_t:lnk_file create_lnk_perms;
 dev_create_dev_node(cardmgr_t,cardmgr_lnk_t,lnk_file)
+
+# Create stab file
+allow cardmgr_t cardmgr_var_lib_t:file create_file_perms;
+files_create_var_lib(cardmgr_t,cardmgr_var_lib_t)
 
 allow cardmgr_t cardmgr_var_run_t:file create_file_perms;
 files_create_pid(cardmgr_t,cardmgr_var_run_t)
@@ -57,6 +64,7 @@ fs_search_auto_mountpoints(cardmgr_t)
 term_use_unallocated_tty(cardmgr_t)
 term_getattr_all_user_ttys(cardmgr_t)
 term_dontaudit_use_console(cardmgr_t)
+term_dontaudit_getattr_all_user_ptys(cardmgr_t)
 
 corecmd_exec_bin(cardmgr_t)
 corecmd_exec_sbin(cardmgr_t)
@@ -72,6 +80,9 @@ domain_dontaudit_getattr_all_sockets(cardmgr_t)
 files_search_home(cardmgr_t)
 files_read_etc_runtime_files(cardmgr_t)
 files_exec_etc_files(cardmgr_t)
+# for /var/lib/misc/pcmcia-scheme
+# would be better to have it in a different type if I knew how it was created..
+files_read_var_lib_files(cardmgr_t)
 # cjp: these look excessive:
 files_dontaudit_getattr_all_dirs(cardmgr_t)
 files_dontaudit_getattr_all_files(cardmgr_t)
@@ -119,17 +130,9 @@ optional_policy(`udev.te', `
 ifdef(`TODO',`
 allow cardmgr_t modules_object_t:dir search;
 
-# Create stab file
-var_lib_domain(cardmgr)
-
-# for /var/lib/misc/pcmcia-scheme
-# would be better to have it in a different type if I knew how it was created..
-allow cardmgr_t var_lib_t:file { getattr read };
-
 # Create device files in /tmp.
+# cjp: why is this created all over the place?
 file_type_auto_trans(cardmgr_t, { var_run_t cardmgr_var_run_t device_t tmp_t }, cardmgr_dev_t, { blk_file chr_file })
-
-dontaudit cardmgr_t ptyfile:chr_file getattr;
 
 # this goes to apm
 optional_policy(`pcmcia.te',`
@@ -137,8 +140,9 @@ optional_policy(`pcmcia.te',`
 	pcmcia_domtrans_cardctl(apmd_t)
 ')
 
-ifdef(`hald.te', `
-rw_dir_file(hald_t, cardmgr_var_run_t)
-allow hald_t cardmgr_var_run_t:chr_file create_file_perms;
+# this goes to hald
+optional_policy(`pcmcia.te',`
+	pcmcia_manage_pid(hald_t)
+	pcmcia_manage_runtime_chr(hald_t)
 ')
 ') dnl end TODO
