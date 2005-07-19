@@ -303,9 +303,9 @@ interface(`domain_kill_all_domains',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Read the process state (/proc/pid) of all domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -323,6 +323,36 @@ interface(`domain_read_all_domains_state',`
 	allow $1 domain:lnk_file r_file_perms;
 	allow $1 domain:file r_file_perms;
 	allow $1 domain:process getattr;
+
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $1 domain:process ptrace;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read the process
+##	state (/proc/pid) of all domains.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_read_all_domains_state',`
+	gen_require(`
+		attribute domain;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file r_file_perms;
+		class process { getattr ptrace };
+	')
+
+	dontaudit $1 domain:dir r_dir_perms;
+	dontaudit $1 domain:lnk_file r_file_perms;
+	dontaudit $1 domain:file r_file_perms;
+	dontaudit $1 domain:process getattr;
 
 	# We need to suppress this denial because procps tries to access
 	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
@@ -350,9 +380,9 @@ interface(`domain_dontaudit_list_all_domains_proc',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Get the session ID of all domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -364,6 +394,51 @@ interface(`domain_getsession_all_domains',`
 	')
 
 	allow $1 domain:process getsession;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the
+##	session ID of all domains.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_getsession_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process getsession;
+	')
+
+	allow $1 domain:process getsession;
+')
+
+########################################
+## <summary>
+##	Get the attributes of all domains
+##	sockets, for all socket types.
+## </summary>
+## <desc>
+##	<p>
+##	Get the attributes of all domains
+##	sockets, for all socket types.
+##	</p>
+##	<p>
+##	This is commonly used for domains
+##	that can use lsof on all domains.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_all_sockets',`
+	gen_require(`
+		gen_require_set(getattr,socket_class_set)
+	')
+
+	allow $1 domain:socket_class_set getattr;
 ')
 
 ########################################
