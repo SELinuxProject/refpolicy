@@ -10,6 +10,15 @@ policy_module(kernel,1.0)
 attribute can_load_kernmodule;
 attribute can_receive_kernel_messages;
 
+# domains with unconfined access to kernel resources
+attribute kern_unconfined;
+
+# regular entries in proc
+attribute proc_type;
+
+# sysctls
+attribute sysctl_type;
+
 #
 # kernel_t is the domain of kernel threads.
 # It is also the target type when checking permissions in the system class.
@@ -18,6 +27,83 @@ type kernel_t, can_load_kernmodule;
 role system_r types kernel_t;
 domain_type(kernel_t)
 sid kernel context_template(system_u:system_r:kernel_t,s0 - s9:c0.c127)
+
+#
+# Procfs types
+#
+
+type proc_t, proc_type;
+files_mountpoint(proc_t)
+fs_type(proc_t)
+genfscon proc / context_template(system_u:object_r:proc_t,s0)
+genfscon proc /sysvipc context_template(system_u:object_r:proc_t,s0)
+
+# kernel message interface
+type proc_kmsg_t, proc_type;
+genfscon proc /kmsg context_template(system_u:object_r:proc_kmsg_t,s0)
+neverallow ~can_receive_kernel_messages proc_kmsg_t:file ~getattr;
+
+# /proc kcore: inaccessible
+type proc_kcore_t, proc_type;
+neverallow { domain -kern_unconfined } proc_kcore_t:file ~getattr;
+genfscon proc /kcore context_template(system_u:object_r:proc_kcore_t,s0)
+
+type proc_mdstat_t, proc_type;
+genfscon proc /mdstat context_template(system_u:object_r:proc_mdstat_t,s0)
+
+type proc_net_t, proc_type;
+genfscon proc /net context_template(system_u:object_r:proc_net_t,s0)
+
+#
+# Sysctl types
+#
+
+# /proc/sys directory, base directory of sysctls
+type sysctl_t, sysctl_type;
+files_mountpoint(sysctl_t)
+sid sysctl context_template(system_u:object_r:sysctl_t,s0)
+genfscon proc /sys context_template(system_u:object_r:sysctl_t,s0)
+
+# /proc/irq directory and files
+type sysctl_irq_t, sysctl_type;
+genfscon proc /irq context_template(system_u:object_r:sysctl_irq_t,s0)
+
+# /proc/net/rpc directory and files
+type sysctl_rpc_t, sysctl_type;
+genfscon proc /net/rpc context_template(system_u:object_r:sysctl_rpc_t,s0)
+
+# /proc/sys/fs directory and files
+type sysctl_fs_t, sysctl_type;
+files_mountpoint(sysctl_fs_t)
+genfscon proc /sys/fs context_template(system_u:object_r:sysctl_fs_t,s0)
+
+# /proc/sys/kernel directory and files
+type sysctl_kernel_t, sysctl_type;
+genfscon proc /sys/kernel context_template(system_u:object_r:sysctl_kernel_t,s0)
+
+# /proc/sys/kernel/modprobe file
+type sysctl_modprobe_t, sysctl_type;
+genfscon proc /sys/kernel/modprobe context_template(system_u:object_r:sysctl_modprobe_t,s0)
+
+# /proc/sys/kernel/hotplug file
+type sysctl_hotplug_t, sysctl_type;
+genfscon proc /sys/kernel/hotplug context_template(system_u:object_r:sysctl_hotplug_t,s0)
+
+# /proc/sys/net directory and files
+type sysctl_net_t, sysctl_type;
+genfscon proc /sys/net context_template(system_u:object_r:sysctl_net_t,s0)
+
+# /proc/sys/net/unix directory and files
+type sysctl_net_unix_t, sysctl_type;
+genfscon proc /sys/net/unix context_template(system_u:object_r:sysctl_net_unix_t,s0)
+
+# /proc/sys/vm directory and files
+type sysctl_vm_t, sysctl_type;
+genfscon proc /sys/vm context_template(system_u:object_r:sysctl_vm_t,s0)
+
+# /proc/sys/dev directory and files
+type sysctl_dev_t, sysctl_type;
+genfscon proc /sys/dev context_template(system_u:object_r:sysctl_dev_t,s0)
 
 #
 # unlabeled_t is the type of unlabeled objects.
@@ -45,83 +131,6 @@ sid sysctl_net_unix	context_template(system_u:object_r:unlabeled_t,s0)
 sid sysctl_vm		context_template(system_u:object_r:unlabeled_t,s0)
 sid sysctl_dev		context_template(system_u:object_r:unlabeled_t,s0)
 sid tcp_socket		context_template(system_u:object_r:unlabeled_t,s0)
-
-#
-# Procfs types
-#
-
-type proc_t;
-files_mountpoint(proc_t)
-fs_type(proc_t)
-genfscon proc / context_template(system_u:object_r:proc_t,s0)
-genfscon proc /sysvipc context_template(system_u:object_r:proc_t,s0)
-
-# kernel message interface
-type proc_kmsg_t;
-genfscon proc /kmsg context_template(system_u:object_r:proc_kmsg_t,s0)
-neverallow ~can_receive_kernel_messages proc_kmsg_t:file ~getattr;
-
-# /proc kcore: inaccessible
-type proc_kcore_t;
-neverallow * proc_kcore_t:file ~getattr;
-genfscon proc /kcore context_template(system_u:object_r:proc_kcore_t,s0)
-
-type proc_mdstat_t;
-genfscon proc /mdstat context_template(system_u:object_r:proc_mdstat_t,s0)
-
-type proc_net_t;
-genfscon proc /net context_template(system_u:object_r:proc_net_t,s0)
-
-#
-# Sysctl types
-#
-
-# /proc/irq directory and files
-type sysctl_irq_t;
-genfscon proc /irq context_template(system_u:object_r:sysctl_irq_t,s0)
-
-# /proc/net/rpc directory and files
-type sysctl_rpc_t;
-genfscon proc /net/rpc context_template(system_u:object_r:sysctl_rpc_t,s0)
-
-# /proc/sys directory, base directory of sysctls
-type sysctl_t;
-files_mountpoint(sysctl_t)
-sid sysctl context_template(system_u:object_r:sysctl_t,s0)
-genfscon proc /sys context_template(system_u:object_r:sysctl_t,s0)
-
-# /proc/sys/fs directory and files
-type sysctl_fs_t;
-files_mountpoint(sysctl_fs_t)
-genfscon proc /sys/fs context_template(system_u:object_r:sysctl_fs_t,s0)
-
-# /proc/sys/kernel directory and files
-type sysctl_kernel_t;
-genfscon proc /sys/kernel context_template(system_u:object_r:sysctl_kernel_t,s0)
-
-# /proc/sys/kernel/modprobe file
-type sysctl_modprobe_t;
-genfscon proc /sys/kernel/modprobe context_template(system_u:object_r:sysctl_modprobe_t,s0)
-
-# /proc/sys/kernel/hotplug file
-type sysctl_hotplug_t;
-genfscon proc /sys/kernel/hotplug context_template(system_u:object_r:sysctl_hotplug_t,s0)
-
-# /proc/sys/net directory and files
-type sysctl_net_t;
-genfscon proc /sys/net context_template(system_u:object_r:sysctl_net_t,s0)
-
-# /proc/sys/net/unix directory and files
-type sysctl_net_unix_t;
-genfscon proc /sys/net/unix context_template(system_u:object_r:sysctl_net_unix_t,s0)
-
-# /proc/sys/vm directory and files
-type sysctl_vm_t;
-genfscon proc /sys/vm context_template(system_u:object_r:sysctl_vm_t,s0)
-
-# /proc/sys/dev directory and files
-type sysctl_dev_t;
-genfscon proc /sys/dev context_template(system_u:object_r:sysctl_dev_t,s0)
 
 ########################################
 #

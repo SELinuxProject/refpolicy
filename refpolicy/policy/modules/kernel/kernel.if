@@ -1030,16 +1030,18 @@ interface(`kernel_rw_rpc_sysctl',`
 ## </param>
 #
 interface(`kernel_read_all_sysctl',`
-	kernel_read_device_sysctl($1)
-	kernel_read_vm_sysctl($1)
-	kernel_read_net_sysctl($1)
-	kernel_read_unix_sysctl($1)
-	kernel_read_hotplug_sysctl($1)
-	kernel_read_modprobe_sysctl($1)
-	kernel_read_kernel_sysctl($1)
-	kernel_read_fs_sysctl($1)
-	kernel_read_irq_sysctl($1)
-	kernel_read_rpc_sysctl($1)
+	gen_require(`
+		attribute sysctl_type;
+		type proc_t, proc_net_t;
+		class dir r_dir_perms;
+		class file r_file_perms;
+	')
+
+	# proc_net_t for /proc/net/rpc sysctls
+	allow $1 { proc_t proc_net_t }:dir search;
+
+	allow $1 sysctl_type:dir r_dir_perms;
+	allow $1 sysctl_type:file r_file_perms;
 ')
 
 ########################################
@@ -1051,16 +1053,18 @@ interface(`kernel_read_all_sysctl',`
 ## </param>
 #
 interface(`kernel_rw_all_sysctl',`
-	kernel_rw_device_sysctl($1)
-	kernel_rw_vm_sysctl($1)
-	kernel_rw_net_sysctl($1)
-	kernel_rw_unix_sysctl($1)
-	kernel_rw_hotplug_sysctl($1)
-	kernel_rw_modprobe_sysctl($1)
-	kernel_rw_kernel_sysctl($1)
-	kernel_rw_fs_sysctl($1)
-	kernel_rw_irq_sysctl($1)
-	kernel_rw_rpc_sysctl($1)
+	gen_require(`
+		attribute sysctl_type;
+		type proc_t, proc_net_t;
+		class dir r_dir_perms;
+		class file { rw_file_perms setattr };
+	')
+
+	# proc_net_t for /proc/net/rpc sysctls
+	allow $1 { proc_t proc_net_t }:dir search;
+
+	allow $1 sysctl_type:dir r_dir_perms;
+	allow $1 sysctl_type:file { rw_file_perms setattr };
 ')
 
 ########################################
@@ -1228,13 +1232,7 @@ interface(`kernel_use_unlabeled_blk_dev',`
 interface(`kernel_relabel_unlabeled',`
 	gen_require(`
 		type unlabeled_t;
-		class dir { getattr relabelfrom };
-		class file { getattr relabelfrom };
-		class lnk_file { getattr relabelfrom };
-		class fifo_file { getattr relabelfrom };
-		class sock_file { getattr relabelfrom };
-		class chr_file { getattr relabelfrom };
-		class blk_file { getattr relabelfrom };
+		gen_require_set({ getattr relabelfrom },dir_file_class_set)
 	')
 
 	allow $1 unlabeled_t:dir_file_class_set { getattr relabelfrom };
@@ -1251,19 +1249,24 @@ interface(`kernel_relabel_unlabeled',`
 interface(`kernel_unconfined',`
 	gen_require(`
 		type kernel_t, unlabeled_t;
+		attribute proc_type, sysctl_type;
+		attribute kern_unconfined;
 		attribute can_load_kernmodule, can_receive_kernel_messages;
+		class dir r_dir_perms;
+		class file { rw_file_perms setattr };
 	')
 
-#	allow $1 proc_fs:{ dir file } *;
+	allow $1 proc_type:{ dir file } *;
 
 	allow $1 sysctl_t:{ dir file } *;
 
 	allow $1 kernel_t:system *;
 
-	allow $1 unlabeled_t:{ dir lnk_file sock_file fifo_file blk_file } *;
+	allow $1 unlabeled_t:dir_file_class_set *;
 	allow $1 unlabeled_t:filesystem *;
 
 	typeattribute $1 can_load_kernmodule, can_receive_kernel_messages;
+	typeattribute $1 kern_unconfined;
 
 	kernel_rw_all_sysctl($1)
 ')
