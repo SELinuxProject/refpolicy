@@ -13,11 +13,6 @@
 # $1 is the type this attribute is on
 
 #
-# admin_tty_type: complete
-#
-{ sysadm_tty_device_t sysadm_devpts_t }
-
-#
 # auth: complete
 #
 auth_read_shadow($1)
@@ -30,7 +25,7 @@ auth_domtrans_chk_passwd($1)
 #
 # file_type: complete
 #
-files_file_type($1)
+files_type($1)
 
 #
 # fs_domain: complete
@@ -42,7 +37,9 @@ storage_raw_write_fixed_disk($1)
 #
 # nscd_client_domain: complete
 #
-nscd_use_socket($1)
+optional_policy(`nscd.te',`
+	nscd_use_socket($1)
+')
 
 #
 # privfd: complete
@@ -55,13 +52,9 @@ domain_wide_inherit_fd($1)
 logging_send_syslog_msg($1)
 
 #
-# privmail: 
+# privmail: complete
 #
 mta_send_mail($1)
-# this needs more work:
-allow mta_user_agent $1:fd use;
-allow mta_user_agent $1:process sigchld;
-allow mta_user_agent $1:fifo_file { read write };
 
 #
 # privmodule: complete
@@ -137,22 +130,11 @@ type $1_t;
 type $1_exec_t;
 domain_type($1_t)
 domain_entry_file($1_t,$1_exec_t)
-role sysadm_r types $1_t;
-domain_auto_trans(sysadm_t, $1_exec_t, $1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
-
-#
-# base_can_network($1,$2):
-#
-allow $1 self:$2_socket connected_socket_perms;
-corenet_$2_sendrecv_all_if($1)
-corenet_raw_sendrecv_all_if($1)
-corenet_$2_sendrecv_all_nodes($1)
-corenet_raw_sendrecv_all_nodes($1)
-corenet_$2_sendrecv_all_ports($1)
-corenet_$2_bind_all_nodes($1)
-sysnet_read_config($1)
+# a "run" interface needs to be
+# added, and have sysadm_t use it
+# in a optional_policy block.
 
 #
 # base_can_network($1,$2,$3):
@@ -163,19 +145,28 @@ corenet_raw_sendrecv_all_if($1)
 corenet_$2_sendrecv_all_nodes($1)
 corenet_raw_sendrecv_all_nodes($1)
 corenet_$2_bind_all_nodes($1)
-corenet_$2_sendrecv_$3_port($1)
 sysnet_read_config($1)
+# if $3 is specified (remove _port_t from $3):
+corenet_$2_sendrecv_$3_port($1)
+# else:
+corenet_$2_sendrecv_all_ports($1)
 
 #
-# base_file_read_access():
+# base_file_read_access(): complete
 #
+kernel_read_kernel_sysctl($1)
+corecmd_list_bin($1)
+corecmd_read_bin_symlink($1)
+corecmd_read_bin_file($1)
+corecmd_read_bin_pipe($1)
+corecmd_read_bin_socket($1)
+corecmd_list_sbin($1)
+corecmd_read_sbin_symlink($1)
+corecmd_read_sbin_file($1)
+corecmd_read_sbin_pipe($1)
+corecmd_read_sbin_socket($1)
 files_list_home($1)
 files_read_usr_files($1)
-allow $1 bin_t:dir r_dir_perms;
-allow $1 bin_t:notdevfile_class_set r_file_perms;
-allow $1 sbin_t:dir r_dir_perms;
-allow $1 sbin_t:notdevfile_class_set r_file_perms;
-kernel_read_kernel_sysctl($1)
 seutil_read_config($1)
 tunable_policy(`read_default_t',`
 	files_list_default($1)
@@ -194,31 +185,21 @@ allow $1_t devpts_t:dir { getattr read search };
 dontaudit $1_t bsdpty_device_t:chr_file { getattr read write };
 
 #
-# can_create():
+# can_create($1,$2,$3): complete
 #
-# for each i in $3
-can_create_internal($1,$2,$i)
-
-#
-# can_create_internal($1,$2,dir):
-#
-allow $1 $2:$3 { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-
-#
-# can_create_internal($1,$2,lnk_file):
-#
-allow $1 $2:$3 { create read getattr setattr link unlink rename };
-
-#
-# can_create_internal($1,$2,[file,chr_file,blk_file,sock_file,fifo_file]):
-#
-allow $1 $2:$3 { create ioctl read getattr lock write setattr append link unlink rename };
+# for each object class in $3:
+# if dir:
+allow $1 $2:dir create_dir_perms;
+# else if lnk_file:
+allow $1 $2:lnk_file create_lnk_perms;
+# else:
+allow $1 $2:$3 create_file_perms;
 
 #
 # can_create_other_pty(): complete
 #
+allow $1_t $2_devpts_t:chr_file { rw_file_perms setattr };
 term_create_pty($1_t,$2_devpts_t)
-allow $1_t $2_devpts_t:chr_file { setattr ioctl read getattr lock write append };
 
 #
 # can_create_pty(): complete
@@ -226,16 +207,16 @@ allow $1_t $2_devpts_t:chr_file { setattr ioctl read getattr lock write append }
 # $2 may require more conversion
 type $1_devpts_t $2;
 term_pty($1_devpts_t)
-allow $1_t $1_devpts_t:chr_file { setattr ioctl read getattr lock write append };
+allow $1_t $1_devpts_t:chr_file { rw_file_perms setattr };
 term_create_pty($1_t,$1_devpts_t)
 
 #
 # can_exec_any(): complete
 #
-domain_exec_all_entry_files($1)
-files_exec_generic_etc_files($1)
 corecmd_exec_bin($1)
 corecmd_exec_sbin($1)
+domain_exec_all_entry_files($1)
+files_exec_etc_files($1)
 libs_use_ld_so($1)
 libs_use_shared_libs($1)
 libs_exec_ld_so($1)
@@ -337,7 +318,7 @@ allow $1 self:tcp_socket create_stream_socket_perms;
 base_can_network($1, tcp, `$2')
 
 #
-# can_network_tcp(): complete
+# can_network_tcp():
 #
 can_network_server_tcp($1, `$2')
 can_network_client_tcp($1, `$2')
@@ -432,7 +413,7 @@ kernel_setsecparam($1)
 kernel_rw_all_sysctl($1)
 
 #
-# can_tcp_connect
+# can_tcp_connect():
 #
 allow $1 $2:tcp_socket { connectto recvfrom };
 allow $2 $1:tcp_socket { acceptfrom recvfrom };
@@ -471,16 +452,16 @@ allow $1 $2:file { create ioctl getattr setattr append link };
 #
 # create_dir_file():
 #
-allow $1 $2:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow $1 $2:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
+allow $1 $2:dir create_dir_perms;
+allow $1 $2:file create_file_perms;
+allow $1 $2:lnk_file create_lnk_perms;
 
 #
 # create_dir_notdevfile():
 #
-allow $1 $2:dir { create read getattr lock setattr ioctl link unlink rename search add_name remove_name reparent write rmdir };
-allow $1 $2:{ file sock_file fifo_file } { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
+allow $1 $2:dir create_dir_perms;
+allow $1 $2:{ file sock_file fifo_file } create_file_perms;
+allow $1 $2:lnk_file create_lnk_perms;
 
 #
 # daemon_base_domain():
@@ -488,9 +469,10 @@ allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
 type $1_t;
 type $1_exec_t;
 init_daemon_domain($1_t,$1_exec_t)
-role system_r types $1_t;
 dontaudit $1_t self:capability sys_tty_config;
-allow $1_t self:process { sigchld sigkill sigstop signull signal };
+allow $1_t self:process signal_perms;
+kernel_list_proc($1_t)
+kernel_read_proc_symlinks($1_t)
 kernel_read_kernel_sysctl($1_t)
 dev_read_sysfs($1_t)
 fs_search_auto_mountpoints($1_t)
@@ -510,15 +492,12 @@ ifdef(`targeted_policy',`
 optional_policy(`rhgb.te',`
 	rhgb_domain($1_t)
 ')
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_newrole_sigchld($1_t)
 ')
 optional_policy(`udev.te', `
 	udev_read_db($1_t)
 ')
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
-
 
 #
 # daemon_domain():
@@ -529,11 +508,11 @@ init_daemon_domain($1_t,$1_exec_t)
 type $1_var_run_t;
 files_pid_file($1_var_run_t)
 dontaudit $1_t self:capability sys_tty_config;
-allow $1_t $1_var_run_t:file { getattr create read write append setattr unlink };
+allow $1_t $1_var_run_t:file create_file_perms;
 files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
 kernel_list_proc($1_t)
-kernel_read_proc_symlink($1_t)
+kernel_read_proc_symlinks($1_t)
 dev_read_sysfs($1_t)
 fs_getattr_all_fs($1_t)
 fs_search_auto_mountpoints($1_t)
@@ -555,7 +534,7 @@ ifdef(`targeted_policy', `
 optional_policy(`rhgb.te',`
 	rhgb_domain($1_t)
 ')
-optional_policy(`selinuxutils.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole($1_t)
 ')
 optional_policy(`udev.te', `
@@ -565,51 +544,53 @@ optional_policy(`udev.te', `
 #
 # daemon_sub_domain():
 #
-# $1 is the parent domain (or domains), $2_t is the child domain,
-# and $3 is any attributes to apply to the child
-type $2_t, domain, privlog, daemon $3;
-type $2_exec_t, file_type, sysadmfile, exec_type;
+# $3 may need more work
+type $2_t; #, daemon $3;
+domain_type($2_t)
+type $2_exec_t;
+domain_entry_file($2_t,$2_exec_t)
 role system_r types $2_t;
-domain_auto_trans($1, $2_exec_t, $2_t)
-allow $2_t $1:fd use;
-allow $2_t $1:process sigchld;
 allow $2_t self:process signal_perms;
+domain_auto_trans($1, $2_exec_t, $2_t)
+logging_send_syslog_msg($1_t)
 libs_use_ld_so($2_t)
 libs_use_shared_libs($2_t)
-allow $2_t proc_t:dir r_dir_perms;
-allow $2_t proc_t:lnk_file read;
-allow $2_t device_t:dir getattr;
+kernel_list_proc($1_t)
+kernel_read_proc_symlinks($1_t)
 
 #
-# etc_domain():
+# etc_domain(): complete
 #
 type $1_etc_t; #, usercanread;
-files_file_type($1_etc_t)
+files_type($1_etc_t)
 allow $1_t $1_etc_t:file { getattr read };
+files_search_etc($1_t)
 
 #
-# etcdir_domain():
+# etcdir_domain(): complete
 #
 type $1_etc_t; #, usercanread;
 files_file_type($1_etc_t)
 allow $1_t $1_etc_t:file r_file_perms;
 allow $1_t $1_etc_t:dir r_dir_perms;
 allow $1_t $1_etc_t:lnk_file { getattr read };
+files_search_etc($1_t)
 
 #
-# file_type_auto_trans($1,$2,$3):
+# file_type_auto_trans($1,$2,$3): complete
 #
-allow $1 $3:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1 $3:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1 $3:lnk_file { create read getattr setattr link unlink rename };
-allow $1 $3:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1 $3:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-type_transition $1 $2:{ dir file lnk_file sock_file fifo_file } $3;
+allow $1 $2:dir rw_dir_perms;
+allow $1 $3:dir create_dir_perms;
+allow $1 $3:file create_file_perms;
+allow $1 $3:lnk_file create_lnk_perms;
+allow $1 $3:sock_file create_file_perms;
+allow $1 $3:fifo_file create_sock_perms;
+type_transition $1 $2:{ file lnk_file sock_file fifo_file } $3;
 
 #
-# file_type_auto_trans($1,$2,$3,$4):
+# file_type_auto_trans($1,$2,$3,$4): complete
 #
-allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
+allow $1 $2:dir rw_dir_perms;
 # for each i in $4:
 can_create_internal($1,$3,$i)
 type_transition $1 $2:$i $3;
@@ -638,59 +619,41 @@ optional_policy(`nis.te',`
 # general_proc_read_access(): complete
 #
 kernel_read_system_state($1)
-kernel_read_sendrecv_state($1)
+kernel_read_network_state($1)
 kernel_read_software_raid_state($1)
 kernel_getattr_core($1)
 kernel_getattr_message_if($1)
 kernel_read_kernel_sysctl($1)
 
 #
-# home_domain():
-#
-
-#
-# home_domain_access():
-#
-
-#
-# home_domain_ro():
-#
-
-#
-# home_domain_ro_access():
-#
-
-#
 # in_user_role():
 #
-role user_r types $1;
-role staff_r types $1;
+# this is replaced by run interfaces
 
 #
-# init_service_domain():
+# init_service_domain(): complete
 #
 type $1_t;
 type $1_exec_t;
-init_daemon_domain($1_t,$1_exec_t)
+init_domain($1_t,$1_exec_t)
 dontaudit $1_t self:capability sys_tty_config;
+allow self:process signal_perms;
+kernel_list_proc($1_t)
+kernel_read_proc_symlinks($1_t)
 dev_read_sysfs($1_t)
 term_dontaudit_use_console($1_t)
-init_use_fd($1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
-tunable_policy(`targeted_policy', `
-term_dontaudit_use_unallocated_tty($1_t)
-term_dontaudit_use_generic_pty($1_t)
-files_dontaudit_read_root_file($1_t)
-')dnl end targeted_policy tunable
-allow $1_t proc_t:dir r_dir_perms;
-allow $1_t proc_t:lnk_file read;
-optional_policy(`udev.te', `
-udev_read_db($1_t)
+userdom_dontaudit_use_unpriv_user_fd($1_t)
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty($1_t)
+	term_dontaudit_use_generic_pty($1_t)
+	files_dontaudit_read_root_file($1_t)
 ')
-allow $1_t autofs_t:dir { search getattr };
-dontaudit $1_t unpriv_userdomain:fd use;
+optional_policy(`udev.te',`
+	udev_read_db($1_t)
+')
 
 #
 # inetd_child_domain():
@@ -774,10 +737,6 @@ allow $1_t $1_log_t:dir rw_dir_perms;
 logging_search_logs($1_t,$1_log_t,{ file dir })
 
 #
-# mini_user_domain():
-#
-
-#
 # network_home_dir():
 #
 create_dir_file($1, $2)
@@ -793,21 +752,21 @@ type_transition $1_t devpts_t:chr_file $1_devpts_t;
 allow $1_t $1_devpts_t:chr_file { setattr rw_file_perms };
 
 #
-# r_dir_file():
+# r_dir_file(): complete
 #
 allow $1 $2:dir { getattr read search };
 allow $1 $2:file { read getattr };
 allow $1 $2:lnk_file { getattr read };
 
 #
-# ra_dir_create_file():
+# ra_dir_create_file(): complete
 #
 allow $1 $2:dir ra_dir_perms;
 allow $1 $2:file { create ra_file_perms };
 allow $1 $2:lnk_file { create read getattr };
 
 #
-# ra_dir_file():
+# ra_dir_file(): complete
 #
 allow $1 $2:dir ra_dir_perms;
 allow $1 $2:file ra_file_perms;
@@ -831,38 +790,32 @@ kernel_read_all_sysctl($1)
 #
 # rhgb_domain():
 #
-ifdef(`rhgb.te', `
-allow $1 rhgb_t:process sigchld;
-allow $1 rhgb_t:fd use;
-allow $1 rhgb_t:fifo_file { read write };
-')
 
 #
-# rw_dir_create_file():
+# rw_dir_create_file(): complete
 #
-allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
-allow $1 $2:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow $1 $2:lnk_file { create read getattr setattr link unlink rename };
+allow $1 $2:dir rw_dir_perms;
+allow $1 $2:file create_file_perms;
+allow $1 $2:lnk_file create_lnk_perms;
 
 #
-# rw_dir_file():
+# rw_dir_file(): complete
 #
-allow $1 $2:dir { read getattr lock search ioctl add_name remove_name write };
+# cjp: rw_dir_perms here doesnt make sense
+allow $1 $2:dir rw_dir_perms;
 allow $1 $2:file rw_file_perms;
 allow $1 $2:lnk_file { getattr read };
 
 #
-# system_domain():
+# system_domain(): complete
 #
 type $1_t;
-domain_type($1_t)
-role system_r types $1_t;
 type $1_exec_t;
-domain_entry_file($1_t,$1_exec_t)
+init_system_domain($1_t,$1_exec_t)
+files_list_etc($1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
-allow $1_t etc_t:dir r_dir_perms;
 
 #
 # tmp_domain(): complete
@@ -876,8 +829,8 @@ allow $1_t $1_tmp_t:dir create_dir_perms;
 allow $1_t $1_tmp_t:file create_file_perms;
 files_create_tmp_files($1_t, $1_tmp_t, { file dir })
 # class specified:
-files_create_tmp_files($1_t, $1_tmp_t, $3)
 # $3 manage object perms here
+files_create_tmp_files($1_t, $1_tmp_t, $3)
 
 #
 # tmp_domain($1,$2,$3): complete
@@ -886,8 +839,8 @@ files_create_tmp_files($1_t, $1_tmp_t, $3)
 #
 type $1_tmp_t $2;
 files_tmp_file($1_tmp_t)
-files_create_tmp_files($1_t, $1_tmp_t, $3)
 allow $1_t $1_tmp_t:$3 manage_obj_perms;
+files_create_tmp_files($1_t, $1_tmp_t, $3)
 
 #
 # tmpfs_domain(): complete
@@ -902,20 +855,23 @@ allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr a
 filesystem_create_private_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 #
-# unconfined_domain():
+# unconfined_domain(): complete
 #
+unconfined_domain_template($1)
 
 #
-# user_application_domain():
+# user_application_domain(): complete
 #
-type $1_t, domain, privlog $2;
-type $1_exec_t, file_type, sysadmfile, exec_type;
-role sysadm_r types $1_t;
-domain_auto_trans(sysadm_t, $1_exec_t, $1_t)
+type $1_t $2;
+domain_type($1_t)
+type $1_exec_t;
+domain_entry_file($1_t,$1_exec_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
-in_user_role($1_t)
-domain_auto_trans(userdomain, $1_exec_t, $1_t)
+logging_send_syslog_msg($1_t)
+# a "run" interface needs to be
+# added, and use it in the base user domain
+# template, in a optional_policy block.
 
 #
 # uses_authbind():
@@ -926,15 +882,15 @@ allow authbind_t $1:fd use;
 allow authbind_t $1:{ tcp_socket udp_socket } rw_socket_perms;
 
 #
-# var_lib_domain():
+# var_lib_domain(): complete
 #
-type $1_var_lib_t, file_type, sysadmfile;
-typealias $1_var_lib_t alias var_lib_$1_t;
-file_type_auto_trans($1_t, var_lib_t, $1_var_lib_t, file)
-allow $1_t $1_var_lib_t:dir rw_dir_perms;
+type $1_var_lib_t;
+files_type($1_var_lib_t)
+allow $1_t $1_var_lib_t:file create_file_perms;
+files_create_var_lib($1_t,$1_var_lib_t)
 
 #
-# var_run_domain($1):
+# var_run_domain($1): complete
 #
 type $1_var_run_t;
 files_pid_file($1_var_run_t)
@@ -942,9 +898,15 @@ allow $1_t $1_var_run_t:file create_file_perms;
 files_create_pid($1_t,$1_var_run_t)
 
 #
-# var_run_domain($1,$2):
+# var_run_domain($1,$2): complete
 #
-type $1_var_run_t, file_type, sysadmfile, pidfile;
-file_type_auto_trans($1_t, var_run_t, $1_var_run_t, $2)
-allow $1_t var_t:dir search;
-allow $1_t $1_var_run_t:dir { read getattr lock search ioctl add_name remove_name write };
+type $1_var_run_t;
+files_pid_file($1_var_run_t)
+files_create_pid($1_t,$1_var_run_t,$2)
+# for each object class in $2:
+# if dir:
+allow $1 $1_var_run_t:dir create_dir_perms;
+# else if lnk_file:
+allow $1 $1_var_run_t:lnk_file create_lnk_perms;
+# else:
+allow $1 $1_var_run_t:$2 create_file_perms;
