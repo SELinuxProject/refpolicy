@@ -227,16 +227,14 @@ def format_html_desc(node):
 	for desc in node.childNodes:
 		if desc.nodeName == "#text":
 			if desc.data is not '':
-				desc_buf += "<p>" + desc.data + "</p>"
-		elif desc.nodeName == "p":
-			if desc.firstChild.data is not '':
-				desc_buf += "<p>" + desc.firstChild.data + "</p>"
-			for chld in desc.childNodes: 
-				if chld.nodeName == "ul":
-					desc_buf += "<ul>"
-					for li in chld.getElementsByTagName("li"):
-						desc_buf += "<li>" + li.firstChild.data + "</li>"
-					desc_buf += "</ul>"
+				if desc.parentNode.nodeName != "p":
+					desc_buf += "<p>" + desc.data + "</p>"
+				else:
+					desc_buf += desc.data
+		else:
+			desc_buf += "<" + desc.nodeName + ">" \
+				 + format_html_desc(desc) \
+				 + "</" + desc.nodeName +">"
 
 	return desc_buf
 
