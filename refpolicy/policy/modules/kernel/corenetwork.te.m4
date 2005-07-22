@@ -1,10 +1,15 @@
+define(`declare_netifs',`dnl
+netifcon $2 context_template(system_u:object_r:$1,$3) context_template(system_u:object_r:unlabeled_t,$3)
+ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
+')
+
 #
-# network_interface(linux_interfacename,mls_sensitivity)
+# network_interface(if_name,linux_interface,mls_sensitivity)
 #
 define(`network_interface',`
 gen_require(`type unlabeled_t')
 type $1_netif_t alias netif_$1_t, netif_type;
-netifcon $1 context_template(system_u:object_r:$1_netif_t,$2) context_template(system_u:object_r:unlabeled_t,$2)
+declare_netifs($1_netif_t,shift($*))
 ')
 
 #
