@@ -28,7 +28,6 @@
 
 # Policy Type
 # strict, targeted, strict-mls, targeted-mls
-# strict and strict-mls are currently supported.
 TYPE = strict
 
 # Policy Name
