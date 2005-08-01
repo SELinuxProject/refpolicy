@@ -104,7 +104,7 @@ int fc_compare(file_context_node_t *a, file_context_node_t *b)
 	 *  length than the other. */
 	if (a->str_len < b->str_len)
 		return -1;
-	if (b->str_len < b->str_len)
+	if (b->str_len < a->str_len)
 		return 1;
 
 	/* Check to see if either a or b has a specified type
