@@ -1,0 +1,263 @@
+
+policy_module(ipsec,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type ipsec_t;
+type ipsec_exec_t;
+init_daemon_domain(ipsec_t,ipsec_exec_t)
+role system_r types ipsec_t;
+
+# type for ipsec configuration file(s) - not for keys
+type ipsec_conf_file_t;
+
+# type for file(s) containing ipsec keys - RSA or preshared
+type ipsec_key_file_t;
+
+# type for runtime files, including pluto.ctl
+type ipsec_var_run_t;
+files_pid_file(ipsec_var_run_t)
+
+type ipsec_mgmt_t; # admin, privmodule;
+type ipsec_mgmt_exec_t;
+init_system_domain(ipsec_mgmt_t,ipsec_mgmt_exec_t)
+role system_r types ipsec_mgmt_t;
+
+type ipsec_mgmt_var_run_t;
+files_pid_file(ipsec_mgmt_var_run_t)
+
+########################################
+#
+# ipsec Local policy
+#
+
+allow ipsec_t self:capability { net_admin dac_override dac_read_search };
+dontaudit ipsec_t self:capability sys_tty_config;
+allow ipsec_t self:process signal;
+allow ipsec_t self:key_socket { create write read setopt };
+allow ipsec_t self:fifo_file { read getattr };
+
+allow ipsec_t ipsec_conf_file_t:dir r_dir_perms;
+allow ipsec_t ipsec_conf_file_t:file r_file_perms;
+allow ipsec_t ipsec_conf_file_t:lnk_file r_file_perms;
+
+allow ipsec_t ipsec_key_file_t:dir r_dir_perms;
+allow ipsec_t ipsec_key_file_t:file r_file_perms;
+allow ipsec_t ipsec_key_file_t:lnk_file r_file_perms;
+
+allow ipsec_t ipsec_var_run_t:file create_file_perms;
+allow ipsec_t ipsec_var_run_t:sock_file create_file_perms;
+files_create_pid(ipsec_t,ipsec_var_run_t,{ file sock_file })
+
+can_exec(ipsec_t, ipsec_mgmt_exec_t)
+
+# pluto runs an updown script (by calling popen()!); as this is by default
+# a shell script, we need to find a way to make things work without
+# letting all sorts of stuff possibly be run...
+# so try flipping back into the ipsec_mgmt_t domain
+corecmd_shell_domtrans(ipsec_t,ipsec_mgmt_t)
+allow ipsec_t ipsec_mgmt_t:fd use;
+allow ipsec_mgmt_t ipsec_t:fd use;
+allow ipsec_mgmt_t ipsec_t:fifo_file rw_file_perms;
+allow ipsec_mgmt_t ipsec_t:process sigchld;
+
+kernel_read_kernel_sysctl(ipsec_t)
+kernel_list_proc(ipsec_t)
+kernel_read_proc_symlinks(ipsec_t)
+# allow pluto to access /proc/net/ipsec_eroute;
+kernel_read_system_state(ipsec_t)
+kernel_read_network_state(ipsec_t)
+kernel_read_software_raid_state(ipsec_t)
+kernel_getattr_core(ipsec_t)
+kernel_getattr_message_if(ipsec_t)
+
+corenet_udp_bind_reserved_port(ipsec_t)
+
+dev_read_sysfs(ipsec_t)
+dev_read_rand(ipsec_t)
+dev_read_urand(ipsec_t)
+
+fs_getattr_all_fs(ipsec_t)
+fs_search_auto_mountpoints(ipsec_t)
+
+term_use_console(ipsec_t)
+
+corecmd_exec_shell(ipsec_t)
+corecmd_exec_bin(ipsec_t)
+
+domain_use_wide_inherit_fd(ipsec_t)
+
+files_read_etc_files(ipsec_t)
+
+init_use_fd(ipsec_t)
+init_use_script_pty(ipsec_t)
+
+libs_use_ld_so(ipsec_t)
+libs_use_shared_libs(ipsec_t)
+
+logging_send_syslog_msg(ipsec_t)
+
+miscfiles_read_localization(ipsec_t)
+
+userdom_dontaudit_use_unpriv_user_fd(ipsec_t)
+userdom_dontaudit_search_sysadm_home_dir(ipsec_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(ipsec_t)
+	term_dontaudit_use_generic_pty(ipsec_t)
+	files_dontaudit_read_root_file(ipsec_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(ipsec_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(ipsec_t)
+')
+
+optional_policy(`selinuxutils.te',`
+	seutil_sigchld_newrole(ipsec_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(ipsec_t)
+')
+
+ifdef(`TODO',`
+allow ipsec_t etc_t:lnk_file read;
+allow ipsec_t initrc_t:fifo_file write;
+dontaudit ipsec_t ttyfile:chr_file { read write };
+# Pluto needs network access
+can_network_server(ipsec_t)
+') dnl end TODO
+
+########################################
+#
+# ipsec_mgmt Local policy
+#
+
+allow ipsec_mgmt_t self:capability { net_admin sys_tty_config dac_override dac_read_search };
+allow ipsec_mgmt_t self:process { signal setrlimit };
+allow ipsec_mgmt_t self:unix_stream_socket create_stream_socket_perms;
+allow ipsec_mgmt_t self:tcp_socket create_socket_perms;
+allow ipsec_mgmt_t self:udp_socket create_socket_perms;
+allow ipsec_mgmt_t self:key_socket { create setopt };
+allow ipsec_mgmt_t self:fifo_file rw_file_perms;
+
+allow ipsec_mgmt_t ipsec_mgmt_var_run_t:file create_file_perms;
+files_create_pid(ipsec_mgmt_t,ipsec_mgmt_var_run_t)
+
+allow ipsec_mgmt_t ipsec_var_run_t:dir rw_dir_perms;
+allow ipsec_mgmt_t ipsec_var_run_t:file create_file_perms;
+allow ipsec_mgmt_t ipsec_var_run_t:lnk_file create_lnk_perms;
+
+allow ipsec_mgmt_t ipsec_var_run_t:sock_file create_file_perms;
+files_create_pid(ipsec_mgmt_t,ipsec_var_run_t,sock_file)
+
+# _realsetup needs to be able to cat /var/run/pluto.pid,
+# run ps on that pid, and delete the file
+allow ipsec_mgmt_t ipsec_t:{ file lnk_file } r_file_perms;
+
+# logger, running in ipsec_mgmt_t needs to use sockets
+allow ipsec_mgmt_t self:unix_dgram_socket { create connect write };
+allow ipsec_mgmt_t ipsec_t:unix_dgram_socket { create connect write };
+
+allow ipsec_mgmt_t ipsec_conf_file_t:file { getattr read ioctl };
+
+allow ipsec_mgmt_t ipsec_key_file_t:dir rw_dir_perms;
+allow ipsec_mgmt_t ipsec_key_file_t:lnk_file create_lnk_perms;
+# cjp: combo of file_type_auto_trans and rw_dir_create_file
+allow ipsec_mgmt_t ipsec_key_file_t:file create_file_perms;
+files_create_etc_config(ipsec_mgmt_t,ipsec_key_file_t)
+
+# whack needs to connect to pluto
+allow ipsec_mgmt_t ipsec_var_run_t:sock_file { read write };
+allow ipsec_mgmt_t ipsec_t:unix_stream_socket { connectto read write };
+
+can_exec(ipsec_mgmt_t, ipsec_exec_t)
+can_exec(ipsec_mgmt_t, ipsec_mgmt_exec_t)
+allow ipsec_mgmt_t ipsec_mgmt_exec_t:lnk_file read;
+
+domain_auto_trans(ipsec_mgmt_t,ipsec_exec_t,ipsec_t)
+allow ipsec_mgmt_t ipsec_t:fd use;
+allow ipsec_t ipsec_mgmt_t:fd use;
+allow ipsec_t ipsec_mgmt_t:fifo_file rw_file_perms;
+allow ipsec_t ipsec_mgmt_t:process sigchld;
+
+kernel_rw_net_sysctl(ipsec_mgmt_t)
+# allow pluto to access /proc/net/ipsec_eroute;
+kernel_read_system_state(ipsec_mgmt_t)
+kernel_read_network_state(ipsec_mgmt_t)
+kernel_read_software_raid_state(ipsec_mgmt_t)
+kernel_read_kernel_sysctl(ipsec_mgmt_t)
+kernel_getattr_core(ipsec_mgmt_t)
+kernel_getattr_message_if(ipsec_mgmt_t)
+
+bootloader_read_kernel_symbol_table(ipsec_mgmt_t)
+bootloader_getattr_kernel_modules(ipsec_mgmt_t)
+
+dev_read_rand(ipsec_mgmt_t)
+dev_read_urand(ipsec_mgmt_t)
+
+fs_getattr_xattr_fs(ipsec_mgmt_t)
+fs_list_tmpfs(ipsec_mgmt_t)
+
+term_use_console(ipsec_mgmt_t)
+term_dontaudit_getattr_unallocated_ttys(ipsec_mgmt_t)
+
+# the default updown script wants to run route
+corecmd_exec_sbin(ipsec_mgmt_t)
+# the ipsec wrapper wants to run /usr/bin/logger (should we put
+# it in its own domain?)
+corecmd_exec_bin(ipsec_mgmt_t)
+
+domain_use_wide_inherit_fd(ipsec_mgmt_t)
+# denials when ps tries to search /proc. Do not audit these denials.
+domain_dontaudit_list_all_domains_proc(ipsec_mgmt_t)
+# suppress audit messages about unnecessary socket access
+# cjp: this seems excessive
+domain_dontaudit_rw_all_udp_sockets(ipsec_mgmt_t)
+domain_dontaudit_rw_all_key_sockets(ipsec_mgmt_t)
+
+files_read_etc_files(ipsec_mgmt_t)
+files_exec_etc_files(ipsec_mgmt_t)
+files_read_etc_runtime_files(ipsec_mgmt_t)
+files_dontaudit_getattr_default_dir(ipsec_mgmt_t)
+files_dontaudit_getattr_default_files(ipsec_mgmt_t)
+# Allow scripts to use /var/locl/subsys/ipsec
+# cjp: need a lock type
+files_manage_generic_locks(ipsec_mgmt_t)
+
+init_use_script_pty(ipsec_mgmt_t)
+init_exec_script(ipsec_mgmt_t)
+init_use_fd(ipsec_mgmt_t)
+
+libs_use_ld_so(ipsec_mgmt_t)
+libs_use_shared_libs(ipsec_mgmt_t)
+
+miscfiles_read_localization(ipsec_mgmt_t)
+
+seutil_dontaudit_search_config(ipsec_mgmt_t)
+
+sysnet_domtrans_ifconfig(ipsec_mgmt_t)
+
+userdom_use_sysadm_terms(ipsec_mgmt_t)
+
+optional_policy(`consoletype.te',`
+	consoletype_exec(ipsec_mgmt_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(ipsec_mgmt_t)
+')
+
+ifdef(`TODO',`
+# ideally it would not need this.  It wants to write to /root/.rnd
+file_type_auto_trans(ipsec_mgmt_t, sysadm_home_dir_t, sysadm_home_t, file)
+
+allow ipsec_mgmt_t dev_fs:file_class_set getattr;
+') dnl end TODO

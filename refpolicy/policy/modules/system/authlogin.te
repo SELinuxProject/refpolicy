@@ -29,7 +29,7 @@ role system_r types pam_console_t;
 
 domain_entry_file(pam_console_t,pam_console_exec_t)
 
-type pam_t; #, nscd_client_domain;
+type pam_t;
 domain_type(pam_t)
 role system_r types pam_t;
 
@@ -39,7 +39,7 @@ domain_entry_file(pam_t,pam_exec_t)
 type pam_tmp_t;
 files_tmp_file(pam_tmp_t)
 
-type pam_var_console_t; #, nscd_client_domain
+type pam_var_console_t;
 files_type(pam_var_console_t)
 
 type pam_var_run_t;
@@ -51,12 +51,12 @@ neverallow ~can_read_shadow_passwords shadow_t:file read;
 neverallow ~can_write_shadow_passwords shadow_t:file { create write };
 neverallow ~can_relabelto_shadow_passwords shadow_t:file relabelto;
 
-type system_chkpwd_t, can_read_shadow_passwords; # , nscd_client_domain;
+type system_chkpwd_t, can_read_shadow_passwords;
 domain_type(system_chkpwd_t)
 domain_entry_file(system_chkpwd_t,chkpwd_exec_t)
 role system_r types system_chkpwd_t;
 
-type utempter_t; #, nscd_client_domain;
+type utempter_t;
 domain_type(utempter_t)
 
 type utempter_exec_t;
@@ -118,6 +118,10 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(pam_t)
 ')
 
+optional_policy(`nscd.te',`
+	nscd_use_socket(pam_t)
+')
+
 ifdef(`TODO',`
 ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
 ') dnl endif TODO
@@ -177,6 +181,8 @@ domain_use_wide_inherit_fd(pam_console_t)
 files_read_etc_files(pam_console_t)
 files_search_pids(pam_console_t)
 files_list_mnt(pam_console_t)
+# read /etc/mtab
+files_read_etc_runtime_files(pam_console_t)
 
 init_use_fd(pam_console_t)
 init_use_script_pty(pam_console_t)
@@ -207,7 +213,11 @@ optional_policy(`hotplug.te', `
 	hotplug_dontaudit_search_config(pam_console_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`nscd.te',`
+	nscd_use_socket(pam_console_t)
+')
+
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(pam_console_t)
 ')
 
@@ -280,6 +290,10 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(system_chkpwd_t)
 ')
 
+optional_policy(`nscd.te',`
+	nscd_use_socket(system_chkpwd_t)
+')
+
 ifdef(`TODO',`
 can_ldap(system_chkpwd_t)
 ') dnl end TODO
@@ -314,9 +328,13 @@ logging_search_logs(utempter_t)
 # Allow utemper to write to /tmp/.xses-*
 userdom_write_unpriv_user_tmp(utempter_t)
 
-optional_policy(`xserver.te', `
+optional_policy(`nscd.te',`
+	nscd_use_socket(utempter_t)
+')
+
+optional_policy(`xdm.te', `
 	#allow utempter_t xdm_t:fd use;
-	xserver_use_xdm_fd(utempter_t)
+	xdm_use_fd(utempter_t)
 	#allow utempter_t xdm_t:fifo_file { write getattr };
-	xserver_write_xdm_fifo(utempter_t)
+	xdm_write_fifo(utempter_t)
 ')

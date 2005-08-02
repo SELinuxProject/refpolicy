@@ -56,7 +56,7 @@ allow dhcpc_t dhcp_etc_t:dir r_dir_perms;
 allow dhcpc_t dhcp_etc_t:lnk_file r_file_perms;
 allow dhcpc_t dhcp_etc_t:file { r_file_perms execute execute_no_trans };
 
-allow dhcpc_t dhcpc_state_t:dir rw_dir_perms;
+allow dhcpc_t dhcp_state_t:dir rw_dir_perms;
 allow dhcpc_t dhcpc_state_t:file create_file_perms;
 type_transition dhcpc_t dhcp_state_t:file dhcpc_state_t;
 
@@ -121,6 +121,8 @@ domain_use_wide_inherit_fd(dhcpc_t)
 files_read_etc_files(dhcpc_t)
 files_read_etc_runtime_files(dhcpc_t)
 files_search_home(dhcpc_t)
+files_search_var_lib(dhcpc_t)
+files_dontaudit_search_locks(dhcpc_t)
 
 init_use_fd(dhcpc_t)
 init_use_script_pty(dhcpc_t)
@@ -134,6 +136,8 @@ libs_use_shared_libs(dhcpc_t)
 miscfiles_read_localization(dhcpc_t)
 
 modutils_domtrans_insmod(dhcpc_t)
+
+userdom_dontaudit_search_staff_home_dir(sysadm_t)
 
 ifdef(`distro_redhat', `
 	files_exec_etc_files(dhcpc_t)
@@ -154,6 +158,15 @@ optional_policy(`hostname.te',`
 	hostname_domtrans(dhcpc_t)
 ')
 
+optional_policy(`hotplug.te',`
+	hotplug_getattr_config_dir(dhcpc_t)
+	hotplug_search_config(dhcpc_t)
+
+	ifdef(`distro_redhat',`
+		logging_domtrans_syslog(dhcpc_t)
+	')
+')
+
 # for the dhcp client to run ping to check IP addresses
 optional_policy(`netutils.te',`
 	netutils_domtrans_ping(dhcpc_t)
@@ -168,6 +181,7 @@ optional_policy(`nis.te',`
 
 optional_policy(`nscd.te',`
 	nscd_domtrans(dhcpc_t)
+	nscd_read_pid(dhcpc_t)
 ')
 
 optional_policy(`ntpd.te',`
@@ -176,8 +190,9 @@ optional_policy(`ntpd.te',`
 	ntpd_domtrans(dhcpc_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(dhcpc_t)
+	seutil_dontaudit_search_config(dhcpc_t)
 ')
 
 optional_policy(`udev.te',`
@@ -189,18 +204,15 @@ optional_policy(`userdomain.te',`
 ')
 
 ifdef(`TODO',`
-dontaudit dhcpc_t sysadm_home_dir_t:dir search;
 
 optional_policy(`rhgb.te',`
 rhgb_domain(dhcpc_t)
 ')
 
-ifdef(`cardmgr.te',`
-domain_auto_trans(cardmgr_t, dhcpc_exec_t, dhcpc_t)
-')
-
 #this goes to pcmcia module
 optional_policy(`sysnetwork.te',`
+	sysnet_domtrans_dhcpc(cardmgr_t)
+
 	sysnet_read_dhcpc_pid(cardmgr_t)
 	sysnet_kill_dhcpc(cardmgr_t)
 	sysnet_sigchld_dhcpc(cardmgr_t)
@@ -209,17 +221,6 @@ optional_policy(`sysnetwork.te',`
 	sysnet_sigstop_dhcpc(cardmgr_t)
 ')
 
-optional_policy(`hotplug.te', `
-	allow dhcpc_t hotplug_etc_t:dir { getattr search };
-
-	ifdef(`distro_redhat', `
-		logging_syslogd_transition(dhcpc_t)
-	')
-')
-
-allow dhcpc_t var_lib_t:dir search;
-dontaudit dhcpc_t var_lock_t:dir search;
-dontaudit dhcpc_t selinux_config_t:dir search;
 dontaudit dhcpc_t domain:dir getattr;
 ') dnl endif TODO
 
@@ -284,20 +285,23 @@ seutil_use_runinit_fd(ifconfig_t)
 
 userdom_use_all_user_fd(ifconfig_t)
 
+ifdef(`hide_broken_symptoms',`
+	optional_policy(`pcmcia.te',`
+		dev_dontaudit_rw_cardmgr(ifconfig_t)
+	')
+
+	optional_policy(`udev.te',`
+		udev_donaudit_rw_unix_dgram_socket(ifconfig_t)
+	')
+')
+
 optional_policy(`nis.te',`
 	nis_use_ypbind(ifconfig_t)
 ')
 
 ifdef(`TODO',`
-
 ifdef(`gnome-pty-helper.te', `allow ifconfig_t sysadm_gph_t:fd use;')
-
 optional_policy(`rhgb.te', `
 rhgb_domain(ifconfig_t)
 ')
-
-tunable_policy(`hide_broken_symptoms',`
-dontaudit ifconfig_t udev_t:unix_dgram_socket { read write };
-')
-
 ') dnl endif TODO

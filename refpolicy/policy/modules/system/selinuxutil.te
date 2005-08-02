@@ -37,7 +37,7 @@ role system_r types load_policy_t;
 type load_policy_exec_t;
 domain_entry_file(load_policy_t,load_policy_exec_t)
 
-type newrole_t; # nscd_client_domain, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl;
+type newrole_t; # mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl;
 domain_role_change_exempt(newrole_t)
 domain_obj_id_change_exempt(newrole_t)
 domain_type(newrole_t)
@@ -229,6 +229,8 @@ logging_send_syslog_msg(newrole_t)
 miscfiles_read_localization(newrole_t)
 
 userdom_use_unpriv_users_fd(newrole_t)
+# for some PAM modules and for cwd
+userdom_dontaudit_search_all_users_home(newrole_t)
 
 # if secure mode is enabled, then newrole
 # can only transition to unprivileged users
@@ -242,11 +244,12 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(newrole_t)
 ')
 
+optional_policy(`nscd.te',`
+	nscd_use_socket(newrole_t)
+')
+
 ifdef(`TODO',`
 ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
-
-# for some PAM modules and for cwd
-dontaudit newrole_t { home_root_t home_type }:dir search;
 ') dnl ifdef TODO
 
 ########################################
@@ -261,9 +264,14 @@ allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_
 allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file r_file_perms;
 
 kernel_use_fd(restorecon_t)
+kernel_rw_pipe(restorecon_t)
 kernel_read_system_state(restorecon_t)
 
+# cjp: why is this needed?
+dev_rw_generic_file(restorecon_t)
+
 fs_getattr_xattr_fs(restorecon_t)
+fs_list_all(restorecon_t)
 
 selinux_get_fs_mount(restorecon_t)
 selinux_validate_context(restorecon_t)
@@ -305,24 +313,18 @@ ifdef(`distro_redhat', `
 	fs_relabel_tmpfs_chr_dev(restorecon_t)
 ')
 
+ifdef(`hide_broken_symptoms',`
+	udev_donaudit_rw_unix_dgram_socket(restorecon_t)
+')
+
 optional_policy(`hotplug.te',`
 	hotplug_use_fd(restorecon_t)
 ')
 
 ifdef(`TODO',`
-
 # for upgrading glibc and other shared objects - without this the upgrade
 # scripts will put things in a state such that restorecon can not be run!
 allow restorecon_t lib_t:file { read execute };
-
-allow restorecon_t fs_type:dir r_dir_perms;
-
-allow restorecon_t device_t:file { read write };
-allow restorecon_t kernel_t:fifo_file { read write };
-
-tunable_policy(`hide_broken_symptoms',`
-dontaudit restorecon_t udev_t:unix_dgram_socket { read write };
-')
 ') dnl endif TODO
 
 #################################
@@ -380,15 +382,12 @@ ifdef(`targeted_policy',`',`
 	logging_send_syslog_msg(run_init_t)
 ') dnl end ifdef targeted policy
 
-
 ifdef(`TODO',`
-
 ifdef(`distro_gentoo', `
 	# Gentoo integrated run_init+open_init_pty-runscript:
 	domain_entry_file(run_init_t,initrc_exec_t)
 	domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
 ')
-
 ') dnl end TODO
 
 ########################################
@@ -403,8 +402,10 @@ allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t 
 allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file r_file_perms;
 
 kernel_read_system_state(setfiles_t)
+kernel_list_unlabeled(setfiles_t)
 
 fs_getattr_xattr_fs(setfiles_t)
+fs_list_all(setfiles_t)
 
 selinux_get_fs_mount(setfiles_t)
 selinux_validate_context(setfiles_t)
@@ -449,9 +450,4 @@ ifdef(`TODO',`
 # for upgrading glibc and other shared objects - without this the upgrade
 # scripts will put things in a state such that setfiles can not be run!
 allow setfiles_t lib_t:file { read execute };
-
-allow setfiles_t unlabeled_t:dir read;
-
-allow setfiles_t fs_type:dir r_dir_perms;
-
 ') dnl endif TODO

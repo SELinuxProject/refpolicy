@@ -26,6 +26,14 @@ interface(`domain_base_domain_type',`
 
 	# allow $1 to create child processes in this domain
 	allow $1 self:process { fork sigchld };
+
+	# Files with domain types are currently only proc files
+	# self is excepted since domains and files can have
+	# the same type in SEFramework
+	# cjp: perhaps this should be a conditional exception,
+	# so it is excepted only on SEFramework policies
+	neverallow $1 { domain -$1 }:dir ~r_dir_perms;
+	neverallow $1 { domain -$1 }:file_class_set ~rw_file_perms;
 ')
 
 ########################################
@@ -295,9 +303,9 @@ interface(`domain_kill_all_domains',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Read the process state (/proc/pid) of all domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -315,6 +323,36 @@ interface(`domain_read_all_domains_state',`
 	allow $1 domain:lnk_file r_file_perms;
 	allow $1 domain:file r_file_perms;
 	allow $1 domain:process getattr;
+
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $1 domain:process ptrace;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read the process
+##	state (/proc/pid) of all domains.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_read_all_domains_state',`
+	gen_require(`
+		attribute domain;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file r_file_perms;
+		class process { getattr ptrace };
+	')
+
+	dontaudit $1 domain:dir r_dir_perms;
+	dontaudit $1 domain:lnk_file r_file_perms;
+	dontaudit $1 domain:file r_file_perms;
+	dontaudit $1 domain:process getattr;
 
 	# We need to suppress this denial because procps tries to access
 	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
@@ -342,9 +380,9 @@ interface(`domain_dontaudit_list_all_domains_proc',`
 ')
 
 ########################################
-## <desc>
+## <summary>
 ##	Get the session ID of all domains.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -359,10 +397,100 @@ interface(`domain_getsession_all_domains',`
 ')
 
 ########################################
+## <summary>
+##	Do not audit attempts to get the
+##	session ID of all domains.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_getsession_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process getsession;
+	')
+
+	allow $1 domain:process getsession;
+')
+
+########################################
+## <summary>
+##	Get the attributes of all domains
+##	sockets, for all socket types.
+## </summary>
 ## <desc>
+##	<p>
+##	Get the attributes of all domains
+##	sockets, for all socket types.
+##	</p>
+##	<p>
+##	This is commonly used for domains
+##	that can use lsof on all domains.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_all_sockets',`
+	gen_require(`
+		gen_require_set(getattr,socket_class_set)
+	')
+
+	allow $1 domain:socket_class_set getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the attributes
+##	of all domains sockets, for all socket types.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to get the attributes
+##	of all domains sockets, for all socket types.
+##	</p>
+##	<p>
+##	This interface was added for PCMCIA cardmgr
+##	and is probably excessive.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`domain_dontaudit_getattr_all_sockets',`
+	gen_require(`
+		gen_require_set(getattr,socket_class_set)
+	')
+
+	dontaudit $1 domain:socket_class_set getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the attributes
+##	of all domains TCP sockets.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_getattr_all_tcp_sockets',`
+	gen_require(`
+		attribute domain;
+		class tcp_socket getattr;
+	')
+
+	dontaudit $1 domain:tcp_socket getattr;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to get the attributes
 ##	of all domains UDP sockets.
-## </desc>
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
@@ -377,21 +505,39 @@ interface(`domain_dontaudit_getattr_all_udp_sockets',`
 ')
 
 ########################################
-## <desc>
-##	Do not audit attempts to get the attributes
-##	of all domains TCP sockets.
-## </desc>
+## <summary>
+##	Do not audit attempts to read or write
+##	all domains UDP sockets.
+## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
 #
-interface(`domain_dontaudit_getattr_all_tcp_sockets',`
+interface(`domain_dontaudit_rw_all_udp_sockets',`
 	gen_require(`
 		attribute domain;
-		class tcp_socket getattr;
+		class udp_socket { read write };
 	')
 
-	dontaudit $1 domain:tcp_socket getattr;
+	dontaudit $1 domain:udp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read or write
+##	all domains key sockets.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`domain_dontaudit_rw_all_key_sockets',`
+	gen_require(`
+		attribute domain;
+		class key_socket { read write };
+	')
+
+	dontaudit $1 domain:key_socket { read write };
 ')
 
 ########################################
@@ -468,6 +614,9 @@ interface(`domain_read_all_entry_files',`
 interface(`domain_unconfined',`
 	gen_require(`
 		attribute domain, set_curr_context;
+		attribute can_change_process_identity;
+		attribute can_change_process_role;
+		attribute can_change_object_identity;
 		class fd use;
 		class fifo_file rw_file_perms;
 		class process { transition dyntransition execmem };
@@ -475,6 +624,12 @@ interface(`domain_unconfined',`
 		class file r_file_perms;
 		class lnk_file r_file_perms;
 	')
+
+	# pass all constraints
+	typeattribute $1 can_change_process_identity;
+	typeattribute $1 can_change_process_role;
+	typeattribute $1 can_change_object_identity;
+	typeattribute $1 set_curr_context;
 
 	# Use/sendto/connectto sockets created by any domain.
 	allow $1 domain:{ socket_class_set socket key_socket } *;
@@ -485,7 +640,6 @@ interface(`domain_unconfined',`
 
 	# Act upon any other process.
 	allow $1 domain:process ~{ transition dyntransition execmem };
-	typeattribute $1 set_curr_context;
 
 	# Create/access any System V IPC objects.
 	allow $1 domain:{ sem msgq shm } *;

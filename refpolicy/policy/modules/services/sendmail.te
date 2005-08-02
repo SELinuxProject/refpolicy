@@ -6,7 +6,7 @@ policy_module(sendmail,1.0)
 # Declarations
 #
 
-type sendmail_t; # , nscd_client_domain, mta_delivery_agent, mail_server_sender', nosysadm)
+type sendmail_t; #, mta_delivery_agent, mail_server_sender', nosysadm)
 mta_sendmail_mailserver(sendmail_t)
 
 type sendmail_log_t;
@@ -40,7 +40,8 @@ allow sendmail_t sendmail_var_run_t:file { getattr create read write append seta
 files_create_pid(sendmail_t,sendmail_var_run_t)
 
 kernel_read_kernel_sysctl(sendmail_t)
-dev_read_sysfs(sendmail_t)
+kernel_list_proc(sendmail_t)
+kernel_read_proc_symlinks(sendmail_t)
 
 corenet_tcp_sendrecv_all_if(sendmail_t)
 corenet_raw_sendrecv_all_if(sendmail_t)
@@ -55,6 +56,7 @@ corenet_udp_bind_all_nodes(sendmail_t)
 corenet_tcp_bind_smtp_port(sendmail_t)
 
 dev_read_urand(sendmail_t)
+dev_read_sysfs(sendmail_t)
 
 fs_getattr_all_fs(sendmail_t)
 fs_search_auto_mountpoints(sendmail_t)
@@ -83,6 +85,9 @@ miscfiles_read_localization(sendmail_t)
 
 sysnet_read_config(sendmail_t)
 
+userdom_dontaudit_use_unpriv_user_fd(sendmail_t)
+userdom_dontaudit_search_sysadm_home_dir(sendmail_t)
+
 # Write to /etc/aliases and /etc/mail.
 mta_rw_aliases(sendmail_t)
 # Write to /var/spool/mail and /var/spool/mqueue.
@@ -99,7 +104,11 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(sendmail_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`nscd.te',`
+	nscd_use_socket(sendmail_t)
+')
+
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(sendmail_t)
 ')
 
@@ -108,14 +117,9 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
-
 optional_policy(`rhgb.te', `
 rhgb_domain(sendmail_t)
 ')
-allow sendmail_t proc_t:dir r_dir_perms;
-allow sendmail_t proc_t:lnk_file read;
-dontaudit sendmail_t unpriv_userdomain:fd use;
-dontaudit sendmail_t sysadm_home_dir_t:dir search;
 
 #
 #  Need this transition to create /etc/aliases.db 

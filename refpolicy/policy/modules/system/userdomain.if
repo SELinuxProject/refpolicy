@@ -156,6 +156,7 @@ template(`base_user_template',`
 	fs_get_all_fs_quotas($1_t)
 	fs_getattr_all_fs($1_t)
 	fs_search_auto_mountpoints($1_t)
+	fs_exec_noxattr($1_t)
 
 	# for eject
 	storage_getattr_fixed_disk($1_t)
@@ -171,10 +172,14 @@ template(`base_user_template',`
 
 	domain_exec_all_entry_files($1_t)
 	domain_use_wide_inherit_fd($1_t)
+	# When the user domain runs ps, there will be a number of access
+	# denials when ps tries to search /proc.  Do not audit these denials.
+	domain_dontaudit_read_all_domains_state($1_t)
+	domain_dontaudit_getsession_all_domains($1_t)
 
 	files_exec_etc_files($1_t)
 	files_read_usr_src_files($1_t)
-	files_search_generic_locks($1_t)
+	files_search_locks($1_t)
 
 	# Caused by su - init scripts
 	init_dontaudit_use_script_pty($1_t)
@@ -188,6 +193,9 @@ template(`base_user_template',`
 
 	miscfiles_read_localization($1_t)
 	miscfiles_rw_man_cache($1_t)
+	# for running TeX programs
+	miscfiles_read_tetex_data($1_t)
+	miscfiles_exec_tetex_data($1_t)
 
 	seutil_run_newrole($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 
@@ -196,6 +204,14 @@ template(`base_user_template',`
 	tunable_policy(`allow_execmem',`
 		# Allow loading DSOs that require executable stack.
 		allow $1_t self:process execmem;
+	')
+
+	tunable_policy(`read_default_t',`
+		files_list_default($1_t)
+		files_read_default_files($1_t)
+		files_read_default_symlinks($1_t)
+		files_read_default_sockets($1_t)
+		files_read_default_pipes($1_t)
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
@@ -224,8 +240,26 @@ template(`base_user_template',`
 		term_getattr_all_user_ttys($1_t)
 	')
 
+	optional_policy(`inetd.te',`
+		inetd_tcp_connectto($1_t)
+	')
+
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_t)
+	')
+
+	optional_policy(`pcmcia.te',`
+		# to allow monitoring of pcmcia status
+		pcmcia_read_pid($1_t)
+	')
+
+	optional_policy(`rpm.te',`
+		files_getattr_var_lib_dir($1_t)
+		files_search_var_lib($1_t)
 	')
 
 	optional_policy(`usermanage.te',`
@@ -235,11 +269,6 @@ template(`base_user_template',`
 
 	ifdef(`TODO',`
 
-	# When the user domain runs ps, there will be a number of access
-	# denials when ps tries to search /proc.  Do not audit these denials.
-	dontaudit $1_t domain:dir r_dir_perms;
-	dontaudit $1_t domain:notdevfile_class_set r_file_perms;
-	dontaudit $1_t domain:process { getattr getsession };
 	#
 	# Cups daemon running as user tries to write /etc/printcap
 	#
@@ -257,11 +286,6 @@ template(`base_user_template',`
 
 	# /initrd is left mounted, various programs try to look at it
 	dontaudit $1_t ramfs_t:dir getattr;
-
-	tunable_policy(`read_default_t',`
-		allow $1_t default_t:dir r_dir_perms;
-		allow $1_t default_t:notdevfile_class_set r_file_perms;
-	')
 
 	#
 	# Running ifconfig as a user generates the following
@@ -290,11 +314,8 @@ template(`base_user_template',`
 	dontaudit $1_t sysctl_t:dir_file_class_set getattr;
 	dontaudit $1_t proc_fs:dir { read search };
 
-	can_exec($1_t, { removable_t noexattrfile } )
-
 	tunable_policy(`user_rw_noexattrfile',`
 		create_dir_file($1_t, noexattrfile)
-		create_dir_file($1_t, removable_t)
 		# Write floppies 
 		storage_raw_read_removable_device($1_t)
 		storage_raw_write_removable_device($1_t)
@@ -307,12 +328,6 @@ template(`base_user_template',`
 	')
 
 	allow $1_t usbtty_device_t:chr_file read;
-
-	can_exec($1_t, noexattrfile)
-
-	# for running TeX programs
-	r_dir_file($1_t, tetex_data_t)
-	can_exec($1_t, tetex_data_t)
 
 	can_resmgrd_connect($1_t)
 
@@ -337,21 +352,18 @@ template(`base_user_template',`
 		allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file r_file_perms;
 	')
 
-	# Connect to inetd.
 	ifdef(`inetd.te', `
+		# Connect to inetd.
 		can_tcp_connect($1_t, inetd_t)
 		can_udp_send($1_t, inetd_t)
 		can_udp_send(inetd_t, $1_t)
+		# Inherit and use sockets from inetd
+		allow $1_t inetd_t:fd use;
+		allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
 	')
 
 	# Connect to portmap.
 	ifdef(`portmap.te', `can_tcp_connect($1_t, portmap_t)')
-
-	# Inherit and use sockets from inetd
-	ifdef(`inetd.te', `
-		allow $1_t inetd_t:fd use;
-		allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
-	')
 
 	ifdef(`xserver.te', `
 		# for /tmp/.ICE-unix
@@ -385,11 +397,6 @@ template(`base_user_template',`
 		create_dir_file($1_t, nfsd_rw_t)
 	')
 
-	ifdef(`cardmgr.te', `
-		# to allow monitoring of pcmcia status
-		allow $1_t cardmgr_var_run_t:file r_file_perms;
-	')
-
 	#
 	# Allow graphical boot to check battery lifespan
 	#
@@ -404,7 +411,7 @@ template(`base_user_template',`
 
 	') dnl endif TODO
 
-')dnl end base_user_domain macro
+')
 
 #######################################
 ## <summary>
@@ -431,7 +438,7 @@ template(`unpriv_user_template', `
 	# Inherit rules for ordinary users.
 	base_user_template($1)
 
-	typeattribute $1_t unpriv_userdomain; #, web_client_domain, nscd_client_domain;
+	typeattribute $1_t unpriv_userdomain; #, web_client_domain
 	domain_wide_inherit_fd($1_t)
 
 	#typeattribute $1_devpts_t userpty_type, user_tty_type;
@@ -483,6 +490,14 @@ template(`unpriv_user_template', `
 	files_read_etc_files($1_t)
 	files_list_home($1_t)
 	files_read_usr_files($1_t)
+	files_exec_usr_files($1_t)
+	# Read directories and files with the readable_t type.
+	# This type is a general type for "world"-readable files.
+	files_list_world_readable($1_t)
+	files_read_world_readable_files($1_t)
+	files_read_world_readable_symlinks($1_t)
+	files_read_world_readable_pipes($1_t)
+	files_read_world_readable_sockets($1_t)
 
 	init_read_script_pid($1_t)
 	# The library functions always try to open read-write first,
@@ -521,7 +536,7 @@ template(`unpriv_user_template', `
 		modutils_read_module_conf($1_t)
 	')
 
-	optional_policy(`selinux.te',`
+	optional_policy(`selinuxutil.te',`
 		# for when the network connection is killed
 		seutil_dontaudit_signal_newrole($1_t)
 	')
@@ -553,18 +568,6 @@ template(`unpriv_user_template', `
 			file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
 		')
 	')
-
-	tunable_policy(`read_default_t',`
-		allow $1 default_t:dir r_dir_perms;
-		allow $1 default_t:notdevfile_class_set r_file_perms;
-	')
-
-	can_exec($1_t, usr_t)
-
-	# Read directories and files with the readable_t type.
-	# This type is a general type for "world"-readable files.
-	allow $1_t readable_t:dir r_dir_perms;
-	allow $1_t readable_t:notdevfile_class_set r_file_perms;
 
 	# Stat lost+found.
 	allow $1_t lost_found_t:dir getattr;
@@ -631,8 +634,7 @@ template(`unpriv_user_template', `
 ##	rules for the user's tty, pty, home directories,
 ##	tmp, and tmpfs files.
 ##	</p>
-## </desc>
-## <secdesc>
+##	<p>
 ##	The privileges given to administrative users are:
 ##	<ul>
 ##		<li>Raw disk access</li>
@@ -645,7 +647,8 @@ template(`unpriv_user_template', `
 ##		<li>Manage source and binary format SELinux policy</li>
 ##		<li>Run insmod</li>
 ##	</ul>
-## </secdesc>
+##	</p>
+## </desc>
 ## <param name="userdomain_prefix">
 ##	The prefix of the user domain (e.g., sysadm
 ##	is the prefix for sysadm_t).
@@ -660,7 +663,7 @@ template(`admin_user_template',`
 	# Inherit rules for ordinary users.
 	base_user_template($1)
 
-	typeattribute $1_t privhome; #, admin, web_client_domain, nscd_client_domain;
+	typeattribute $1_t privhome; #, admin, web_client_domain
 	domain_obj_id_change_exempt($1_t)
 	role system_r types $1_t;
 
@@ -711,13 +714,26 @@ template(`admin_user_template',`
 	kernel_read_ring_buffer($1_t)
 	kernel_get_sysvipc_info($1_t)
 	kernel_rw_all_sysctl($1_t)
-
 	# signal unlabeled processes:
 	kernel_kill_unlabeled($1_t)
 	kernel_signal_unlabeled($1_t)
 	kernel_sigstop_unlabeled($1_t)
 	kernel_signull_unlabeled($1_t)
 	kernel_sigchld_unlabeled($1_t)
+	# for the administrator to run TCP servers directly
+	kernel_tcp_recvfrom($1_t)
+
+	corenet_tcp_bind_generic_port($1_t)
+	# allow setting up tunnels
+	corenet_use_tun_tap_device($1_t)
+
+	dev_getattr_generic_blk_file($1_t)
+	dev_getattr_generic_chr_file($1_t)
+	dev_getattr_all_blk_files($1_t)
+	dev_getattr_all_chr_files($1_t)
+
+	fs_getattr_all_fs($1_t)
+	fs_set_all_quotas($1_t)
 
 	selinux_set_enforce_mode($1_t)
 	selinux_set_boolean($1_t)
@@ -730,16 +746,6 @@ template(`admin_user_template',`
 	selinux_compute_relabel_context($1_t)
 	selinux_compute_user_contexts($1_t)
 
-	corenet_tcp_bind_generic_port($1_t)
-
-	dev_getattr_generic_blk_file($1_t)
-	dev_getattr_generic_chr_file($1_t)
-	dev_getattr_all_blk_files($1_t)
-	dev_getattr_all_chr_files($1_t)
-
-	fs_getattr_all_fs($1_t)
-	fs_set_all_quotas($1_t)
-
 	storage_raw_read_removable_device($1_t)
 	storage_raw_write_removable_device($1_t)
 
@@ -748,6 +754,7 @@ template(`admin_user_template',`
 	term_use_all_user_ptys($1_t)
 	term_use_all_user_ttys($1_t)
 
+	auth_getattr_shadow($1_t)
 	# Manage almost all files
 	auth_manage_all_files_except_shadow($1_t)
 	# Relabel almost all files
@@ -762,6 +769,8 @@ template(`admin_user_template',`
 	domain_sigstop_all_domains($1_t)
 	domain_sigstop_all_domains($1_t)
 	domain_sigchld_all_domains($1_t)
+	# for lsof
+	domain_getattr_all_sockets($1_t)
 
 	files_exec_usr_files($1_t)
 
@@ -786,43 +795,44 @@ template(`admin_user_template',`
 
 	ifdef(`TODO',`
 
-	# Let admin stat the shadow file.
-	allow $1_t shadow_t:file getattr;
-
 	# for lsof
 	allow $1_t mtrr_device_t:file getattr;
 
+	# for lsof
+	allow $1_t eventpollfs_t:file getattr;
+
 	allow $1_t serial_device:chr_file setattr;
 
-	# allow setting up tunnels
-	allow $1_t tun_tap_device_t:chr_file rw_file_perms;
-
 	allow $1_t ptyfile:chr_file getattr;
-
-	# Run programs from staff home directories.
-	# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
-	can_exec($1_t, staff_home_t)
 
 	# Run admin programs that require different permissions in their own domain.
 	# These rules were moved into the appropriate program domain file.
 
-	ifdef(`startx.te', `
-		ifdef(`xserver.te', `
-			# Create files in /tmp/.X11-unix with our X servers derived
-			# tmp type rather than user_xserver_tmp_t.
-			file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
-		')
+	ifdef(`xserver.te', `
+		# Create files in /tmp/.X11-unix with our X servers derived
+		# tmp type rather than user_xserver_tmp_t.
+		file_type_auto_trans($1_xserver_t, xserver_tmpfile, $1_xserver_tmp_t, sock_file)
 	')
 
+
 	ifdef(`xdm.te', `
-		ifdef(`xauth.te', `
-			tunable_policy(`xdm_sysadm_login',`
-				allow xdm_t $1_home_t:lnk_file read;
-				allow xdm_t $1_home_t:dir search;
-			')
-			allow $1_t xdm_t:fifo_file rw_file_perms;
+		tunable_policy(`xdm_sysadm_login',`
+			allow xdm_t $1_home_t:lnk_file read;
+			allow xdm_t $1_home_t:dir search;
 		')
+		allow $1_t xdm_t:fifo_file rw_file_perms;
 	')
+
+	# Connect data port to ftpd.
+	ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
+
+	# Connect second port to rshd.
+	ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
+
+	# Allow MAKEDEV to work
+	allow $1_t device_t:dir rw_dir_perms;
+	allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
+	allow $1_t device_t:lnk_file { create read };
 
 	#
 	# A user who is authorized for sysadm_t may nonetheless have
@@ -837,23 +847,9 @@ template(`admin_user_template',`
 		allow $1_gph_t user_home_type:file create_file_perms;
 	')
 
-	# for the administrator to run TCP servers directly
-	allow $1_t kernel_t:tcp_socket recvfrom;
-
-	# Connect data port to ftpd.
-	ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
-
-	# Connect second port to rshd.
-	ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
-
-	# Allow MAKEDEV to work
-	allow $1_t device_t:dir rw_dir_perms;
-	allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
-	allow $1_t device_t:lnk_file { create read };
-
-	# for lsof
-	allow $1_t domain:socket_class_set getattr;
-	allow $1_t eventpollfs_t:file getattr;
+	# Run programs from staff home directories.
+	# Not ideal, but typical if users want to login as both sysadm_t or staff_t.
+	can_exec($1_t, staff_home_t)
 	') dnl endif TODO
 ')
 
@@ -904,14 +900,58 @@ interface(`userdom_spec_domtrans_unpriv_users',`
 interface(`userdom_shell_domtrans_sysadm',`
 	ifdef(`targeted_policy',`
 		#cjp: need to doublecheck this one
-		unconfined_domtrans_shell($1)
+		unconfined_shell_domtrans($1)
 	',`
 		gen_require(`
 			type sysadm_t;
+			class fd use;
+			class fifo_file rw_file_perms;
+			class process sigchld;
 		')
 
-		corecmd_domtrans_shell($1,sysadm_t)
+		corecmd_shell_domtrans($1,sysadm_t)
+
+		allow $1 sysadm_t:fd use;
+		allow sysadm_t $1:fd use;
+		allow sysadm_t $1:fifo_file rw_file_perms;
+		allow sysadm_t $1:process sigchld;
 	')
+')
+
+########################################
+## <summary>
+##	Search the staff users home directory.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_search_staff_home_dir',`
+	gen_require(`
+		type staff_home_dir_t;
+		class dir search;
+	')
+
+	files_search_home($1)
+	allow $1 staff_home_dir_t:dir search;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to search the staff
+##	users home directory.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_dontaudit_search_staff_home_dir',`
+	gen_require(`
+		type staff_home_dir_t;
+		class dir search;
+	')
+
+	dontaudit $1 staff_home_dir_t:dir search;
 ')
 
 ########################################
@@ -960,6 +1000,27 @@ interface(`userdom_use_sysadm_tty',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to use sysadm ttys.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_dontaudit_use_sysadm_tty',`
+	ifdef(`targeted_policy',`
+		term_dontaudit_use_unallocated_tty($1)
+	',`
+		gen_require(`
+			attribute sysadm_tty_device_t;
+			class chr_file { read write };
+		')
+
+		dontaudit $1 sysadm_tty_device_t:chr_file { read write };
+	')
+')
+
+########################################
+## <summary>
 ##	Read and write sysadm ptys.
 ## </summary>
 ## <param name="domain">
@@ -996,10 +1057,10 @@ interface(`userdom_use_sysadm_terms',`
 
 ########################################
 ## <summary>
-##	Do not audit attempts to use admin ttys and ptys.
+##	Do not audit attempts to use sysadm ttys and ptys.
 ## </summary>
 ## <param name="domain">
-##	The type of the process performing this action.
+##	Domain to not audit.
 ## </param>
 #
 interface(`userdom_dontaudit_use_sysadm_terms',`
@@ -1061,6 +1122,42 @@ interface(`userdom_rw_sysadm_pipe',`
 
 ########################################
 ## <summary>
+##	Search the sysadm users home directory.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_search_sysadm_home_dir',`
+	gen_require(`
+		type sysadm_home_dir_t;
+		class dir search;
+	')
+
+	files_search_home($1)
+	allow $1 sysadm_home_dir_t:dir search;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to search the sysadm
+##	users home directory.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_dontaudit_search_sysadm_home_dir',`
+	gen_require(`
+		type sysadm_home_dir_t;
+		class dir search;
+	')
+
+	dontaudit $1 sysadm_home_dir_t:dir search;
+')
+
+########################################
+## <summary>
 ##	Read files in the sysadm users home directory.
 ## </summary>
 ## <param name="domain">
@@ -1096,6 +1193,23 @@ interface(`userdom_search_all_users_home',`
 
 	files_list_home($1)
 	allow $1 { home_dir_type home_type }:dir search;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to search all users home directories.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_dontaudit_search_all_users_home',`
+	gen_require(`
+		attribute home_dir_type, home_type;
+		class dir search;
+	')
+
+	dontaudit $1 { home_dir_type home_type }:dir search;
 ')
 
 ########################################

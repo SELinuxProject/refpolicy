@@ -1,0 +1,93 @@
+
+policy_module(mdadm,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type mdadm_t;
+type mdadm_exec_t;
+init_daemon_domain(mdadm_t,mdadm_exec_t)
+role system_r types mdadm_t;
+
+type mdadm_var_run_t;
+files_pid_file(mdadm_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mdadm_t self:capability { dac_override sys_admin ipc_lock };
+dontaudit mdadm_t self:capability sys_tty_config;
+allow mdadm_t self:process { sigchld sigkill sigstop signull signal };
+
+allow mdadm_t mdadm_var_run_t:file create_file_perms;
+files_create_pid(mdadm_t,mdadm_var_run_t)
+
+kernel_read_system_state(mdadm_t)
+kernel_read_kernel_sysctl(mdadm_t)
+kernel_rw_software_raid_state(mdadm_t)
+
+dev_read_sysfs(mdadm_t)
+# Ignore attempts to read every device file
+dev_dontaudit_getattr_all_blk_files(mdadm_t)
+dev_dontaudit_getattr_all_chr_files(mdadm_t)
+
+fs_search_auto_mountpoints(mdadm_t)
+fs_dontaudit_list_tmpfs(mdadm_t)
+
+# RAID block device access
+storage_manage_fixed_disk(mdadm_t)
+
+term_dontaudit_use_console(mdadm_t)
+term_dontaudit_list_ptys(mdadm_t)
+
+# Helper program access
+corecmd_exec_bin(mdadm_t)
+corecmd_exec_sbin(mdadm_t)
+
+domain_use_wide_inherit_fd(mdadm_t)
+
+files_read_etc_files(mdadm_t)
+files_read_etc_runtime_files(mdadm_t)
+
+init_use_fd(mdadm_t)
+init_use_script_pty(mdadm_t)
+init_dontaudit_getattr_initctl(mdadm_t)
+
+libs_use_ld_so(mdadm_t)
+libs_use_shared_libs(mdadm_t)
+
+logging_send_syslog_msg(mdadm_t)
+
+miscfiles_read_localization(mdadm_t)
+
+userdom_dontaudit_use_unpriv_user_fd(mdadm_t)
+userdom_dontaudit_use_sysadm_tty(mdadm_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(mdadm_t)
+	term_dontaudit_use_generic_pty(mdadm_t)
+	files_dontaudit_read_root_file(mdadm_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(mdadm_t)
+')
+
+optional_policy(`selinux.te',`
+	seutil_sigchld_newrole(mdadm_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(mdadm_t)
+')
+
+ifdef(`TODO',`
+# Ignore attempts to read every device file
+dontaudit mdadm_t device_t:{ fifo_file file chr_file blk_file } { read getattr };
+
+allow mdadm_t var_t:dir getattr;
+') dnl TODO

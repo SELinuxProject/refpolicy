@@ -103,7 +103,7 @@ selinux_set_boolean(init_t)
 
 term_use_all_terms(init_t)
 
-corecmd_chroot_exec_chroot(init_t)
+corecmd_exec_chroot(init_t)
 corecmd_exec_bin(init_t)
 corecmd_exec_sbin(init_t)
 
@@ -264,7 +264,11 @@ domain_dontaudit_getattr_all_tcp_sockets(initrc_t)
 domain_dontaudit_getattr_all_unix_dgram_sockets(initrc_t)
 domain_dontaudit_getattr_all_unnamed_pipes(initrc_t)
 
+files_getattr_all_dirs(initrc_t)
 files_getattr_all_files(initrc_t)
+files_getattr_all_symlinks(initrc_t)
+files_getattr_all_pipes(initrc_t)
+files_getattr_all_sockets(initrc_t)
 files_delete_all_tmp_files(initrc_t)
 files_delete_all_locks(initrc_t)
 files_read_all_pids(initrc_t)
@@ -276,6 +280,12 @@ files_exec_etc_files(initrc_t)
 files_read_usr_files(initrc_t)
 files_manage_urandom_seed(initrc_t)
 files_manage_generic_spools(initrc_t)
+# Mount and unmount file systems.
+# cjp: not sure why these are here; should use mount policy
+files_list_isid_type_dir(initrc_t)
+files_mounton_isid_type_dir(initrc_t)
+files_list_default(initrc_t)
+files_mounton_default(initrc_t)
 
 libs_rw_ld_so_cache(initrc_t)
 libs_use_ld_so(initrc_t)
@@ -304,7 +314,15 @@ userdom_read_all_user_files(initrc_t)
 userdom_use_sysadm_terms(initrc_t)
 
 ifdef(`distro_debian', `
+	dev_setattr_dev_dir(initrc_t)
+
 	fs_create_tmpfs_data(initrc_t,initrc_var_run_t,dir)
+
+	# for storing state under /dev/shm
+	fs_setattr_tmpfs_dir(initrc_t)
+	storage_create_fixed_disk_tmpfs(initrc_t)
+
+	files_setattr_etc_dir(initrc_t)
 ')
 
 ifdef(`distro_redhat',`
@@ -340,6 +358,11 @@ ifdef(`distro_redhat',`
 	mta_read_aliases(initrc_t)
 ')
 
+ifdef(`targeted_policy',`
+	unconfined_domain_template(initrc_t)
+	unconfined_shell_domtrans(initrc_t)
+')
+
 optional_policy(`hotplug.te',`
 	dev_read_usbfs(initrc_t)
 
@@ -347,6 +370,11 @@ optional_policy(`hotplug.te',`
 	hotplug_read_config(initrc_t)
 
 	modutils_read_mods_deps(initrc_t)
+')
+
+optional_policy(`ipsec.te',`
+	ipsec_read_config(initrc_t)
+	ipsec_manage_pid(initrc_t)
 ')
 
 optional_policy(`kerberos.te',`
@@ -360,9 +388,17 @@ optional_policy(`lvm.te',`
 	dev_create_generic_chr_file(initrc_t)
 ')
 
+optional_policy(`mta.te',`
+	mta_dontaudit_read_spool_symlink(initrc_t)
+')
+
 optional_policy(`nis.te',`
 	nis_udp_sendto_ypbind(initrc_t)
 	nis_list_var_yp(initrc_t)
+')
+
+optional_policy(`raid.te',`
+	raid_manage_mdadm_pid(initrc_t)
 ')
 
 optional_policy(`rhgb.te',`
@@ -381,7 +417,7 @@ optional_policy(`rpm.te',`
 
 	# why is this needed:
 	rpm_manage_db(initrc_t)
-') dnl end rpm.te
+')
 
 optional_policy(`ssh.te',`
 	optional_policy(`inetd.te',`
@@ -402,10 +438,6 @@ optional_policy(`sysnetwork.te',`
 ')
 
 ifdef(`TODO',`
-
-# Mount and unmount file systems.
-allow initrc_t { file_t default_t }:dir { read search getattr mounton };
-
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
 
@@ -417,29 +449,13 @@ su_restricted_domain(initrc,system)
 role system_r types initrc_su_t;
 ')
 
-ifdef(`distro_debian', `
-	allow initrc_t { etc_t device_t }:dir setattr;
-
-	# for storing state under /dev/shm
-	allow initrc_t tmpfs_t:dir setattr;
-	file_type_auto_trans(initrc_t, tmpfs_t, fixed_disk_device_t, blk_file)
-')
-
 ifdef(`distro_redhat', `
 	# readahead asks for these
 	allow initrc_t var_lib_nfs_t:file r_file_perms;
 ')
 
-ifdef(`targeted_policy', `
-	domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
+ifdef(`targeted_policy',`
 	allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
 	allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
-	domain_trans(initrc_t, shell_exec_t, unconfined_t)
 ')
-
-#
-# Shutting down xinet causes these
-#
-# Rsync
-dontaudit initrc_t mail_spool_t:lnk_file read;
 ') dnl end TODO

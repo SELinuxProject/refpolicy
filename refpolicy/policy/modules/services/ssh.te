@@ -72,26 +72,38 @@ seutil_read_config(sshd_t)
 # Allow checking users mail at login
 mta_getattr_spool(sshd_t)
 
-ifdef(`TODO',`
 tunable_policy(`ssh_sysadm_login',`
-	userdom_spec_domtrans_all_users(sshd_t)
-	userdom_signal_all_users(sshd_t)
-
-	optional_policy(`xauth.te',`
-		domain_trans(sshd_t, xauth_exec_t, userdomain)
-	')
 	# Relabel and access ptys created by sshd
 	# ioctl is necessary for logout() processing for utmp entry and for w to
 	# display the tty.
 	# some versions of sshd on the new SE Linux require setattr
-	allow sshd_t ptyfile:chr_file { relabelto read write getattr ioctl setattr };
-	# inheriting stream sockets is needed for "ssh host command" as no pty
-	# is allocated
-	allow userdomain sshd_t:unix_stream_socket rw_stream_socket_perms;
+	term_use_all_user_ptys(sshd_t)
+	term_setattr_all_user_ptys(sshd_t)
+	term_relabelto_all_user_ptys(sshd_t)
+
+	userdom_spec_domtrans_all_users(sshd_t)
+	userdom_signal_all_users(sshd_t)
 ',`
 	userdom_spec_domtrans_unpriv_users(sshd_t)
 	userdom_signal_unpriv_users(sshd_t)
+')
 
+optional_policy(`rpm.te',`
+	rpm_use_script_fd(sshd_t)
+')
+
+ifdef(`TODO',`
+tunable_policy(`ssh_sysadm_login',`
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_t ptyfile:chr_file relabelto;
+
+	optional_policy(`xauth.te',`
+		domain_trans(sshd_t, xauth_exec_t, userdomain)
+	')
+',`
 	optional_policy(`xauth.te',`
 		domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
 	')
@@ -100,16 +112,6 @@ tunable_policy(`ssh_sysadm_login',`
 	# display the tty.
 	# some versions of sshd on the new SE Linux require setattr
 	allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
-	# inheriting stream sockets is needed for "ssh host command" as no pty
-	# is allocated
-	allow userdomain sshd_t:unix_stream_socket rw_stream_socket_perms;
-')
-
-# for when the network connection breaks after running newrole -r sysadm_r
-dontaudit sshd_t sysadm_devpts_t:chr_file setattr;
-
-optional_policy(`rpm.te',`
-allow sshd_t rpm_script_t:fd use;
 ')
 ') dnl endif TODO
 
@@ -223,7 +225,7 @@ optional_policy(`rhgb.te', `
 	rhgb_domain(ssh_keygen_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(ssh_keygen_t)
 ')
 

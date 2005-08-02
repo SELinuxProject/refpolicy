@@ -184,7 +184,20 @@ def temp_cmp(a, b):
 	"""
 
 	return cmp(a["template_name"], b["template_name"])
-	
+
+def tun_cmp(a, b):
+	"""
+	Compares two tunables.
+	"""
+
+	return cmp(a["tun_name"], b["tun_name"])
+def bool_cmp(a, b):
+	"""
+	Compares two booleans.
+	"""
+
+	return cmp(a["bool_name"], b["bool_name"])
+
 def gen_doc_menu(mod_layer, module_list):
 	"""
 	Generates the HTML document menu.
@@ -214,16 +227,14 @@ def format_html_desc(node):
 	for desc in node.childNodes:
 		if desc.nodeName == "#text":
 			if desc.data is not '':
-				desc_buf += "<p>" + desc.data + "</p>"
-		elif desc.nodeName == "p":
-			if desc.firstChild.data is not '':
-				desc_buf += "<p>" + desc.firstChild.data + "</p>"
-			for chld in desc.childNodes: 
-				if chld.nodeName == "ul":
-					desc_buf += "<ul>"
-					for li in chld.getElementsByTagName("li"):
-						desc_buf += "<li>" + li.firstChild.data + "</li>"
-					desc_buf += "</ul>"
+				if desc.parentNode.nodeName != "p":
+					desc_buf += "<p>" + desc.data + "</p>"
+				else:
+					desc_buf += desc.data
+		else:
+			desc_buf += "<" + desc.nodeName + ">" \
+				 + format_html_desc(desc) \
+				 + "</" + desc.nodeName +">"
 
 	return desc_buf
 
@@ -277,6 +288,12 @@ def gen_docs(doc, working_dir, templatedir):
 		templistfile = open(templatedir + "/temp_list.html", "r")
 		templistdata = templistfile.read()
 		templistfile.close()
+		boollistfile = open(templatedir + "/global_bool_list.html", "r")
+		boollistdata = boollistfile.read()
+		boollistfile.close()
+		tunlistfile = open(templatedir + "/global_tun_list.html", "r")
+		tunlistdata = tunlistfile.read()
+		tunlistfile.close()
 	except:
 		error("Could not open templates")
 
@@ -308,8 +325,14 @@ def gen_docs(doc, working_dir, templatedir):
 	for mod_layer,modules in module_list.iteritems():
 		menu = gen_doc_menu(mod_layer, module_list)
 
+		layer_summary = None
+		for desc in doc.getElementsByTagName("summary"):
+			if desc.parentNode.getAttribute("name") == mod_layer:
+				layer_summary = format_html_desc(desc)
+
 		menu_args = { "menulist" : menu,
-			      "mod_layer" : mod_layer }
+			      "mod_layer" : mod_layer,
+			      "layer_summary" : layer_summary }
 		menu_tpl = pyplate.Template(menudata)
 		menu_buf = menu_tpl.execute_string(menu_args)
 
@@ -498,40 +521,90 @@ def gen_docs(doc, working_dir, templatedir):
 		module_fh.close()
 
 		
-		menu = gen_doc_menu(None, module_list)
-		menu_args = { "menulist" : menu,
-			      "mod_layer" : None }
-		menu_tpl = pyplate.Template(menudata)
-		menu_buf = menu_tpl.execute_string(menu_args)
+	menu = gen_doc_menu(None, module_list)
+	menu_args = { "menulist" : menu,
+		      "mod_layer" : None }
+	menu_tpl = pyplate.Template(menudata)
+	menu_buf = menu_tpl.execute_string(menu_args)
 	
-		#build the interface index
-		all_interfaces.sort(int_cmp)
-		interface_tpl = pyplate.Template(intlistdata)
-		interface_buf = interface_tpl.execute_string({"interfaces" : all_interfaces})
-		int_file = "interfaces.html"
-		int_fh = open(int_file, "w")
-		body_tpl = pyplate.Template(bodydata)
+	#build the interface index
+	all_interfaces.sort(int_cmp)
+	interface_tpl = pyplate.Template(intlistdata)
+	interface_buf = interface_tpl.execute_string({"interfaces" : all_interfaces})
+	int_file = "interfaces.html"
+	int_fh = open(int_file, "w")
+	body_tpl = pyplate.Template(bodydata)
 
-		body_args = { "menu" : menu_buf, 
-			      "content" : interface_buf }
+	body_args = { "menu" : menu_buf, 
+		      "content" : interface_buf }
 
-		body_tpl.execute(int_fh, body_args)
-		int_fh.close()
+	body_tpl.execute(int_fh, body_args)
+	int_fh.close()
 
 
-		#build the template index
-		all_templates.sort(temp_cmp)
-		template_tpl = pyplate.Template(templistdata)
-		template_buf = template_tpl.execute_string({"templates" : all_templates})
-		temp_file = "templates.html"
-		temp_fh = open(temp_file, "w")
-		body_tpl = pyplate.Template(bodydata)
+	#build the template index
+	all_templates.sort(temp_cmp)
+	template_tpl = pyplate.Template(templistdata)
+	template_buf = template_tpl.execute_string({"templates" : all_templates})
+	temp_file = "templates.html"
+	temp_fh = open(temp_file, "w")
+	body_tpl = pyplate.Template(bodydata)
 
-		body_args = { "menu" : menu_buf, 
-			      "content" : template_buf }
+	body_args = { "menu" : menu_buf, 
+		      "content" : template_buf }
 
-		body_tpl.execute(temp_fh, body_args)
-		temp_fh.close()
+	body_tpl.execute(temp_fh, body_args)
+	temp_fh.close()
+
+
+	#build the global tunable index
+	global_tun_buf = []
+	for tunable in doc.getElementsByTagName("tunable"):
+		if tunable.parentNode.nodeName == "policy":
+			tunable_name = tunable.getAttribute("name")
+			default_value = tunable.getAttribute("dftval")
+			description = format_html_desc(tunable)
+			global_tun_buf.append( { "tun_name" : tunable_name,
+						"def_val" : default_value,
+						"desc" : description } )
+	global_tun_buf.sort(tun_cmp)
+	global_tun_tpl = pyplate.Template(tunlistdata)
+	global_tun_buf = global_tun_tpl.execute_string({"tunables" : global_tun_buf})
+	global_tun_file = "global_tunables.html"
+	global_tun_fh = open(global_tun_file, "w")
+	body_tpl = pyplate.Template(bodydata)
+
+	body_args = { "menu" : menu_buf,
+		      "content" : global_tun_buf }
+
+	body_tpl.execute(global_tun_fh, body_args)
+	global_tun_fh.close()
+
+
+	#build the global boolean index
+	global_bool_buf = []
+	for boolean in doc.getElementsByTagName("boolean"):
+		if boolean.parentNode.nodeName == "policy":
+			bool_name = boolean.getAttribute("name")
+			default_value = boolean.getAttribute("dftval")
+			description = format_html_desc(boolean)
+			global_bool_buf.append( { "bool_name" : bool_name,
+						"def_val" : default_value,
+						"desc" : description } )
+	global_bool_buf.sort(bool_cmp)
+	global_bool_tpl = pyplate.Template(boollistdata)
+	global_bool_buf = global_bool_tpl.execute_string({"booleans" : global_bool_buf})
+	global_bool_file = "global_booleans.html"
+	global_bool_fh = open(global_bool_file, "w")
+	body_tpl = pyplate.Template(bodydata)
+
+	body_args = { "menu" : menu_buf,
+		      "content" : global_bool_buf }
+
+	body_tpl.execute(global_bool_fh, body_args)
+	global_bool_fh.close()
+
+
 
 def error(error):
 	"""

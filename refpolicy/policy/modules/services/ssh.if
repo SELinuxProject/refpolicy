@@ -31,7 +31,7 @@ template(`ssh_per_userdomain_template',`
 	files_type($1_home_ssh_t)
 	role $1_r types $1_ssh_t;
 
-	type $1_ssh_t; #, nscd_client_domain;
+	type $1_ssh_t;
 	domain_type($1_ssh_t)
 
 	type $1_ssh_agent_t;
@@ -77,6 +77,12 @@ template(`ssh_per_userdomain_template',`
 	allow $1_t $1_home_ssh_t:lnk_file create_lnk_perms;
 	allow $1_t $1_home_ssh_t:sock_file create_file_perms;
 
+	# inheriting stream sockets is needed for "ssh host command" as no pty
+	# is allocated
+	# cjp: should probably fix target to be an attribute for ssh servers
+	# or "regular" (not special like sshd_extern_t) servers
+	allow $1_t sshd_t:unix_stream_socket rw_stream_socket_perms;
+
 	# ssh client can manage the keys and config
 	allow $1_ssh_t $1_home_ssh_t:file create_file_perms;
 	allow $1_ssh_t $1_home_ssh_t:lnk_file { getattr read };
@@ -103,6 +109,12 @@ template(`ssh_per_userdomain_template',`
 	# run helper programs - needed eg for x11-ssh-askpass
 	corecmd_exec_shell($1_ssh_t)
 	corecmd_exec_bin($1_ssh_t)
+	corecmd_list_sbin($1_ssh_t)
+	corecmd_read_sbin_symlink($1_ssh_t)
+	# cjp: these are probably not needed:
+	corecmd_read_sbin_file($1_ssh_t)
+	corecmd_read_sbin_pipe($1_ssh_t)
+	corecmd_read_sbin_socket($1_ssh_t)
 
 	domain_use_wide_inherit_fd($1_ssh_t)
 
@@ -124,6 +136,14 @@ template(`ssh_per_userdomain_template',`
 	sysnet_read_config($1_ssh_t)
 
 	userdom_use_unpriv_users_fd($1_ssh_t)
+
+	tunable_policy(`read_default_t',`
+		files_list_default($1_ssh_t)
+		files_read_default_files($1_ssh_t)
+		files_read_default_symlinks($1_ssh_t)
+		files_read_default_sockets($1_ssh_t)
+		files_read_default_pipes($1_ssh_t)
+	')
 
 	tunable_policy(`use_dns',`
 		allow $1_ssh_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
@@ -156,16 +176,11 @@ template(`ssh_per_userdomain_template',`
 		nis_use_ypbind($1_ssh_t)
 	')
 
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_ssh_t)
+	')
+
 	ifdef(`TODO',`
-
-	allow $1 sbin_t:dir r_dir_perms;
-	allow $1 sbin_t:notdevfile_class_set r_file_perms;
-
-	if (read_default_t) {
-		allow $1 default_t:dir r_dir_perms;
-		allow $1 default_t:notdevfile_class_set r_file_perms;
-	}
-
 	# Read /var.
 	allow $1_ssh_t var_t:dir r_dir_perms;
 	allow $1_ssh_t var_t:notdevfile_class_set r_file_perms;
@@ -232,12 +247,22 @@ template(`ssh_per_userdomain_template',`
 	#
 	# $1_ssh_agent_t local policy
 	#
+
 	allow $1_ssh_agent_t self:process setrlimit;
 	allow $1_ssh_agent_t self:capability setgid;
 
 	allow $1_ssh_agent_t { $1_ssh_agent_t $1_t }:process signull;
 
 	allow $1_ssh_t $1_ssh_agent_t:unix_stream_socket connectto;
+
+	# for the transition back to normal privs upon exec
+	allow $1_ssh_agent_t $1_t:fd use;
+	allow $1_t $1_ssh_agent_t:fd use;
+	allow $1_t $1_ssh_agent_t:fifo_file rw_file_perms;
+	allow $1_t $1_ssh_agent_t:process sigchld;
+
+	# Allow the ssh program to communicate with ssh-agent.
+	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
 
 	domain_auto_trans($1_t, ssh_agent_exec_t, $1_ssh_agent_t)
 
@@ -247,6 +272,10 @@ template(`ssh_per_userdomain_template',`
 	dev_read_rand($1_ssh_agent_t)
 
 	fs_search_auto_mountpoints($1_ssh_agent_t)
+
+	# transition back to normal privs upon exec
+	corecmd_shell_domtrans($1_ssh_agent_t,$1_t)
+	corecmd_bin_domtrans($1_ssh_agent_t, $1_t)
 
 	domain_use_wide_inherit_fd($1_ssh_agent_t)
 
@@ -261,16 +290,32 @@ template(`ssh_per_userdomain_template',`
 
 	miscfiles_read_localization($1_ssh_agent_t)
 
-	if (use_nfs_home_dirs) {
-		fs_manage_nfs_files($1_ssh_agent_t)
-	}
+	seutil_dontaudit_search_config($1_ssh_agent_t)
 
-	if (use_samba_home_dirs) {
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_files($1_ssh_agent_t)
+
+		# transition back to normal privs upon exec
+		fs_nfs_domtrans($1_ssh_agent_t, $1_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_ssh_agent_t)
-	}
+
+		# transition back to normal privs upon exec
+		fs_cifs_domtrans($1_ssh_agent_t, $1_t)
+	')
 
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1_ssh_agent_t)
+	')
+
+	optional_policy(`xdm.te', `
+		xdm_use_fd($1_ssh_agent_t)
+		xdm_rw_pipe($1_ssh_agent_t)
+
+		# KDM:
+		xdm_sigchld($1_ssh_agent_t)
 	')
 
 	ifdef(`TODO',`
@@ -285,7 +330,6 @@ template(`ssh_per_userdomain_template',`
 
 	allow $1_ssh_agent_t proc_t:dir search;
 	dontaudit $1_ssh_agent_t proc_t:{ lnk_file file } { getattr read };
-	dontaudit $1_ssh_agent_t selinux_config_t:dir search;
 
 	# Access the ssh temporary files. Should we have an own type here
 	# to which only ssh, ssh-agent and ssh-add have access?
@@ -296,27 +340,11 @@ template(`ssh_per_userdomain_template',`
 	can_unix_connect($1_t, $1_ssh_agent_t)
 
 	# transition back to normal privs upon exec
-	domain_auto_trans($1_ssh_agent_t, { bin_t shell_exec_t $1_home_t }, $1_t)
-	allow $1_ssh_agent_t bin_t:dir search;
-	allow $1_ssh_agent_t bin_t:lnk_file read;
-	if (use_nfs_home_dirs) {
-	domain_auto_trans($1_ssh_agent_t, nfs_t, $1_t)
-	}
-	if (use_samba_home_dirs) {
-	domain_auto_trans($1_ssh_agent_t, cifs_t, $1_t)
-	}
+	domain_auto_trans($1_ssh_agent_t, $1_home_t, $1_t)
 
 	allow $1_ssh_agent_t { home_root_t $1_home_dir_t }:dir search;
 
 	allow $1_ssh_t $1_tmp_t:sock_file write;
-
-	ifdef(`xdm.te', `
-	allow $1_ssh_agent_t xdm_t:fd use;
-	allow $1_ssh_agent_t xdm_t:fifo_file { read write };
-
-	# kdm: sigchld
-	allow $1_ssh_agent_t xdm_t:process sigchld;
-	')
 
 	#
 	# Allow command to ssh-agent > ~/.ssh_agent
@@ -327,7 +355,6 @@ template(`ssh_per_userdomain_template',`
 	# Allow the ssh program to communicate with ssh-agent.
 	allow $1_ssh_t $1_tmp_t:sock_file write;
 	allow $1_ssh_t $1_t:unix_stream_socket connectto;
-	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
 	') dnl endif TODO
 ')
 
@@ -350,7 +377,7 @@ template(`ssh_per_userdomain_template',`
 ## </param>
 #
 template(`ssh_server_template', `
-	type $1_t, ssh_server; #, nscd_client_domain;
+	type $1_t, ssh_server;
 	role system_r types $1_t;
 
 	type $1_devpts_t;
@@ -461,6 +488,10 @@ template(`ssh_server_template', `
 
 	optional_policy(`mount.te', `
 		mount_send_nfs_client_request($1_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket(crond_t)
 	')
 
 	ifdef(`TODO',`

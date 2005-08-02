@@ -24,7 +24,7 @@
 template(`cron_per_userdomain_template',`
 
 	# Type of user crontabs once moved to cron spool.
-	type $1_cron_spool_t;
+	type $1_cron_spool_t, cron_spool_type;
 	files_type($1_cron_spool_t)
 
 	type $1_crond_t; # user_crond_domain;
@@ -152,6 +152,13 @@ template(`cron_per_userdomain_template',`
 	# $1_crontab_t local policy
 	#
 
+	# Transition from the user domain to the derived domain.
+	domain_auto_trans($1_t, crontab_exec_t, $1_crontab_t)
+	allow $1_t $1_crontab_t:fd use;
+	allow $1_crontab_t $1_t:fd use;
+	allow $1_crontab_t $1_t:fifo_file rw_file_perms;
+	allow $1_crontab_t $1_t:process sigchld;
+
 	# for ^Z
 	allow $1_t $1_crontab_t:process signal;
 
@@ -172,11 +179,15 @@ template(`cron_per_userdomain_template',`
 
 	allow $1_crontab_t crond_log_t:file ra_file_perms;
 
+	# for the checks used by crontab -u
+	selinux_dontaudit_search_fs($1_crontab_t)
+
 	fs_getattr_xattr_fs($1_crontab_t)
 
 	domain_use_wide_inherit_fd($1_crontab_t)
 
 	files_read_etc_files($1_crontab_t)
+	files_dontaudit_search_pids($1_crontab_t)
 
 	libs_use_ld_so($1_crontab_t)
 	libs_use_shared_libs($1_crontab_t)
@@ -184,6 +195,8 @@ template(`cron_per_userdomain_template',`
 	logging_send_syslog_msg($1_crontab_t)
 
 	miscfiles_read_localization($1_crontab_t)
+
+	seutil_dontaudit_search_config($1_crontab_t)
 
 	tunable_policy(`fcron_crond', `
 		# fcron wants an instant update of a crontab change for the administrator
@@ -193,25 +206,14 @@ template(`cron_per_userdomain_template',`
 
 	ifdef(`TODO',`
 
-	# Transition from the user domain to the derived domain.
-	domain_auto_trans($1_t, crontab_exec_t, $1_crontab_t)
-
 	can_ps($1_t, $1_crontab_t)
 
 	dontaudit $1_crontab_t proc_t:dir search;
-	dontaudit $1_crontab_t selinux_config_t:dir search;
-	# for the checks used by crontab -u
-	dontaudit $1_crontab_t security_t:dir search;
 
 	# Type for temporary files.
 	file_type_auto_trans($1_crontab_t, tmp_t, $1_tmp_t, { dir file })
 
-	# Use the type when creating files in /var/spool/cron.
-	allow sysadm_crontab_t $1_cron_spool_t:file { getattr read };
-
 	# Run helper programs as $1_t
-	allow $1_crontab_t { bin_t sbin_t }:dir search;
-	allow $1_crontab_t bin_t:lnk_file read;
 	domain_auto_trans($1_crontab_t, { bin_t sbin_t shell_exec_t }, $1_t)
 
 	# Read user crontabs 
@@ -226,8 +228,6 @@ template(`cron_per_userdomain_template',`
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	ifdef(`gnome-pty-helper.te', `allow $1_crontab_t $1_gph_t:fd use;')
-
-	dontaudit $1_crontab_t var_run_t:dir search;
 	') dnl endif TODO
 ')
 
@@ -247,10 +247,10 @@ template(`cron_per_userdomain_template',`
 ## </param>
 #
 template(`cron_admin_template',`
-	logging_read_generic_logs($1_crond_t)
-
 	# Allow our crontab domain to unlink a user cron spool file.
-	#allow $1_crontab_t user_cron_spool_t:file unlink;
+	allow $1_crontab_t cron_spool_type:file { getattr read unlink };
+
+	logging_read_generic_logs($1_crond_t)
 
 	# Manipulate other users crontab.
 	selinux_get_fs_mount($1_crontab_t)

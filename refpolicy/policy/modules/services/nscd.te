@@ -1,0 +1,125 @@
+
+policy_module(nscd,1.0)
+
+########################################
+#
+# Declarations
+#
+
+# nscd is both the client program and the daemon.
+type nscd_t; #, userspace_objmgr
+type nscd_exec_t;
+init_daemon_domain(nscd_t,nscd_exec_t)
+
+type nscd_var_run_t;
+files_pid_file(nscd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow nscd_t self:capability { kill setgid setuid };
+dontaudit nscd_t self:capability sys_tty_config;
+allow nscd_t self:process { getattr setsched };
+allow nscd_t self:unix_stream_socket create_stream_socket_perms;
+allow nscd_t self:unix_dgram_socket create_socket_perms;
+allow nscd_t self:netlink_selinux_socket create_socket_perms;
+allow nscd_t self:netlink_route_socket r_netlink_socket_perms;
+allow nscd_t self:tcp_socket create_socket_perms;
+allow nscd_t self:udp_socket { connect connected_socket_perms };
+allow nscd_t self:fifo_file { read write };
+
+# For client program operation, invoked from sysadm_t.
+# Transition occurs to nscd_t due to direct_sysadm_daemon. 
+# cjp: this should probably be in a direct_sysadm_daemon tunable
+allow nscd_t self:nscd { admin getstat };
+
+allow nscd_t nscd_var_run_t:file create_file_perms;
+allow nscd_t nscd_var_run_t:sock_file create_file_perms;
+files_create_pid(nscd_t,nscd_var_run_t,{ file sock_file })
+
+kernel_read_kernel_sysctl(nscd_t)
+kernel_list_proc(nscd_t)
+kernel_read_proc_symlinks(nscd_t)
+
+dev_read_sysfs(nscd_t)
+dev_read_rand(nscd_t)
+dev_read_urand(nscd_t)
+
+fs_getattr_all_fs(nscd_t)
+fs_search_auto_mountpoints(nscd_t)
+
+term_dontaudit_use_console(nscd_t)
+
+# for when /etc/passwd has just been updated and has the wrong type
+auth_getattr_shadow(nscd_t)
+
+corenet_tcp_sendrecv_all_if(nscd_t)
+corenet_udp_sendrecv_all_if(nscd_t)
+corenet_raw_sendrecv_all_if(nscd_t)
+corenet_tcp_sendrecv_all_nodes(nscd_t)
+corenet_udp_sendrecv_all_nodes(nscd_t)
+corenet_raw_sendrecv_all_nodes(nscd_t)
+corenet_tcp_sendrecv_all_ports(nscd_t)
+corenet_udp_sendrecv_all_ports(nscd_t)
+corenet_tcp_bind_all_nodes(nscd_t)
+corenet_udp_bind_all_nodes(nscd_t)
+
+domain_use_wide_inherit_fd(nscd_t)
+
+files_read_etc_files(nscd_t)
+
+init_use_fd(nscd_t)
+init_use_script_pty(nscd_t)
+
+libs_use_ld_so(nscd_t)
+libs_use_shared_libs(nscd_t)
+
+logging_send_syslog_msg(nscd_t)
+
+miscfiles_read_localization(nscd_t)
+
+sysnet_read_config(nscd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(nscd_t)
+userdom_dontaudit_search_sysadm_home_dir(nscd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(nscd_t)
+	term_dontaudit_use_generic_pty(nscd_t)
+	files_dontaudit_read_root_file(nscd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(nscd_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(nscd_t)
+')
+
+optional_policy(`selinuxutils.te',`
+	seutil_sigchld_newrole(nscd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(nscd_t)
+')
+
+ifdef(`TODO',`
+
+nscd_socket_domain(daemon)
+
+optional_policy(`winbind.te', `
+	# Handle winbind for samba, Might only be needed for targeted policy
+
+	allow nscd_t winbind_var_run_t:sock_file { read write getattr };
+	can_unix_connect(nscd_t, winbind_t)
+	allow nscd_t samba_var_t:dir search;
+	allow nscd_t winbind_var_run_t:dir { getattr search };
+')
+
+allow nscd_t tmp_t:dir { search getattr };
+allow nscd_t tmp_t:lnk_file read;
+') dnl end TODO

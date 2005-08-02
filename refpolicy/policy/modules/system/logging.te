@@ -9,7 +9,7 @@ policy_module(logging,1.0)
 attribute logfile;
 
 type auditd_log_t;
-logging_log_file(auditd_log_t)
+files_type(auditd_log_t)
 
 type auditd_t;
 type auditd_exec_t;
@@ -49,16 +49,21 @@ files_type(var_log_t)
 # Auditd local policy
 #
 
-allow auditd_t self:capability { audit_write audit_control };
+allow auditd_t self:capability { audit_write audit_control sys_nice sys_resource };
 dontaudit auditd_t self:capability sys_tty_config;
+allow auditd_t self:process setsched;
 allow auditd_t self:netlink_audit_socket { bind create getattr nlmsg_read nlmsg_write read write };
 
+allow auditd_t var_log_t:dir search;
+allow auditd_t auditd_log_t:dir rw_dir_perms;
 allow auditd_t auditd_log_t:file create_file_perms;
 
 allow auditd_t auditd_var_run_t:file create_file_perms;
 files_create_pid(auditd_t,auditd_var_run_t)
 
 kernel_read_kernel_sysctl(auditd_t)
+kernel_list_proc(auditd_t)
+kernel_read_proc_symlinks(auditd_t)
 
 dev_read_sysfs(auditd_t)
 
@@ -82,6 +87,7 @@ libs_use_shared_libs(auditd_t)
 miscfiles_read_localization(auditd_t)
 
 userdom_dontaudit_use_unpriv_user_fd(auditd_t)
+userdom_dontaudit_search_sysadm_home_dir(auditd_t)
 # cjp: this is questionable
 userdom_use_sysadm_tty(auditd_t)
 
@@ -91,7 +97,7 @@ ifdef(`targeted_policy', `
 	files_dontaudit_read_root_file(auditd_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(auditd_t)
 ')
 
@@ -100,14 +106,9 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
-allow auditd_t proc_t:dir r_dir_perms;
-allow auditd_t proc_t:lnk_file read;
-
 optional_policy(`rhgb.te', `
 rhgb_domain(auditd_t)
 ')
-
-dontaudit auditd_t sysadm_home_dir_t:dir search;
 ') dnl endif TODO
 
 ########################################
@@ -188,6 +189,7 @@ allow syslogd_t syslogd_var_run_t:file create_file_perms;
 files_create_pid(syslogd_t,syslogd_var_run_t)
 
 kernel_read_kernel_sysctl(syslogd_t)
+kernel_read_proc_symlinks(syslogd_t)
 
 dev_create_dev_node(syslogd_t,devlog_t,sock_file)
 dev_read_sysfs(syslogd_t)
@@ -228,6 +230,7 @@ sysnet_read_config(syslogd_t)
 miscfiles_read_localization(syslogd_t)
 
 userdom_dontaudit_use_unpriv_user_fd(syslogd_t)
+userdom_dontaudit_search_sysadm_home_dir(syslogd_t)
 
 #
 # /initrd is not umounted before minilog starts
@@ -238,6 +241,11 @@ files_dontaudit_search_isid_type_dir(syslogd_t)
 #dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
 allow syslogd_t self:capability net_admin;
 allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
+
+ifdef(`distro_suse', `
+	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
+	files_create_var_lib(syslogd_t,devlog_t,sock_file)
+')
 
 ifdef(`klogd.te', `', `
 	# Allow access to /proc/kmsg for syslog-ng
@@ -260,7 +268,7 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(syslogd_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(syslogd_t)
 ')
 
@@ -269,15 +277,9 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
-allow syslogd_t proc_t:lnk_file read;
-dontaudit syslogd_t sysadm_home_dir_t:dir search;
+
 optional_policy(`rhgb.te', `
 	rhgb_domain(syslogd_t)
-')
-
-ifdef(`distro_suse', `
-	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
-	file_type_auto_trans(syslogd_t, var_lib_t, devlog_t, sock_file)
 ')
 
 # log to the xconsole

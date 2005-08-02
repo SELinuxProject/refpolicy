@@ -19,7 +19,7 @@ files_tmp_file(inetd_tmp_t)
 type inetd_var_run_t;
 files_pid_file(inetd_var_run_t)
 
-type inetd_child_t; #, nscd_client_domain;
+type inetd_child_t;
 type inetd_child_exec_t;
 inetd_service_domain(inetd_child_t,inetd_child_exec_t)
 role system_r types inetd_child_t;
@@ -53,6 +53,8 @@ allow inetd_t inetd_var_run_t:file create_file_perms;
 files_create_pid(inetd_t,inetd_var_run_t)
 
 kernel_read_kernel_sysctl(inetd_t)
+kernel_list_proc(inetd_t)
+kernel_read_proc_symlinks(inetd_t)
 
 # networking:
 corenet_tcp_sendrecv_all_if(inetd_t)
@@ -109,6 +111,7 @@ miscfiles_read_localization(inetd_t)
 sysnet_read_config(inetd_t)
 
 userdom_dontaudit_use_unpriv_user_fd(inetd_t)
+userdom_dontaudit_search_sysadm_home_dir(inetd_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(inetd_t)
@@ -120,7 +123,7 @@ optional_policy(`mount.te',`
 	mount_send_nfs_client_request(inetd_t)
 ')
 
-optional_policy(`selinux.te',`
+optional_policy(`selinuxutil.te',`
 	seutil_sigchld_newrole(inetd_t)
 ')
 
@@ -128,19 +131,24 @@ optional_policy(`udev.te', `
 	udev_read_db(inetd_t)
 ')
 
+optional_policy(`unconfined.te', `
+	unconfined_domtrans(inetd_t)
+')
+
+# This should be tunable_policy, but leaving
+# ifdef until typeattribute works in conditionals
+ifdef(`unlimitedInetd', `
+	unconfined_domain_template(inetd_t) 
+')
+
 ifdef(`TODO',`
-allow inetd_t proc_t:dir r_dir_perms;
-allow inetd_t proc_t:lnk_file read;
-dontaudit inetd_t sysadm_home_dir_t:dir search;
 
 optional_policy(`rhgb.te',`
 	rhgb_domain(inetd_t)
 ')
 
-# allow any domain to connect to inetd
-can_tcp_connect(userdomain, inetd_t)
-
 # Bind to the telnet, ftp, rlogin and rsh ports.
+# cjp: these ports currently dont exist in the NSA example
 ifdef(`talk.te', `
 allow inetd_t talk_port_t:tcp_socket name_bind;
 allow inetd_t ntalk_port_t:tcp_socket name_bind;
@@ -148,15 +156,6 @@ allow inetd_t ntalk_port_t:tcp_socket name_bind;
 
 # Communicate with the portmapper.
 ifdef(`portmap.te', `can_udp_send(inetd_t, portmap_t)')
-
-ifdef(`unconfined.te', `
-domain_auto_trans(inetd_t, unconfined_exec_t, unconfined_t)
-')
-
-ifdef(`unlimitedInetd', `
-unconfined_domain(inetd_t) 
-')
-
 ') dnl TODO
 
 ########################################
@@ -173,7 +172,7 @@ allow inetd_child_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
 allow inetd_child_t self:capability { setuid setgid };
 allow inetd_child_t self:dir search;
 allow inetd_child_t self:{ lnk_file file } { getattr read };
-#allow inetd_child_t home_root_t:dir search;
+files_search_home(inetd_child_t)
 
 allow inetd_child_t inetd_child_tmp_t:dir create_dir_perms;
 allow inetd_child_t inetd_child_tmp_t:file create_file_perms;
@@ -218,4 +217,8 @@ optional_policy(`kerberos.te',`
 
 optional_policy(`nis.te',`
 	nis_use_ypbind(inetd_child_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(inetd_child_t)
 ')

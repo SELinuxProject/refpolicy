@@ -25,6 +25,7 @@ template(`unconfined_domain_template',`
 	allow $1 self:passwd *;
 
 	kernel_unconfined($1)
+	corenet_unconfined($1)
 	dev_unconfined($1)
 	fs_unconfined($1)
 	selinux_unconfined($1)
@@ -37,14 +38,16 @@ template(`unconfined_domain_template',`
 		allow $1 self:process execmem;
 	')
 
-	# to satisfy assertions:
 	optional_policy(`authlogin.te',`
-		auth_manage_shadow($1)
-		auth_relabelto_shadow($1)
+		auth_unconfined($1)
 	')
 
 	optional_policy(`bootloader.te',`
 		bootloader_manage_kernel_modules($1)
+	')
+
+	optional_policy(`nscd.te', `
+		nscd_unconfined($1)
 	')
 
 	optional_policy(`selinuxutil.te',`
@@ -67,11 +70,56 @@ template(`unconfined_domain_template',`
 		allow $1 system_dbusd_t:dbus *;
 	')
 
-	ifdef(`nscd.te', `
-		# Get info via nscd.
-		allow $1 nscd_t:nscd *;
-	')
 	') dnl end TODO
+')
+
+########################################
+## <summary>
+##	Transition to the unconfined domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`unconfined_domtrans',`
+	gen_require(`
+		type unconfined_t, unconfined_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	domain_auto_trans($1,unconfined_exec_t,unconfined_t)
+
+	allow $1 unconfined_t:fd use;
+	allow unconfined_t $1:fd use;
+	allow unconfined_t $1:fifo_file rw_file_perms;
+	allow unconfined_t $1:process sigchld;
+')
+
+########################################
+## <desc>
+##	Execute specified programs in the unconfined domain.
+## </desc>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+## <param name="role">
+##	The role to allow the unconfined domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the unconfined domain to use.
+## </param>
+#
+interface(`unconfined_run',`
+	gen_require(`
+		type unconfined_t;
+		class chr_file rw_term_perms;
+	')
+
+	unconfined_domtrans($1)
+	role $2 types unconfined_t;
+	allow unconfined_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -82,13 +130,12 @@ template(`unconfined_domain_template',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`unconfined_domtrans_shell',`
-
+interface(`unconfined_shell_domtrans',`
 	gen_require(`
-		unconfined_t;
+		type unconfined_t;
 	')
 
-	corecmd_domtrans_shell($1,unconfined_t)
+	corecmd_shell_domtrans($1,unconfined_t)
 ')
 
 ########################################
@@ -140,6 +187,34 @@ interface(`unconfined_rw_pipe',`
 	')
 
 	allow $1 unconfined_t:fifo_file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read or write
+##	unconfined domain tcp sockets.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to read or write
+##	unconfined domain tcp sockets.
+##	</p>
+##	<p>
+##	This interface was added due to a broken
+##	symptom in ldconfig.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`unconfined_dontaudit_rw_tcp_socket',`
+	gen_require(`
+		type unconfined_t;
+		class tcp_socket { read write };
+	')
+
+	dontaudit $1 unconfined_t:tcp_socket { read write };
 ')
 
 ########################################

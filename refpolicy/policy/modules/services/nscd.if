@@ -1,0 +1,132 @@
+## <summary>Name service cache daemon</summary>
+
+########################################
+## <summary>
+##	Execute NSCD in the nscd domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`nscd_domtrans',`
+	gen_require(`
+		type nscd_t, nscd_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	corecmd_search_sbin($1)
+	domain_auto_trans($1,nscd_exec_t,nscd_t)
+
+	allow $1 nscd_t:fd use;
+	allow nscd_t $1:fd use;
+	allow nscd_t $1:fifo_file rw_file_perms;
+	allow nscd_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Use NSCD services by connecting using
+##	a unix stream socket.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`nscd_use_socket',`
+	gen_require(`
+		type nscd_t, nscd_var_run_t;
+		class fd use;
+		class nscd { getpwd getgrp gethost shmempwd shmemgrp shmemhost };
+		class unix_stream_socket { create_stream_socket_perms connectto };
+		class dir { search getattr };
+		class sock_file rw_file_perms;
+		class file { getattr read };
+	')
+
+	allow $1 self:unix_stream_socket create_stream_socket_perms;
+
+	allow $1 nscd_t:unix_stream_socket connectto;
+	allow $1 nscd_t:nscd { getpwd getgrp gethost };
+	dontaudit $1 nscd_t:fd use;
+	dontaudit $1 nscd_t:nscd { shmempwd shmemgrp shmemhost };
+
+	files_search_pids($1)
+	allow $1 nscd_var_run_t:sock_file rw_file_perms;
+	dontaudit $1 nscd_var_run_t:dir { search getattr };
+	dontaudit $1 nscd_var_run_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Use NSCD services by mapping the database from
+##	an inherited NSCD file descriptor.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`nscd_use_shared_mem',`
+	gen_require(`
+		type nscd_t, nscd_var_run_t;
+		class fd use;
+		class nscd { getpwd getgrp gethost shmempwd shmemgrp shmemhost };
+		class unix_stream_socket { create_stream_socket_perms connectto };
+		class dir r_dir_perms;
+		class sock_file rw_file_perms;
+		class file { getattr read };
+	')
+
+	allow $1 nscd_var_run_t:dir r_dir_perms;
+	allow $1 nscd_t:nscd { shmempwd shmemgrp shmemhost };
+
+	# Receive fd from nscd and map the backing file with read access.
+	allow $1 nscd_t:fd use;
+
+	# cjp: these were originally inherited from the
+	# nscd_socket_domain macro.  need to investigate
+	# if they are all actually required
+	allow $1 self:unix_stream_socket create_stream_socket_perms;
+	allow $1 nscd_t:unix_stream_socket connectto;
+	allow $1 nscd_var_run_t:sock_file rw_file_perms;
+	files_search_pids($1)
+	allow $1 nscd_t:nscd { getpwd getgrp gethost };
+	dontaudit $1 nscd_var_run_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Read NSCD pid file.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`nscd_read_pid',`
+	gen_require(`
+		type nscd_var_run_t;
+		class dir search;
+		class file { getattr read };
+	')
+
+	files_search_pids($1)
+	allow $1 nscd_var_run_t:dir search;
+	allow $1 nscd_var_run_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Unconfined access to NSCD services.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`nscd_unconfined',`
+	gen_require(`
+		type nscd_t;
+	')
+
+	allow $1 nscd_t:nscd *;
+')
