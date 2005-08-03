@@ -1,0 +1,135 @@
+## <summary>Policy for MySQL</summary>
+
+########################################
+## <summary>
+##	Send a generic signal to MySQL.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_signal',`
+	gen_require(`
+		type mysqld_t;
+		class process signal;
+	')
+
+	allow $1 mysqld_t:process signal;
+')
+
+########################################
+## <summary>
+##	Connect to MySQL using a unix domain stream socket.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_stream_connect',`
+	gen_require(`
+		type mysqld_t;
+		class unix_stream_socket connectto;
+		class dir search;
+		class sock_file write;
+	')
+
+	allow $1 mysqld_var_run_t:dir search;
+	allow $1 mysqld_var_run_t:sock_file write;
+	allow $1 mysqld_t:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Read MySQL configuration files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_read_config',`
+	gen_require(`
+		type mysqld_etc_t;
+		class dir { getattr read search };
+		class file { read getattr };
+		class lnk_file { getattr read };
+	')
+
+	allow $1 mysqld_etc_t:dir { getattr read search };
+	allow $1 mysqld_etc_t:file { read getattr };
+	allow $1 mysqld_etc_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Search the directories that contain MySQL
+##	database storage.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+# cjp: "_dir" in the name is added to clarify that this
+# is not searching the database itself.
+interface(`mysql_search_db_dir',`
+	gen_require(`
+		type mysqld_db_t;
+		class dir search;
+	')
+
+	files_search_var_lib($1)
+	allow $1 mysqld_db_t:dir search;
+')
+
+########################################
+## <summary>
+##	Read and write to the MySQL database directory.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_rw_db_dir',`
+	gen_require(`
+		type mysqld_db_t;
+		class rw_dir_perms;
+	')
+
+	files_search_var_lib($1)
+	allow $1 mysqld_db_t:dir rw_dir_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete MySQL database directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_manage_db_dir',`
+	gen_require(`
+		type mysql_db_t;
+		class create_dir_perms;
+	')
+
+	files_search_var_lib($1)
+	allow $1 mysqld_db_t:dir create_dir_perms;
+')
+
+########################################
+## <summary>
+##	Write to the MySQL log.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mysql_write_log',`
+	gen_require(`
+		type mysqld_log_t;
+		class file { write append setattr ioctl };
+	')
+
+	logging_search_logs($1)
+	allow $1 mysqld_log_t:file { write append setattr ioctl };
+')
