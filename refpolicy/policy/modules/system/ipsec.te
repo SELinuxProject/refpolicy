@@ -13,15 +13,17 @@ role system_r types ipsec_t;
 
 # type for ipsec configuration file(s) - not for keys
 type ipsec_conf_file_t;
+files_type(ipsec_conf_file_t)
 
 # type for file(s) containing ipsec keys - RSA or preshared
 type ipsec_key_file_t;
+files_type(ipsec_key_file_t)
 
 # type for runtime files, including pluto.ctl
 type ipsec_var_run_t;
 files_pid_file(ipsec_var_run_t)
 
-type ipsec_mgmt_t; # admin, privmodule;
+type ipsec_mgmt_t;
 type ipsec_mgmt_exec_t;
 init_system_domain(ipsec_mgmt_t,ipsec_mgmt_exec_t)
 role system_r types ipsec_mgmt_t;
@@ -37,6 +39,7 @@ files_pid_file(ipsec_mgmt_var_run_t)
 allow ipsec_t self:capability { net_admin dac_override dac_read_search };
 dontaudit ipsec_t self:capability sys_tty_config;
 allow ipsec_t self:process signal;
+allow ipsec_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_t self:key_socket { create write read setopt };
 allow ipsec_t self:fifo_file { read getattr };
 
@@ -74,6 +77,13 @@ kernel_read_software_raid_state(ipsec_t)
 kernel_getattr_core(ipsec_t)
 kernel_getattr_message_if(ipsec_t)
 
+# Pluto needs network access
+corenet_tcp_sendrecv_all_if(ipsec_t)
+corenet_raw_sendrecv_all_if(ipsec_t)
+corenet_tcp_sendrecv_all_nodes(ipsec_t)
+corenet_raw_sendrecv_all_nodes(ipsec_t)
+corenet_tcp_sendrecv_all_ports(ipsec_t)
+corenet_tcp_bind_all_nodes(ipsec_t)
 corenet_udp_bind_reserved_port(ipsec_t)
 
 dev_read_sysfs(ipsec_t)
@@ -84,6 +94,7 @@ fs_getattr_all_fs(ipsec_t)
 fs_search_auto_mountpoints(ipsec_t)
 
 term_use_console(ipsec_t)
+term_dontaudit_use_all_user_ttys(ipsec_t)
 
 corecmd_exec_shell(ipsec_t)
 corecmd_exec_bin(ipsec_t)
@@ -101,6 +112,8 @@ libs_use_shared_libs(ipsec_t)
 logging_send_syslog_msg(ipsec_t)
 
 miscfiles_read_localization(ipsec_t)
+
+sysnet_read_config(ipsec_t)
 
 userdom_dontaudit_use_unpriv_user_fd(ipsec_t)
 userdom_dontaudit_search_sysadm_home_dir(ipsec_t)
@@ -126,14 +139,6 @@ optional_policy(`selinuxutils.te',`
 optional_policy(`udev.te', `
 	udev_read_db(ipsec_t)
 ')
-
-ifdef(`TODO',`
-allow ipsec_t etc_t:lnk_file read;
-allow ipsec_t initrc_t:fifo_file write;
-dontaudit ipsec_t ttyfile:chr_file { read write };
-# Pluto needs network access
-can_network_server(ipsec_t)
-') dnl end TODO
 
 ########################################
 #
@@ -240,6 +245,8 @@ libs_use_ld_so(ipsec_mgmt_t)
 libs_use_shared_libs(ipsec_mgmt_t)
 
 miscfiles_read_localization(ipsec_mgmt_t)
+
+modutils_domtrans_insmod(ipsec_mgmt_t)
 
 seutil_dontaudit_search_config(ipsec_mgmt_t)
 
