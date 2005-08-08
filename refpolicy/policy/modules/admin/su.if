@@ -1,0 +1,149 @@
+## <summary>Run shells with substitute user and group</summary>
+
+template(`su_per_userdomain_template',`
+
+	type $1_su_t;
+	domain_entry_file($1_su_t,su_exec_t)
+	domain_type($1_su_t)
+	domain_role_change_exempt($1_su_t)
+	domain_subj_id_change_exempt($1_su_t)
+	domain_obj_id_change_exempt($1_su_t)
+	domain_wide_inherit_fd($1_su_t)
+	role $1_r types $1_su_t;
+
+	allow $1_t $1_su_t:process signal;
+
+	allow $1_su_t self:capability { setuid setgid net_bind_service chown dac_override fowner sys_nice sys_resource };
+	dontaudit $1_su_t self:capability sys_tty_config;
+	allow $1_su_t self:process { setexec setsched setrlimit };
+	allow $1_su_t self:fifo_file rw_file_perms;
+
+	# Transition from the user domain to this domain.
+	domain_auto_trans($1_t, su_exec_t, $1_su_t)
+	allow $1_t $1_su_t:fd use;
+	allow $1_su_t $1_t:fd use;
+	allow $1_su_t $1_t:fifo_file rw_file_perms;
+	allow $1_su_t $1_t:process sigchld;
+
+	# By default, revert to the calling domain when a shell is executed.
+	corecmd_shell_domtrans($1_su_t,$1_t)
+	allow $1_t $1_su_t:fd use;
+	allow $1_su_t $1_t:fd use;
+	allow $1_su_t $1_t:fifo_file rw_file_perms;
+	allow $1_su_t $1_t:process sigchld;
+
+	kernel_read_system_state($1_su_t)
+	kernel_read_kernel_sysctl($1_su_t)
+
+	# for SSP
+	dev_read_urand($1_su_t)
+
+	fs_search_auto_mountpoints($1_su_t)
+
+	selinux_get_fs_mount($1_su_t)
+	selinux_validate_context($1_su_t)
+	selinux_compute_access_vector($1_su_t)
+	selinux_compute_create_context($1_su_t)
+	selinux_compute_relabel_context($1_su_t)
+	selinux_compute_user_contexts($1_su_t)
+
+	# Relabel ttys and ptys.
+	term_relabel_all_user_ttys($1_su_t)
+	term_relabel_all_user_ptys($1_su_t)
+	# Close and re-open ttys and ptys to get the fd into the correct domain.
+	term_use_all_user_ttys($1_su_t)
+	term_use_all_user_ptys($1_su_t)
+
+	auth_dontaudit_read_shadow($1_su_t)
+
+	domain_wide_inherit_fd($1_su_t)
+
+	files_read_etc_files($1_su_t)
+	files_search_var_lib($1_su_t)
+
+	init_dontaudit_use_fd($1_su_t)
+	# Write to utmp.
+	init_rw_script_pid($1_su_t)
+
+	libs_use_ld_so($1_su_t)
+	libs_use_shared_libs($1_su_t)
+
+	logging_send_syslog_msg($1_su_t)
+
+	miscfiles_read_localization($1_su_t)
+
+	seutil_read_config($1_su_t)
+	seutil_read_default_contexts($1_su_t)
+
+	if(secure_mode)
+	{
+		# Only allow transitions to unprivileged user domains.
+		userdom_spec_domtrans_unpriv_users($1_su_t)
+	} else {
+		# Allow transitions to all user domains
+		userdom_spec_domtrans_all_users($1_su_t)
+	}
+
+	if (use_nfs_home_dirs) {
+		fs_search_nfs($1_su_t)
+	}
+
+	if (use_samba_home_dirs) {
+		fs_search_cifs($1_su_t)
+	}
+
+	optional_policy(`crond.te',`
+		cron_read_pipe($1_su_t)
+	')
+
+	optional_policy(`kerberos.te',`
+		kerberos_use($1_su_t)
+	')
+
+	optional_policy(`nis.te',`
+		nis_use_ypbind($1_su_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_su_t)
+	')
+
+	ifdef(`TODO',`
+	domain_auto_trans($1_su_t, chkpwd_exec_t, $1_chkpwd_t)
+
+	# Caused by su - init scripts
+	dontaudit $1_su_t initrc_devpts_t:chr_file { getattr ioctl };
+
+	# Inherit and use descriptors from gnome-pty-helper.
+	ifdef(`gnome-pty-helper.te', `allow $1_su_t $1_gph_t:fd use;')
+
+	# Write to the user domain tty.
+	access_terminal($1_su_t, $1)
+
+	allow $1_su_t { home_root_t $1_home_dir_t }:dir search;
+	allow $1_su_t $1_home_t:file create_file_perms;
+
+	ifdef(`user_canbe_sysadm', `
+	allow $1_su_t home_dir_type:dir { search write };
+	', `
+	dontaudit $1_su_t home_dir_type:dir { search write };
+	')
+
+	# Modify .Xauthority file (via xauth program).
+	ifdef(`xauth.te', `
+	file_type_auto_trans($1_su_t, staff_home_dir_t, staff_xauth_home_t, file)
+	file_type_auto_trans($1_su_t, user_home_dir_t, user_xauth_home_t, file)
+	file_type_auto_trans($1_su_t, sysadm_home_dir_t, sysadm_xauth_home_t, file)
+	domain_auto_trans($1_su_t, xauth_exec_t, $1_xauth_t)
+	')
+
+	ifdef(`cyrus.te', `
+	allow $1_su_t cyrus_var_lib_t:dir search;
+	')
+	ifdef(`ssh.te', `
+	# Access sshd cookie files.
+	allow $1_su_t sshd_tmp_t:file rw_file_perms;
+	file_type_auto_trans($1_su_t, sshd_tmp_t, $1_tmp_t)
+	')
+	') dnl end TODO
+')
