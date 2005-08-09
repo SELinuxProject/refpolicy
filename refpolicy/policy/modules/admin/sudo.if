@@ -1,0 +1,163 @@
+## <summary>Execute a command with a substitute user</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the sudo module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is allowed
+##	to change the linux user id, to run commands as a different
+##	user.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+#
+template(`sudo_per_userdomain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_sudo_t; #, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl;
+	domain_type($1_sudo_t)
+	domain_entry_file($1_sudo_t,sudo_exec_t)
+	domain_wide_inherit_fd($1_sudo_t)
+	domain_subj_id_change_exempt($1_sudo_t)
+	domain_role_change_exempt($1_sudo_t)
+	domain_obj_id_change_exempt($1_sudo_t)
+
+	role $1_r types $1_sudo_t;
+
+	##############################
+	#
+	# Local Policy
+	#
+
+	# Use capabilities.
+	allow $1_sudo_t self:capability { setuid setgid dac_override sys_resource };
+	allow $1_sudo_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+	allow $1_sudo_t self:process { setexec setrlimit };
+	allow $1_sudo_t self:fd use;
+	allow $1_sudo_t self:fifo_file rw_file_perms;
+	allow $1_sudo_t self:unix_dgram_socket create_socket_perms;
+	allow $1_sudo_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_sudo_t self:unix_dgram_socket sendto;
+	allow $1_sudo_t self:unix_stream_socket connectto;
+	allow $1_sudo_t self:shm create_shm_perms;
+	allow $1_sudo_t self:sem create_sem_perms;
+	allow $1_sudo_t self:msgq create_msgq_perms;
+	allow $1_sudo_t self:msg { send receive };
+
+	# Enter this derived domain from the user domain
+	domain_auto_trans($1_t, sudo_exec_t, $1_sudo_t)
+	allow $1_sudo_t $1_t:fd use;
+	allow $1_t $1_sudo_t:fd use;
+	allow $1_t $1_sudo_t:fifo_file rw_file_perms;
+	allow $1_t $1_sudo_t:process sigchld;
+
+	# By default, revert to the calling domain when a shell is executed.
+	corecmd_shell_domtrans($1_sudo_t,$1_t)
+	allow $1_t $1_sudo_t:fd use;
+	allow $1_sudo_t $1_t:fd use;
+	allow $1_sudo_t $1_t:fifo_file rw_file_perms;
+	allow $1_sudo_t $1_t:process sigchld;
+
+	kernel_read_kernel_sysctl($1_sudo_t)
+	kernel_read_system_state($1_sudo_t)
+
+	dev_read_urand($1_sudo_t)
+
+	fs_search_auto_mountpoints($1_sudo_t)
+	fs_getattr_xattr_fs($1_sudo_t)
+
+	selinux_get_fs_mount($1_sudo_t)
+	selinux_validate_context($1_sudo_t)
+	selinux_compute_access_vector($1_sudo_t)
+	selinux_compute_create_context($1_sudo_t)
+	selinux_compute_relabel_context($1_sudo_t)
+	selinux_compute_user_contexts($1_sudo_t)
+
+	term_use_all_user_ttys($1_sudo_t)
+	term_use_all_user_ptys($1_sudo_t)
+	term_relabel_all_user_ttys($1_sudo_t)
+	term_relabel_all_user_ptys($1_sudo_t)
+
+	auth_domtrans_chk_passwd($1_sudo_t)
+
+	corecmd_getattr_bin_file($1_sudo_t)
+	corecmd_read_sbin_symlink($1_sudo_t)
+	corecmd_getattr_sbin_file($1_sudo_t)
+
+	domain_use_wide_inherit_fd($1_sudo_t)
+	domain_sigchld_wide_inherit_fd($1_sudo_t)
+	domain_getattr_all_entry_files($1_sudo_t)
+
+	files_read_etc_files($1_sudo_t)
+	files_read_var_files($1_sudo_t)
+	files_read_usr_symlinks($1_sudo_t)
+	files_getattr_usr_files($1_sudo_t)
+	# for some PAM modules and for cwd
+	files_dontaudit_search_home($1_sudo_t)
+
+	init_rw_script_pid($1_sudo_t)
+
+	libs_use_ld_so($1_sudo_t)
+	libs_use_shared_libs($1_sudo_t)
+
+	logging_send_syslog_msg($1_sudo_t)
+
+	miscfiles_read_localization($1_sudo_t)
+
+	seutil_read_config($1_sudo_t)
+	seutil_read_default_contexts($1_sudo_t)
+
+	userdom_use_unpriv_users_fd($1_sudo_t)
+	# for some PAM modules and for cwd
+	userdom_dontaudit_search_all_users_home($1_sudo_t)
+
+	# if secure mode is enabled, then sudo
+	# can only transition to unprivileged users
+	if(secure_mode) {
+		userdom_spec_domtrans_unpriv_users($1_sudo_t)
+	} else {
+		userdom_spec_domtrans_all_users($1_sudo_t)
+	}
+
+	optional_policy(`nis.te',`
+		nis_use_ypbind($1_sudo_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_sudo_t)
+	')
+
+	ifdef(`TODO',`
+	ifdef(`gnome-pty-helper.te', `allow $1_sudo_t gphdomain:fd use;')
+
+	# for when the network connection is killed
+	dontaudit unpriv_userdomain $1_sudo_t:process signal;
+
+	ifdef(`mta.te', `
+	domain_auto_trans($1_sudo_t, sendmail_exec_t, $1_mail_t)
+	allow $1_mail_t $1_sudo_t:fifo_file rw_file_perms;
+	')
+
+	ifdef(`pam.te', `
+	allow $1_sudo_t pam_var_run_t:dir create_dir_perms;
+	allow $1_sudo_t pam_var_run_t:file create_file_perms;
+	')
+
+	rw_dir_create_file($1_sudo_t, $1_tmp_t)
+	rw_dir_create_file($1_sudo_t, $1_home_t)
+	') dnl end TODO
+')
