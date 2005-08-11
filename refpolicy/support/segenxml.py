@@ -215,9 +215,13 @@ def getModuleXML(file_name):
 				temp_buf = []
 				module_buf.append("</template>\n")
 
+	# The file had no interfaces, just a header.
+	if phase == "get header":
+		module_buf += temp_buf
+
 	# If there are XML comments at the end of the file, they arn't
 	# attributed to anything. These are ignored.
-	if len(temp_buf):
+	elif len(temp_buf):
 		warning("orphan XML comments at bottom of file %s" % file_name)
 		
 	module_buf.append("</module>\n")
