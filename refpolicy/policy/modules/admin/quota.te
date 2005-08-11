@@ -1,0 +1,89 @@
+
+policy_module(quota,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type quota_t;
+type quota_exec_t;
+init_system_domain(quota_t,quota_exec_t)
+
+type quota_db_t;
+files_type(quota_db_t)
+
+type quota_flag_t;
+files_type(quota_flag_t)
+
+allow quota_t self:capability { sys_admin dac_override };
+dontaudit quota_t self:capability sys_tty_config;
+allow quota_t self:process signal_perms;
+
+# for /quota.*
+allow quota_t quota_db_t:file { read write quotaon };
+
+kernel_list_proc(quota_t)
+kernel_read_proc_symlinks(quota_t)
+kernel_read_kernel_sysctl(quota_t)
+
+dev_read_sysfs(quota_t)
+dev_getattr_all_blk_files(quota_t)
+dev_getattr_all_chr_files(quota_t)
+
+fs_get_xattr_fs_quota(quota_t)
+fs_set_xattr_fs_quota(quota_t)
+fs_getattr_xattr_fs(quota_t)
+fs_remount_xattr_fs(quota_t)
+fs_search_auto_mountpoints(quota_t)
+
+storage_raw_read_fixed_disk(quota_t)
+
+term_dontaudit_use_console(quota_t)
+
+domain_use_wide_inherit_fd(quota_t)
+
+files_list_all_dirs(quota_t)
+files_read_all_files(quota_t)
+files_read_all_symlinks(quota_t)
+files_getattr_all_pipes(quota_t)
+files_getattr_all_sockets(quota_t)
+# Read /etc/mtab.
+files_read_etc_runtime_files(quota_t)
+
+init_use_fd(quota_t)
+init_use_script_pty(quota_t)
+
+libs_use_ld_so(quota_t)
+libs_use_shared_libs(quota_t)
+
+logging_send_syslog_msg(quota_t)
+
+userdom_dontaudit_use_unpriv_user_fd(quota_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(quota_t)
+	term_dontaudit_use_generic_pty(quota_t)
+	files_dontaudit_read_root_file(quota_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(quota_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(quota_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(quota_t)
+')
+
+ifdef(`TODO',`
+# quotacheck creates new quota_db_t files
+file_type_auto_trans(quota_t, { root_t home_root_t var_t usr_t src_t var_spool_t }, quota_db_t, file)
+
+allow quota_t file_t:file quotaon;
+
+allow quota_t proc_t:file getattr;
+') dnl end TODO
