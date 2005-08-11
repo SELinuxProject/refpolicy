@@ -389,14 +389,11 @@ def gen_docs(doc, working_dir, templatedir):
 		interfaces = []
 		for interface in node.getElementsByTagName("interface"):
 			interface_parameters = []
-			interface_desc = interface_secdesc = interface_summary = None
+			interface_desc = interface_summary = None
 			for i,v in interface.attributes.items():
 				interface_name = v
 			for desc in interface.getElementsByTagName("desc"):
 				interface_desc = format_html_desc(desc)
-			for desc in interface.getElementsByTagName("secdesc"):
-				if desc:
-					interface_secdesc = format_html_desc(desc)
 			for desc in interface.getElementsByTagName("summary"):
 				interface_summary = format_html_desc(desc)
 			
@@ -417,14 +414,12 @@ def gen_docs(doc, working_dir, templatedir):
 			interfaces.append( { "interface_name" : interface_name,
 					   "interface_summary" : interface_summary,
 					   "interface_desc" : interface_desc,
-					   "interface_parameters" : interface_parameters,
-					   "interface_secdesc" : interface_secdesc })
+					   "interface_parameters" : interface_parameters })
 			#all_interfaces is for the main interface index with all interfaces
 			all_interfaces.append( { "interface_name" : interface_name,
 					   "interface_summary" : interface_summary,
 					   "interface_desc" : interface_desc,
 					   "interface_parameters" : interface_parameters,
-					   "interface_secdesc" : interface_secdesc,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
 		interfaces.sort(int_cmp)	
@@ -436,14 +431,11 @@ def gen_docs(doc, working_dir, templatedir):
 		templates = []
 		for template in node.getElementsByTagName("template"):
 			template_parameters = []
-			template_desc = template_secdesc = template_summary = None
+			template_desc = template_summary = None
 			for i,v in template.attributes.items():
 				template_name = v
 			for desc in template.getElementsByTagName("desc"):
 				template_desc = format_html_desc(desc)
-			for desc in template.getElementsByTagName("secdesc"):
-				if desc:
-					template_secdesc = format_html_desc(desc)
 			for desc in template.getElementsByTagName("summary"):
 				template_summary = format_html_desc(desc)
 			
@@ -464,14 +456,12 @@ def gen_docs(doc, working_dir, templatedir):
 			templates.append( { "template_name" : template_name,
 					   "template_summary" : template_summary,
 					   "template_desc" : template_desc,
-					   "template_parameters" : template_parameters,
-					   "template_secdesc" : template_secdesc })
+					   "template_parameters" : template_parameters })
 			#all_templates is for the main interface index with all templates
 			all_templates.append( { "template_name" : template_name,
 					   "template_summary" : template_summary,
 					   "template_desc" : template_desc,
 					   "template_parameters" : template_parameters,
-					   "template_secdesc" : template_secdesc,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
 
