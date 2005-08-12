@@ -354,7 +354,7 @@ endif
 #
 $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 	@echo "Validating file_contexts."
-	$(SETFILES) -q -c $(LOADPATH) $(FC)
+	$(QUIET) $(SETFILES) -q -c $(LOADPATH) $(FC)
 	@echo "Installing file_contexts."
 	@mkdir -p $(CONTEXTPATH)/files
 	$(QUIET) install -m 644 $(FC) $(FCPATH)
