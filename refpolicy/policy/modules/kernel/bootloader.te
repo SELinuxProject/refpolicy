@@ -110,6 +110,7 @@ dev_read_raw_memory(bootloader_t)
 fs_getattr_xattr_fs(bootloader_t)
 
 term_getattr_all_user_ttys(bootloader_t)
+term_dontaudit_manage_pty_dir(bootloader_t)
 
 corecmd_exec_bin(bootloader_t)
 corecmd_exec_sbin(bootloader_t)
@@ -149,8 +150,18 @@ ifdef(`distro_debian',`
 	allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
 	allow bootloader_t boot_t:file relabelfrom;
 
+	fs_list_tmpfs(bootloader_t)
+
+	files_relabelto_usr_files(bootloader_t)
+	files_search_var_lib(bootloader_t)
+	files_list_script_pids(bootloader_t)
 	# for /usr/share/initrd-tools/scripts
 	files_exec_usr_files(bootloader_t)
+
+	fstools_manage_entry_files(bootloader_t)
+	fstools_relabelto_entry_files(bootloader_t)
+
+	libs_relabelto_lib_files(bootloader_t)
 ')
 
 ifdef(`distro_redhat',`
@@ -204,16 +215,15 @@ optional_policy(`userdomain.te',`
 ')
 
 ifdef(`TODO',`
-dontaudit bootloader_t devpts_t:dir create_dir_perms;
 ifdef(`distro_debian', `
-	allow bootloader_t { usr_t lib_t fsadm_exec_t }:file relabelto;
-	allow bootloader_t { usr_t lib_t fsadm_exec_t }:file create_file_perms;
-	allow bootloader_t tmpfs_t:dir r_dir_perms;
-	allow bootloader_t initrc_var_run_t:dir r_dir_perms;
-	allow bootloader_t var_lib_t:dir search;
+	# cjp: there is no setfscreate or type_transition, and
+	# bootloader_t cannot rw a usr_t or lib_t directory, so
+	# how can this work?  This is probably rw_file_perms,
+	# possibly with unlink.  Files are probably "created"
+	# by the above relabeling permissions.
+	allow bootloader_t { usr_t lib_t }:file create_file_perms;
+
 	allow bootloader_t dpkg_var_lib_t:dir r_dir_perms;
 	allow bootloader_t dpkg_var_lib_t:file { getattr read };
-
 ')
-
 ') dnl end TODO
