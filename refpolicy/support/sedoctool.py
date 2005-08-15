@@ -123,12 +123,23 @@ def gen_module_conf(doc, file_name, namevalue_list):
 				for line in s:
 					file_name.write("# %s\n" % line)
 
+				# If the module is set as disabled.
 				if [mod_name, MOD_DISABLED] in namevalue_list:
 					file_name.write("%s = %s\n\n" % (mod_name, MOD_DISABLED))
+				# If the module is set as enabled.
 				elif [mod_name, MOD_ENABLED] in namevalue_list:
 					file_name.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
-				else:
+				# If the module is set as base.
+				elif [mod_name, MOD_BASE] in namevalue_list:
 					file_name.write("%s = %s\n\n" % (mod_name, MOD_BASE))
+				# If the module is a new module.
+				else:
+					# Set the module to base if it is marked as required.
+					if mod_req:
+						file_name.write("%s = %s\n\n" % (mod_name, MOD_BASE))
+					# Set the module to enabled if it is not required. 
+					else:
+						file_name.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
 
 def get_conf(conf):
 	"""
