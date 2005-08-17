@@ -1,0 +1,129 @@
+
+policy_module(ldap,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type slapd_t;
+type slapd_exec_t;
+init_daemon_domain(slapd_t,slapd_exec_t)
+
+type slapd_db_t;
+files_type(slapd_db_t)
+
+type slapd_etc_t; #, usercanread;
+files_type(slapd_etc_t)
+
+type slapd_replog_t;
+files_type(slapd_replog_t)
+
+type slapd_tmp_t;
+files_tmp_file(slapd_tmp_t)
+
+type slapd_var_run_t;
+files_pid_file(slapd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+# should not need kill
+# cjp: why net_raw?
+allow slapd_t self:capability { kill setgid setuid net_raw };
+dontaudit slapd_t self:capability sys_tty_config;
+allow slapd_t self:process setsched;
+allow slapd_t self:fifo_file { read write };
+allow slapd_t self:netlink_route_socket r_netlink_socket_perms;
+
+# Allow access to the slapd databases
+allow slapd_t slapd_db_t:dir create_dir_perms;
+allow slapd_t slapd_db_t:file create_file_perms;
+allow slapd_t slapd_db_t:lnk_file create_lnk_perms;
+
+allow slapd_t slapd_etc_t:file { getattr read };
+
+# Allow access to write the replication log (should tighten this)
+allow slapd_t slapd_replog_t:dir create_dir_perms;
+allow slapd_t slapd_replog_t:file create_file_perms;
+allow slapd_t slapd_replog_t:lnk_file create_lnk_perms;
+
+allow slapd_t slapd_tmp_t:dir create_dir_perms;
+allow slapd_t slapd_tmp_t:file create_file_perms;
+files_create_tmp_files(slapd_t, slapd_tmp_t, { file dir })
+
+allow slapd_t slapd_var_run_t:file create_file_perms;
+files_create_pid(slapd_t,slapd_var_run_t)
+
+kernel_read_system_state(slapd_t)
+kernel_read_kernel_sysctl(slapd_t)
+
+corenet_tcp_sendrecv_all_if(slapd_t)
+corenet_udp_sendrecv_all_if(slapd_t)
+corenet_raw_sendrecv_all_if(slapd_t)
+corenet_tcp_sendrecv_all_nodes(slapd_t)
+corenet_udp_sendrecv_all_nodes(slapd_t)
+corenet_raw_sendrecv_all_nodes(slapd_t)
+corenet_tcp_sendrecv_all_ports(slapd_t)
+corenet_udp_sendrecv_all_ports(slapd_t)
+corenet_tcp_bind_all_nodes(slapd_t)
+corenet_udp_bind_all_nodes(slapd_t)
+corenet_tcp_bind_ldap_port(slapd_t)
+
+dev_read_urand(slapd_t)
+dev_read_sysfs(slapd_t)
+
+fs_getattr_all_fs(slapd_t)
+fs_search_auto_mountpoints(slapd_t)
+
+term_dontaudit_use_console(slapd_t)
+
+domain_use_wide_inherit_fd(slapd_t)
+
+files_read_etc_files(slapd_t)
+files_read_etc_runtime_files(slapd_t)
+files_read_usr_files(slapd_t)
+files_list_var_lib(slapd_t)
+
+init_use_fd(slapd_t)
+init_use_script_pty(slapd_t)
+
+libs_use_ld_so(slapd_t)
+libs_use_shared_libs(slapd_t)
+
+logging_send_syslog_msg(slapd_t)
+
+miscfiles_read_localization(slapd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(slapd_t)
+userdom_dontaudit_search_sysadm_home_dir(slapd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(slapd_t)
+	term_dontaudit_use_generic_pty(slapd_t)
+	files_dontaudit_read_root_file(slapd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(slapd_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(slapd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(slapd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(slapd_t)
+')
+
+ifdef(`TODO',`
+# allow any domain to connect to the LDAP server
+# cjp: how does this relate to the old can_ldap() macro?
+can_tcp_connect(domain, slapd_t)
+') dnl end TODO
