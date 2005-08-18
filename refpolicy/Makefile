@@ -63,24 +63,52 @@ PREFIX := /usr
 BINDIR := $(PREFIX)/bin
 SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
+CHECKMODULE := $(BINDIR)/checkmodule
+SEMOD_PKG := $(BINDIR)/semodule_package
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 GENHOMEDIRCON := $(SBINDIR)/genhomedircon
+XMLLINT := $(BINDIR)/xmllint
 
 CFLAGS := -Wall
 
+# policy source layout
+POLDIR = policy
+MODDIR = $(POLDIR)/modules
+FLASKDIR = $(POLDIR)/flask
+
+# policy building support tools
 SUPPORT := support
 GENXML := $(SUPPORT)/segenxml.py
 GENDOC := $(SUPPORT)/sedoctool.py
 FCSORT := $(SUPPORT)/fc_sort
 SETTUN := $(SUPPORT)/set_tunables
 
-XMLLINT := $(BINDIR)/xmllint
+# documentation paths
+DOCS = doc
+POLXML = $(DOCS)/policy.xml
+XMLDTD = $(DOCS)/policy.dtd
+LAYERXML = metadata.xml
+HTMLDIR = $(DOCS)/html
+DOCTEMPLATE = $(DOCS)/templates
+
+# config file paths
+GLOBALTUN := $(POLDIR)/global_tunables
+MOD_CONF := $(POLDIR)/modules.conf
+TUNABLES := $(POLDIR)/tunables.conf
+
+# install paths
+TOPDIR = $(DESTDIR)/etc/selinux
+INSTALLDIR = $(TOPDIR)/$(NAME)
+SRCPATH = $(INSTALLDIR)/src
+USERPATH = $(INSTALLDIR)/users
+CONTEXTPATH = $(INSTALLDIR)/contexts
 
 # enable MLS if requested.
 ifneq ($(findstring mls,$(TYPE)),)
 	override M4PARAM += -D enable_mls
 	CHECKPOLICY += -M
+	CHECKMODULE += -M
 endif
 
 # compile targeted policy if requested.
@@ -91,10 +119,6 @@ endif
 # enable distribution-specific policy
 ifneq ($(DISTRO),)
 	override M4PARAM += -D distro_$(DISTRO)
-endif
-
-ifeq ($(MONOLITHIC),y)
-	override M4PARAM += -D monolithic_policy
 endif
 
 ifneq ($(OUTPUT_POLICY),)
@@ -118,32 +142,13 @@ endif
 FC := file_contexts
 POLVER := policy.$(PV)
 
-# install paths
-TOPDIR = $(DESTDIR)/etc/selinux
-INSTALLDIR = $(TOPDIR)/$(NAME)
-POLICYPATH = $(INSTALLDIR)/policy
-SRCPATH = $(INSTALLDIR)/src
-USERPATH = $(INSTALLDIR)/users
-CONTEXTPATH = $(INSTALLDIR)/contexts
-LOADPATH = $(POLICYPATH)/$(POLVER)
-FCPATH = $(CONTEXTPATH)/files/file_contexts
-HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
-
-POLDIR = policy
-MODDIR = $(POLDIR)/modules
-
-BASE_MODULE = $(MODDIR)/kernel
-FLASKDIR = $(POLDIR)/flask
 ifneq ($(findstring targeted,$(TYPE)),)
 	APPCONF := config/appconfig-targeted
 else
 	APPCONF := config/appconfig-strict
 endif
-M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
-GLOBALTUN := $(POLDIR)/global_tunables
-MOD_CONF := $(POLDIR)/modules.conf
-TUNABLES := $(POLDIR)/tunables.conf
+M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media $(INSTALLDIR)/booleans
@@ -160,151 +165,31 @@ GENERATED_FC := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc.in
 # when a generated file is already generated
 DETECTED_MODS := $(sort $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE))
 
+# modules.conf setting for base module
 MODBASE := base
+
+# modules.conf setting for module
 MODMOD := module
+
+# extract settings from modules.conf
 BASE_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
 MOD_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
 
-# for monolithic policy use all base and module to create policy
-# for modular policy, use only base
+########################################
+#
+# Load appropriate rules
+#
+
 ifeq ($(MONOLITHIC),y)
-	ENABLEMOD := $(BASE_MODS) $(MOD_MODS)
+	include Rules.monolithic
 else
-	ENABLEMOD := $(BASE_MODS)
+	include Rules.modular
 endif
-
-ALL_MODULES := $(filter $(ENABLEMOD),$(DETECTED_MODS))
-
-PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
-ALL_INTERFACES := $(ALL_MODULES:.te=.if)
-ALL_TE_FILES := $(ALL_MODULES)
-POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
-
-ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
-HOMEDIR_TEMPLATE = tmp/homedir_template
-
-POLICY_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
-
-DOCS = doc
-POLXML = $(DOCS)/policy.xml
-XMLDTD = $(DOCS)/policy.dtd
-LAYERXML = metadata.xml
-HTMLDIR = $(DOCS)/html
-DOCTEMPLATE = $(DOCS)/templates
 
 ########################################
 #
-# default action: build policy locally
+# Generated files
 #
-default: policy
-
-policy: $(POLVER)
-
-install: $(LOADPATH) $(FCPATH) $(APPFILES) $(USERPATH)/local.users
-
-load: tmp/load
-
-########################################
-#
-# Build a binary policy locally
-#
-$(POLVER): policy.conf
-	@echo "Compiling $(NAME) $(POLVER)"
-ifneq ($(PV),$(KV))
-	@echo
-	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
-	@echo
-endif
-	$(QUIET) $(CHECKPOLICY) $^ -o $@
-
-########################################
-#
-# Install a binary policy
-#
-$(LOADPATH): policy.conf
-	@mkdir -p $(POLICYPATH)
-	@echo "Compiling and installing $(NAME) $(LOADPATH)"
-ifneq ($(PV),$(KV))
-	@echo
-	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
-	@echo
-endif
-	$(QUIET) $(CHECKPOLICY) $^ -o $@
-
-########################################
-#
-# Load the binary policy
-#
-reload tmp/load: $(LOADPATH) $(FCPATH)
-	@echo "Loading $(NAME) $(LOADPATH)"
-	$(QUIET) $(LOADPOLICY) -q $(LOADPATH)
-	@touch tmp/load
-
-########################################
-#
-# Construct a monolithic policy.conf
-#
-policy.conf: $(POLICY_SECTIONS)
-	@echo "Creating $(NAME) policy.conf"
-# checkpolicy can use the #line directives provided by -s for error reporting:
-	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$@.tmp
-	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
-# the ordering of these ocontexts matters:
-	$(QUIET) grep ^portcon tmp/$@.tmp >> $@ || true
-	$(QUIET) grep ^netifcon tmp/$@.tmp >> $@ || true
-	$(QUIET) grep ^nodecon tmp/$@.tmp >> $@ || true
-
-tmp/pre_te_files.conf: $(PRE_TE_FILES)
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
-
-tmp/generated_definitions.conf: $(ALL_LAYERS) $(ALL_TE_FILES)
-# per-userdomain templates:
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
-	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_MODULES))); do \
-		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$1'")')" \
-			>> $@ ;\
-	done
-	$(QUIET) echo "')" >> $@
-# define foo.te
-	$(QUIET) for i in $(notdir $(ALL_MODULES)); do \
-		echo "define(\`$$i')" >> $@ ;\
-	done
-	$(QUIET) $(SETTUN) $(TUNABLES) >> $@
-
-tmp/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
-ifeq ($(ALL_INTERFACES),)
-	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
-endif
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
-
-tmp/all_te_files.conf: $(ALL_TE_FILES)
-ifeq ($(ALL_TE_FILES),)
-	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
-endif
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
-
-tmp/post_te_files.conf: $(POST_TE_FILES)
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) cat $^ > $@
-
-# extract attributes and put them first. extract post te stuff
-# like genfscon and put last.  portcon, nodecon, and netifcon
-# is delayed since they are generated by m4
-tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_files.conf tmp/post_te_files.conf
-	$(QUIET) grep ^attribute tmp/all_te_files.conf > tmp/all_attrs_types.conf || true
-	$(QUIET) grep '^type ' tmp/all_te_files.conf >> tmp/all_attrs_types.conf
-	$(QUIET) cat tmp/post_te_files.conf > tmp/all_post.conf
-	$(QUIET) grep '^sid ' tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(QUIET) egrep '^fs_use_(xattr|task|trans)' tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(QUIET) grep ^genfscon tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(QUIET) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
-			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
-			< tmp/all_te_files.conf > tmp/only_te_rules.conf
-
 $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/kernel/corenetwork.if.in
 	@echo "#" > $@
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
@@ -312,7 +197,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
-		| m4 $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
@@ -320,73 +205,8 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 $(M4PARAM) $(M4SUPPORT) $^ \
+	$(QUIET) m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
-
-########################################
-#
-# Remove the dontaudit rules from the policy.conf
-#
-enableaudit: policy.conf
-	@test -d tmp || mkdir -p tmp
-	@echo "Removing dontaudit rules from policy.conf"
-	$(QUIET) grep -v dontaudit policy.conf > tmp/policy.audit
-	$(QUIET) mv tmp/policy.audit policy.conf
-
-########################################
-#
-# Construct file_contexts
-#
-$(FC): $(M4SUPPORT) tmp/generated_definitions.conf $(ALL_FC_FILES) $(FCSORT)
-ifeq ($(ALL_FC_FILES),)
-	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
-endif
-	@echo "Creating file_contexts."
-	@test -d tmp || mkdir -p tmp
-	$(QUIET) m4 $(M4PARAM) $(M4SUPPORT) tmp/generated_definitions.conf $(ALL_FC_FILES) > tmp/$@.tmp
-	$(QUIET) grep -e HOME -e ROLE tmp/$@.tmp > $(HOMEDIR_TEMPLATE)
-	$(QUIET) sed -i -e /HOME/d -e /ROLE/d tmp/$@.tmp
-	$(QUIET) $(FCSORT) tmp/$@.tmp $@
-
-########################################
-#
-# Install file_contexts
-#
-$(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
-	@echo "Validating file_contexts."
-	$(QUIET) $(SETFILES) -q -c $(LOADPATH) $(FC)
-	@echo "Installing file_contexts."
-	@mkdir -p $(CONTEXTPATH)/files
-	$(QUIET) install -m 644 $(FC) $(FCPATH)
-	$(QUIET) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
-	$(QUIET) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(NAME) $(USEPWD)
-
-########################################
-#
-# Filesystem labeling
-#
-FILESYSTEMS := `mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';`
-
-checklabels: $(FC) $(SETFILES)
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(QUIET) $(SETFILES) -v -n $(FC) $(FILESYSTEMS)
-
-restorelabels: $(FC) $(SETFILES)
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(QUIET) $(SETFILES) -v $(FC) $(FILESYSTEMS)
-
-relabel:  $(FC) $(SETFILES)
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(QUIET) $(SETFILES) $(FC) $(FILESYSTEMS)
 
 ########################################
 #
@@ -434,7 +254,7 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
+	$(QUIET) m4 -D monolithic_policy $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
 		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
@@ -508,16 +328,6 @@ install-src:
 
 ########################################
 #
-# Clean the sources
-#
-clean:
-	rm -fR tmp
-	rm -f policy.conf
-	rm -f policy.$(PV)
-	rm -f $(FC)
-
-########################################
-#
 # Clean everything
 #
 bare: clean
@@ -537,4 +347,4 @@ ifneq ($(GENERATED_FC),)
 	rm -f $(GENERATED_FC)
 endif
 
-.PHONY: default policy install load reload enableaudit checklabels restorelabels relabel conf clean bare
+.PHONY: install-src install-appconfig conf html bare
