@@ -50,6 +50,23 @@ def get_av_db(file_name):
 	"""
 	Returns an access vector database generated from the file file_name.
 	"""
+	# This function takes a file, reads the data, parses it and returns
+	#  a list of access vector classes.
+	# Reading into av_data:
+	#  The file specified will be read line by line. Each line will have
+	#   its comments removed. Once comments are removed, each 'word' (text
+	#   seperated by whitespace) and braces will be split up into seperate
+	#   strings and appended to the av_data list, in the order they were
+	#   read.
+	# Parsing av_data:
+	#  Parsing is done using a queue implementation of the av_data list.
+	#   Each time a word is used, it is dequeued afterwards. Each loop in
+	#   the while loop below will read in key words and dequeue expected
+	#   words and values. At the end of each loop, a Class containing the
+	#   name, permissions and whether it is a common or not will be appended
+	#   to the database. Lots of errors are caught here, almost all checking
+	#   if a token is expected but EOF is reached.
+	# Now the list of Class objects is returned.
 
 	av_file = open(file_name, "r")
 	av_data = []
@@ -85,6 +102,8 @@ def get_av_db(file_name):
 	#  from av_data and use the front element, then dequeue it. Each
 	#  loop of this while is a common or class declaration. Several
 	#  expected tokens are parsed and dequeued out of av_data for each loop.
+	# At the end of the loop, database will contain a list of Class objects.
+	#  i.e. [Class('name',['perm1','perm2',...],'True'), ...]
 	# Dequeue from the beginning of the list until av_data is empty:
 	database = []
 	while len(av_data) != 0:
