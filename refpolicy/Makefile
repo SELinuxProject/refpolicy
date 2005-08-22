@@ -47,7 +47,6 @@ NAME = refpolicy
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
-# Only monolithic policies are currently supported.
 MONOLITHIC=y
 
 # Uncomment this to disable command echoing
