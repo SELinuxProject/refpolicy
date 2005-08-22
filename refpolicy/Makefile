@@ -73,14 +73,18 @@ XMLLINT := $(BINDIR)/xmllint
 CFLAGS := -Wall
 
 # policy source layout
-POLDIR = policy
-MODDIR = $(POLDIR)/modules
-FLASKDIR = $(POLDIR)/flask
+POLDIR := policy
+MODDIR := $(POLDIR)/modules
+FLASKDIR := $(POLDIR)/flask
+SECCLASS := $(FLASKDIR)/security_classes
+ISIDS := $(FLASKDIR)/initial_sids
+AVS := $(FLASKDIR)/access_vectors
 
 # policy building support tools
 SUPPORT := support
 GENXML := $(SUPPORT)/segenxml.py
 GENDOC := $(SUPPORT)/sedoctool.py
+GENPERM := $(SUPPORT)/genclassperms.py
 FCSORT := $(SUPPORT)/fc_sort
 SETTUN := $(SUPPORT)/set_tunables
 

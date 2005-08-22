@@ -11,13 +11,18 @@ BASE_FC := base.fc
 
 BASE_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
 
-BASE_PRE_TE_FILES := $(addprefix $(FLASKDIR)/,security_classes initial_sids access_vectors) $(M4SUPPORT) $(POLDIR)/mls
+BASE_PRE_TE_FILES := $(SECCLASS) $(ISIDS) $(AVS) $(M4SUPPORT) $(POLDIR)/mls
 BASE_TE_FILES := $(BASE_MODS)
 BASE_POST_TE_FILES := $(POLDIR)/users $(POLDIR)/constraints
 BASE_FC_FILES := $(BASE_MODS:.te=.fc)
 
 MOD_MODULES := $(MOD_MODS:.te=.mod)
-MOD_PKGS := $(MOD_MODS:.te=.pp)
+MOD_PKGS := $(notdir $(MOD_MODS:.te=.pp))
+
+# search layer dirs for source files
+vpath %.te $(ALL_LAYERS)
+vpath %.if $(ALL_LAYERS)
+vpath %.fc $(ALL_LAYERS)
 
 ########################################
 #
@@ -68,14 +73,9 @@ tmp/pre_te_files.conf: $(BASE_PRE_TE_FILES)
 	$(QUIET) cat $^ > $@
 
 tmp/generated_definitions.conf: $(ALL_LAYERS) $(BASE_TE_FILES)
-# per-userdomain templates:
 	@test -d tmp || mkdir -p tmp
-	$(QUIET) echo "define(\`per_userdomain_templates',\`" > $@
-	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(BASE_TE_FILES))); do \
-		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$1'")')" \
-			>> $@ ;\
-	done
-	$(QUIET) echo "')" >> $@
+# define all available object classes
+	$(QUIET) $(GENPERM) $(AVS) $(SECCLASS) > $@
 # define foo.te
 	$(QUIET) for i in $(notdir $(BASE_TE_FILES)); do \
 		echo "define(\`$$i')" >> $@ ;\
@@ -131,20 +131,16 @@ endif
 
 ########################################
 #
-# Build modules packages
+# Build module packages
 #
-%.pp: %.mod %.fc
-	@echo "Creating $(NAME) $(@F) package"
-	$(QUIET) $(SEMOD_PKG) $@ %^
+tmp/%.mod: $(M4SUPPORT) tmp/generated_definitions.conf tmp/all_interfaces.conf %.te
+	@echo "Compliling $(NAME) $(@F) module"
+	$(QUIET) m4 $(M4PARAM) -s $^ > $(@:.mod=.tmp)
+	$(QUIET) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
-########################################
-#
-# Compile modules
-#
-%.mod: $(M4SUPPORT) tmp/all_interfaces.conf %.te
-	@echo "Compiling $(NAME) $(@F) module"
-	$(QUIET) m4 $(M4PARAM) -s $^ > tmp/$(@F).tmp
-	$(QUIET) $(CHECKMODULE) -m tmp/$(@F).tmp -o $@
+%.pp: tmp/%.mod %.fc
+	@echo "Creating $(NAME) $(@F) policy package"
+	$(QUIET) $(SEMOD_PKG) $@ $^
 
 ########################################
 #
@@ -153,8 +149,6 @@ endif
 clean:
 	rm -fR tmp
 	rm -f base.conf
-	rm -f $(BASE_PKG)
-	find . -iname "*.mod" | xargs rm -f
-	find . -iname "*.pp" | xargs rm -f
+	rm -f *.pp
 
 .PHONY: default base modules clean
