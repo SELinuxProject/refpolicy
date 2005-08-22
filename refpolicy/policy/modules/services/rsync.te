@@ -1,0 +1,94 @@
+
+policy_module(rsync,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type rsync_t;
+type rsync_exec_t;
+
+inetd_tcp_service_domain(rsync_t,rsync_exec_t)
+role system_r types rsync_t;
+
+type rsync_data_t;
+files_type(rsync_data_t)
+
+type rsync_tmp_t;
+files_tmp_file(rsync_tmp_t)
+
+type rsync_var_run_t;
+files_pid_file(rsync_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rsync_t self:process signal_perms;
+allow rsync_t self:fifo_file rw_file_perms;
+allow rsync_t self:tcp_socket { listen accept connected_socket_perms };
+
+# for identd
+# cjp: this should probably only be inetd_child_t rules?
+# search home and kerberos also.
+allow rsync_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
+allow rsync_t self:capability { setuid setgid };
+#end for identd
+
+allow rsync_t rsync_data_t:dir r_dir_perms;
+allow rsync_t rsync_data_t:file r_file_perms;
+allow rsync_t rsync_data_t:lnk_file r_file_perms;
+
+allow rsync_t rsync_tmp_t:dir create_dir_perms;
+allow rsync_t rsync_tmp_t:file create_file_perms;
+files_create_tmp_files(rsync_t, rsync_tmp_t, { file dir })
+
+allow rsync_t rsync_var_run_t:file create_file_perms;
+files_create_pid(rsync_t,rsync_var_run_t)
+
+kernel_read_kernel_sysctl(rsync_t)
+kernel_read_system_state(rsync_t)
+kernel_read_network_state(rsync_t)
+
+corenet_tcp_sendrecv_all_if(rsync_t)
+corenet_raw_sendrecv_all_if(rsync_t)
+corenet_tcp_sendrecv_all_nodes(rsync_t)
+corenet_raw_sendrecv_all_nodes(rsync_t)
+corenet_tcp_sendrecv_all_ports(rsync_t)
+corenet_tcp_bind_all_nodes(rsync_t)
+
+dev_read_urand(rsync_t)
+
+fs_getattr_xattr_fs(rsync_t)
+
+files_read_etc_files(rsync_t)
+files_search_home(rsync_t)
+
+libs_use_ld_so(rsync_t)
+libs_use_shared_libs(rsync_t)
+
+logging_send_syslog_msg(rsync_t)
+
+miscfiles_read_localization(rsync_t)
+
+sysnet_read_config(rsync_t)
+
+optional_policy(`kerberos.te',`
+	kerberos_use(rsync_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(rsync_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(rsync_t)
+')
+
+ifdef(`TODO',`
+ifdef(`ftpd.te', `
+r_dir_file(rsync_t, ftpd_anon_t)
+')
+') dnl end TODO
