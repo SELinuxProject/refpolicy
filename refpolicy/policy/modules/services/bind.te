@@ -1,0 +1,249 @@
+
+policy_module(bind,1.0)
+
+########################################
+#
+# Declarations
+#
+
+# for DNSSEC key files
+type dnssec_t; #, secure_file_type;
+files_type(dnssec_t)
+
+type named_t;
+type named_exec_t;
+init_daemon_domain(named_t,named_exec_t)
+role system_r types named_t;
+
+# A type for configuration files of named.
+type named_conf_t;
+files_type(named_conf_t)
+
+# for secondary zone files
+type named_cache_t;
+files_type(named_cache_t)
+
+type named_tmp_t;
+files_tmp_file(named_tmp_t)
+
+type named_var_run_t;
+files_pid_file(named_var_run_t)
+
+# for primary zone files
+type named_zone_t;
+files_type(named_zone_t)
+
+type ndc_t;
+type ndc_exec_t;
+init_system_domain(ndc_t,ndc_exec_t)
+role system_r types ndc_t;
+
+########################################
+#
+# Named local policy
+#
+
+allow named_t self:capability { chown dac_override fowner setgid setuid sys_chroot sys_nice sys_resource };
+dontaudit named_t self:capability sys_tty_config;
+allow named_t self:process { setsched setcap setrlimit };
+allow named_t self:fifo_file rw_file_perms;
+allow named_t self:unix_stream_socket create_stream_socket_perms;
+allow named_t self:unix_dgram_socket create_socket_perms;
+allow named_t self:tcp_socket create_stream_socket_perms;
+allow named_t self:udp_socket create_socket_perms;
+allow named_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow named_t dnssec_t:file { getattr read };
+
+# read configuration
+allow named_t named_conf_t:dir r_dir_perms;
+allow named_t named_conf_t:file r_file_perms;
+allow named_t named_conf_t:lnk_file r_file_perms;
+
+# write cache for secondary zones
+allow named_t named_cache_t:dir rw_dir_perms;
+allow named_t named_cache_t:file create_file_perms;
+allow named_t named_cache_t:lnk_file create_lnk_perms;
+
+can_exec(named_t, named_exec_t)
+
+allow named_t named_tmp_t:dir create_dir_perms;
+allow named_t named_tmp_t:file create_file_perms;
+files_create_tmp_files(named_t, named_tmp_t, { file dir })
+
+allow named_t named_var_run_t:file create_file_perms;
+allow named_t named_var_run_t:sock_file create_file_perms;
+files_create_pid(named_t,named_var_run_t,{ file sock_file })
+
+# read zone files
+allow named_t named_zone_t:dir r_dir_perms;
+allow named_t named_zone_t:file r_file_perms;
+allow named_t named_zone_t:lnk_file r_file_perms;
+
+allow named_t ndc_t:tcp_socket { acceptfrom recvfrom };
+
+kernel_read_kernel_sysctl(named_t)
+kernel_read_system_state(named_t)
+kernel_read_network_state(named_t)
+kernel_tcp_recvfrom(named_t)
+
+corenet_tcp_sendrecv_all_if(named_t)
+corenet_raw_sendrecv_all_if(named_t)
+corenet_udp_sendrecv_all_if(named_t)
+corenet_tcp_sendrecv_all_nodes(named_t)
+corenet_udp_sendrecv_all_nodes(named_t)
+corenet_raw_sendrecv_all_nodes(named_t)
+corenet_tcp_sendrecv_all_ports(named_t)
+corenet_udp_sendrecv_all_ports(named_t)
+corenet_tcp_bind_all_nodes(named_t)
+corenet_udp_bind_all_nodes(named_t)
+corenet_tcp_bind_dns_port(named_t)
+corenet_udp_bind_dns_port(named_t)
+#corenet_tcp_bind_rndc_port(named_t)
+
+dev_read_sysfs(named_t)
+dev_read_rand(named_t)
+
+fs_getattr_all_fs(named_t)
+fs_search_auto_mountpoints(named_t)
+
+term_dontaudit_use_console(named_t)
+
+corecmd_search_sbin(named_t)
+
+domain_use_wide_inherit_fd(named_t)
+
+files_read_etc_files(named_t)
+files_read_etc_runtime_files(named_t)
+
+init_use_fd(named_t)
+init_use_script_pty(named_t)
+
+libs_use_ld_so(named_t)
+libs_use_shared_libs(named_t)
+
+logging_send_syslog_msg(named_t)
+
+miscfiles_read_localization(named_t)
+
+sysnet_read_config(named_t)
+
+userdom_dontaudit_use_unpriv_user_fd(named_t)
+userdom_dontaudit_search_sysadm_home_dir(named_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(named_t)
+	term_dontaudit_use_generic_pty(named_t)
+	files_dontaudit_read_root_file(named_t)
+	#dontaudit ndc_t unlabeled_t:file { getattr read };	
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(named_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(named_t)
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(named_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(named_t)
+')
+
+optional_policy(`udev.te',`
+	udev_read_db(named_t)
+')
+
+########################################
+#
+# NDC local policy
+#
+
+# cjp: why net_admin?!
+allow ndc_t self:capability { dac_override net_admin };
+allow ndc_t self:process { fork signal_perms };
+allow ndc_t self:fifo_file { read write getattr ioctl };
+allow ndc_t self:unix_stream_socket { connect create_stream_socket_perms };
+allow ndc_t self:tcp_socket create_socket_perms;
+allow ndc_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow ndc_t dnssec_t:file { getattr read };
+
+allow ndc_t named_t:tcp_socket { connectto recvfrom };
+allow ndc_t named_t:unix_stream_socket connectto;
+
+allow ndc_t named_conf_t:file { getattr read };
+
+allow ndc_t named_var_run_t:sock_file rw_file_perms;
+
+allow ndc_t named_zone_t:dir search;
+
+kernel_read_kernel_sysctl(ndc_t)
+kernel_tcp_recvfrom(ndc_t)
+
+corenet_tcp_sendrecv_all_if(ndc_t)
+corenet_raw_sendrecv_all_if(ndc_t)
+corenet_tcp_sendrecv_all_nodes(ndc_t)
+corenet_raw_sendrecv_all_nodes(ndc_t)
+corenet_tcp_sendrecv_all_ports(ndc_t)
+corenet_tcp_bind_all_nodes(ndc_t)
+
+fs_getattr_xattr_fs(ndc_t)
+
+domain_use_wide_inherit_fd(ndc_t)
+
+files_read_etc_files(ndc_t)
+files_search_pids(ndc_t)
+
+init_use_fd(ndc_t)
+init_use_script_pty(ndc_t)
+
+libs_use_ld_so(ndc_t)
+libs_use_shared_libs(ndc_t)
+
+logging_send_syslog_msg(ndc_t)
+
+miscfiles_read_localization(ndc_t)
+
+sysnet_read_config(ndc_t)
+
+# for /etc/rndc.key
+ifdef(`distro_redhat',`
+	allow ndc_t named_conf_t:dir search;
+')
+
+tunable_policy(`use_dns',`
+	allow ndc_t self:udp_socket create_socket_perms;
+	corenet_udp_sendrecv_all_if(ndc_t)
+	corenet_udp_sendrecv_all_nodes(ndc_t)
+	corenet_udp_sendrecv_dns_port(ndc_t)
+	corenet_udp_bind_all_nodes(ndc_t)
+')
+
+tunable_policy(`named_write_master_zones',`
+	allow named_t named_zone_t:dir create_dir_perms;
+	allow named_t named_zone_t:file create_file_perms;
+	allow named_t named_zone_t:lnk_file create_lnk_perms;
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(named_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(ndc_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(ndc_t)
+')
+
+ifdef(`TODO',`
+can_udp_send(domain, named_t)
+can_udp_send(named_t, domain)
+can_tcp_connect(domain, named_t)
+')
