@@ -1,0 +1,98 @@
+%define type refpolicy
+%define POLICYDIR /etc/selinux/%{type}
+%define FILE_CON ${POLICYDIR}/contexts/files/file_contexts
+%define FC_PRE ${FILE_CON}.pre
+
+Summary: SELinux Reference Policy configuration source files 
+Name: selinux-refpolicy-sources
+Version: REFPOL_VERSION
+Release: 1
+License: GPL
+Group: System Environment/Base
+PreReq: m4 make policycoreutils kernel gcc
+Requires: checkpolicy >= 1.20
+Requires: python
+BuildRequires: make m4 python
+Obsoletes: policy-sources
+Source: refpolicy-%{version}.tar.bz2
+Url: http://serefpolicy.sourceforge.net
+BuildArch: noarch
+BuildRoot: /tmp/rpmbuild/%{name}
+
+%description
+This subpackage includes the SELinux Reference Policy
+source files, which can be used to build a targeted policy
+or strict policy configuration.
+
+%prep
+%setup -q -n refpolicy
+
+%build
+cp -f policy/modules.conf.targeted_example policy/modules.conf
+sed -i -e '/^TYPE/s/strict/targeted/' Makefile
+sed -i -e 's/^#DISTRO/DISTRO/' Makefile
+make conf
+make clean
+rm -f support/*.pyc
+
+%install
+rm -fR $RPM_BUILD_ROOT
+make DESTDIR=$RPM_BUILD_ROOT install-src
+
+%clean
+rm -fR $RPM_BUILD_ROOT
+
+%files
+%defattr(0600,root,root,0700)
+%dir %{_sysconfdir}/selinux/%{type}/src/policy
+%config %{_sysconfdir}/selinux/%{type}/src/policy/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/doc
+%config %{_sysconfdir}/selinux/%{type}/src/policy/doc/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/doc/templates
+%config %{_sysconfdir}/selinux/%{type}/src/policy/doc/templates/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/support
+%config %{_sysconfdir}/selinux/%{type}/src/policy/support/*
+%attr(0755,root,root) %{_sysconfdir}/selinux/%{type}/src/policy/support/genclassperms.py
+%attr(0755,root,root) %{_sysconfdir}/selinux/%{type}/src/policy/support/pyplate.py
+%attr(0755,root,root) %{_sysconfdir}/selinux/%{type}/src/policy/support/sedoctool.py
+%attr(0755,root,root) %{_sysconfdir}/selinux/%{type}/src/policy/support/segenxml.py
+%attr(0755,root,root) %{_sysconfdir}/selinux/%{type}/src/policy/support/set_tunables
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/config
+%config(noreplace) %{_sysconfdir}/selinux/%{type}/src/policy/config/local.users
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/config/appconfig-targeted
+%config %{_sysconfdir}/selinux/%{type}/src/policy/config/appconfig-targeted/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/config/appconfig-strict
+%config %{_sysconfdir}/selinux/%{type}/src/policy/config/appconfig-strict/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy
+%config(noreplace) %{_sysconfdir}/selinux/%{type}/src/policy/policy/users
+%config(noreplace) %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules.conf
+%config(noreplace) %{_sysconfdir}/selinux/%{type}/src/policy/policy/tunables.conf
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/flask
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/flask/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/kernel
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/kernel/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/apps
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/apps/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/services
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/services/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/system
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/system/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/admin
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/modules/admin/*
+%dir %{_sysconfdir}/selinux/%{type}/src/policy/policy/support
+%config %{_sysconfdir}/selinux/%{type}/src/policy/policy/support/*
+
+%post
+if [ -x /usr/sbin/selinuxenabled -a -f /etc/selinux/config ]; then
+	. /etc/selinux/config
+	if [ "${SELINUXTYPE}" = "%{type}" ] && /usr/sbin/selinuxenabled; then
+		make -C %{POLICYDIR}/src/policy load > /dev/null 2>&1
+		[ -f %{FC_PRE} ] \
+			&& fixfiles -l /dev/null -C %{FC_PRE} restore \
+			&& rm -f %{FC_PRE} 
+	fi
+fi
+exit 0
+
+%changelog
