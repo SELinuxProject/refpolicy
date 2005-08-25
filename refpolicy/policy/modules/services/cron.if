@@ -112,6 +112,13 @@ template(`cron_per_userdomain_template',`
 
 	miscfiles_read_localization($1_crond_t)
 
+	userdom_manage_user_tmp_files($1_crond_t,$1)
+	userdom_manage_user_tmp_symlinks($1_crond_t,$1)
+	userdom_manage_user_tmp_pipes($1_crond_t,$1)
+	userdom_manage_user_tmp_sockets($1_crond_t,$1)
+	# Run scripts in user home directory and access shared libs.
+	userdom_exec_user_home_files($1_crond_t,$1)
+
 	tunable_policy(`fcron_crond', `
 		allow crond_t $1_cron_spool_t:file create_file_perms;
 	')
@@ -122,13 +129,10 @@ template(`cron_per_userdomain_template',`
 
 	ifdef(`TODO',`
 	# Access user files and dirs.
-	allow $1_crond_t home_root_t:dir search;
 	file_type_auto_trans($1_crond_t, $1_home_dir_t, $1_home_t)
 
-	# Run scripts in user home directory and access shared libs.
-	can_exec($1_crond_t, $1_home_t)
-
-	file_type_auto_trans($1_crond_t, tmp_t, $1_tmp_t)
+	allow $1_crond_t tmp_t:dir rw_dir_perms;
+	type_transition $1_crond_t $1_tmp_t:{ file lnk_file sock_file fifo_file } $1_tmp_t;
 
 	ifdef(`mta.te', `
 		domain_auto_trans($1_crond_t, sendmail_exec_t, $1_mail_t)
@@ -198,6 +202,9 @@ template(`cron_per_userdomain_template',`
 
 	seutil_dontaudit_search_config($1_crontab_t)
 
+	userdom_manage_user_tmp_dirs($1_crontab_t,$1)
+	userdom_manage_user_tmp_files($1_crontab_t,$1)
+
 	tunable_policy(`fcron_crond', `
 		# fcron wants an instant update of a crontab change for the administrator
 		# also crontab does a security check for crontab -u
@@ -210,8 +217,8 @@ template(`cron_per_userdomain_template',`
 
 	dontaudit $1_crontab_t proc_t:dir search;
 
-	# Type for temporary files.
-	file_type_auto_trans($1_crontab_t, tmp_t, $1_tmp_t, { dir file })
+	allow $1_crond_t tmp_t:dir rw_dir_perms;
+	type_transition $1_crond_t $1_tmp_t:{ file dir } $1_tmp_t;
 
 	# Run helper programs as $1_t
 	domain_auto_trans($1_crontab_t, { bin_t sbin_t shell_exec_t }, $1_t)
