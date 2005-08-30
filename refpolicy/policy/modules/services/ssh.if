@@ -20,6 +20,12 @@
 ##	The prefix of the user domain (e.g., user
 ##	is the prefix for user_t).
 ## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
 #
 template(`ssh_per_userdomain_template',`
 	##############################
@@ -29,14 +35,14 @@ template(`ssh_per_userdomain_template',`
 
 	type $1_home_ssh_t; #, $1_file_type;
 	files_type($1_home_ssh_t)
-	role $1_r types $1_ssh_t;
+	role $3 types $1_ssh_t;
 
 	type $1_ssh_t;
 	domain_type($1_ssh_t)
 
 	type $1_ssh_agent_t;
 	domain_type($1_ssh_agent_t)
-	role $1_r types $1_ssh_agent_t;
+	role $3 types $1_ssh_agent_t;
 
 	##############################
 	#
@@ -57,7 +63,11 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
 
 	# Transition from the user domain to the derived domain.
-	domain_auto_trans($1_t, ssh_exec_t, $1_ssh_t)
+	domain_auto_trans($2, ssh_exec_t, $1_ssh_t)
+	allow $2 $1_ssh_t:fd use;
+	allow $1_ssh_t $2:fd use;
+	allow $1_ssh_t $2:fifo_file rw_file_perms;
+	allow $1_ssh_t $2:process sigchld;
 
 	# Read the ssh key file.
 	allow $1_ssh_t sshd_key_t:file r_file_perms;
@@ -68,20 +78,20 @@ template(`ssh_per_userdomain_template',`
 	files_create_tmp_files($1_ssh_t, sshd_tmp_t, { file dir })
 
 	# for rsync
-	allow $1_ssh_t $1_t:unix_stream_socket rw_socket_perms;
-	allow $1_ssh_t $1_t:unix_stream_socket connectto;
+	allow $1_ssh_t $2:unix_stream_socket rw_socket_perms;
+	allow $1_ssh_t $2:unix_stream_socket connectto;
 
 	# user can manage the keys and config
-	allow $1_t $1_home_ssh_t:dir rw_dir_perms;
-	allow $1_t $1_home_ssh_t:file create_file_perms;
-	allow $1_t $1_home_ssh_t:lnk_file create_lnk_perms;
-	allow $1_t $1_home_ssh_t:sock_file create_file_perms;
+	allow $2 $1_home_ssh_t:dir rw_dir_perms;
+	allow $2 $1_home_ssh_t:file create_file_perms;
+	allow $2 $1_home_ssh_t:lnk_file create_lnk_perms;
+	allow $2 $1_home_ssh_t:sock_file create_file_perms;
 
 	# inheriting stream sockets is needed for "ssh host command" as no pty
 	# is allocated
 	# cjp: should probably fix target to be an attribute for ssh servers
 	# or "regular" (not special like sshd_extern_t) servers
-	allow $1_t sshd_t:unix_stream_socket rw_stream_socket_perms;
+	allow $2 sshd_t:unix_stream_socket rw_stream_socket_perms;
 
 	# ssh client can manage the keys and config
 	allow $1_ssh_t $1_home_ssh_t:file create_file_perms;
@@ -248,20 +258,30 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_agent_t self:process setrlimit;
 	allow $1_ssh_agent_t self:capability setgid;
 
-	allow $1_ssh_agent_t { $1_ssh_agent_t $1_t }:process signull;
+	allow $1_ssh_agent_t { $1_ssh_agent_t $2 }:process signull;
 
 	allow $1_ssh_t $1_ssh_agent_t:unix_stream_socket connectto;
 
+	# for ssh-add
+	allow $2 $1_ssh_agent_t:unix_stream_socket connectto;
+
+	# Allow the user shell to signal the ssh program.
+	allow $2 $1_ssh_agent_t:process signal;
+
 	# for the transition back to normal privs upon exec
-	allow $1_ssh_agent_t $1_t:fd use;
-	allow $1_t $1_ssh_agent_t:fd use;
-	allow $1_t $1_ssh_agent_t:fifo_file rw_file_perms;
-	allow $1_t $1_ssh_agent_t:process sigchld;
+	allow $1_ssh_agent_t $2:fd use;
+	allow $2 $1_ssh_agent_t:fd use;
+	allow $2 $1_ssh_agent_t:fifo_file rw_file_perms;
+	allow $2 $1_ssh_agent_t:process sigchld;
 
 	# Allow the ssh program to communicate with ssh-agent.
 	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
 
-	domain_auto_trans($1_t, ssh_agent_exec_t, $1_ssh_agent_t)
+	domain_auto_trans($2, ssh_agent_exec_t, $1_ssh_agent_t)
+	allow $2 $1_ssh_agent_t:fd use;
+	allow $1_ssh_agent_t $2:fd use;
+	allow $1_ssh_agent_t $2:fifo_file rw_file_perms;
+	allow $1_ssh_agent_t $2:process sigchld;
 
 	kernel_read_kernel_sysctl($1_ssh_agent_t)
 
@@ -289,6 +309,9 @@ template(`ssh_per_userdomain_template',`
 	miscfiles_read_localization($1_ssh_agent_t)
 
 	seutil_dontaudit_search_config($1_ssh_agent_t)
+
+	# Write to the user domain tty.
+	userdom_use_user_terminals($1,$1_ssh_agent_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_files($1_ssh_agent_t)
@@ -318,11 +341,6 @@ template(`ssh_per_userdomain_template',`
 
 	ifdef(`TODO',`
 
-	# Write to the user domain tty.
-	access_terminal($1_ssh_agent_t, $1)
-
-	# Allow the user shell to signal the ssh program.
-	allow $1_t $1_ssh_agent_t:process signal;
 	# allow ps to show ssh
 	can_ps($1_t, $1_ssh_agent_t)
 
@@ -333,12 +351,8 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_agent_t $1_tmp_t:dir r_dir_perms;
 	file_type_auto_trans($1_ssh_agent_t, tmp_t, $1_tmp_t)
 
-	# for ssh-add
-	can_unix_connect($1_t, $1_ssh_agent_t)
-
 	# transition back to normal privs upon exec
 	domain_auto_trans($1_ssh_agent_t, $1_home_t, $1_t)
-
 	allow $1_ssh_agent_t $1_home_dir_t:dir search;
 
 	allow $1_ssh_t $1_tmp_t:sock_file write;
@@ -351,7 +365,7 @@ template(`ssh_per_userdomain_template',`
 
 	# Allow the ssh program to communicate with ssh-agent.
 	allow $1_ssh_t $1_tmp_t:sock_file write;
-	allow $1_ssh_t $1_t:unix_stream_socket connectto;
+	allow $1_ssh_t $2:unix_stream_socket connectto;
 	') dnl endif TODO
 ')
 

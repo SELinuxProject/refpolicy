@@ -1,15 +1,36 @@
 ## <summary>Policy common to all email tranfer agents.</summary>
 
 #######################################
-#
-# Per user domain template for this module
-#
-# mta_per_userdomain_template(userdomain_prefix)
+## <summary>
+##	The per user domain template for the mta module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is
+##	a email transfer agent, which sends mail on
+##	behalf of the user.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
 #
 template(`mta_per_userdomain_template',`
 	type $1_mail_t; # , user_mail_domain
 	domain_type($1_mail_t)
-	role $1_r types $1_mail_t;
+	role $3 types $1_mail_t;
 
 	type $1_mail_tmp_t;
 	files_tmp_file($1_mail_tmp_t)
@@ -30,13 +51,13 @@ template(`mta_per_userdomain_template',`
 	allow $1_mail_t sendmail_exec_t:lnk_file r_file_perms;
 
 	# Transition from the user domain to the derived domain.
-	domain_auto_trans($1_t, sendmail_exec_t, $1_mail_t)
-	allow $1_t sendmail_exec_t:lnk_file { getattr read };
+	domain_auto_trans($2, sendmail_exec_t, $1_mail_t)
+	allow $2 sendmail_exec_t:lnk_file { getattr read };
 
-	allow $1_t $1_mail_t:fd use;
-	allow $1_mail_t $1_t:fd use;
-	allow $1_mail_t $1_t:fifo_file rw_file_perms;
-	allow $1_mail_t $1_t:process sigchld;
+	allow $2 $1_mail_t:fd use;
+	allow $1_mail_t $2:fd use;
+	allow $1_mail_t $2:fifo_file rw_file_perms;
+	allow $1_mail_t $2:process sigchld;
 
 	kernel_read_kernel_sysctl($1_mail_t)
 
@@ -63,6 +84,8 @@ template(`mta_per_userdomain_template',`
 	miscfiles_read_localization($1_mail_t)
 
 	sysnet_read_config($1_mail_t)
+
+	userdom_use_user_terminals($1,$1_mail_t)
 
 	tunable_policy(`use_dns',`
 		allow $1_mail_t self:udp_socket create_socket_perms;
@@ -112,10 +135,6 @@ template(`mta_per_userdomain_template',`
 	allow mta_user_agent $1_tty_device_t:chr_file rw_file_perms;
 	allow mta_user_agent devpts_t:dir r_dir_perms;
 	allow mta_user_agent $1_devpts_t:chr_file rw_file_perms;
-
-	allow $1_mail_t $1_tty_device_t:chr_file rw_file_perms;
-	allow $1_mail_t devpts_t:dir r_dir_perms;
-	allow $1_mail_t $1_devpts_t:chr_file rw_file_perms;
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')

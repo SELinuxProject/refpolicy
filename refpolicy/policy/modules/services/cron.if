@@ -20,6 +20,12 @@
 ##	The prefix of the user domain (e.g., user
 ##	is the prefix for user_t).
 ## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
 #
 template(`cron_per_userdomain_template',`
 
@@ -30,12 +36,12 @@ template(`cron_per_userdomain_template',`
 	type $1_crond_t; # user_crond_domain;
 	domain_type($1_crond_t);
 	corecmd_shell_entry_type($1_crond_t)
-	role $1_r types $1_crond_t;
+	role $3 types $1_crond_t;
 
 	type $1_crontab_t;
 	domain_type($1_crontab_t)
 	domain_entry_file($1_crontab_t,crontab_exec_t)
-	role $1_r types $1_crontab_t;
+	role $3 types $1_crontab_t;
 
 	##############################
 	#
@@ -112,12 +118,12 @@ template(`cron_per_userdomain_template',`
 
 	miscfiles_read_localization($1_crond_t)
 
-	userdom_manage_user_tmp_files($1_crond_t,$1)
-	userdom_manage_user_tmp_symlinks($1_crond_t,$1)
-	userdom_manage_user_tmp_pipes($1_crond_t,$1)
-	userdom_manage_user_tmp_sockets($1_crond_t,$1)
+	userdom_manage_user_tmp_files($1,$1_crond_t)
+	userdom_manage_user_tmp_symlinks($1,$1_crond_t)
+	userdom_manage_user_tmp_pipes($1,$1_crond_t)
+	userdom_manage_user_tmp_sockets($1,$1_crond_t)
 	# Run scripts in user home directory and access shared libs.
-	userdom_exec_user_home_files($1_crond_t,$1)
+	userdom_exec_user_home_files($1,$1_crond_t)
 
 	tunable_policy(`fcron_crond', `
 		allow crond_t $1_cron_spool_t:file create_file_perms;
@@ -157,14 +163,14 @@ template(`cron_per_userdomain_template',`
 	#
 
 	# Transition from the user domain to the derived domain.
-	domain_auto_trans($1_t, crontab_exec_t, $1_crontab_t)
-	allow $1_t $1_crontab_t:fd use;
-	allow $1_crontab_t $1_t:fd use;
-	allow $1_crontab_t $1_t:fifo_file rw_file_perms;
-	allow $1_crontab_t $1_t:process sigchld;
+	domain_auto_trans($2, crontab_exec_t, $1_crontab_t)
+	allow $2 $1_crontab_t:fd use;
+	allow $1_crontab_t $2:fd use;
+	allow $1_crontab_t $2:fifo_file rw_file_perms;
+	allow $1_crontab_t $2:process sigchld;
 
 	# for ^Z
-	allow $1_t $1_crontab_t:process signal;
+	allow $2 $1_crontab_t:process signal;
 
 	# Allow crond to read those crontabs in cron spool.
 	allow crond_t $1_cron_spool_t:file r_file_perms;
@@ -188,6 +194,11 @@ template(`cron_per_userdomain_template',`
 
 	fs_getattr_xattr_fs($1_crontab_t)
 
+	# Run helper programs as the user domain
+	corecmd_bin_domtrans($1_crontab_t,$2)
+	corecmd_sbin_domtrans($1_crontab_t,$2)
+	corecmd_shell_domtrans($1_crontab_t,$2)
+
 	domain_use_wide_inherit_fd($1_crontab_t)
 
 	files_read_etc_files($1_crontab_t)
@@ -202,8 +213,12 @@ template(`cron_per_userdomain_template',`
 
 	seutil_dontaudit_search_config($1_crontab_t)
 
-	userdom_manage_user_tmp_dirs($1_crontab_t,$1)
-	userdom_manage_user_tmp_files($1_crontab_t,$1)
+	userdom_manage_user_tmp_dirs($1,$1_crontab_t)
+	userdom_manage_user_tmp_files($1,$1_crontab_t)
+	# Access terminals.
+	userdom_use_user_terminals($1,$1_crontab_t)
+	# Read user crontabs
+	userdom_read_user_home_files($1,$1_crontab_t)
 
 	tunable_policy(`fcron_crond', `
 		# fcron wants an instant update of a crontab change for the administrator
@@ -212,7 +227,6 @@ template(`cron_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-
 	can_ps($1_t, $1_crontab_t)
 
 	dontaudit $1_crontab_t proc_t:dir search;
@@ -220,18 +234,9 @@ template(`cron_per_userdomain_template',`
 	allow $1_crond_t tmp_t:dir rw_dir_perms;
 	type_transition $1_crond_t $1_tmp_t:{ file dir } $1_tmp_t;
 
-	# Run helper programs as $1_t
-	domain_auto_trans($1_crontab_t, { bin_t sbin_t shell_exec_t }, $1_t)
-
-	# Read user crontabs 
+	# Read user crontabs
 	allow $1_crontab_t { $1_home_t $1_home_dir_t }:dir r_dir_perms;  
-	allow $1_crontab_t $1_home_t:file r_file_perms;  
 	dontaudit $1_crontab_t $1_home_dir_t:dir write;
-
-	# Access terminals.
-	allow $1_crontab_t devpts_t:dir r_dir_perms;
-	allow $1_crontab_t $1_tty_device_t:chr_file rw_file_perms;
-	allow $1_crontab_t $1_devpts_t:chr_file rw_file_perms;
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	ifdef(`gnome-pty-helper.te', `allow $1_crontab_t $1_gph_t:fd use;')
