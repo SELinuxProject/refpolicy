@@ -28,7 +28,7 @@
 ## </param>
 #
 template(`mta_per_userdomain_template',`
-	type $1_mail_t; # , user_mail_domain
+	type $1_mail_t;
 	domain_type($1_mail_t)
 	role $3 types $1_mail_t;
 
@@ -59,6 +59,11 @@ template(`mta_per_userdomain_template',`
 	allow $1_mail_t $2:fifo_file rw_file_perms;
 	allow $1_mail_t $2:process sigchld;
 
+	# For when the user wants to send mail via port 25 localhost
+	kernel_tcp_recvfrom($2)
+	allow $2 mailserver_domain:tcp_socket { connectto recvfrom };
+	allow mailserver_domain $2:tcp_socket { acceptfrom recvfrom };
+
 	kernel_read_kernel_sysctl($1_mail_t)
 
 	corenet_tcp_sendrecv_all_if($1_mail_t)
@@ -78,6 +83,8 @@ template(`mta_per_userdomain_template',`
 
 	files_read_etc_files($1_mail_t)
 	files_search_spool($1_mail_t)
+	# It wants to check for nscd
+	files_dontaudit_search_pids($1_mail_t)
 
 	logging_send_syslog_msg($1_mail_t)
 
@@ -86,6 +93,8 @@ template(`mta_per_userdomain_template',`
 	sysnet_read_config($1_mail_t)
 
 	userdom_use_user_terminals($1,$1_mail_t)
+	# Write to the user domain tty. cjp: why?
+	userdom_use_user_terminals($1,mta_user_agent)
 
 	tunable_policy(`use_dns',`
 		allow $1_mail_t self:udp_socket create_socket_perms;
@@ -113,14 +122,6 @@ template(`mta_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-	allow $1_mail_t device_t:dir search;
-
-	# It wants to check for nscd
-	dontaudit $1_mail_t var_run_t:dir search;
-
-	# For when the user wants to send mail via port 25 localhost
-	can_tcp_connect($1_t, mail_server_domain)
-
 	# Read user temporary files.
 	allow $1_mail_t $1_tmp_t:file r_file_perms;
 	dontaudit $1_mail_t $1_tmp_t:file append;
@@ -129,26 +130,21 @@ template(`mta_per_userdomain_template',`
 		allow $1_mail_t $1_tmp_t:file write;
 	')
 
+	# cjp: why?
 	allow mta_user_agent $1_tmp_t:file r_file_perms;
-
-	# Write to the user domain tty.
-	allow mta_user_agent $1_tty_device_t:chr_file rw_file_perms;
-	allow mta_user_agent devpts_t:dir r_dir_perms;
-	allow mta_user_agent $1_devpts_t:chr_file rw_file_perms;
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')
 
 	# Create dead.letter in user home directories.
 	file_type_auto_trans($1_mail_t, $1_home_dir_t, $1_home_t, file)
-
 	# if you do not want to allow dead.letter then use the following instead
 	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
 	#allow $1_mail_t $1_home_t:file r_file_perms;
 
 	# for reading .forward - maybe we need a new type for it?
 	# also for delivering mail to maildir
-	file_type_auto_trans(mta_delivery_agent, $1_home_dir_t, $1_home_t)
+	file_type_auto_trans(mailserver_delivery, $1_home_dir_t, $1_home_t)
 
 	ifdef(`qmail.te', `
 		allow $1_mail_t qmail_etc_t:dir search;
@@ -166,6 +162,9 @@ interface(`mta_mailserver',`
 	gen_require(`
 		attribute mailserver_domain;
 	')
+
+	# For when the user wants to send mail via port 25 localhost
+	kernel_tcp_recvfrom($1)
 
 	init_daemon_domain($1,$2)
 	typeattribute $1 mailserver_domain;
@@ -202,8 +201,63 @@ interface(`mta_sendmail_mailserver',`
 		type sendmail_exec_t;
 	')
 
+	# For when the user wants to send mail via port 25 localhost
+	kernel_tcp_recvfrom($1)
+
 	init_system_domain($1,sendmail_exec_t)
 	typeattribute $1 mailserver_domain;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for sending mail.
+## </summary>
+## <param name="domain">
+##	Mail server domain type used for sending mail.
+## </param>
+#
+interface(`mta_mailserver_sender',`
+	gen_require(`
+		attribute mailserver_sender;
+	')
+
+	typeattribute $1 mailserver_sender;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for delivering mail to local users.
+## </summary>
+## <param name="domain">
+##	Mail server domain type used for delivering mail.
+## </param>
+#
+interface(`mta_mailserver_delivery',`
+	gen_require(`
+		attribute mailserver_delivery;
+	')
+
+	typeattribute $1 mailserver_delivery;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for sending mail on behalf of local
+##	users to the local mail spool.
+## </summary>
+## <param name="domain">
+##	Mail server domain type used for sending local mail.
+## </param>
+#
+interface(`mta_mailserver_user_agent',`
+	gen_require(`
+		attribute mailserver_user_agent;
+	')
+
+	typeattribute $1 mailserver_user_agent;
 ')
 
 #######################################
@@ -330,6 +384,28 @@ interface(`mta_rw_spool',`
 	allow $1 mail_spool_t:dir r_dir_perms;
 	allow $1 mail_spool_t:lnk_file { getattr read };
 	allow $1 mail_spool_t:file { rw_file_perms setattr };
+')
+
+#######################################
+## <summary>
+##	Create, read, and write the mail spool.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mta_append_spool',`
+	gen_require(`
+		type mail_spool_t;
+		class dir ra_dir_perms;
+		class lnk_file { getattr read };
+		class file create_file_perms;
+	')
+
+	files_search_spool($1)
+	allow $1 mail_spool_t:dir ra_dir_perms;
+	allow $1 mail_spool_t:lnk_file { getattr read };
+	allow $1 mail_spool_t:file create_file_perms;
 ')
 
 #######################################
