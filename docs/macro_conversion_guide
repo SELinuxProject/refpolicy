@@ -33,6 +33,47 @@ files_type($1)
 # handled by appropriate interfaces
 
 #
+# mta_delivery_agent:
+#
+mta_mailserver_delivery($1)
+# for piping mail to a command
+kernel_read_system_state($1)
+corecmd_exec_shell($1)
+files_read_etc_runtime_files($1)
+mta_append_spool($1)
+optional_policy(`arpwatch.te',`
+	# why is mail delivered to a directory of type arpwatch_data_t?
+	allow mta_delivery_agent arpwatch_data_t:dir search;
+')
+
+#
+# mta_user_agent:
+#
+mta_mailserver_user_agent($1)
+domain_use_wide_inherit_fd($1)
+userdom_sigchld_all_users($1)
+userdom_use_all_user_fd($1)
+userdom_use_sysadm_terms($1)
+allow mta_user_agent privmail:fd use;
+allow mta_user_agent privmail:process sigchld;
+allow mta_user_agent privmail:fifo_file { read write };
+allow mta_user_agent sysadm_t:fifo_file { read write };
+optional_policy(`arpwatch.te',`
+	# why is mail delivered to a directory of type arpwatch_data_t?
+	allow mta_user_agent arpwatch_tmp_t:file rw_file_perms;
+	ifdef(`hide_broken_symptoms', `
+		dontaudit mta_user_agent arpwatch_t:packet_socket { read write };
+	')
+')
+optional_policy(`cron.te',`
+	cron_sigchld($1)
+	cron_read_system_job_tmp_files($1)
+')
+optional_policy(`logrotate.te',`
+	logrotate_read_tmp_files($1)
+')
+
+#
 # nscd_client_domain: complete
 #
 optional_policy(`nscd.te',`
@@ -689,15 +730,15 @@ files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
 kernel_read_system_state($1_t)
 kernel_read_network_state($1_t)
-corenet_sendrecv_tcp_on_all_interfaces($1_t)
-corenet_sendrecv_raw_on_all_interfaces($1_t)
-corenet_sendrecv_tcp_on_all_nodes($1_t)
-corenet_sendrecv_raw_on_all_nodes($1_t)
-corenet_bind_tcp_on_all_nodes($1_t)
-corenet_sendrecv_tcp_on_all_ports($1_t)
+corenet_tcp_sendrecv_all_if($1_t)
+corenet_raw_sendrecv_all_if($1_t)
+corenet_tcp_sendrecv_all_nodes($1_t)
+corenet_raw_sendrecv_all_nodes($1_t)
+corenet_tcp_bind_all_nodes($1_t)
+corenet_tcp_sendrecv_all_ports($1_t)
 dev_read_urand($1_t)
 fs_getattr_xattr_fs($1_t)
-files_read_generic_etc_files($1_t)
+files_read_etc_files($1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
