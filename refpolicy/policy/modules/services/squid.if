@@ -1,0 +1,84 @@
+## <summary>Squid caching http proxy server</summary>
+
+########################################
+## <summary>
+##	Execute squid in the squid domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`squid_domtrans',`
+	gen_require(`
+		type squid_t, squid_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	corecmd_search_sbin($1)
+	domain_auto_trans($1,squid_exec_t,squid_t)
+
+	allow $1 squid_t:fd use;
+	allow squid_t $1:fd use;
+	allow squid_t $1:fifo_file rw_file_perms;
+	allow squid_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read squid configuration file.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`squid_read_config',`
+	gen_require(`
+		type squid_conf_t;
+		class file r_file_perms;
+	')
+
+	files_search_etc($1)
+	allow $1 squid_conf_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	squid logs.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`squid_manage_logs',`
+	gen_require(`
+		type squid_log_t;
+		class dir rw_dir_perms;
+		class file create_file_perms;
+	')
+
+	logging_search_logs($1)
+	allow $1 squid_log_t:dir rw_dir_perms;
+	allow $1 squid_log_t:file create_file_perms;
+')
+
+########################################
+## <summary>
+##	Use squid services by connecting over TCP.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`squid_use',`
+	gen_require(`
+		type squid_t;
+		class tcp_socket { connectto acceptfrom recvfrom };
+	')
+
+	allow $1 squid_t:tcp_socket { connectto recvfrom };
+	allow squid_t $1:tcp_socket { acceptfrom recvfrom };
+	kernel_tcp_recvfrom($1)
+')
