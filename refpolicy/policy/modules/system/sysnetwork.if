@@ -268,3 +268,80 @@ interface(`sysnet_run_ifconfig',`
 	role $2 types ifconfig_t;
 	allow ifconfig_t $3:chr_file rw_term_perms;
 ')
+
+########################################
+## <summary>
+##	Read the DHCP configuration files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_read_dhcp_config',`
+	gen_require(`
+		type dhcp_etc_t;
+		class dir search;
+		class file { getattr read };
+	')
+
+	files_search_etc($1)
+	allow $1 dhcp_etc_t:dir search;
+	allow $1 dhcp_etc_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Search the DHCP state data directory.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_search_dhcp_state',`
+	gen_require(`
+		type dhcp_state_t;
+		class dir search;
+	')
+
+	files_search_var_lib($1)
+	allow $1 dhcp_state_t:dir search;
+')
+
+########################################
+## <summary>
+##	Create DHCP state data.
+## </summary>
+## <desc>
+##	<p>
+##	Create DHCP state data.
+##	</p>
+##	<p>
+##	This is added for DHCP server, as
+##	the server and client put their state
+##	files in the same directory.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="file_type">
+##	The type of the object to be created
+## </param>
+## <param name="object_class" optional="true">
+##	The object class.  If not specified, file is used.
+## </param>
+#
+interface(`sysnet_create_dhcp_state',`
+	gen_require(`
+		type dhcp_state_t;
+		class dir rw_dir_perms;
+	')
+
+	files_search_var_lib($1)
+	allow $1 dhcp_state_t:dir rw_dir_perms;
+	ifelse(`$3',`',`
+		type_transition $1 dhcp_state_t:file $2;
+	',`
+		type_transition $1 dhcp_state_t:$3 $2;
+	')
+')
