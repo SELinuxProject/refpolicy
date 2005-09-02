@@ -1,0 +1,150 @@
+
+policy_module(hal,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type hald_t;
+type hald_exec_t;
+init_daemon_domain(hald_t,hald_exec_t)
+
+type hald_tmp_t;
+files_tmp_file(hald_tmp_t)
+
+type hald_var_run_t;
+files_pid_file(hald_var_run_t)
+
+allow hald_t self:capability { net_admin sys_admin dac_override dac_read_search mknod };
+dontaudit hald_t self:capability sys_tty_config;
+allow hald_t self:fifo_file rw_file_perms;
+allow hald_t self:unix_stream_socket create_stream_socket_perms;
+allow hald_t self:unix_dgram_socket create_socket_perms;
+allow hald_t self:netlink_route_socket r_netlink_socket_perms;
+allow hald_t self:tcp_socket create_stream_socket_perms;
+
+allow hald_t hald_tmp_t:dir create_dir_perms;
+allow hald_t hald_tmp_t:file create_file_perms;
+files_create_tmp_files(hald_t, hald_tmp_t, { file dir })
+
+allow hald_t hald_var_run_t:file create_file_perms;
+files_create_pid(hald_t,hald_var_run_t)
+
+kernel_read_system_state(hald_t)
+kernel_read_network_state(hald_t)
+kernel_read_kernel_sysctl(hald_t)
+
+corenet_tcp_sendrecv_all_if(hald_t)
+corenet_raw_sendrecv_all_if(hald_t)
+corenet_tcp_sendrecv_all_nodes(hald_t)
+corenet_raw_sendrecv_all_nodes(hald_t)
+corenet_tcp_sendrecv_all_ports(hald_t)
+corenet_tcp_bind_all_nodes(hald_t)
+
+dev_read_sysfs(hald_t)
+dev_read_usbfs(hald_t)
+dev_read_urand(hald_t)
+dev_read_input(hald_t)
+dev_rw_printer(hald_t)
+dev_manage_generic_chr_file(hald_t)
+
+fs_getattr_all_fs(hald_t)
+fs_search_auto_mountpoints(hald_t)
+
+storage_raw_read_removable_device(hald_t)
+storage_raw_read_fixed_disk(hald_t)
+storage_raw_write_fixed_disk(hald_t)
+
+term_dontaudit_use_console(hald_t)
+
+corecmd_exec_bin(hald_t)
+corecmd_exec_sbin(hald_t)
+
+domain_use_wide_inherit_fd(hald_t)
+domain_exec_all_entry_files(hald_t)
+
+files_exec_etc_files(hald_t)
+files_read_etc_files(hald_t)
+files_rw_etc_runtime_files(hald_t)
+files_search_mnt(hald_t)
+files_search_var_lib(hald_t)
+files_read_usr_files(hald_t)
+
+init_use_fd(hald_t)
+init_use_script_pty(hald_t)
+
+libs_use_ld_so(hald_t)
+libs_use_shared_libs(hald_t)
+libs_exec_ld_so(hald_t)
+libs_exec_lib_files(hald_t)
+
+logging_send_syslog_msg(hald_t)
+
+miscfiles_read_localization(hald_t)
+
+seutil_read_config(hald_t)
+seutil_read_default_contexts(hald_t)
+
+sysnet_read_config(hald_t)
+
+userdom_dontaudit_use_unpriv_user_fd(hald_t)
+userdom_dontaudit_search_sysadm_home_dir(hald_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(hald_t)
+	term_dontaudit_use_generic_pty(hald_t)
+	files_dontaudit_read_root_file(hald_t)
+')
+
+optional_policy(`dbus.te',`
+	allow hald_t self:dbus send_msg;
+	dbus_system_bus_client_template(hald,hald_t)
+	dbus_send_system_bus_msg(hald_t)
+	dbus_connect_system_bus(hald_t)
+')
+
+optional_policy(`hotplug.te',`
+	hotplug_read_config(hald_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(hald_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(hald_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(hald_t)
+')
+
+optional_policy(`udev.te', `
+	udev_domtrans(hald_t)
+	udev_read_db(hald_t)
+')
+
+optional_policy(`updfstab.te',`
+	updfstab_domtrans(hald_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(hald_t)
+')
+
+allow hald_t device_t:dir create_dir_perms;
+
+optional_policy(`updfstab.te',`
+allow updfstab_t hald_t:dbus send_msg;
+allow hald_t updfstab_t:dbus send_msg;
+')
+
+optional_policy(`hald.te',`
+allow udev_t hald_t:unix_dgram_socket sendto;
+')
+
+allow hald_t initrc_t:dbus send_msg;
+allow initrc_t hald_t:dbus send_msg;
+') dnl end TODO
