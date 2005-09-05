@@ -135,6 +135,13 @@ selinux_compute_user_contexts($1)
 seutil_read_config($1)
 seutil_read_default_contexts($1)
 
+#
+# web_client_domain:
+#
+optional_policy(`squid.te',`
+	squid_use($1)
+')
+
 ########################################
 #
 # Access macros
@@ -310,12 +317,32 @@ selinux_get_fs_mount($1)
 selinux_load_policy($1)
 
 #
-# can_network():
+# can_network($1):
+#
+allow $1 self:tcp_socket create_stream_socket_perms;
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_all_if($1)
+corenet_udp_sendrecv_all_if($1)
+corenet_raw_sendrecv_all_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_udp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request($1)
+')
+
+#
+# can_network($1,$2):
 #
 can_network_tcp($1, `$2')
 can_network_udp($1, `$2')
-ifdef(`mount.te', `
-allow $1 mount_t:udp_socket rw_socket_perms;
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request($1)
 ')
 
 #
@@ -646,7 +673,7 @@ type_transition $1 $2:$i $3;
 #
 # general_domain_access(): complete
 #
-allow $1 self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+allow $1 self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 allow $1 self:fd use;
 allow $1 self:fifo_file rw_file_perms;
 allow $1 self:unix_dgram_socket create_socket_perms;
@@ -787,7 +814,7 @@ type $1_log_t;
 logging_log_file($1_log_t)
 allow $1_t $1_log_t:file create_file_perms;
 allow $1_t $1_log_t:dir rw_dir_perms;
-logging_search_logs($1_t,$1_log_t,{ file dir })
+logging_create_log($1_t,$1_log_t,{ file dir })
 
 #
 # network_home_dir():
@@ -940,6 +967,7 @@ libs_use_shared_libs($1)
 type $1_var_lib_t;
 files_type($1_var_lib_t)
 allow $1_t $1_var_lib_t:file create_file_perms;
+allow $1_t $1_var_lib_t:dir create_dir_perms;
 files_create_var_lib($1_t,$1_var_lib_t)
 
 #
@@ -948,6 +976,7 @@ files_create_var_lib($1_t,$1_var_lib_t)
 type $1_var_run_t;
 files_pid_file($1_var_run_t)
 allow $1_t $1_var_run_t:file create_file_perms;
+allow $1_t $1_var_run_t:dir create_dir_perms;
 files_create_pid($1_t,$1_var_run_t)
 
 #
