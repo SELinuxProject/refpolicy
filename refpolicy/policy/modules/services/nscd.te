@@ -7,7 +7,7 @@ policy_module(nscd,1.0)
 #
 
 # nscd is both the client program and the daemon.
-type nscd_t; #, userspace_objmgr
+type nscd_t;
 type nscd_exec_t;
 init_daemon_domain(nscd_t,nscd_exec_t)
 
@@ -22,13 +22,13 @@ files_pid_file(nscd_var_run_t)
 allow nscd_t self:capability { kill setgid setuid };
 dontaudit nscd_t self:capability sys_tty_config;
 allow nscd_t self:process { getattr setsched };
+allow nscd_t self:fifo_file { read write };
 allow nscd_t self:unix_stream_socket create_stream_socket_perms;
 allow nscd_t self:unix_dgram_socket create_socket_perms;
 allow nscd_t self:netlink_selinux_socket create_socket_perms;
 allow nscd_t self:netlink_route_socket r_netlink_socket_perms;
 allow nscd_t self:tcp_socket create_socket_perms;
-allow nscd_t self:udp_socket { connect connected_socket_perms };
-allow nscd_t self:fifo_file { read write };
+allow nscd_t self:udp_socket create_socket_perms;
 
 # For client program operation, invoked from sysadm_t.
 # Transition occurs to nscd_t due to direct_sysadm_daemon. 
@@ -66,6 +66,12 @@ corenet_udp_sendrecv_all_ports(nscd_t)
 corenet_tcp_bind_all_nodes(nscd_t)
 corenet_udp_bind_all_nodes(nscd_t)
 
+selinux_get_fs_mount(nscd_t)
+selinux_validate_context(nscd_t)
+selinux_compute_access_vector(nscd_t)
+selinux_compute_create_context(nscd_t)
+selinux_compute_relabel_context(nscd_t)
+selinux_compute_user_contexts(nscd_t)
 domain_use_wide_inherit_fd(nscd_t)
 
 files_read_etc_files(nscd_t)
@@ -79,6 +85,10 @@ libs_use_shared_libs(nscd_t)
 logging_send_syslog_msg(nscd_t)
 
 miscfiles_read_localization(nscd_t)
+
+seutil_read_config(nscd_t)
+seutil_read_default_contexts(nscd_t)
+seutil_sigchld_newrole(nscd_t)
 
 sysnet_read_config(nscd_t)
 
@@ -95,16 +105,11 @@ optional_policy(`nis.te',`
 	nis_use_ypbind(nscd_t)
 ')
 
-optional_policy(`selinuxutils.te',`
-	seutil_sigchld_newrole(nscd_t)
-')
-
 optional_policy(`udev.te', `
 	udev_read_db(nscd_t)
 ')
 
 ifdef(`TODO',`
-
 nscd_socket_domain(daemon)
 
 optional_policy(`winbind.te', `
