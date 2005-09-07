@@ -21,6 +21,12 @@
 ##	The prefix of the user domain (e.g., user
 ##	is the prefix for user_t).
 ## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
 #
 template(`authlogin_per_userdomain_template',`
 	gen_require(`
@@ -38,8 +44,8 @@ template(`authlogin_per_userdomain_template',`
 	type $1_chkpwd_t, can_read_shadow_passwords;
 	domain_type($1_chkpwd_t)
 	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
-	role $1_r types $1_chkpwd_t;
-	role $1_r types system_chkpwd_t;
+	role $3 types $1_chkpwd_t;
+	role $3 types system_chkpwd_t;
 
 	allow $1_chkpwd_t self:capability setuid;
 	allow $1_chkpwd_t self:process getattr;
@@ -67,19 +73,16 @@ template(`authlogin_per_userdomain_template',`
 
 	seutil_read_config($1_chkpwd_t)
 
-	#can_ldap($1_chkpwd_t)
-
 	# Transition from the user domain to this domain.
-	domain_auto_trans($1_t,chkpwd_exec_t,$1_chkpwd_t)
+	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
 
-	allow $1_chkpwd_t $1_t:fd use;
-	allow $1_t $1_chkpwd_t:fd use;
-	allow $1_chkpwd_t $1_t:fifo_file rw_file_perms;
-	allow $1_chkpwd_t $1_t:process sigchld;
+	allow $1_chkpwd_t $2:fd use;
+	allow $2 $1_chkpwd_t:fd use;
+	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
+	allow $1_chkpwd_t $2:process sigchld;
 
 	# Write to the user domain tty.
-	#userdomain_use_$1_terminal($1_chkpwd_t)
-	#userdomain_use_$1_pty($1_chkpwd_t)
+	userdom_use_user_terminals($1,$1_chkpwd_t)
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
@@ -99,6 +102,17 @@ template(`authlogin_per_userdomain_template',`
 		kerberos_use($1_chkpwd_t)
 	')
 
+	optional_policy(`ldap.te',`
+		allow $1_chkpwd_t self:tcp_socket create_socket_perms;
+		corenet_tcp_sendrecv_all_if($1_chkpwd_t)
+		corenet_raw_sendrecv_all_if($1_chkpwd_t)
+		corenet_tcp_sendrecv_all_nodes($1_chkpwd_t)
+		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
+		corenet_tcp_sendrecv_ldap_port($1_chkpwd_t)
+		corenet_tcp_bind_all_nodes($1_chkpwd_t)
+		sysnet_read_config($1_chkpwd_t)
+	')
+
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1_chkpwd_t)
 	')
@@ -110,7 +124,6 @@ template(`authlogin_per_userdomain_template',`
 	optional_policy(`selinuxutil.te',`
 		seutil_use_newrole_fd($1_chkpwd_t)
 	')
-
 ')
 
 ########################################
@@ -239,7 +252,16 @@ interface(`auth_domtrans_chk_passwd',`
 		kerberos_use($1)
 	')
 
-	#can_ldap($1)
+	optional_policy(`ldap.te',`
+		allow $1 self:tcp_socket create_socket_perms;
+		corenet_tcp_sendrecv_all_if($1)
+		corenet_raw_sendrecv_all_if($1)
+		corenet_tcp_sendrecv_all_nodes($1)
+		corenet_raw_sendrecv_all_nodes($1)
+		corenet_tcp_sendrecv_ldap_port($1)
+		corenet_tcp_bind_all_nodes($1)
+		sysnet_read_config($1)
+	')
 
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1)

@@ -6,8 +6,10 @@ policy_module(sendmail,1.0)
 # Declarations
 #
 
-type sendmail_t; #, mta_delivery_agent, mail_server_sender', nosysadm)
+type sendmail_t;
 mta_sendmail_mailserver(sendmail_t)
+mta_mailserver_delivery(sendmail_t)
+mta_mailserver_sender(sendmail_t)
 
 type sendmail_log_t;
 logging_log_file(sendmail_log_t)
@@ -40,8 +42,8 @@ allow sendmail_t sendmail_var_run_t:file { getattr create read write append seta
 files_create_pid(sendmail_t,sendmail_var_run_t)
 
 kernel_read_kernel_sysctl(sendmail_t)
-kernel_list_proc(sendmail_t)
-kernel_read_proc_symlinks(sendmail_t)
+# for piping mail to a command
+kernel_read_system_state(sendmail_t)
 
 corenet_tcp_sendrecv_all_if(sendmail_t)
 corenet_raw_sendrecv_all_if(sendmail_t)
@@ -63,10 +65,15 @@ fs_search_auto_mountpoints(sendmail_t)
 
 term_dontaudit_use_console(sendmail_t)
 
+# for piping mail to a command
+corecmd_exec_shell(sendmail_t)
+
 domain_use_wide_inherit_fd(sendmail_t)
 
 files_read_etc_files(sendmail_t)
 files_search_spool(sendmail_t)
+# for piping mail to a command
+files_read_etc_runtime_files(sendmail_t)
 
 init_use_fd(sendmail_t)
 init_use_script_pty(sendmail_t)
@@ -119,6 +126,11 @@ optional_policy(`udev.te', `
 ifdef(`TODO',`
 optional_policy(`rhgb.te', `
 rhgb_domain(sendmail_t)
+')
+
+optional_policy(`arpwatch.te',`
+	# why is mail delivered to a directory of type arpwatch_data_t?
+	allow mta_delivery_agent arpwatch_data_t:dir search;
 ')
 
 #

@@ -48,9 +48,8 @@ type initrc_exec_t;
 domain_entry_file(initrc_t,initrc_exec_t)
 
 type initrc_devpts_t;
-fs_associate(initrc_devpts_t)
-fs_associate_noxattr(initrc_devpts_t)
 term_pty(initrc_devpts_t)
+files_type(initrc_devpts_t)
 
 type initrc_var_run_t;
 files_pid_file(initrc_var_run_t)
@@ -258,6 +257,7 @@ domain_sigchld_all_domains(initrc_t)
 domain_read_all_domains_state(initrc_t)
 domain_getsession_all_domains(initrc_t)
 domain_use_wide_inherit_fd(initrc_t)
+domain_exec_all_entry_files(initrc_t)
 # for lsof which is used by alsa shutdown:
 domain_dontaudit_getattr_all_udp_sockets(initrc_t)
 domain_dontaudit_getattr_all_tcp_sockets(initrc_t)
@@ -323,6 +323,12 @@ ifdef(`distro_debian', `
 	storage_create_fixed_disk_tmpfs(initrc_t)
 
 	files_setattr_etc_dir(initrc_t)
+')
+
+ifdef(`distro_gentoo',`
+	optional_policy(`dhcp.te',`
+		dhcpd_setattr_state_files(initrc_t)
+	')
 ')
 
 ifdef(`distro_redhat',`
@@ -459,6 +465,11 @@ optional_policy(`rpm.te',`
 	rpm_manage_db(initrc_t)
 ')
 
+optional_policy(`squid.te',`
+	squid_read_config(initrc_t)
+	squid_manage_logs(initrc_t)
+')
+
 optional_policy(`ssh.te',`
 	optional_policy(`inetd.te',`
 		tunable_policy(`run_ssh_inetd',`',`
@@ -480,6 +491,8 @@ optional_policy(`sysnetwork.te',`
 ifdef(`TODO',`
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
+
+allow initrc_t system_dbusd_t:dbus { send_msg acquire_svc };
 
 #
 #  These rules are here to allow init scripts to su

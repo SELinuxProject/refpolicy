@@ -1,0 +1,136 @@
+
+policy_module(dbus,1.0)
+
+##############################
+#
+# Delcarations
+#
+
+type dbusd_etc_t alias etc_dbusd_t;
+files_type(dbusd_etc_t)
+
+type system_dbusd_t alias dbusd_t;
+type system_dbusd_exec_t;
+init_daemon_domain(system_dbusd_t,system_dbusd_exec_t)
+
+type system_dbusd_tmp_t;
+files_tmp_file(system_dbusd_tmp_t)
+
+type system_dbusd_var_run_t;
+files_pid_file(system_dbusd_var_run_t)
+
+##############################
+#
+# Local policy
+#
+
+# dac_override: /var/run/dbus is owned by messagebus on Debian
+# cjp: dac_override should probably go in a distro_debian
+allow system_dbusd_t self:capability { dac_override setgid setuid };
+dontaudit system_dbusd_t self:capability sys_tty_config;
+allow system_dbusd_t self:process getattr;
+allow system_dbusd_t self:dbus { send_msg acquire_svc };
+allow system_dbusd_t self:unix_stream_socket create_stream_socket_perms;
+allow system_dbusd_t self:unix_dgram_socket create_socket_perms;
+# Receive notifications of policy reloads and enforcing status changes.
+allow system_dbusd_t self:netlink_selinux_socket { create bind read };
+
+allow system_dbusd_t dbusd_etc_t:dir r_dir_perms;
+allow system_dbusd_t dbusd_etc_t:file r_file_perms;
+allow system_dbusd_t dbusd_etc_t:lnk_file { getattr read };
+
+allow system_dbusd_t system_dbusd_tmp_t:dir create_dir_perms;
+allow system_dbusd_t system_dbusd_tmp_t:file create_file_perms;
+files_create_tmp_files(system_dbusd_t, system_dbusd_tmp_t, { file dir })
+
+allow system_dbusd_t system_dbusd_var_run_t:file create_file_perms;
+allow system_dbusd_t system_dbusd_var_run_t:sock_file create_file_perms;
+files_create_pid(system_dbusd_t,system_dbusd_var_run_t)
+
+kernel_read_system_state(system_dbusd_t)
+kernel_read_kernel_sysctl(system_dbusd_t)
+
+dev_read_urand(system_dbusd_t)
+dev_read_sysfs(system_dbusd_t)
+
+fs_getattr_all_fs(system_dbusd_t)
+fs_search_auto_mountpoints(system_dbusd_t)
+
+selinux_get_fs_mount(system_dbusd_t)
+selinux_validate_context(system_dbusd_t)
+selinux_compute_access_vector(system_dbusd_t)
+selinux_compute_create_context(system_dbusd_t)
+selinux_compute_relabel_context(system_dbusd_t)
+selinux_compute_user_contexts(system_dbusd_t)
+
+term_dontaudit_use_console(system_dbusd_t)
+
+corecmd_list_bin(system_dbusd_t)
+corecmd_read_bin_symlink(system_dbusd_t)
+corecmd_read_bin_file(system_dbusd_t)
+corecmd_read_bin_pipe(system_dbusd_t)
+corecmd_read_bin_socket(system_dbusd_t)
+corecmd_list_sbin(system_dbusd_t)
+corecmd_read_sbin_symlink(system_dbusd_t)
+corecmd_read_sbin_file(system_dbusd_t)
+corecmd_read_sbin_pipe(system_dbusd_t)
+corecmd_read_sbin_socket(system_dbusd_t)
+
+domain_use_wide_inherit_fd(system_dbusd_t)
+
+files_read_etc_files(system_dbusd_t)
+files_list_home(system_dbusd_t)
+files_read_usr_files(system_dbusd_t)
+
+init_use_fd(system_dbusd_t)
+init_use_script_pty(system_dbusd_t)
+
+libs_use_ld_so(system_dbusd_t)
+libs_use_shared_libs(system_dbusd_t)
+
+logging_send_syslog_msg(system_dbusd_t)
+
+miscfiles_read_localization(system_dbusd_t)
+
+seutil_read_config(system_dbusd_t)
+seutil_read_default_contexts(system_dbusd_t)
+seutil_sigchld_newrole(system_dbusd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(system_dbusd_t)
+userdom_dontaudit_search_sysadm_home_dir(system_dbusd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(system_dbusd_t)
+	term_dontaudit_use_generic_pty(system_dbusd_t)
+	files_dontaudit_read_root_file(system_dbusd_t)
+')
+
+tunable_policy(`read_default_t',`
+	files_list_default(system_dbusd_t)
+	files_read_default_files(system_dbusd_t)
+	files_read_default_symlinks(system_dbusd_t)
+	files_read_default_sockets(system_dbusd_t)
+	files_read_default_pipes(system_dbusd_t)
+')
+
+optional_policy(`authlogin.te',`
+	auth_read_pam_console_data(system_dbusd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(system_dbusd_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(system_dbusd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(system_dbusd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(system_dbusd_t)
+')
+')

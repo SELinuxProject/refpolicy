@@ -1,0 +1,215 @@
+## <summary>Desktop messaging bus</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the dbus module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is
+##	used for the user dbus.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
+template(`dbus_per_userdomain_template',`
+	##############################
+	#
+	# Delcarations
+	#
+	type $1_dbusd_t;
+	domain_type($1_dbusd_t)
+	role $3 types $1_dbusd_t;
+
+	type $1_dbusd_$1_t;
+
+	type $1_dbusd_tmp_t;
+	files_tmp_file($1_dbusd_tmp_t)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	allow $1_dbusd_t self:process { getattr sigkill signal };
+	allow $1_dbusd_t self:dbus { send_msg acquire_svc };
+	allow $1_dbusd_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_dbusd_t self:unix_dgram_socket create_socket_perms;
+	allow $1_dbusd_t self:tcp_socket create_stream_socket_perms;
+	# Receive notifications of policy reloads and enforcing status changes.
+	allow $1_dbusd_t self:netlink_selinux_socket { create bind read };
+
+	# For connecting to the bus
+	allow $2 $1_dbusd_t:unix_stream_socket connectto;
+	type_change $2 $1_dbusd_t:dbus $1_dbusd_$1_t;
+
+	# SE-DBus specific permissions
+	allow $1_dbusd_$1_t { $1_dbusd_t self }:dbus send_msg;
+	allow $2 $1_dbusd_t:dbus { send_msg acquire_svc };
+	allow $1_t system_dbusd_t:dbus { send_msg acquire_svc };
+
+	allow $1_dbusd_t dbusd_etc_t:dir r_dir_perms;
+	allow $1_dbusd_t dbusd_etc_t:file r_file_perms;
+	allow $1_dbusd_t dbusd_etc_t:lnk_file { getattr read };
+
+	allow $1_dbusd_t $1_dbusd_tmp_t:dir create_dir_perms;
+	allow $1_dbusd_t $1_dbusd_tmp_t:file create_file_perms;
+	files_create_tmp_files($1_dbusd_t, $1_dbusd_tmp_t, { file dir })
+
+	domain_auto_trans($2, system_dbusd_exec_t, $1_dbusd_t)
+	allow $2 $1_dbusd_t:fd use;
+	allow $1_dbusd_t $2:fd use;
+	allow $1_dbusd_t $2:fifo_file rw_file_perms;
+	allow $1_dbusd_t $2:process sigchld;
+
+	allow $2 $1_dbusd_t:process { sigkill signal };
+
+	kernel_read_system_state($1_dbusd_t)
+	kernel_read_kernel_sysctl($1_dbusd_t)
+
+	corenet_tcp_sendrecv_all_if($1_dbusd_t)
+	corenet_raw_sendrecv_all_if($1_dbusd_t)
+	corenet_tcp_sendrecv_all_nodes($1_dbusd_t)
+	corenet_raw_sendrecv_all_nodes($1_dbusd_t)
+	corenet_tcp_sendrecv_all_ports($1_dbusd_t)
+	corenet_tcp_bind_all_nodes($1_dbusd_t)
+	corenet_tcp_bind_reserved_port($1_dbusd_t)
+
+	dev_read_urand($1_dbusd_t)
+
+	selinux_get_fs_mount($1_dbusd_t)
+	selinux_validate_context($1_dbusd_t)
+	selinux_compute_access_vector($1_dbusd_t)
+	selinux_compute_create_context($1_dbusd_t)
+	selinux_compute_relabel_context($1_dbusd_t)
+	selinux_compute_user_contexts($1_dbusd_t)
+
+	corecmd_list_bin($1_dbusd_t)
+	corecmd_read_bin_symlink($1_dbusd_t)
+	corecmd_read_bin_file($1_dbusd_t)
+	corecmd_read_bin_pipe($1_dbusd_t)
+	corecmd_read_bin_socket($1_dbusd_t)
+	corecmd_list_sbin($1_dbusd_t)
+	corecmd_read_sbin_symlink($1_dbusd_t)
+	corecmd_read_sbin_file($1_dbusd_t)
+	corecmd_read_sbin_pipe($1_dbusd_t)
+	corecmd_read_sbin_socket($1_dbusd_t)
+
+	files_read_etc_files($1_dbusd_t)
+	files_list_home($1_dbusd_t)
+	files_read_usr_files($1_dbusd_t)
+	files_dontaudit_search_var($1_dbusd_t)
+
+	libs_use_ld_so($1_dbusd_t)
+	libs_use_shared_libs($1_dbusd_t)
+
+	logging_send_syslog_msg($1_dbusd_t)
+
+	miscfiles_read_localization($1_dbusd_t)
+
+	seutil_read_config($1_dbusd_t)
+	seutil_read_default_contexts($1_dbusd_t)
+
+	sysnet_read_config($1_dbusd_t)
+
+	tunable_policy(`read_default_t',`
+		files_list_default($1_dbusd_t)
+		files_read_default_files($1_dbusd_t)
+		files_read_default_symlinks($1_dbusd_t)
+		files_read_default_sockets($1_dbusd_t)
+		files_read_default_pipes($1_dbusd_t)
+	')
+
+	optional_policy(`authlogin.te',`
+		auth_read_pam_console_data($1_dbusd_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_dbusd_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Template for creating connections to
+##	the system DBUS.
+## </summary>
+## <param name="domain_prefix">
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="domain">
+##	The type of the domain.
+## </param>
+#
+template(`dbus_system_bus_client_template',`
+	gen_require(`
+		type system_dbusd_t, system_dbusd_t;
+		type system_dbusd_var_run_t;
+		class dir search;
+		class sock_file write;
+		class unix_stream_socket connectto;
+		class dbus send_msg;
+	')
+
+	type $1_dbusd_system_t;
+	type_change $2 system_dbusd_t:dbus $1_dbusd_system_t;
+
+	# SE-DBus specific permissions
+	allow $1_dbusd_system_t { system_dbusd_t self }:dbus send_msg;
+
+	# For connecting to the bus
+	files_search_pids($2)
+	allow $2 system_dbusd_var_run_t:dir search;
+	allow $2 system_dbusd_var_run_t:sock_file write;
+	allow $2 system_dbusd_t:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Connect to the the system DBUS
+##	for service (acquire_svc).
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`dbus_connect_system_bus',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus acquire_svc;
+	')
+
+	allow $1 system_dbusd_t:dbus acquire_svc;
+')
+
+########################################
+## <summary>
+##	Send a message on the system DBUS.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`dbus_send_system_bus_msg',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus send_msg;
+	')
+
+	allow $1 system_dbusd_t:dbus send_msg;
+')

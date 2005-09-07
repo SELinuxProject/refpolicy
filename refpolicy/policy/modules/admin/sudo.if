@@ -20,6 +20,12 @@
 ##	The prefix of the user domain (e.g., user
 ##	is the prefix for user_t).
 ## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
 #
 template(`sudo_per_userdomain_template',`
 
@@ -36,7 +42,7 @@ template(`sudo_per_userdomain_template',`
 	domain_role_change_exempt($1_sudo_t)
 	domain_obj_id_change_exempt($1_sudo_t)
 
-	role $1_r types $1_sudo_t;
+	role $3 types $1_sudo_t;
 
 	##############################
 	#
@@ -45,7 +51,7 @@ template(`sudo_per_userdomain_template',`
 
 	# Use capabilities.
 	allow $1_sudo_t self:capability { setuid setgid dac_override sys_resource };
-	allow $1_sudo_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem dyntransition };
+	allow $1_sudo_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_sudo_t self:process { setexec setrlimit };
 	allow $1_sudo_t self:fd use;
 	allow $1_sudo_t self:fifo_file rw_file_perms;
@@ -59,18 +65,18 @@ template(`sudo_per_userdomain_template',`
 	allow $1_sudo_t self:msg { send receive };
 
 	# Enter this derived domain from the user domain
-	domain_auto_trans($1_t, sudo_exec_t, $1_sudo_t)
-	allow $1_sudo_t $1_t:fd use;
-	allow $1_t $1_sudo_t:fd use;
-	allow $1_t $1_sudo_t:fifo_file rw_file_perms;
-	allow $1_t $1_sudo_t:process sigchld;
+	domain_auto_trans($2, sudo_exec_t, $1_sudo_t)
+	allow $1_sudo_t $2:fd use;
+	allow $2 $1_sudo_t:fd use;
+	allow $2 $1_sudo_t:fifo_file rw_file_perms;
+	allow $2 $1_sudo_t:process sigchld;
 
 	# By default, revert to the calling domain when a shell is executed.
-	corecmd_shell_domtrans($1_sudo_t,$1_t)
-	allow $1_t $1_sudo_t:fd use;
-	allow $1_sudo_t $1_t:fd use;
-	allow $1_sudo_t $1_t:fifo_file rw_file_perms;
-	allow $1_sudo_t $1_t:process sigchld;
+	corecmd_shell_domtrans($1_sudo_t,$2)
+	allow $2 $1_sudo_t:fd use;
+	allow $1_sudo_t $2:fd use;
+	allow $1_sudo_t $2:fifo_file rw_file_perms;
+	allow $1_sudo_t $2:process sigchld;
 
 	kernel_read_kernel_sysctl($1_sudo_t)
 	kernel_read_system_state($1_sudo_t)
@@ -121,10 +127,10 @@ template(`sudo_per_userdomain_template',`
 	seutil_read_config($1_sudo_t)
 	seutil_read_default_contexts($1_sudo_t)
 
-	userdom_manage_user_home_subdir_files($1_sudo_t,$1)
-	userdom_manage_user_home_subdir_symlinks($1_sudo_t,$1)
-	userdom_manage_user_tmp_files($1_sudo_t,$1)
-	userdom_manage_user_tmp_symlinks($1_sudo_t,$1)
+	userdom_manage_user_home_subdir_files($1,$1_sudo_t)
+	userdom_manage_user_home_subdir_symlinks($1,$1_sudo_t)
+	userdom_manage_user_tmp_files($1,$1_sudo_t)
+	userdom_manage_user_tmp_symlinks($1,$1_sudo_t)
 	userdom_use_unpriv_users_fd($1_sudo_t)
 	# for some PAM modules and for cwd
 	userdom_dontaudit_search_all_users_home($1_sudo_t)
