@@ -1,0 +1,79 @@
+## <summary>RPC port mapping service.</summary>
+
+########################################
+## <summary>
+##	Execute portmap_helper in the helper domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`portmap_domtrans_helper',`
+	gen_require(`
+		type portmap_helper_t, portmap_helper_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	corecmd_search_bin($1)
+	domain_auto_trans($1,portmap_helper_exec_t,portmap_helper_t)
+
+	allow $1 portmap_helper_t:fd use;
+	allow portmap_helper_t $1:fd use;
+	allow portmap_helper_t $1:fifo_file rw_file_perms;
+	allow portmap_helper_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute portmap helper in the helper domain, and
+##	allow the specified role the helper domain.
+##	Communicate with portmap.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="role">
+##	The role to be allowed the portmap domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the portmap domain to use.
+## </param>
+#
+interface(`portmap_run_helper',`
+	gen_require(`
+		type portmap_helper_t;
+		class chr_file { getattr read write ioctl };
+	')
+
+	portmap_domtrans_helper($1)
+	role $2 types portmap_helper_t;
+	allow portmap_helper_t $3:chr_file { getattr read write ioctl };
+
+	# send to portmap
+	allow $1 portmap_t:udp_socket sendto;
+	allow portmap_t $1:udp_socket recvfrom;
+
+	# receive from portmap
+	allow portmap_t $1:udp_socket sendto;
+	allow $1 portmap_t:udp_socket recvfrom;
+')
+
+########################################
+## <summary>
+##	Send UDP network traffic to portmap.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`portmap_udp_sendto',`
+	gen_require(`
+		type portmap_t;
+		class udp_socket { sendto recvfrom };
+	')
+
+	allow $1 portmap_t:udp_socket sendto;
+	allow portmap_t $1:udp_socket recvfrom;
+')
