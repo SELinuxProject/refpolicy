@@ -1,0 +1,116 @@
+
+policy_module(zebra,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type zebra_t;
+type zebra_exec_t;
+init_daemon_domain(zebra_t,zebra_exec_t)
+
+type zebra_conf_t;
+files_type(zebra_conf_t)
+
+type zebra_log_t;
+logging_log_file(zebra_log_t)
+
+type zebra_tmp_t;
+files_tmp_file(zebra_tmp_t)
+
+type zebra_var_run_t;
+files_pid_file(zebra_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow zebra_t self:capability { setgid setuid net_admin net_raw };
+dontaudit zebra_t self:capability sys_tty_config;
+allow zebra_t self:process setcap;
+allow zebra_t self:unix_dgram_socket create_socket_perms;
+allow zebra_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow zebra_t self:netlink_route_socket r_netlink_socket_perms;
+allow zebra_t self:tcp_socket create_stream_socket_perms;
+allow zebra_t self:rawip_socket create_socket_perms;
+
+allow zebra_t zebra_conf_t:dir r_dir_perms;
+allow zebra_t zebra_conf_t:file r_file_perms;
+allow zebra_t zebra_conf_t:lnk_file { getattr read };
+
+allow zebra_t zebra_log_t:file create_file_perms;
+allow zebra_t zebra_log_t:sock_file create_file_perms;
+allow zebra_t zebra_log_t:dir rw_dir_perms;
+logging_create_log(zebra_t,zebra_log_t,{ sock_file file dir })
+
+# /tmp/.bgpd is such a bad idea!
+allow zebra_t zebra_tmp_t:sock_file create_file_perms;
+files_create_tmp_files(zebra_t,zebra_tmp_t,sock_file)
+
+allow zebra_t zebra_var_run_t:file create_file_perms;
+files_create_pid(zebra_t,zebra_var_run_t)
+
+kernel_read_system_state(zebra_t)
+kernel_read_kernel_sysctl(zebra_t)
+kernel_rw_net_sysctl(zebra_t)
+
+corenet_tcp_sendrecv_all_if(zebra_t)
+corenet_raw_sendrecv_all_if(zebra_t)
+corenet_tcp_sendrecv_all_nodes(zebra_t)
+corenet_raw_sendrecv_all_nodes(zebra_t)
+corenet_tcp_sendrecv_all_ports(zebra_t)
+corenet_tcp_bind_all_nodes(zebra_t)
+corenet_tcp_bind_zebra_port(zebra_t)
+
+dev_read_sysfs(zebra_t)
+
+fs_getattr_all_fs(zebra_t)
+fs_search_auto_mountpoints(zebra_t)
+
+term_dontaudit_use_console(zebra_t)
+
+domain_use_wide_inherit_fd(zebra_t)
+
+files_read_etc_files(zebra_t)
+files_read_etc_runtime_files(zebra_t)
+
+init_use_fd(zebra_t)
+init_use_script_pty(zebra_t)
+
+libs_use_ld_so(zebra_t)
+libs_use_shared_libs(zebra_t)
+
+logging_send_syslog_msg(zebra_t)
+
+miscfiles_read_localization(zebra_t)
+
+sysnet_read_config(zebra_t)
+
+userdom_dontaudit_use_unpriv_user_fd(zebra_t)
+userdom_dontaudit_search_sysadm_home_dir(zebra_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(zebra_t)
+	term_dontaudit_use_generic_pty(zebra_t)
+	files_dontaudit_read_root_file(zebra_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(zebra_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(zebra_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(zebra_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(zebra_t)
+')
+') dnl end TODO
