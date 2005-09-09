@@ -1,9 +1,5 @@
 
 #
-# Define m4 macros for the constraints
-#
-
-#
 # Define the constraints
 #
 # constrain class_set perm_set expression ;
@@ -33,29 +29,20 @@
 # SELinux process identity change constraint:
 #
 constrain process transition
-	( u1 == u2 or 
+	( u1 == u2
 
 ifdef(`targeted_policy',`
-	t1 == can_change_process_identity
+	or t1 == can_change_process_identity
 ',`
-	( t1 == can_change_process_identity and t2 == userdomain )
-	ifdef(`crond.te',`
-        	or (
-			t1 == crond_t
-			and (
-				t2 == user_crond_domain
-				or u2 == system_u
-			)
-		)
-	')
+	or ( t1 == can_change_process_identity and t2 == process_user_target )
 
-	ifdef(`userhelper.te',`
-		or (t1 == userhelperdomain)
-	')
+       	or ( t1 == cron_source_domain
+		and ( t2 == cron_job_domain or u2 == system_u )
+	   )
 
-	ifdef(`TODO',`
-	or (t1 == priv_system_role and u2 == system_u )
-	') dnl end TODO
+	or (t1 == process_uncond_exempt)
+
+	or (t1 == can_system_change and u2 == system_u )
 ')
 );
 
@@ -63,19 +50,16 @@ ifdef(`targeted_policy',`
 # SELinux process role change constraint:
 #
 constrain process transition 
-	( r1 == r2 or
+	( r1 == r2
+
 ifdef(`targeted_policy',`
-	t1 == can_change_process_role
+	or t1 == can_change_process_role
 ',`
-	( t1 == can_change_process_role and t2 == userdomain )
+	or ( t1 == can_change_process_role and t2 == process_user_target )
 
-	ifdef(`crond.te',`
-        	or (t1 == crond_t and t2 == user_crond_domain)
-	')
+       	or ( t1 == cron_source_domain and t2 == cron_job_domain )
 
-	ifdef(`userhelper.te',`
-		or (t1 == userhelperdomain)
-	')
+	or ( t1 == process_uncond_exempt )
 
 	ifdef(`postfix.te',`
 		ifdef(`direct_sysadm_daemon',`
@@ -87,9 +71,7 @@ ifdef(`targeted_policy',`
 		')
 	')
 
-	ifdef(`TODO',`
-	or (t1 == priv_system_role and r2 == system_r )
-	') dnl end TODO
+	or (t1 == can_system_change and r2 == system_r )
 ')
 );
 
@@ -97,7 +79,7 @@ ifdef(`targeted_policy',`
 # SELinux dynamic transition constraint:
 #
 constrain process dyntransition
-	( u1 == u2 and r1 == r2);
+	( u1 == u2 and r1 == r2 );
 
 #
 # SElinux object identity change constraint:
