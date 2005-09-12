@@ -156,7 +156,7 @@ M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media $(INSTALLDIR)/booleans
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
-USER_FILES := $(POLDIR)/users 
+USER_FILES := $(POLDIR)/systemuser $(POLDIR)/users
 
 ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 
@@ -177,6 +177,8 @@ MODMOD := module
 # extract settings from modules.conf
 BASE_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
 MOD_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
+
+HOMEDIR_TEMPLATE = tmp/homedir_template
 
 ########################################
 #

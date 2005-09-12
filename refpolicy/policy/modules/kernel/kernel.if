@@ -569,7 +569,7 @@ interface(`kernel_dontaudit_search_network_state',`
 		class dir search;
 	')
 
-	allow $1 proc_net_t:dir search;
+	dontaudit $1 proc_net_t:dir search;
 ')
 
 ########################################
@@ -1305,4 +1305,231 @@ interface(`kernel_unconfined',`
 	typeattribute $1 kern_unconfined;
 
 	kernel_rw_all_sysctl($1)
+')
+
+################################################################################
+#
+# Reversed interfaces
+#
+# The following are reversed interfaces, meaning the point of view of the caller
+# of the interface is the object (target) type, rather than the subject (source)
+# type, like all other interfaces in the policy.  These interfaces are here to
+# decouple policy from the base module, and should not be used anywhere else.
+#
+################################################################################
+
+########################################
+## <summary>
+##	Allow the kernel to send a SIGCHLD
+##	signal to the specified domain.
+## </summary>
+## <param name="domain">
+##	Domain receiving the SIGCHLD.
+## </param>
+#
+interface(`kernel_sigchld_from',`
+	gen_require(`
+		type kernel_t;
+		class process sigchld;
+	')
+
+	allow kernel_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Allow unlabeled processes to send a SIGCHLD
+##	signal to the specified domain.
+## </summary>
+## <param name="domain">
+##	Domain receiving the SIGCHLD.
+## </param>
+#
+interface(`kernel_sigchld_from_unlabeled',`
+	gen_require(`
+		type unlabeled_t;
+		class process sigchld;
+	')
+
+	allow unlabeled_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to search the
+##	specified directory.
+## </summary>
+## <param name="dir_type">
+##	Directory type to search.
+## </param>
+#
+interface(`kernel_search_from',`
+	gen_require(`
+		type kernel_t;
+		class dir search;
+	')
+
+	allow kernel_t $1:dir search;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to read the contents
+##	of the specified directory.
+## </summary>
+## <param name="dir_type">
+##	Directory type to list.
+## </param>
+#
+interface(`kernel_list_from',`
+	gen_require(`
+		type kernel_t;
+		class dir r_dir_perms;
+	')
+
+	allow kernel_t $1:dir r_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to read the
+##	specified file.
+## </summary>
+## <param name="dir_type">
+##	Directory type to list.
+## </param>
+#
+interface(`kernel_read_file_from',`
+	gen_require(`
+		type kernel_t;
+		class dir r_dir_perms;
+	')
+
+	allow kernel_t $1:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to search the
+##	specified directory.
+## </summary>
+## <param name="dir_type">
+##	Directory type to search.
+## </param>
+#
+interface(`kernel_search_from',`
+	gen_require(`
+		type kernel_t;
+		class dir search;
+	')
+
+	allow kernel_t $1:dir search;
+')
+
+########################################
+## <summary>
+##	Use the specified types for /lib directory
+##	and use the dynamic link/loader for automatic loading
+##	of shared libraries, and the link/loader
+##	cache.
+## </summary>
+## <param name="lib_type">
+##	The type of the lib directories.
+## </param>
+## <param name="ld_type">
+##	The type of the dynamic link/loader.
+## </param>
+## <param name="cache_type">
+##	The type of the dynamic link/loader cache.
+## </param>
+#
+interface(`kernel_use_ld_so_from',`
+	gen_require(`
+		type kernel_t;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file rx_file_perms;
+	')
+
+	files_list_etc(kernel_t)
+	allow kernel_t $1:dir r_dir_perms;
+	allow kernel_t $1:lnk_file r_file_perms;
+	allow kernel_t $2:lnk_file r_file_perms;
+	allow kernel_t $2:file rx_file_perms;
+	allow kernel_t $3:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to load and execute
+##	functions from the specified shared libraries.
+## </summary>
+## <param name="lib_dir_type">
+##	The type of the lib directories.
+## </param>
+## <param name="shlib_type">
+##	Shared library type.
+## </param>
+#
+interface(`kernel_use_shared_libs_from',`
+	gen_require(`
+		type kernel_t;
+		class lnk_file r_file_perms;
+		class file rx_dir_perms;
+	')
+
+	allow kernel_t $1:dir r_dir_perms;
+	allow kernel_t $1:lnk_file r_file_perms;
+	allow kernel_t $2:lnk_file r_file_perms;
+	allow kernel_t $2:file rx_file_perms;
+')
+
+#######################################
+## <summary>
+##	Allow the kernel to send a syslog
+##	message to the specified domain,
+##	connecting over the specified named
+##	socket.
+## </summary>
+## <param name="socket">
+##	The type of the named socket file.
+## </param>
+## <param name="syslog_type">
+##	The domain of the syslog daemon.
+## </param>
+#
+interface(`kernel_send_syslog_msg_from',`
+	gen_require(`
+		type syslogd_t, devlog_t;
+		class lnk_file read;
+		class sock_file rw_file_perms;
+		class unix_dgram_socket sendto;
+		class unix_stream_socket connectto;
+	')
+
+	allow kernel_t $1:lnk_file read;
+	allow kernel_t $1:sock_file rw_file_perms;
+
+	# the type of socket depends on the syslog daemon
+	allow kernel_t $2:unix_dgram_socket sendto;
+	allow kernel_t $2:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Allow the kernel to send UDP network traffic
+##	the specified domain.
+## </summary>
+## <param name="domain">
+##	The type of the receiving domain.
+## </param>
+#
+interface(`kernel_udp_sendfrom',`
+	gen_require(`
+		type portmap_t;
+		class udp_socket { sendto recvfrom };
+	')
+
+	allow kernel_t $1:udp_socket sendto;
+	allow $1 kernel_t:udp_socket recvfrom;
 ')
