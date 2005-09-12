@@ -1,0 +1,62 @@
+#
+# Thunderbird
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+
+#######################################
+# thunderbird_domain(role_prefix)
+#
+
+# FIXME: Rules were removed to centralize policy in a gnome_app macro
+# A similar thing might be necessary for mozilla compiled without GNOME
+# support (is this possible?).
+
+define(`thunderbird_domain', `
+
+# Type for program
+type $1_thunderbird_t, domain, nscd_client_domain;
+
+# Transition from user type
+if (! disable_thunderbird_trans) {
+domain_auto_trans($1_t, thunderbird_exec_t, $1_thunderbird_t)
+}
+role $1_r types $1_thunderbird_t;
+
+# FIXME: Why does it try to do that?
+dontaudit $1_thunderbird_t evolution_exec_t:file { getattr execute };
+
+# Why is thunderbird looking in .mozilla ?
+# FIXME: there are legitimate uses of invoking the browser - about -> release notes
+dontaudit $1_thunderbird_t $1_mozilla_home_t:dir search;
+
+# .kde/....gtkrc
+# FIXME: support properly 
+dontaudit $1_thunderbird_t $1_home_t:file { getattr read };
+
+# X, mail common stuff
+x_client_domain($1_thunderbird, $1)
+mail_client_domain($1_thunderbird, $1)
+
+allow $1_thunderbird_t fs_t:filesystem getattr;
+
+# GNOME support
+ifdef(`gnome.te', `
+gnome_application($1_thunderbird, $1)
+gnome_file_dialog($1_thunderbird, $1)
+allow $1_thunderbird_t $1_gnome_settings_t:file { read write };
+')
+
+# Access ~/.thunderbird
+home_domain($1, thunderbird)
+
+# RSS feeds
+can_network_client_tcp($1_thunderbird_t, http_port_t) 
+allow $1_thunderbird_t http_port_t:tcp_socket name_connect;
+
+allow $1_thunderbird_t self:process { execheap execstack };
+if (allow_execmem) {
+allow $1_thunderbird_t self:process execmem;
+}
+
+')

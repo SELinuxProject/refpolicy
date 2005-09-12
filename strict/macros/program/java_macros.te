@@ -4,7 +4,7 @@
 # Macros for javaplugin (java plugin) domains.
 #
 #
-# javaplugin_domain(domain_prefix, user)
+# javaplugin_domain(domain_prefix, role)
 #
 # Define a derived domain for the javaplugin program when executed by
 # a web browser.  
@@ -29,9 +29,9 @@ allow $1_javaplugin_t $1_t:unix_stream_socket { read write };
 
 # This domain is granted permissions common to most domains (including can_net)
 can_network_client($1_javaplugin_t)
+allow $1_javaplugin_t port_type:tcp_socket name_connect;
 can_ypbind($1_javaplugin_t)
 allow $1_javaplugin_t self:process { fork signal_perms getsched setsched };
-allow $1_javaplugin_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow $1_javaplugin_t self:fifo_file rw_file_perms;
 allow $1_javaplugin_t etc_runtime_t:file { getattr read };
 allow $1_javaplugin_t fs_t:filesystem getattr;
@@ -41,44 +41,24 @@ allow $1_javaplugin_t self:lnk_file read;
 allow $1_javaplugin_t self:file { getattr read };
 
 read_sysctl($1_javaplugin_t)
+allow $1_javaplugin_t sysctl_vm_t:dir search;
 
 tmp_domain($1_javaplugin)
-r_dir_file($1_javaplugin_t,{ fonts_t usr_t etc_t })
+read_fonts($1_javaplugin_t, $2)
+r_dir_file($1_javaplugin_t,{ usr_t etc_t })
 
 # Search bin directory under javaplugin for javaplugin executable
 allow $1_javaplugin_t bin_t:dir search;
 can_exec($1_javaplugin_t, java_exec_t)
 
-# Allow connections to X server.
-ifdef(`xserver.te', `
+# libdeploy.so legacy
+allow $1_javaplugin_t texrel_shlib_t:file execmod;
+if (allow_execmem) {
+allow $1_javaplugin_t self:process execmem;
+}
 
-ifdef(`xdm.te', `
-# for when /tmp/.X11-unix is created by the system
-allow $1_javaplugin_t xdm_xserver_tmp_t:dir search;
-allow $1_javaplugin_t xdm_t:fifo_file rw_file_perms;
-allow $1_javaplugin_t xdm_tmp_t:dir search;
-allow $1_javaplugin_t xdm_tmp_t:sock_file write;
-')
-
-ifdef(`startx.te', `
-# for when /tmp/.X11-unix is created by the X server
-allow $1_javaplugin_t $2_xserver_tmp_t:dir search;
-
-# for /tmp/.X0-lock
-allow $1_javaplugin_t $2_xserver_tmp_t:file getattr;
-
-allow $1_javaplugin_t $2_xserver_tmp_t:sock_file rw_file_perms;
-can_unix_connect($1_javaplugin_t, $2_xserver_t)
-')dnl end startx
-
-can_unix_connect($1_javaplugin_t, xdm_xserver_t)
-allow xdm_xserver_t $1_javaplugin_t:fd use;
-allow xdm_xserver_t $1_javaplugin_t:shm { associate getattr read unix_read };
-dontaudit xdm_xserver_t $1_javaplugin_t:shm { unix_write write };
-
-')dnl end xserver
-
-allow $1_javaplugin_t self:shm create_shm_perms;
+# Connect to X server
+x_client_domain($1_javaplugin, $2) 
 
 uses_shlib($1_javaplugin_t)
 read_locale($1_javaplugin_t)

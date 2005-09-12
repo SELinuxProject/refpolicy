@@ -21,17 +21,19 @@ uses_shlib(apm_t)
 allow apm_t privfd:fd use;
 allow apm_t admin_tty_type:chr_file rw_file_perms;
 allow apm_t device_t:dir search;
-allow apm_t self:capability sys_admin;
+allow apm_t self:capability { dac_override sys_admin };
 allow apm_t proc_t:dir search;
-allow apm_t proc_t:file { read getattr };
+allow apm_t proc_t:file r_file_perms;
 allow apm_t fs_t:filesystem getattr;
 allow apm_t apm_bios_t:chr_file rw_file_perms;
 role sysadm_r types apm_t;
 role system_r types apm_t;
 
 allow apmd_t device_t:lnk_file read;
-allow apmd_t proc_t:file { getattr read };
-read_sysctl(apmd_t)
+allow apmd_t proc_t:file { getattr read write };
+can_sysctl(apmd_t)
+allow apmd_t sysfs_t:file write;
+
 allow apmd_t self:unix_dgram_socket create_socket_perms;
 allow apmd_t self:unix_stream_socket create_stream_socket_perms;
 allow apmd_t self:fifo_file rw_file_perms;
@@ -52,7 +54,7 @@ allow apmd_t self:file { getattr read ioctl };
 allow apmd_t self:process getsession;
 
 # Use capabilities.
-allow apmd_t self:capability { sys_admin sys_nice sys_time };
+allow apmd_t self:capability { sys_admin sys_nice sys_time kill };
 
 # controlling an orderly resume of PCMCIA requires creating device
 # nodes 254,{0,1,2} for some reason.
@@ -67,7 +69,10 @@ can_exec_any(apmd_t)
 # apmd calls hwclock.sh on suspend and resume
 allow apmd_t clock_device_t:chr_file r_file_perms;
 ifdef(`hwclock.te', `
+domain_auto_trans(apmd_t, hwclock_exec_t, hwclock_t)
 allow apmd_t adjtime_t:file rw_file_perms;
+allow hwclock_t apmd_log_t:file append;
+allow hwclock_t apmd_t:unix_stream_socket { read write };
 ')
 
 
@@ -84,7 +89,7 @@ dontaudit apmd_t domain:dir search;
 ifdef(`distro_redhat', `
 can_exec(apmd_t, apmd_var_run_t)
 # for /var/lock/subsys/network
-rw_dir_create_file(apmd_t, var_lock_t)
+lock_domain(apmd)
 
 # ifconfig_exec_t needs to be run in its own domain for Red Hat
 ifdef(`ifconfig.te', `domain_auto_trans(apmd_t, ifconfig_exec_t, ifconfig_t)')
@@ -108,6 +113,7 @@ allow apmd_t initrc_var_run_t:file { read write lock };
 #
 # Allow it to run killof5 and pidof
 #
+typeattribute apmd_t unrestricted;
 r_dir_file(apmd_t, domain)
 
 # Same for apm/acpid scripts

@@ -32,14 +32,15 @@ allow pppd_t sysfs_t:dir search;
 log_domain(pppd)
 
 # Use the network.
-can_network_server(pppd_t)
+can_network(pppd_t)
 can_ypbind(pppd_t)
 
-# Use capabilities.
-allow pppd_t self:capability { net_admin setuid setgid fsetid };
+allow pppd_t fingerd_port_t:tcp_socket name_connect;
 
-allow pppd_t var_lock_t:dir rw_dir_perms;
-allow pppd_t var_lock_t:file create_file_perms;
+
+# Use capabilities.
+allow pppd_t self:capability { net_admin setuid setgid fsetid fowner net_raw dac_override };
+lock_domain(pppd)
 
 # Access secret files
 allow pppd_t pppd_secret_t:file r_file_perms;
@@ -47,15 +48,17 @@ allow pppd_t pppd_secret_t:file r_file_perms;
 ifdef(`postfix.te', `
 allow pppd_t postfix_etc_t:dir search;
 allow pppd_t postfix_etc_t:file r_file_perms;
-allow pppd_t postfix_master_exec_t:file read;
+allow pppd_t postfix_master_exec_t:file { getattr read };
 allow postfix_postqueue_t pppd_t:fd use;
 allow postfix_postqueue_t pppd_t:process sigchld;
 ')
 
 # allow running ip-up and ip-down scripts and running chat.
 can_exec(pppd_t, { shell_exec_t bin_t sbin_t etc_t ifconfig_exec_t })
+can_exec(pppd_t, pppd_etc_rw_t)
+can_exec(pppd_t, hostname_exec_t)
 allow pppd_t { bin_t sbin_t }:dir search;
-allow pppd_t bin_t:lnk_file read;
+allow pppd_t { sbin_t bin_t }:lnk_file read;
 
 # Access /dev/ppp.
 allow pppd_t ppp_device_t:chr_file rw_file_perms;
@@ -66,6 +69,8 @@ allow pppd_t self:unix_stream_socket create_socket_perms;
 
 allow pppd_t proc_t:dir search;
 allow pppd_t proc_t:{ file lnk_file } r_file_perms;
+allow pppd_t proc_net_t:dir { read search };
+allow pppd_t proc_net_t:file r_file_perms;
 
 allow pppd_t etc_runtime_t:file r_file_perms;
 
@@ -92,8 +97,43 @@ allow unpriv_userdomain pppd_t:process signal;
 # for pppoe
 can_create_pty(pppd)
 allow pppd_t self:file { read getattr };
-allow pppd_t self:capability { fowner net_raw };
+
 allow pppd_t self:packet_socket create_socket_perms;
 
 file_type_auto_trans(pppd_t, etc_t, net_conf_t, file)
 tmp_domain(pppd)
+allow pppd_t sysctl_net_t:dir search;
+allow pppd_t sysctl_net_t:file r_file_perms;
+allow pppd_t self:netlink_route_socket r_netlink_socket_perms;
+allow pppd_t initrc_var_run_t:file r_file_perms;
+dontaudit pppd_t initrc_var_run_t:file { lock write };
+
+# pppd needs to load kernel modules for certain modems
+bool pppd_can_insmod false;
+if (pppd_can_insmod) {
+ifdef(`modutil.te', `
+domain_auto_trans(pppd_t, insmod_exec_t, insmod_t)
+')
+}
+domain_auto_trans(pppd_t, named_exec_t, named_t)
+
+daemon_domain(pptp)
+can_network_client_tcp(pptp_t)
+allow pptp_t { reserved_port_type port_t }:tcp_socket name_connect;
+can_exec(pptp_t, hostname_exec_t)
+domain_auto_trans(pppd_t, pptp_exec_t, pptp_t)
+allow pptp_t self:rawip_socket create_socket_perms;
+allow pptp_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow pptp_t self:unix_dgram_socket create_socket_perms;
+can_exec(pptp_t, pppd_etc_rw_t)
+allow pptp_t devpts_t:chr_file ioctl;
+r_dir_file(pptp_t, pppd_etc_rw_t)
+r_dir_file(pptp_t, pppd_etc_t)
+allow pptp_t devpts_t:dir search;
+allow pppd_t devpts_t:chr_file ioctl;
+allow pppd_t pptp_t:process signal;
+allow pptp_t self:capability net_raw;
+allow pptp_t self:fifo_file { read write };
+allow pptp_t ptmx_t:chr_file rw_file_perms;
+log_domain(pptp)
+allow pptp_t pppd_log_t:file append;

@@ -52,20 +52,19 @@ can_exec($1_xserver_t, xserver_exec_t)
 
 uses_shlib($1_xserver_t)
 
-if (allow_execmod) {
 allow $1_xserver_t texrel_shlib_t:file execmod;
-}
 
 can_network($1_xserver_t)
+allow $1_xserver_t port_type:tcp_socket name_connect;
 can_ypbind($1_xserver_t)
 allow $1_xserver_t xserver_port_t:tcp_socket name_bind;
 
 # for access within the domain
 general_domain_access($1_xserver_t)
 
-if (allow_execmem) {
 allow $1_xserver_t self:process execmem;
-}
+# Until the X module loader is fixed.
+allow $1_xserver_t self:process execheap;
 
 allow $1_xserver_t etc_runtime_t:file { getattr read };
 
@@ -76,6 +75,12 @@ role system_r types xdm_xserver_t;
 allow xdm_xserver_t init_t:fd use;
 
 dontaudit xdm_xserver_t home_dir_type:dir { read search };
+
+# Read all global and per user fonts
+read_fonts($1_xserver_t, sysadm)
+read_fonts($1_xserver_t, staff)
+read_fonts($1_xserver_t, user)
+
 ', `
 # The user role is authorized for this domain.
 role $1_r types $1_xserver_t;
@@ -89,12 +94,13 @@ allow $1_t $1_xserver_tmpfs_t:file rw_file_perms;
 
 can_unix_connect($1_t, $1_xserver_t)
 
+# Read fonts
+read_fonts($1_xserver_t, $1)
+
 # Access the home directory.
 allow $1_xserver_t home_root_t:dir search;
 allow $1_xserver_t $1_home_dir_t:dir { getattr search };
-if (allow_xserver_home_fonts) {
-r_dir_file($1_xserver_t, $1_home_t)
-}
+
 ifdef(`xauth.te', `
 domain_auto_trans($1_xserver_t, xauth_exec_t, $1_xauth_t)
 allow $1_xserver_t $1_xauth_home_t:file { getattr read };
@@ -171,8 +177,6 @@ allow $1_t $1_xserver_tmp_t:dir r_dir_perms;
 ifdef(`xdm.te', `
 allow $1_t xdm_tmp_t:sock_file unlink;
 allow $1_xserver_t xdm_var_run_t:dir search;
-# for /tmp/.ICE-unix
-file_type_auto_trans($1_t, xdm_xserver_tmp_t, $1_tmp_t, sock_file)
 ')
 
 # Signal the user domain.
@@ -258,10 +262,8 @@ allow $1_xserver_t pam_var_console_t:dir search;
 dontaudit $1_xserver_t selinux_config_t:dir search;
 
 allow $1_xserver_t var_lib_t:dir search;
-rw_dir_create_file($1_xserver_t, var_lib_xkb_t)
+rw_dir_create_file($1_xserver_t, xkb_var_lib_t)
 
-# for fonts
-r_dir_file($1_xserver_t, fonts_t)
 ')dnl end macro definition
 
 ', `

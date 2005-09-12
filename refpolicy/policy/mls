@@ -22,6 +22,7 @@ sensitivity s9;
 #
 dominance { s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 }
 
+
 #
 # Define the categories
 #
@@ -207,7 +208,7 @@ level s9:c0.c127;
 # role_mls_op : == | != | eq | dom | domby | incomp
 #
 # names : name | { name_list }
-# name_list : name | name_list name#
+# name_list : name | name_list name
 #
 
 #
@@ -218,7 +219,7 @@ level s9:c0.c127;
 mlsconstrain { file lnk_file fifo_file } { create relabelto }
 	( l2 eq h2 );
 
-# new file labels must be dominated by the relabling subject clearance
+# new file labels must be dominated by the relabeling subject clearance
 mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } relabelto
 	( h1 dom h2 );
 
@@ -258,10 +259,10 @@ mlsconstrain dir { add_name remove_name reparent rmdir }
 # these access vectors have no MLS restrictions
 # { dir file lnk_file chr_file blk_file sock_file fifo_file } { ioctl lock swapon quotaon }
 #
-# file { execute_no_trans entrypoint }
+# { file chr_file } { execute_no_trans entrypoint execmod }
 
 # the file upgrade/downgrade rule
-mlsvalidatetrans { file lnk_file chr_file blk_file sock_file fifo_file }
+mlsvalidatetrans { dir file lnk_file chr_file blk_file sock_file fifo_file }
 	((( l1 eq l2 ) or
 	  (( t3 == mlsfileupgrade ) and ( l1 domby l2 )) or
 	  (( t3 == mlsfiledowngrade ) and ( l1 dom l2 )) or
@@ -285,11 +286,13 @@ mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } create
 	  (( t1 == mlsfiledowngrade ) and ( l1 incomp h2 ))));
 
 
+
+
 #
 # MLS policy for the filesystem class
 #
 
-# new filesystem labels must be dominated by the relabling subject clearance
+# new filesystem labels must be dominated by the relabeling subject clearance
 mlsconstrain filesystem relabelto
 	( h1 dom h2 );
 
@@ -309,21 +312,18 @@ mlsconstrain filesystem { mount remount unmount relabelfrom quotamod }
 # filesystem { transition associate }
 
 
+
+
 #
 # MLS policy for the socket classes
 #
 
-# new socket labels must be dominated by the relabling subject clearance
+# new socket labels must be dominated by the relabeling subject clearance
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } relabelto
 	( h1 dom h2 );
 
-# the socket "read" ops (note that the we check dominance of the low level)
+# the socket "read" ops (note the check is dominance of the low level)
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { read getattr listen accept getopt recvfrom recv_msg }
-	(( l1 dom l2 ) or
-	 (( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
-	 ( t1 == mlsnetread ));
-
-mlsconstrain { tcp_socket unix_stream_socket } acceptfrom
 	(( l1 dom l2 ) or
 	 (( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
 	 ( t1 == mlsnetread ));
@@ -334,23 +334,22 @@ mlsconstrain { netlink_route_socket netlink_firewall_socket netlink_tcpdiag_sock
 	 ( t1 == mlsnetread ));
 
 # the socket "write" ops
-mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { setattr relabelfrom connect setopt shutdown }
-	((( l1 dom l2 ) and ( l1 domby h2 )) or
-	 (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
-	 ( t1 == mlsnetwrite ));
-
-mlsconstrain { tcp_socket unix_stream_socket } { connectto newconn }
+mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { write setattr relabelfrom connect setopt shutdown }
 	((( l1 dom l2 ) and ( l1 domby h2 )) or
 	 (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsnetwrite ));
 
 # these access vectors have no MLS restrictions
-# { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { ioctl write create lock append bind sendto send_msg name_bind }
+# { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { ioctl create lock append bind sendto send_msg name_bind }
 #
 # { tcp_socket udp_socket rawip_socket } node_bind
 #
+# { tcp_socket unix_stream_socket } { connectto newconn acceptfrom }
+#
 # { netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_xfrm_socket netlink_audit_socket netlink_ip6fw_socket } nlmsg_write
 #
+
+
 
 
 #
@@ -393,6 +392,8 @@ mlsconstrain msg send
 # { ipc sem msgq shm } associate
 
 
+
+
 #
 # MLS policy for the fd class
 #
@@ -401,29 +402,38 @@ mlsconstrain msg send
 # fd use
 
 
+
+
 #
-# MLS policy for the node class
+# MLS policy for the network object classes
 #
+
+# the netif/node "read" ops (implicit single level socket doing the read)
+#                           (note the check is dominance of the low level)
+mlsconstrain { node netif } { tcp_recv udp_recv rawip_recv }
+	(( l1 dom l2 ) or ( t1 == mlsnetrecvall ));
+
+# the netif/node "write" ops (implicit single level socket doing the write)
+mlsconstrain { netif node } { tcp_send udp_send rawip_send }
+	(( l1 dom l2 ) and ( l1 domby h2 ));
 
 # these access vectors have no MLS restrictions
-# node { tcp_recv tcp_send udp_recv udp_send rawip_recv rawip_send enforce_dest }
+# { netif node } { enforce_dest }
 
 
-#
-# MLS policy for the netif class
-#
-
-# these access vectors have no MLS restrictions
-# netif { tcp_recv tcp_send udp_recv udp_send rawip_recv rawip_send enforce_dest }
 
 
 #
 # MLS policy for the process class
 #
 
-# new process labels must be dominated by the relabling subject clearance and
-# sensitivity level changes require privilege
-mlsconstrain process { transition dyntransition }
+# new process labels must be dominated by the relabeling subject clearance
+# and sensitivity level changes require privilege
+mlsconstrain process transition
+	(( h1 dom h2 ) and
+	 (( l1 eq l2 ) or ( t1 == mlsprocsetsl ) or
+	  (( t1 == privrangetrans ) and ( t2 == mlsrangetrans ))));
+mlsconstrain process dyntransition
 	(( h1 dom h2 ) and
 	 (( l1 eq l2 ) or ( t1 == mlsprocsetsl )));
 
@@ -440,7 +450,9 @@ mlsconstrain process { sigkill sigstop signal setsched setpgid setcap setexec se
 	 ( t1 == mlsprocwrite ));
 
 # these access vectors have no MLS restrictions
-# process { fork sigchld signull noatsecure siginh setrlimit rlimitinh}
+# process { fork sigchld signull noatsecure siginh setrlimit rlimitinh execmem }
+
+
 
 
 #
@@ -451,12 +463,16 @@ mlsconstrain process { sigkill sigstop signal setsched setpgid setcap setexec se
 # security *
 
 
+
+
 #
 # MLS policy for the system class
 #
 
 # these access vectors have no MLS restrictions
 # system *
+
+
 
 
 #
@@ -468,12 +484,15 @@ mlsconstrain process { sigkill sigstop signal setsched setpgid setcap setexec se
 
 
 
+
 #
 # MLS policy for the passwd class
 #
 
 # these access vectors have no MLS restrictions
 # passwd *
+
+
 
 
 #
@@ -493,6 +512,8 @@ mlsconstrain drawable { create destroy draw copy }
 	 ( t1 == mlsxwinwrite ));
 
 
+
+
 #
 # MLS policy for the gc class
 #
@@ -508,6 +529,8 @@ mlsconstrain gc { create free setattr }
 	(( l1 eq l2 ) or
 	 (( t1 == mlsxwinwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsxwinwrite ));
+
+
 
 
 #
@@ -530,6 +553,8 @@ mlsconstrain window { addchild create destroy chstack chproplist chprop setattr 
 # window { map unmap }
 
 
+
+
 #
 # MLS policy for the font class
 #
@@ -550,6 +575,8 @@ mlsconstrain font free
 # font use
 
 
+
+
 #
 # MLS policy for the colormap class
 #
@@ -565,6 +592,8 @@ mlsconstrain colormap { create free install uninstall store setattr }
 	(( l1 eq l2 ) or
 	 (( t1 == mlsxwinwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsxwinwrite ));
+
+
 
 
 #
@@ -583,6 +612,9 @@ mlsconstrain property { create free write }
 	 (( t1 == mlsxwinwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsxwinwrite ));
 
+
+
+
 #
 # MLS policy for the cursor class
 #
@@ -594,6 +626,8 @@ mlsconstrain cursor { create createglyph free assign setattr }
 	 ( t1 == mlsxwinwrite ));
 
 
+
+
 #
 # MLS policy for the xclient class
 #
@@ -603,6 +637,8 @@ mlsconstrain xclient kill
 	(( l1 eq l2 ) or
 	 (( t1 == mlsxwinwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsxwinwrite ));
+
+
 
 
 #
@@ -641,6 +677,8 @@ mlsconstrain xserver { sethostlist setfontpath grab ungrab screensaver }
 	 ( t1 == mlsxwinwrite ));
 
 
+
+
 #
 # MLS policy for the xextension class
 #
@@ -666,6 +704,8 @@ mlsconstrain xextension use
 # pax { pageexec emutramp mprotect randmmap randexec segmexec }
 
 
+
+
 #
 # MLS policy for the dbus class
 #
@@ -674,12 +714,16 @@ mlsconstrain xextension use
 # dbus { acquire_svc send_msg }
 
 
+
+
 #
 # MLS policy for the nscd class
 #
 
 # these access vectors have no MLS restrictions
 # nscd { getpwd getgrp gethost getstat admin shmempwd shmemgrp shmemhost }
+
+
 
 
 #
@@ -702,7 +746,7 @@ attribute mlsnetwrite;
 attribute mlsnetwritetoclr;
 attribute mlsnetupgrade;
 attribute mlsnetdowngrade;
-attribute mlsnetbindall;
+attribute mlsnetrecvall;
 
 attribute mlsipcread;
 attribute mlsipcreadtoclr;

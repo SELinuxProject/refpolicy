@@ -8,18 +8,22 @@
 # Declarations for winbind
 #
 
-daemon_domain(winbind, `, privhome, auth_chkpwd')
+daemon_domain(winbind, `, privhome, auth_chkpwd, nscd_client_domain')
 log_domain(winbind)
+tmp_domain(winbind)
 allow winbind_t etc_t:file r_file_perms;
 allow winbind_t etc_t:lnk_file read;
 can_network(winbind_t)
+allow winbind_t smbd_port_t:tcp_socket name_connect;
+can_resolve(winbind_t)
+
 ifdef(`samba.te', `', `
 type samba_etc_t, file_type, sysadmfile, usercanread;
 type samba_log_t, file_type, sysadmfile, logfile;
 type samba_var_t, file_type, sysadmfile;
 type samba_secrets_t, file_type, sysadmfile;
 ')
-rw_dir_file(winbind_t, samba_etc_t)
+file_type_auto_trans(winbind_t, samba_etc_t, samba_secrets_t, file)
 rw_dir_create_file(winbind_t, samba_log_t)
 allow winbind_t samba_secrets_t:file rw_file_perms;
 allow winbind_t self:unix_dgram_socket create_socket_perms;
@@ -27,7 +31,19 @@ allow winbind_t self:unix_stream_socket create_stream_socket_perms;
 allow winbind_t urandom_device_t:chr_file { getattr read };
 allow winbind_t self:fifo_file { read write };
 rw_dir_create_file(winbind_t, samba_var_t)
-allow winbind_t krb5_conf_t:file { getattr read };
-dontaudit winbind_t krb5_conf_t:file { write };
+can_kerberos(winbind_t)
 allow winbind_t self:netlink_route_socket r_netlink_socket_perms;
 allow winbind_t winbind_var_run_t:sock_file create_file_perms;
+allow initrc_t winbind_var_run_t:file r_file_perms;
+
+application_domain(winbind_helper, `, nscd_client_domain')
+role system_r types winbind_helper_t;
+access_terminal(winbind_helper_t, sysadm)
+read_locale(winbind_helper_t) 
+r_dir_file(winbind_helper_t, samba_etc_t)
+r_dir_file(winbind_t, samba_etc_t)
+allow winbind_helper_t self:unix_dgram_socket create_socket_perms;
+allow winbind_helper_t self:unix_stream_socket create_stream_socket_perms;
+allow winbind_helper_t winbind_var_run_t:dir r_dir_perms;
+can_winbind(winbind_helper_t)
+allow winbind_helper_t privfd:fd use;

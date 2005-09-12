@@ -15,13 +15,22 @@ type clamav_var_lib_t, file_type, sysadmfile;
 # clamscan_t is the domain of the clamscan virus scanner
 type clamscan_exec_t, file_type, sysadmfile, exec_type;
 
-daemon_base_domain(freshclam)
+##########
+##########
+
+#
+# Freshclam
+#
+
+daemon_base_domain(freshclam, `, web_client_domain')
 read_locale(freshclam_t)
 
 # not sure why it needs this
 read_sysctl(freshclam_t)
 
-can_network_server(freshclam_t)
+can_network_client_tcp(freshclam_t, http_port_t);
+allow freshclam_t http_port_t:tcp_socket name_connect;
+can_resolve(freshclam_t)
 can_ypbind(freshclam_t)
 
 # Access virus signatures
@@ -56,24 +65,59 @@ allow freshclam_t self:fifo_file rw_file_perms;
 logdir_domain(freshclam)
 allow initrc_t freshclam_log_t:file append;
 
+# Pid files for freshclam
+allow initrc_t clamd_var_run_t:file { create setattr };
+
 system_crond_entry(freshclam_exec_t, freshclam_t)
 domain_auto_trans(logrotate_t, freshclam_exec_t, freshclam_t)
 
 domain_auto_trans(sysadm_t, freshclam_exec_t, freshclam_t)
 role sysadm_r types freshclam_t;
 
+create_dir_file(freshclam_t, clamd_var_run_t)
+
+##########
+##########
+
+#
+# Clamscan
+#
+
 # macros/program/clamav_macros.te.
 user_clamscan_domain(sysadm)
+
+##########
+##########
+
+#
+# Clamd
+#
+
+type clamd_sock_t, file_type, sysadmfile;
 
 # clamd executable
 daemon_domain(clamd)
 
 tmp_domain(clamd)
+
+# The dir containing the clamd log files is labelled freshclam_t
 logdir_domain(clamd)
+allow clamd_t freshclam_log_t:dir search;
 
-file_type_auto_trans(clamd_t, var_run_t, clamd_var_run_t, sock_file)
+allow clamd_t self:capability { kill setgid setuid dac_override };
 
-allow clamd_t self:capability { kill setgid setuid };
+# Give the clamd local communications socket a unique type
+ifdef(`distro_debian', `
+file_type_auto_trans(clamd_t, var_run_t, clamd_sock_t, sock_file)
+')
+ifdef(`distro_redhat', `
+file_type_auto_trans(clamd_t, clamd_var_run_t, clamd_sock_t, sock_file)
+')
+
+# Clamd can be configured to listen on a TCP port.
+can_network_server_tcp(clamd_t, clamd_port_t)
+allow clamd_t clamd_port_t:tcp_socket name_bind;
+can_resolve(clamd_t);
 
 allow clamd_t var_lib_t:dir search;
 r_dir_file(clamd_t, clamav_var_lib_t)
@@ -86,3 +130,18 @@ allow clamd_t self:fifo_file rw_file_perms;
 
 allow clamd_t { random_device_t urandom_device_t }:chr_file { getattr read };
 dontaudit clamd_t { random_device_t urandom_device_t }:chr_file ioctl;
+
+
+##########
+##########
+
+#
+# Interaction with external programs
+#
+
+ifdef(`amavis.te',`
+allow amavisd_t clamd_var_run_t:dir search;
+allow amavisd_t clamd_t:unix_stream_socket connectto;
+allow amavisd_t clamd_sock_t:sock_file write;
+')
+

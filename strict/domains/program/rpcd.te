@@ -11,8 +11,13 @@
 # Rules for the rpcd_t and nfsd_t domain.
 #
 define(`rpc_domain', `
+ifdef(`targeted_policy', `
+daemon_base_domain($1, `, transitionbool')
+', `
 daemon_base_domain($1)
+')
 can_network($1_t)
+allow $1_t port_type:tcp_socket name_connect;
 can_ypbind($1_t)
 allow $1_t etc_t:file { getattr read };
 read_locale($1_t)
@@ -88,7 +93,8 @@ type nfsd_ro_t, file_type, sysadmfile, usercanread;
 bool nfs_export_all_rw false;
 
 if(nfs_export_all_rw) {
-allow nfsd_t { file_type -shadow_t }:dir r_dir_perms;
+allow nfsd_t { noexattrfile file_type -shadow_t }:dir r_dir_perms;
+r_dir_file(kernel_t, noexattrfile)
 create_dir_file(kernel_t,{ file_type -shadow_t })
 }
 
@@ -97,8 +103,8 @@ dontaudit kernel_t shadow_t:file getattr;
 bool nfs_export_all_ro false;
 
 if(nfs_export_all_ro) {
-allow nfsd_t { file_type -shadow_t }:dir r_dir_perms;
-r_dir_file(kernel_t,{ file_type -shadow_t })
+allow nfsd_t { noexattrfile file_type -shadow_t }:dir r_dir_perms;
+r_dir_file(kernel_t,{ noexattrfile file_type -shadow_t })
 }
 
 allow nfsd_t { nfsd_rw_t nfsd_ro_t }:dir r_dir_perms;
@@ -113,7 +119,7 @@ can_udp_send(nfsd_t, kernel_t)
 allow nfsd_t var_run_t:dir search;
 
 allow nfsd_t self:capability { sys_admin sys_resource };
-allow nfsd_t fs_t:filesystem getattr;
+allow nfsd_t fs_type:filesystem getattr;
 
 can_udp_send(nfsd_t, portmap_t)
 can_udp_send(portmap_t, nfsd_t)
@@ -131,7 +137,9 @@ allow rpcd_t proc_net_t:dir search;
 
 rpc_domain(gssd)
 can_kerberos(gssd_t)
+ifdef(`kerberos.te', `
 allow gssd_t krb5_keytab_t:file r_file_perms;
+')
 allow gssd_t urandom_device_t:chr_file { getattr read };
 r_dir_file(gssd_t, tmp_t)
 tmp_domain(gssd)
@@ -139,3 +147,7 @@ allow gssd_t self:fifo_file { read write };
 r_dir_file(gssd_t, proc_net_t)
 allow gssd_t rpc_pipefs_t:dir r_dir_perms;
 allow gssd_t rpc_pipefs_t:sock_file { read write };
+allow gssd_t rpc_pipefs_t:file r_file_perms;
+allow gssd_t self:capability setuid;
+allow nfsd_t devtty_t:chr_file rw_file_perms;
+allow rpcd_t devtty_t:chr_file rw_file_perms;

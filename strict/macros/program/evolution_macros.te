@@ -1,0 +1,234 @@
+#
+# Evolution   
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+
+################################################
+# evolution_common(app_prefix,role_prefix)
+# 
+define(`evolution_common', `
+
+# Gnome common stuff
+gnome_application($1, $2)
+
+# Stat root
+allow $1_t root_t:dir search;
+
+# Access null device 
+allow $1_t null_device_t:chr_file rw_file_perms;
+
+# FIXME: suppress access to .local/.icons/.themes until properly implemented
+dontaudit $1_t $2_home_t:dir r_dir_perms;
+
+# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+# until properly implemented
+dontaudit $1_t $2_home_t:file r_file_perms;
+
+') dnl evolution_common
+
+#######################################
+# evolution_data_server(role_prefix) 
+#
+
+define(`evolution_data_server', `
+
+# Type for daemon
+type $1_evolution_server_t, domain, nscd_client_domain;
+
+# Transition from user type
+if (! disable_evolution_trans) {
+domain_auto_trans($1_t, evolution_server_exec_t, $1_evolution_server_t)
+}
+role $1_r types $1_evolution_server_t;
+
+# Evolution common stuff
+evolution_common($1_evolution_server, $1)
+
+# Access evolution home
+home_domain_access($1_evolution_server_t, $1, evolution)
+
+# Talks to exchange
+bonobo_connect($1_evolution_server, $1_evolution_exchange)
+
+can_exec($1_evolution_server_t, shell_exec_t)
+
+# Obtain weather data via http (read server name from xml file in /usr)
+allow $1_evolution_server_t usr_t:file r_file_perms;
+can_resolve($1_evolution_server_t)
+can_network_client_tcp($1_evolution_server_t, { http_port_t http_cache_port_t } )
+allow $1_evolution_server_t { http_cache_port_t http_port_t }:tcp_socket name_connect;
+
+# Talk to ldap (address book)
+can_network_client_tcp($1_evolution_server_t, ldap_port_t)
+allow $1_evolution_server_t ldap_port_t:tcp_socket name_connect;
+
+# Look in /etc/pki
+allow $1_evolution_server_t cert_t:dir r_dir_perms;
+
+') dnl evolution_data_server
+
+#######################################
+# evolution_webcal(role_prefix)
+#
+
+define(`evolution_webcal', `
+
+# Type for program
+type $1_evolution_webcal_t, domain, nscd_client_domain;
+
+# Transition from user type
+domain_auto_trans($1_t, evolution_webcal_exec_t, $1_evolution_webcal_t)
+role $1_r types $1_evolution_webcal_t;
+
+# X/evolution common stuff
+x_client_domain($1_evolution_webcal, $1)
+evolution_common($1_evolution_webcal, $1)
+
+# Search home directory (?)
+allow $1_evolution_webcal_t $1_home_dir_t:dir search;
+
+# Networking capability - connect to website and handle ics link
+# FIXME: is this necessary ?
+can_resolve($1_evolution_webcal_t);
+can_network_client_tcp($1_evolution_webcal_t, { http_port_t http_cache_port_t } )
+allow $1_evolution_webcal_t { http_cache_port_t http_port_t } :tcp_socket name_connect;
+  
+') dnl evolution_webcal
+
+#######################################
+# evolution_alarm(role_prefix)
+#
+define(`evolution_alarm', `
+
+# Type for program
+type $1_evolution_alarm_t, domain, nscd_client_domain;
+
+# Transition from user type
+domain_auto_trans($1_t, evolution_alarm_exec_t, $1_evolution_alarm_t)
+role $1_r types $1_evolution_alarm_t;
+
+# Common evolution stuff, X
+evolution_common($1_evolution_alarm, $1)
+x_client_domain($1_evolution_alarm, $1)
+
+# Connect to exchange, e-d-s
+bonobo_connect($1_evolution_alarm, $1_evolution_server) 
+bonobo_connect($1_evolution_alarm, $1_evolution_exchange)
+
+# Access evolution home
+home_domain_access($1_evolution_alarm_t, $1, evolution)
+
+') dnl evolution_alarm
+
+########################################
+# evolution_exchange(role_prefix)
+#
+define(`evolution_exchange', `
+
+# Type for program
+type $1_evolution_exchange_t, domain, nscd_client_domain;
+
+# Transition from user type
+domain_auto_trans($1_t, evolution_exchange_exec_t, $1_evolution_exchange_t)
+role $1_r types $1_evolution_exchange_t;
+
+# Common evolution stuff, X
+evolution_common($1_evolution_exchange, $1)
+x_client_domain($1_evolution_exchange, $1)
+
+# Access evolution home
+home_domain_access($1_evolution_exchange_t, $1, evolution)
+
+# /tmp/.exchange-$USER
+tmp_domain($1_evolution_exchange)
+ 
+# Allow netstat
+allow $1_evolution_exchange_t bin_t:dir search; 
+can_exec($1_evolution_exchange_t, bin_t)
+r_dir_file($1_evolution_exchange_t, proc_net_t)
+allow $1_evolution_exchange_t sysctl_net_t:dir search;
+allow $1_evolution_exchange_t self:{ udp_socket tcp_socket } create_socket_perms;
+
+# Clock applet talks to exchange (FIXME: Needs policy)
+bonobo_connect($1, $1_evolution_exchange)
+
+# FIXME: policy incomplete
+
+') dnl evolution_exchange
+
+#######################################
+# evolution_domain(role_prefix)
+#
+
+define(`evolution_domain', `
+
+# Type for program
+type $1_evolution_t, domain, nscd_client_domain, privlog; 
+
+# Transition from user type
+domain_auto_trans($1_t, evolution_exec_t, $1_evolution_t)
+role $1_r types $1_evolution_t;
+
+# X, mail, evolution common stuff 
+x_client_domain($1_evolution, $1)
+mail_client_domain($1_evolution, $1)
+gnome_file_dialog($1_evolution, $1)
+evolution_common($1_evolution, $1)
+
+# Connect to e-d-s, exchange, alarm
+bonobo_connect($1_evolution, $1_evolution_server)
+bonobo_connect($1_evolution, $1_evolution_exchange)
+bonobo_connect($1_evolution, $1_evolution_alarm)
+
+# Access .evolution
+home_domain($1, evolution)
+
+# Store passwords in .gnome2_private
+gnome_private_store($1_evolution, $1) 
+
+# Run various programs
+allow $1_evolution_t { bin_t sbin_t }:dir r_dir_perms;
+allow $1_evolution_t { self bin_t }:lnk_file r_file_perms;
+
+### Junk mail filtering (start spamd)
+ifdef(`spamd.te', `
+# Start the spam daemon
+domain_auto_trans($1_evolution_t, spamd_exec_t, spamd_t)
+role $1_r types spamd_t;
+
+# Write pid file and socket in ~/.evolution/cache/tmp
+file_type_auto_trans(spamd_t, $1_evolution_home_t, spamd_tmp_t, { file sock_file })
+
+# Allow evolution to signal the daemon
+# FIXME: Now evolution can read spamd temp files
+allow $1_evolution_t spamd_tmp_t:file r_file_perms;
+allow $1_evolution_t spamd_t:process signal;
+dontaudit $1_evolution_t spamd_tmp_t:sock_file getattr;
+') dnl spamd.te
+
+### Junk mail filtering (start spamc)
+ifdef(`spamc.te', `
+domain_auto_trans($1_evolution_t, spamc_exec_t, $1_spamc_t)
+
+# Allow connection to spamd socket above
+allow $1_spamc_t $1_evolution_home_t:dir search;
+') dnl spamc.te
+
+### Junk mail filtering (start spamassassin) 
+ifdef(`spamassassin.te', `
+domain_auto_trans($1_evolution_t, spamassassin_exec_t, $1_spamassassin_t)
+') dnl spamassasin.te
+
+') dnl evolution_domain
+
+#################################
+#  evolution_domains(role_prefix) 
+
+define(`evolution_domains', `
+evolution_domain($1)
+evolution_data_server($1)
+evolution_webcal($1)
+evolution_alarm($1)
+evolution_exchange($1)
+') dnl end evolution_domains

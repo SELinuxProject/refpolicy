@@ -46,6 +46,7 @@ allow xdm_t default_context_t:dir search;
 allow xdm_t default_context_t:{ file lnk_file } { read getattr };
 
 can_network(xdm_t)
+allow xdm_t port_type:tcp_socket name_connect;
 allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow xdm_t self:unix_dgram_socket create_socket_perms;
 allow xdm_t self:fifo_file rw_file_perms;
@@ -77,7 +78,7 @@ domain_trans(xdm_t, xsession_exec_t, unpriv_userdomain)
 allow unpriv_userdomain xdm_xserver_t:unix_stream_socket connectto;
 allow unpriv_userdomain xdm_xserver_t:shm r_shm_perms;
 allow unpriv_userdomain xdm_xserver_t:fd use;
-allow unpriv_userdomain xdm_xserver_tmpfs_t:file read;
+allow unpriv_userdomain xdm_xserver_tmpfs_t:file { getattr read };
 allow xdm_xserver_t unpriv_userdomain:shm rw_shm_perms;
 allow xdm_xserver_t unpriv_userdomain:fd use;
 
@@ -95,7 +96,7 @@ domain_trans(xdm_t, xsession_exec_t, sysadm_t)
 allow sysadm_t xdm_xserver_t:unix_stream_socket connectto;
 allow sysadm_t xdm_xserver_t:shm r_shm_perms;
 allow sysadm_t xdm_xserver_t:fd use;
-allow sysadm_t xdm_xserver_tmpfs_t:file read;
+allow sysadm_t xdm_xserver_tmpfs_t:file { getattr read };
 allow xdm_xserver_t sysadm_t:shm rw_shm_perms;
 allow xdm_xserver_t sysadm_t:fd use;
 }
@@ -144,7 +145,7 @@ allow xdm_t self:shm create_shm_perms;
 allow { xdm_t unpriv_userdomain } xdm_xserver_t:unix_stream_socket connectto;
 allow { xdm_t unpriv_userdomain } xdm_xserver_t:shm rw_shm_perms;
 allow { xdm_t unpriv_userdomain } xdm_xserver_t:fd use;
-allow { xdm_t unpriv_userdomain } xdm_xserver_tmpfs_t:file read;
+allow { xdm_t unpriv_userdomain } xdm_xserver_tmpfs_t:file { getattr read };
 allow xdm_xserver_t { xdm_t unpriv_userdomain }:shm rw_shm_perms;
 allow xdm_xserver_t { xdm_t unpriv_userdomain }:fd use;
 
@@ -176,8 +177,8 @@ tmpfs_domain(xdm)
 # perhaps define derived types.
 allow xdm_t var_lib_t:dir { write search add_name remove_name  create unlink };
 allow xdm_t var_lib_t:file { create write unlink };
-allow xdm_t var_lock_t:dir { write search add_name remove_name };
-allow xdm_t var_lock_t:file { create write unlink };
+
+lock_domain(xdm)
 
 # Connect to xfs.
 ifdef(`xfs.te', `
@@ -224,7 +225,9 @@ dontaudit xdm_t domain:{ file lnk_file } r_file_perms;
 
 # Read /usr/share/terminfo/l/linux and /usr/share/icons/default/index.theme...
 allow xdm_t usr_t:{ lnk_file file } { getattr read };
-r_dir_file(xdm_t, fonts_t)
+
+# Read fonts
+read_fonts(xdm_t)
 
 # Do not audit attempts to write to index files under /usr
 dontaudit xdm_t usr_t:file write;
@@ -259,14 +262,13 @@ allow xdm_t xdm_xserver_t:process { noatsecure siginh rlimitinh };
 
 # Run xkbcomp.
 allow xdm_xserver_t var_lib_t:dir search;
-allow xdm_xserver_t var_lib_xkb_t:lnk_file read;
-can_exec(xdm_xserver_t, var_lib_xkb_t)
+allow xdm_xserver_t xkb_var_lib_t:lnk_file read;
+can_exec(xdm_xserver_t, xkb_var_lib_t)
 
 # Insert video drivers.  
 allow xdm_xserver_t self:capability mknod;
-allow xdm_xserver_t sysctl_modprobe_t:file read;
+allow xdm_xserver_t sysctl_modprobe_t:file { getattr read };
 domain_auto_trans(xdm_xserver_t, insmod_exec_t, insmod_t)
-allow insmod_t xdm_t:fd use;
 allow insmod_t xserver_log_t:file write;
 allow insmod_t xdm_xserver_t:unix_stream_socket { read write };
 
@@ -275,6 +277,11 @@ allow xdm_xserver_t proc_t:dir { search read };
 
 # Search /var/run.
 allow xdm_xserver_t var_run_t:dir search;
+
+# FIXME: After per user fonts are properly working
+# xdm_xserver_t may no longer have any reason
+# to read ROLE_home_t - examine this in more detail
+# (xauth?)
 
 # Search home directories.
 allow xdm_xserver_t user_home_type:dir search;
@@ -297,6 +304,16 @@ can_exec(xdm_t, cifs_t)
 allow xdm_t user_home_dir_type:dir { getattr search };
 allow xdm_t user_home_type:file { getattr read };
 
+ifdef(`support_polyinstatiation', `
+# xdm_t can polyinstantiate
+polyinstantiater(xdm_t)
+# xdm needs access for linking .X11-unix to poly /tmp
+allow xdm_t polymember:dir { add_name remove_name write };
+allow xdm_t polymember:lnk_file { create unlink };
+# xdm needs access for copying .Xauthority into new home
+allow xdm_t polymember:file { create getattr write };
+')
+
 allow xdm_t mnt_t:dir { getattr read search };
 #
 # Wants to delete .xsession-errors file
@@ -306,34 +323,37 @@ allow xdm_t user_home_type:file unlink;
 # Should fix exec of pam_timestamp_check is not closing xdm file descriptor
 #
 ifdef(`pam.te', `
-dontaudit pam_t xdm_t:fd use;
 allow xdm_t pam_var_run_t:dir create_dir_perms;
 allow xdm_t pam_var_run_t:file create_file_perms;
 allow pam_t xdm_t:fifo_file { getattr ioctl write };
+domain_auto_trans(xdm_t, pam_console_exec_t, pam_console_t)
 can_exec(xdm_t, pam_exec_t)
 # For pam_console
 rw_dir_create_file(xdm_t, pam_var_console_t)
 ')
 
-allow xdm_t var_log_t:file read;
+# Pamconsole/alsa 
+ifdef(`alsa.te', `
+domain_auto_trans(xdm_t, alsa_exec_t, alsa_t)
+') dnl ifdef
+
+allow xdm_t var_log_t:file { getattr read };
 allow xdm_t self:capability { sys_nice sys_rawio net_bind_service };
 allow xdm_t self:process setrlimit;
 allow xdm_t wtmp_t:file { getattr read };
 
 domain_auto_trans(initrc_t, xserver_exec_t, xdm_xserver_t)
 #
-# Poweroff wants to create the /root/poweroff directory when run from xdm
-# Seems to work without it.
+# Poweroff wants to create the /poweroff file when run from xdm
 #
-dontaudit xdm_t root_t:dir { add_name write };
-dontaudit xdm_t root_t:file create;
+file_type_auto_trans(xdm_t, root_t, etc_runtime_t, file)
+
 #
 # xdm tries to bind to biff_port_t
 #
 dontaudit xdm_t port_type:tcp_socket name_bind;
 
 # VNC v4 module in X server
-type vnc_port_t, port_type;
 allow xdm_xserver_t vnc_port_t:tcp_socket name_bind; 
 ifdef(`crack.te', `
 allow xdm_t crack_db_t:file r_file_perms;
@@ -342,3 +362,12 @@ r_dir_file(xdm_t, selinux_config_t)
 
 # Run telinit->init to shutdown.
 can_exec(xdm_t, init_exec_t)
+allow xdm_t self:sem create_sem_perms;
+
+# Allow gdm to run gdm-binary
+can_exec(xdm_t, xdm_exec_t)
+
+# Supress permission check on .ICE-unix
+dontaudit xdm_t ice_tmp_t:dir { getattr setattr };
+
+#### Also see xdm_macros.te

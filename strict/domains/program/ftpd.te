@@ -9,13 +9,11 @@
 #
 # Rules for the ftpd_t domain 
 #
-type ftp_port_t, port_type, reserved_port_type;
-type ftp_data_port_t, port_type, reserved_port_type;
-daemon_domain(ftpd, `, auth_chkpwd')
+daemon_domain(ftpd, `, auth_chkpwd, nscd_client_domain')
 etc_domain(ftpd)
-typealias ftpd_etc_t alias etc_ftpd_t;
 
 can_network(ftpd_t)
+allow ftpd_t port_type:tcp_socket name_connect;
 allow ftpd_t self:unix_dgram_socket { sendto create_socket_perms };
 allow ftpd_t self:unix_stream_socket create_socket_perms;
 allow ftpd_t self:process { getcap setcap setsched setrlimit };
@@ -41,10 +39,13 @@ can_exec(ftpd_t, logrotate_exec_t)
 allow ftpd_t ftp_data_port_t:tcp_socket name_bind;
 allow ftpd_t port_t:tcp_socket name_bind;
 
+# ftpd_lock_t is only needed when ftpd_is_daemon is true, but we cannot define types conditionally
+type ftpd_lock_t, file_type, sysadmfile, lockfile;
+
 # Allow ftpd to run directly without inetd.
 bool ftpd_is_daemon false;
 if (ftpd_is_daemon) {
-rw_dir_create_file(ftpd_t, var_lock_t)
+file_type_auto_trans(ftpd_t, var_lock_t, ftpd_lock_t, file)
 allow ftpd_t ftp_port_t:tcp_socket name_bind;
 can_tcp_connect(userdomain, ftpd_t)
 # Allows it to check exec privs on daemon
@@ -99,6 +100,8 @@ bool ftp_home_dir false;
 if (ftp_home_dir) {
 # allow access to /home
 allow ftpd_t home_root_t:dir { getattr search };
+allow ftpd_t home_dir_type:dir r_dir_perms;
+create_dir_file(ftpd_t, home_type)
 }
 if (use_nfs_home_dirs && ftp_home_dir) {
 	r_dir_file(ftpd_t, nfs_t)
@@ -110,7 +113,6 @@ dontaudit ftpd_t selinux_config_t:dir search;
 #
 # Type for access to anon ftp
 #
-type ftpd_anon_t, file_type, sysadmfile, customizable;
 r_dir_file(ftpd_t,ftpd_anon_t)
 type ftpd_anon_rw_t, file_type, sysadmfile, customizable;
 create_dir_file(ftpd_t,ftpd_anon_rw_t)

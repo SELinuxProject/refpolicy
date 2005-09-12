@@ -31,7 +31,7 @@
 # General declarations
 ######################
 
-type amanda_t, domain, privlog, auth, nscd_client_domain ;
+type amanda_t, domain, privlog, auth, fs_domain, nscd_client_domain;
 role system_r types amanda_t;
 
 # type for the amanda executables
@@ -128,10 +128,7 @@ allow amanda_t amanda_usr_lib_t:dir search;
 
 # access to device_t and similar
 allow amanda_t device_t:dir search;
-allow amanda_t null_device_t:chr_file { getattr read write };
 allow amanda_t devpts_t:dir getattr;
-allow amanda_t fixed_disk_device_t:blk_file getattr;
-allow amanda_t removable_device_t:blk_file getattr;
 allow amanda_t devtty_t:chr_file { read write };
 
 # access to boot_t
@@ -160,7 +157,7 @@ allow amanda_t shell_exec_t:file { execute execute_no_trans getattr read };
 allow amanda_t bin_t:file { execute execute_no_trans };
 
 allow amanda_t self:capability { chown dac_override setuid };
-allow amanda_t self:process { fork sigchld };
+allow amanda_t self:process { fork sigchld setpgid signal };
 allow amanda_t self:unix_dgram_socket create;
 
 
@@ -170,7 +167,8 @@ allow amanda_t self:unix_dgram_socket create;
 
 can_network_server(amanda_t);
 can_ypbind(amanda_t);
-
+can_exec(amanda_t, sbin_t);
+	
 allow amanda_t self:fifo_file { getattr read write ioctl lock };
 allow amanda_t self:unix_stream_socket { connect create read write };
 
@@ -237,7 +235,7 @@ file_type_auto_trans(amanda_recover_t, tmp_t, amanda_tmp_t)
 
 uses_shlib(amanda_recover_t)
 allow amanda_recover_t self:process { fork sigkill sigstop sigchld signal };
-allow amanda_recover_t self:capability { fowner fsetid setgid setuid chown dac_override net_bind_service };
+allow amanda_recover_t self:capability { fowner fsetid kill setgid setuid chown dac_override net_bind_service };
 allow amanda_recover_t shell_exec_t:file { execute execute_no_trans getattr read };
 allow amanda_recover_t privfd:fd use;
 
@@ -250,6 +248,9 @@ can_ypbind(amanda_recover_t);
 
 allow amanda_recover_t self:fifo_file { getattr ioctl read write };
 allow amanda_recover_t self:unix_stream_socket { connect create read write };
+
+allow amanda_t self:dir search;
+allow amanda_t self:file { getattr read };
 
 
 # amrecover file permissions
@@ -298,10 +299,24 @@ allow amanda_recover_t tmp_t:dir search;
 #
 #  Rules to allow amanda to be run as a service in xinetd
 #
-type amanda_port_t, port_type;
 allow inetd_t amanda_port_t:{ tcp_socket udp_socket } name_bind;
 
 allow amanda_t file_type:dir {getattr read search };
-allow amanda_t file_type:file {getattr read };
+allow amanda_t file_type:{ lnk_file file chr_file blk_file } {getattr read };
+allow amanda_t device_type:{ blk_file chr_file } getattr;
+allow amanda_t fixed_disk_device_t:blk_file read;
+domain_auto_trans(amanda_t, fsadm_exec_t, fsadm_t)
+
+dontaudit amanda_t file_type:sock_file getattr;
 logdir_domain(amanda)
 
+dontaudit amanda_t autofs_t:dir { getattr read search };
+dontaudit amanda_t binfmt_misc_fs_t:dir getattr;
+dontaudit amanda_t nfs_t:dir { getattr read };
+dontaudit amanda_t proc_t:dir read;
+dontaudit amanda_t proc_t:lnk_file read;
+dontaudit amanda_t rpc_pipefs_t:dir { getattr read };
+dontaudit amanda_t security_t:dir { getattr read };
+dontaudit amanda_t sysfs_t:dir { getattr read };
+dontaudit amanda_t unlabeled_t:file getattr;
+dontaudit amanda_t usbfs_t:dir getattr;

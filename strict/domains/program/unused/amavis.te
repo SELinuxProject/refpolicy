@@ -12,10 +12,13 @@
 type amavisd_etc_t, file_type, sysadmfile;
 type amavisd_lib_t, file_type, sysadmfile;
 
-type amavis_port_t, port_type;
+# Virus and spam found and quarantined.
+type amavisd_quarantine_t, file_type, sysadmfile, tmpfile;
+
 daemon_domain(amavisd)
 tmp_domain(amavisd)
 
+allow initrc_t amavisd_etc_t:file { getattr read };
 allow initrc_t amavisd_lib_t:dir { search read write rmdir remove_name unlink };
 allow initrc_t amavisd_lib_t:file unlink;
 allow initrc_t amavisd_var_run_t:dir setattr;
@@ -26,11 +29,17 @@ allow amavisd_t usr_t:{ file lnk_file } { getattr read };
 dontaudit amavisd_t usr_t:file ioctl;
 
 # networking
-can_network(amavisd_t)
+can_network_server_tcp(amavisd_t, amavisd_recv_port_t)
+allow amavisd_t amavisd_recv_port_t:tcp_socket name_bind;
+allow mta_delivery_agent amavisd_recv_port_t:tcp_socket name_connect;
+# The next line doesn't work right so drop the port specification.
+#can_network_client_tcp(amavisd_t, amavisd_send_port_t)
+can_network_client_tcp(amavisd_t)
+allow amavisd_t amavisd_send_port_t:tcp_socket name_connect;
+can_resolve(amavisd_t);
 can_ypbind(amavisd_t);
 can_tcp_connect(mail_server_sender, amavisd_t);
 can_tcp_connect(amavisd_t, mail_server_domain)
-allow amavisd_t amavis_port_t:tcp_socket name_bind;
 
 ifdef(`scannerdaemon.te', `
 can_tcp_connect(amavisd_t, scannerdaemon_t);
@@ -49,6 +58,25 @@ allow clamd_t amavisd_lib_t:dir r_dir_perms;
 allow clamd_t amavisd_lib_t:file r_file_perms;
 ')
 
+# DCC
+ifdef(`dcc.te', `
+allow dcc_client_t amavisd_lib_t:file r_file_perms;
+')
+
+# Pyzor
+ifdef(`pyzor.te',`
+domain_auto_trans(amavisd_t, pyzor_exec_t, pyzor_t)
+#allow pyzor_t amavisd_data_t:dir search;
+# Pyzor creates a temp file adjacent to the working file.
+create_dir_file(pyzor_t, amavisd_lib_t);
+')
+
+# SpamAssassin is executed from within amavisd, but needs to read its
+# config
+ifdef(`spamd.te', `
+r_dir_file(amavisd_t, etc_mail_t)
+')
+
 # Can create unix sockets
 allow amavisd_t self:unix_stream_socket create_stream_socket_perms;
 allow amavisd_t self:unix_dgram_socket create_socket_perms;
@@ -63,6 +91,9 @@ log_domain(amavisd)
 
 # Access amavisd var/lib files.
 create_dir_file(amavisd_t, amavisd_lib_t)
+
+# Access amavisd quarantined files.
+create_dir_file(amavisd_t, amavisd_quarantine_t)
 
 # Run helper programs.
 can_exec_any(amavisd_t,bin_t)
@@ -83,3 +114,4 @@ allow amavisd_t etc_runtime_t:file { getattr read };
 dontaudit amavisd_t sysadm_home_dir_t:dir search;
 dontaudit amavisd_t shadow_t:file { getattr read };
 dontaudit amavisd_t sysadm_devpts_t:chr_file { read write };
+

@@ -29,7 +29,7 @@ ifdef(`using_spamassassin',`
 # Note: most of this should really be in a generic macro like
 # base_user_program($1, foo)
 define(`spamassassin_program_domain',`
-type $1_$2_t, domain, privlog;
+type $1_$2_t, domain, privlog $3;
 domain_auto_trans($1_t, $2_exec_t, $1_$2_t)
 
 role $1_r types $1_$2_t;
@@ -44,7 +44,6 @@ allow $1_$2_t etc_runtime_t:file r_file_perms;
 uses_shlib($1_$2_t)
 read_locale($1_$2_t)
 dontaudit $1_$2_t var_t:dir search;
-allow $1_$2_t $1_home_dir_t:dir r_dir_perms;
 tmp_domain($1_$2)
 allow $1_$2_t privfd:fd use;
 allow $1_$2_t userpty_type:chr_file rw_file_perms;
@@ -76,16 +75,20 @@ spamassassin_program_domain($1, spamassassin)
 allow $1_spamassassin_t lib_t:file rx_file_perms;
 # Ignore perl digging in /proc and /var.
 dontaudit $1_spamassassin_t proc_t:dir search;
+dontaudit $1_spamassassin_t proc_t:lnk_file read;
 dontaudit $1_spamassassin_t { sysctl_t sysctl_kernel_t }:dir search;
 
 # For ~/.spamassassin
 home_domain($1, spamassassin)
+file_type_auto_trans($1_spamassassin_t, $1_home_dir_t, $1_spamassassin_home_t, dir)
 
 spamassassin_agent_privs($1_spamassassin_t, $1)
 
-# set tunable if you have spamassassin do DNS lookups
+can_resolve($1_spamassassin_t)
+# set tunable if you give spamassassin full network access.
 if (spamassasin_can_network) {
 can_network($1_spamassassin_t)
+allow $1_spamassassin_t port_type:tcp_socket name_connect;
 }
 if (spamassasin_can_network && allow_ypbind) {
 uncond_can_ypbind($1_spamassassin_t)
@@ -94,13 +97,16 @@ uncond_can_ypbind($1_spamassassin_t)
 # Define the domain for /usr/bin/spamc
 #
 ifdef(`spamc.te',`
-spamassassin_program_domain($1, spamc)
+spamassassin_program_domain($1, spamc, `, nscd_client_domain')
 can_network($1_spamc_t)
+allow $1_spamc_t port_type:tcp_socket name_connect;
 can_ypbind($1_spamc_t)
 
 # Allow connecting to a local spamd
 ifdef(`spamd.te',`
 can_tcp_connect($1_spamc_t, spamd_t)
+can_unix_connect($1_spamc_t, spamd_t)
+allow $1_spamc_t spamd_tmp_t:sock_file rw_file_perms;
 ') dnl endif spamd.te
 ') dnl endif spamc.te
 

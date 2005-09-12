@@ -160,16 +160,16 @@ category c127;
 # Each MLS level specifies a sensitivity and zero or more categories which may
 # be associated with that sensitivity.
 #
-level s0:c0 . c127;
-level s1:c0 . c127;
-level s2:c0 . c127;
-level s3:c0 . c127;
-level s4:c0 . c127;
-level s5:c0 . c127;
-level s6:c0 . c127;
-level s7:c0 . c127;
-level s8:c0 . c127;
-level s9:c0 . c127;
+level s0:c0.c127;
+level s1:c0.c127;
+level s2:c0.c127;
+level s3:c0.c127;
+level s4:c0.c127;
+level s5:c0.c127;
+level s6:c0.c127;
+level s7:c0.c127;
+level s8:c0.c127;
+level s9:c0.c127;
 
 
 #
@@ -217,7 +217,7 @@ level s9:c0 . c127;
 mlsconstrain { file lnk_file fifo_file } { create relabelto }
 	( l2 eq h2 );
 
-# new file labels must be dominated by the relabeling subject's clearance
+# new file labels must be dominated by the relabeling subject clearance
 mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } relabelto
 	( h1 dom h2 );
 
@@ -257,10 +257,10 @@ mlsconstrain dir { add_name remove_name reparent rmdir }
 # these access vectors have no MLS restrictions
 # { dir file lnk_file chr_file blk_file sock_file fifo_file } { ioctl lock swapon quotaon }
 #
-# file { execute_no_trans entrypoint }
+# { file chr_file } { execute_no_trans entrypoint execmod }
 
 # the file upgrade/downgrade rule
-mlsvalidatetrans { file lnk_file chr_file blk_file sock_file fifo_file }
+mlsvalidatetrans { dir file lnk_file chr_file blk_file sock_file fifo_file }
 	((( l1 eq l2 ) or
 	  (( t3 == mlsfileupgrade ) and ( l1 domby l2 )) or
 	  (( t3 == mlsfiledowngrade ) and ( l1 dom l2 )) or
@@ -272,7 +272,7 @@ mlsvalidatetrans { file lnk_file chr_file blk_file sock_file fifo_file }
 
 # create can also require the upgrade/downgrade checks if the creating process
 # has used setfscreate (note that both the high and low level of the object
-# default to the process' sensitivity level)
+# default to the process sensitivity level)
 mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } create
 	((( l1 eq l2 ) or
 	  (( t1 == mlsfileupgrade ) and ( l1 domby l2 )) or
@@ -290,7 +290,7 @@ mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } create
 # MLS policy for the filesystem class
 #
 
-# new filesystem labels must be dominated by the relabeling subject's clearance
+# new filesystem labels must be dominated by the relabeling subject clearance
 mlsconstrain filesystem relabelto
 	( h1 dom h2 );
 
@@ -316,17 +316,12 @@ mlsconstrain filesystem { mount remount unmount relabelfrom quotamod }
 # MLS policy for the socket classes
 #
 
-# new socket labels must be dominated by the relabeling subject's clearance
+# new socket labels must be dominated by the relabeling subject clearance
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } relabelto
 	( h1 dom h2 );
 
 # the socket "read" ops (note the check is dominance of the low level)
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { read getattr listen accept getopt recvfrom recv_msg }
-	(( l1 dom l2 ) or
-	 (( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
-	 ( t1 == mlsnetread ));
-
-mlsconstrain { tcp_socket unix_stream_socket } acceptfrom
 	(( l1 dom l2 ) or
 	 (( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
 	 ( t1 == mlsnetread ));
@@ -337,20 +332,17 @@ mlsconstrain { netlink_route_socket netlink_firewall_socket netlink_tcpdiag_sock
 	 ( t1 == mlsnetread ));
 
 # the socket "write" ops
-mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { setattr relabelfrom connect setopt shutdown }
-	((( l1 dom l2 ) and ( l1 domby h2 )) or
-	 (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
-	 ( t1 == mlsnetwrite ));
-
-mlsconstrain { tcp_socket unix_stream_socket } { connectto newconn }
+mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { write setattr relabelfrom connect setopt shutdown }
 	((( l1 dom l2 ) and ( l1 domby h2 )) or
 	 (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsnetwrite ));
 
 # these access vectors have no MLS restrictions
-# { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { ioctl write create lock append bind sendto send_msg name_bind }
+# { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { ioctl create lock append bind sendto send_msg name_bind }
 #
 # { tcp_socket udp_socket rawip_socket } node_bind
+#
+# { tcp_socket unix_stream_socket } { connectto newconn acceptfrom }
 #
 # { netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_xfrm_socket netlink_audit_socket netlink_ip6fw_socket } nlmsg_write
 #
@@ -411,21 +403,20 @@ mlsconstrain msg send
 
 
 #
-# MLS policy for the node class
+# MLS policy for the network object classes
 #
+
+# the netif/node "read" ops (implicit single level socket doing the read)
+#                           (note the check is dominance of the low level)
+mlsconstrain { node netif } { tcp_recv udp_recv rawip_recv }
+	(( l1 dom l2 ) or ( t1 == mlsnetrecvall ));
+
+# the netif/node "write" ops (implicit single level socket doing the write)
+mlsconstrain { netif node } { tcp_send udp_send rawip_send }
+	(( l1 dom l2 ) and ( l1 domby h2 ));
 
 # these access vectors have no MLS restrictions
-# node { tcp_recv tcp_send udp_recv udp_send rawip_recv rawip_send enforce_dest }
-
-
-
-
-#
-# MLS policy for the netif class
-#
-
-# these access vectors have no MLS restrictions
-# netif { tcp_recv tcp_send udp_recv udp_send rawip_recv rawip_send enforce_dest }
+# { netif node } { enforce_dest }
 
 
 
@@ -457,7 +448,7 @@ mlsconstrain process { sigkill sigstop signal setsched setpgid setcap setexec se
 	 ( t1 == mlsprocwrite ));
 
 # these access vectors have no MLS restrictions
-# process { fork sigchld signull noatsecure siginh setrlimit rlimitinh}
+# process { fork sigchld signull noatsecure siginh setrlimit rlimitinh execmem }
 
 
 
@@ -739,4 +730,3 @@ mlsconstrain xextension use
 
 # these access vectors have no MLS restrictions
 # association { sendto recvfrom }
-
