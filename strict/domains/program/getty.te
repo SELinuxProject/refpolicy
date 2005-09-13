@@ -23,22 +23,13 @@ allow getty_t self:process { getpgid getsession };
 allow getty_t self:unix_dgram_socket create_socket_perms;
 allow getty_t self:unix_stream_socket create_socket_perms;
 
-# to allow w to display everyone...
-bool user_ttyfile_stat false;
-if (user_ttyfile_stat) {
-allow userdomain ttyfile:chr_file getattr;
-}
-
 # Use capabilities.
 allow getty_t self:capability { dac_override chown sys_resource sys_tty_config };
-
-# fbgetty needs fsetid for some reason
-#allow getty_t self:capability fsetid;
 
 read_locale(getty_t)
 
 # Run login in local_login_t domain.
-allow getty_t bin_t:dir search;
+allow getty_t { sbin_t bin_t }:dir search;
 domain_auto_trans(getty_t, login_exec_t, local_login_t)
 
 # Write to /var/run/utmp.
@@ -55,5 +46,15 @@ allow getty_t ttyfile:chr_file { setattr rw_file_perms };
 # for error condition handling
 allow getty_t fs_t:filesystem getattr;
 
-rw_dir_create_file(getty_t, var_lock_t)
+lock_domain(getty)
 r_dir_file(getty_t, sysfs_t)
+# for mgetty
+var_run_domain(getty)
+allow getty_t self:capability { fowner fsetid };
+
+#
+# getty needs to be able to run pppd
+#
+ifdef(`pppd.te', `
+domain_auto_trans(getty_t, pppd_exec_t, pppd_t)
+')

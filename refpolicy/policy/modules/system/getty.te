@@ -15,11 +15,17 @@ type getty_etc_t;
 typealias getty_etc_t alias etc_getty_t;
 files_type(getty_etc_t)
 
+type getty_lock_t;
+files_lock_file(getty_lock_t)
+
 type getty_log_t;
 logging_log_file(getty_log_t)
 
 type getty_tmp_t;
 files_tmp_file(getty_tmp_t)
+
+type getty_var_run_t;
+files_pid_file(getty_var_run_t)
 
 ########################################
 #
@@ -27,21 +33,25 @@ files_tmp_file(getty_tmp_t)
 #
 
 # Use capabilities.
-allow getty_t self:capability { dac_override chown sys_resource sys_tty_config };
-# fbgetty needs fsetid for some reason
-#allow getty_t self:capability fsetid;
-
+allow getty_t self:capability { dac_override chown sys_resource sys_tty_config fowner fsetid };
 allow getty_t self:process { getpgid getsession };
 
 allow getty_t getty_etc_t:dir r_dir_perms;
 allow getty_t getty_etc_t:file r_file_perms;
 files_create_etc_config(getty_t,getty_etc_t,{ file dir })
 
+allow getty_t getty_lock_t:file create_file_perms;
+files_create_lock(getty_t,getty_lock_t)
+
+allow getty_t getty_log_t:file { getattr append setattr };
+
 allow getty_t getty_tmp_t:file { getattr create read setattr write setattr unlink };
 allow getty_t getty_tmp_t:dir { getattr search create read setattr write setattr unlink rmdir };
 files_create_tmp_files(getty_t,getty_tmp_t,{ file dir })
 
-allow getty_t getty_log_t:file { getattr append setattr };
+allow getty_t getty_var_run_t:file create_file_perms;
+allow getty_t getty_var_run_t:dir create_dir_perms;
+files_create_pid(getty_t,getty_var_run_t)
 
 dev_read_sysfs(getty_t)
 
@@ -58,9 +68,9 @@ term_setattr_console(getty_t)
 auth_rw_login_records(getty_t)
 
 corecmd_search_bin(getty_t)
+corecmd_search_sbin(getty_t)
 
 files_rw_generic_pids(getty_t)
-files_manage_generic_locks(getty_t)
 files_read_etc_runtime_files(getty_t)
 files_read_etc_files(getty_t)
 
@@ -75,3 +85,12 @@ locallogin_domtrans(getty_t)
 logging_send_syslog_msg(getty_t)
 
 miscfiles_read_localization(getty_t)
+
+ifdef(`TODO',`
+#
+# getty needs to be able to run pppd
+#
+ifdef(`pppd.te', `
+domain_auto_trans(getty_t, pppd_exec_t, pppd_t)
+')
+') dnl end TODO

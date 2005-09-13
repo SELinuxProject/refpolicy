@@ -14,9 +14,9 @@
 # by syslogd.
 #
 ifdef(`klogd.te', `
-daemon_domain(syslogd)
+daemon_domain(syslogd, `, privkmsg')
 ', `
-daemon_domain(syslogd, `, privmem')
+daemon_domain(syslogd, `, privmem, privkmsg')
 ')
 
 # can_network is for the UDP socket
@@ -25,7 +25,7 @@ can_ypbind(syslogd_t)
 
 r_dir_file(syslogd_t, sysfs_t)
 
-type devlog_t, file_type, sysadmfile, dev_fs;
+type devlog_t, file_type, sysadmfile, dev_fs, mlstrustedobject;
 
 # if something can log to syslog they should be able to log to the console
 allow privlog console_device_t:chr_file { ioctl read write getattr };
@@ -36,7 +36,7 @@ tmp_domain(syslogd)
 allow syslogd_t etc_t:file r_file_perms;
 
 # Use capabilities.
-allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
+allow syslogd_t self:capability { dac_override net_admin net_bind_service sys_resource sys_tty_config };
 
 # Modify/create log files.
 create_append_log_file(syslogd_t, var_log_t)
@@ -94,7 +94,6 @@ allow syslogd_t { device_t file_t }:sock_file unlink;
 allow syslogd_t tty_device_t:chr_file { getattr write ioctl append };
 
 # Allow name_bind for remote logging
-type syslogd_port_t, port_type, reserved_port_type;
 allow syslogd_t syslogd_port_t:udp_socket name_bind;
 #
 # /initrd is not umounted before minilog starts
@@ -103,5 +102,4 @@ dontaudit syslogd_t file_t:dir search;
 allow syslogd_t { tmpfs_t devpts_t }:dir search;
 dontaudit syslogd_t unlabeled_t:file read;
 dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
-allow syslogd_t self:capability net_admin;
 allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
