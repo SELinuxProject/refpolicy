@@ -1,0 +1,467 @@
+
+policy_module(samba,1.0)
+
+#################################
+#
+# Declarations
+#
+
+type nmbd_t;
+type nmbd_exec_t;
+init_daemon_domain(nmbd_t,nmbd_exec_t)
+
+type nmbd_var_run_t;
+files_pid_file(nmbd_var_run_t)
+
+type samba_etc_t; #, usercanread;
+files_type(samba_etc_t)
+
+type samba_log_t, logfile;
+files_type(samba_log_t)
+
+type samba_net_t;
+domain_type(samba_net_t)
+
+type samba_net_exec_t;
+domain_entry_file(samba_net_t,samba_net_exec_t)
+
+type samba_net_tmp_t;
+files_tmp_file(samba_net_tmp_t)
+
+type samba_secrets_t;
+files_type(samba_secrets_t)
+
+type samba_share_t; #, customizable;
+files_type(samba_share_t)
+
+type samba_var_t;
+files_type(samba_var_t)
+
+type smbd_t;
+type smbd_exec_t;
+init_daemon_domain(smbd_t,smbd_exec_t)
+
+type smbd_tmp_t;
+files_tmp_file(smbd_tmp_t)
+
+type smbd_var_run_t;
+files_pid_file(smbd_var_run_t)
+
+type smbmount_t;
+domain_type(smbmount_t)
+
+type smbmount_exec_t;
+domain_entry_file(smbmount_t,smbmount_exec_t)
+
+########################################
+#
+# Samba net local policy
+#
+
+allow samba_net_t self:unix_dgram_socket create_socket_perms;
+allow samba_net_t self:unix_stream_socket create_stream_socket_perms;
+allow samba_net_t self:udp_socket create_socket_perms;
+allow samba_net_t self:tcp_socket create_socket_perms;
+
+allow samba_net_t samba_etc_t:file r_file_perms;
+
+allow samba_net_t samba_secrets_t:file create_file_perms;
+allow samba_net_t samba_etc_t:dir rw_dir_perms;
+type_transition samba_net_t samba_etc_t:file samba_secrets_t;
+
+allow samba_net_t samba_net_tmp_t:dir create_dir_perms;
+allow samba_net_t samba_net_tmp_t:file create_file_perms;
+files_create_tmp_files(samba_net_t, samba_net_tmp_t, { file dir })
+
+allow samba_net_t samba_var_t:dir rw_dir_perms;
+allow samba_net_t samba_var_t:lnk_file create_lnk_perms;
+allow samba_net_t samba_var_t:file create_lnk_perms;
+
+kernel_read_proc_symlinks(samba_net_t)
+
+corenet_tcp_sendrecv_all_if(samba_net_t)
+corenet_udp_sendrecv_all_if(samba_net_t)
+corenet_raw_sendrecv_all_if(samba_net_t)
+corenet_tcp_sendrecv_all_nodes(samba_net_t)
+corenet_udp_sendrecv_all_nodes(samba_net_t)
+corenet_raw_sendrecv_all_nodes(samba_net_t)
+corenet_tcp_sendrecv_all_ports(samba_net_t)
+corenet_udp_sendrecv_all_ports(samba_net_t)
+corenet_tcp_bind_all_nodes(samba_net_t)
+corenet_udp_bind_all_nodes(samba_net_t)
+corenet_tcp_connect_smbd_port(samba_net_t)
+
+dev_read_urand(samba_net_t)
+
+domain_use_wide_inherit_fd(samba_net_t)
+
+files_read_etc_files(samba_net_t)
+
+libs_use_ld_so(samba_net_t)
+libs_use_shared_libs(samba_net_t)
+
+miscfiles_read_localization(samba_net_t) 
+
+sysnet_read_config(samba_net_t)
+
+userdom_dontaudit_search_sysadm_home_dir(samba_net_t)
+
+optional_policy(`kerberos.te',`
+	kerberos_use(samba_net_t)
+')
+
+optional_policy(`ldap.te',`
+	allow samba_net_t self:tcp_socket create_socket_perms;
+	corenet_tcp_sendrecv_all_if(samba_net_t)
+	corenet_raw_sendrecv_all_if(samba_net_t)
+	corenet_tcp_sendrecv_all_nodes(samba_net_t)
+	corenet_raw_sendrecv_all_nodes(samba_net_t)
+	corenet_tcp_sendrecv_ldap_port(samba_net_t)
+	corenet_tcp_bind_all_nodes(samba_net_t)
+	sysnet_read_config(samba_net_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(samba_net_t)
+')
+
+########################################
+#
+# smbd Local policy
+#
+allow smbd_t self:capability { setgid setuid sys_resource lease dac_override dac_read_search };
+dontaudit smbd_t self:capability sys_tty_config;
+allow smbd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow smbd_t self:fd use;
+allow smbd_t self:fifo_file rw_file_perms;
+allow smbd_t self:msg { send receive };
+allow smbd_t self:msgq create_msgq_perms;
+allow smbd_t self:sem create_sem_perms;
+allow smbd_t self:shm create_shm_perms;
+allow smbd_t self:sock_file r_file_perms;
+allow smbd_t self:tcp_socket create_stream_socket_perms;
+allow smbd_t self:udp_socket create_socket_perms;
+allow smbd_t self:unix_dgram_socket { create_socket_perms sendto };
+allow smbd_t self:unix_stream_socket { create_stream_socket_perms connectto };
+
+allow smbd_t samba_etc_t:dir rw_dir_perms;
+allow smbd_t samba_etc_t:file r_file_perms;
+
+allow smbd_t samba_log_t:dir ra_dir_perms;
+dontaudit smbd_t samba_log_t:dir remove_name;
+allow smbd_t samba_log_t:file { create ra_file_perms };
+
+allow smbd_t samba_secrets_t:dir rw_dir_perms;
+allow smbd_t samba_secrets_t:file create_file_perms;
+type_transition smbd_t samba_etc_t:file samba_secrets_t;
+
+allow smbd_t samba_share_t:dir create_dir_perms;
+allow smbd_t samba_share_t:file create_file_perms;
+allow smbd_t samba_share_t:lnk_file create_lnk_perms;
+
+allow smbd_t samba_var_t:dir create_dir_perms;
+allow smbd_t samba_var_t:file create_file_perms;
+allow smbd_t samba_var_t:lnk_file create_lnk_perms;
+allow smbd_t samba_var_t:sock_file create_file_perms;
+
+allow smbd_t smbd_tmp_t:dir create_dir_perms;
+allow smbd_t smbd_tmp_t:file create_file_perms;
+files_create_tmp_files(smbd_t, smbd_tmp_t, { file dir })
+
+allow smbd_t nmbd_var_run_t:file rw_file_perms;
+
+allow smbd_t smbd_var_run_t:dir create_dir_perms;
+allow smbd_t smbd_var_run_t:file create_file_perms;
+allow smbd_t smbd_var_run_t:sock_file create_file_perms;
+files_create_pid(smbd_t,smbd_var_run_t)
+
+kernel_getattr_core(smbd_t)
+kernel_getattr_message_if(smbd_t)
+kernel_read_network_state(smbd_t)
+kernel_read_kernel_sysctl(smbd_t)
+kernel_read_software_raid_state(smbd_t)
+kernel_read_system_state(smbd_t)
+
+corenet_tcp_sendrecv_all_if(smbd_t)
+corenet_udp_sendrecv_all_if(smbd_t)
+corenet_raw_sendrecv_all_if(smbd_t)
+corenet_tcp_sendrecv_all_nodes(smbd_t)
+corenet_udp_sendrecv_all_nodes(smbd_t)
+corenet_raw_sendrecv_all_nodes(smbd_t)
+corenet_tcp_sendrecv_all_ports(smbd_t)
+corenet_udp_sendrecv_all_ports(smbd_t)
+corenet_tcp_bind_all_nodes(smbd_t)
+corenet_udp_bind_all_nodes(smbd_t)
+corenet_tcp_bind_smbd_port(smbd_t)
+corenet_tcp_connect_ipp_port(smbd_t)
+
+dev_read_sysfs(smbd_t)
+dev_read_urand(smbd_t)
+
+fs_getattr_all_fs(smbd_t)
+fs_search_auto_mountpoints(smbd_t)
+
+term_dontaudit_use_console(smbd_t)
+
+auth_domtrans_chk_passwd(smbd_t)
+
+domain_use_wide_inherit_fd(smbd_t)
+
+files_list_var_lib(smbd_t)
+files_read_etc_files(smbd_t)
+files_read_etc_runtime_files(smbd_t)
+files_read_usr_files(smbd_t)
+files_search_spool(smbd_t)
+
+init_use_fd(smbd_t)
+init_use_script_pty(smbd_t)
+
+libs_use_ld_so(smbd_t)
+libs_use_shared_libs(smbd_t)
+
+logging_search_logs(smbd_t)
+logging_send_syslog_msg(smbd_t)
+
+miscfiles_read_localization(smbd_t)
+
+mount_send_nfs_client_request(smbd_t)
+
+sysnet_read_config(smbd_t)
+
+userdom_dontaudit_search_sysadm_home_dir(smbd_t)
+userdom_dontaudit_use_unpriv_user_fd(smbd_t)
+userdom_use_unpriv_users_fd(smbd_t)
+
+ifdef(`targeted_policy', `
+	files_dontaudit_read_root_file(smbd_t)
+	term_dontaudit_use_generic_pty(smbd_t)
+	term_dontaudit_use_unallocated_tty(smbd_t)
+')
+
+optional_policy(`kerberos.te',`
+	kerberos_use(smbd_t)
+')
+
+optional_policy(`ldap.te',`
+	allow smbd_t self:tcp_socket create_socket_perms;
+	corenet_tcp_sendrecv_all_if(smbd_t)
+	corenet_raw_sendrecv_all_if(smbd_t)
+	corenet_tcp_sendrecv_all_nodes(smbd_t)
+	corenet_raw_sendrecv_all_nodes(smbd_t)
+	corenet_tcp_sendrecv_ldap_port(smbd_t)
+	corenet_tcp_bind_all_nodes(smbd_t)
+	sysnet_read_config(smbd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(smbd_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(smbd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(smbd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(smbd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(smbd_t)
+')
+can_winbind(smbd_t)
+')
+
+########################################
+#
+# nmbd Local policy
+#
+dontaudit nmbd_t self:capability sys_tty_config;
+allow nmbd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow nmbd_t self:fd use;
+allow nmbd_t self:fifo_file rw_file_perms;
+allow nmbd_t self:msg { send receive };
+allow nmbd_t self:msgq create_msgq_perms;
+allow nmbd_t self:sem create_sem_perms;
+allow nmbd_t self:shm create_shm_perms;
+allow nmbd_t self:sock_file r_file_perms;
+allow nmbd_t self:tcp_socket create_stream_socket_perms;
+allow nmbd_t self:udp_socket create_socket_perms;
+allow nmbd_t self:unix_dgram_socket { create_socket_perms sendto };
+allow nmbd_t self:unix_stream_socket { create_stream_socket_perms connectto };
+
+allow nmbd_t nmbd_var_run_t:file create_file_perms;
+files_create_pid(nmbd_t,nmbd_var_run_t)
+
+allow nmbd_t samba_etc_t:dir { search getattr };
+allow nmbd_t samba_etc_t:file { getattr read };
+
+allow nmbd_t samba_log_t:dir ra_dir_perms;
+allow nmbd_t samba_log_t:file { create ra_file_perms };
+
+allow nmbd_t samba_var_t:dir rw_dir_perms;
+allow nmbd_t samba_var_t:file { lock unlink create write setattr read getattr rename };
+
+allow nmbd_t smbd_var_run_t:dir rw_dir_perms;
+
+kernel_getattr_core(nmbd_t)
+kernel_getattr_message_if(nmbd_t)
+kernel_read_kernel_sysctl(nmbd_t)
+kernel_read_network_state(nmbd_t)
+kernel_read_software_raid_state(nmbd_t)
+kernel_read_system_state(nmbd_t)
+
+corenet_tcp_sendrecv_all_if(nmbd_t)
+corenet_raw_sendrecv_all_if(nmbd_t)
+corenet_tcp_sendrecv_all_nodes(nmbd_t)
+corenet_raw_sendrecv_all_nodes(nmbd_t)
+corenet_tcp_sendrecv_all_ports(nmbd_t)
+corenet_tcp_bind_all_nodes(nmbd_t)
+corenet_udp_bind_nmbd_port(nmbd_t)
+
+dev_read_sysfs(nmbd_t)
+
+fs_getattr_all_fs(nmbd_t)
+fs_search_auto_mountpoints(nmbd_t)
+
+term_dontaudit_use_console(nmbd_t)
+
+domain_use_wide_inherit_fd(nmbd_t)
+
+files_read_usr_files(nmbd_t)
+files_read_etc_files(nmbd_t)
+
+init_use_fd(nmbd_t)
+init_use_script_pty(nmbd_t)
+
+libs_use_ld_so(nmbd_t)
+libs_use_shared_libs(nmbd_t)
+
+logging_search_logs(nmbd_t)
+logging_send_syslog_msg(nmbd_t)
+
+miscfiles_read_localization(nmbd_t)
+
+sysnet_read_config(nmbd_t)
+
+userdom_dontaudit_search_sysadm_home_dir(nmbd_t)
+userdom_dontaudit_use_unpriv_user_fd(nmbd_t)
+userdom_use_unpriv_users_fd(nmbd_t)
+
+ifdef(`targeted_policy', `
+	files_dontaudit_read_root_file(nmbd_t)
+	term_dontaudit_use_generic_pty(nmbd_t)
+	term_dontaudit_use_unallocated_tty(nmbd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(nmbd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(nmbd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(nmbd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(nmbd_t)
+')
+')
+
+########################################
+#
+# smbmount Local policy
+#
+allow smbmount_t self:capability { sys_rawio sys_admin dac_override chown }; # FIXME: is all of this really necessary?
+allow smbmount_t self:process { fork signal_perms };
+allow smbmount_t self:tcp_socket create_stream_socket_perms;
+allow smbmount_t self:udp_socket connect;
+allow smbmount_t self:unix_dgram_socket create_socket_perms;
+allow smbmount_t self:unix_stream_socket create_socket_perms;
+
+allow smbmount_t samba_etc_t:dir r_dir_perms;
+allow smbmount_t samba_etc_t:file r_file_perms;
+
+can_exec(smbmount_t, smbmount_exec_t)
+
+allow smbmount_t samba_log_t:dir r_dir_perms; 
+allow smbmount_t samba_log_t:file create_file_perms;
+
+allow smbmount_t samba_secrets_t:file create_file_perms;
+
+allow smbmount_t samba_var_t:dir rw_dir_perms;
+allow smbmount_t samba_var_t:file create_file_perms;
+allow smbmount_t samba_var_t:lnk_file create_lnk_perms;
+
+kernel_read_system_state(smbmount_t)
+
+corenet_tcp_sendrecv_all_if(smbmount_t)
+corenet_raw_sendrecv_all_if(smbmount_t)
+corenet_udp_sendrecv_all_if(smbmount_t)
+corenet_tcp_sendrecv_all_nodes(smbmount_t)
+corenet_raw_sendrecv_all_nodes(smbmount_t)
+corenet_udp_sendrecv_all_nodes(smbmount_t)
+corenet_tcp_sendrecv_all_ports(smbmount_t)
+corenet_udp_sendrecv_all_ports(smbmount_t)
+corenet_tcp_bind_all_nodes(smbmount_t)
+corenet_udp_bind_all_nodes(smbmount_t)
+corenet_tcp_connect_all_ports(smbmount_t)
+
+fs_getattr_cifs(smbmount_t)
+fs_mount_cifs(smbmount_t)
+fs_remount_cifs(smbmount_t)
+fs_unmount_cifs(smbmount_t)
+fs_list_cifs(smbmount_t)
+fs_read_cifs_files(smbmount_t)
+
+storage_raw_read_fixed_disk(smbmount_t)
+storage_raw_write_fixed_disk(smbmount_t)
+
+term_list_ptys(smbmount_t)
+term_use_controlling_term(smbmount_t)
+
+corecmd_list_bin(smbmount_t)
+
+files_list_mnt(smbmount_t)
+files_mounton_mnt(smbmount_t)
+files_manage_etc_runtime_files(smbmount_t)
+files_read_etc_files(smbmount_t)
+
+miscfiles_read_localization(smbmount_t)
+
+mount_use_fd(smbmount_t)
+mount_send_nfs_client_request(smbmount_t)
+
+libs_use_ld_so(smbmount_t)
+libs_use_shared_libs(smbmount_t)
+
+locallogin_use_fd(smbmount_t)
+
+logging_search_logs(smbmount_t)
+
+sysnet_read_config(smbmount_t)
+
+userdom_use_all_user_fd(smbmount_t)
+userdom_use_sysadm_tty(smbmount_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(smbmount_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(smbmount_t)
+')
+
+ifdef(`TODO',`
+ifdef(`cups.te', `
+	allow smbd_t cupsd_rw_etc_t:file { getattr read };
+')
+')
