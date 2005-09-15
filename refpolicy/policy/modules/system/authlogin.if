@@ -53,6 +53,14 @@ template(`authlogin_per_userdomain_template',`
 	files_list_etc($1_chkpwd_t)
 	allow $1_chkpwd_t shadow_t:file { getattr read };
 
+	# Transition from the user domain to this domain.
+	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
+
+	allow $1_chkpwd_t $2:fd use;
+	allow $2 $1_chkpwd_t:fd use;
+	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
+	allow $1_chkpwd_t $2:process sigchld;
+
 	# is_selinux_enabled
 	kernel_read_system_state($1_chkpwd_t)
 
@@ -73,30 +81,13 @@ template(`authlogin_per_userdomain_template',`
 
 	seutil_read_config($1_chkpwd_t)
 
-	# Transition from the user domain to this domain.
-	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
-
-	allow $1_chkpwd_t $2:fd use;
-	allow $2 $1_chkpwd_t:fd use;
-	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
-	allow $1_chkpwd_t $2:process sigchld;
+	sysnet_dns_name_resolve($1_chkpwd_t)
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_chkpwd_t)
 
 	# Inherit and use descriptors from gnome-pty-helper.
 	#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
-
-	tunable_policy(`use_dns',`
-		allow $1_chkpwd_t self:udp_socket create_socket_perms;
-		corenet_udp_sendrecv_all_if($1_chkpwd_t)
-		corenet_raw_sendrecv_all_if($1_chkpwd_t)
-		corenet_udp_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_udp_bind_all_nodes($1_chkpwd_t)
-		corenet_udp_sendrecv_dns_port($1_chkpwd_t)
-		sysnet_read_config($1_chkpwd_t)
-	')
 
 	optional_policy(`kerberos.te',`
 		kerberos_use($1_chkpwd_t)
@@ -237,16 +228,7 @@ interface(`auth_domtrans_chk_passwd',`
 
 	dontaudit $1 shadow_t:file { getattr read };
 
-	tunable_policy(`use_dns',`
-		allow $1 self:udp_socket create_socket_perms;
-		corenet_udp_sendrecv_all_if($1)
-		corenet_raw_sendrecv_all_if($1)
-		corenet_udp_sendrecv_all_nodes($1)
-		corenet_raw_sendrecv_all_nodes($1)
-		corenet_udp_bind_all_nodes($1)
-		corenet_udp_sendrecv_dns_port($1)
-		sysnet_read_config($1)
-	')
+	sysnet_dns_name_resolve($1)
 
 	optional_policy(`kerberos.te',`
 		kerberos_use($1)

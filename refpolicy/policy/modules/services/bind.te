@@ -15,6 +15,9 @@ type named_exec_t;
 init_daemon_domain(named_t,named_exec_t)
 role system_r types named_t;
 
+type named_checkconf_exec_t;
+init_system_domain(named_t,named_checkconf_exec_t)
+
 # A type for configuration files of named.
 type named_conf_t;
 files_type(named_conf_t)
@@ -22,6 +25,9 @@ files_type(named_conf_t)
 # for secondary zone files
 type named_cache_t;
 files_type(named_cache_t)
+
+type named_log_t;
+logging_log_file(named_log_t)
 
 type named_tmp_t;
 files_tmp_file(named_tmp_t)
@@ -67,6 +73,10 @@ allow named_t named_cache_t:lnk_file create_lnk_perms;
 
 can_exec(named_t, named_exec_t)
 
+allow named_t named_log_t:file create_file_perms;
+allow named_t named_log_t:dir rw_dir_perms;
+logging_create_log(named_t,named_log_t,{ file dir })
+
 allow named_t named_tmp_t:dir create_dir_perms;
 allow named_t named_tmp_t:file create_file_perms;
 files_create_tmp_files(named_t, named_tmp_t, { file dir })
@@ -99,7 +109,8 @@ corenet_tcp_bind_all_nodes(named_t)
 corenet_udp_bind_all_nodes(named_t)
 corenet_tcp_bind_dns_port(named_t)
 corenet_udp_bind_dns_port(named_t)
-#corenet_tcp_bind_rndc_port(named_t)
+corenet_tcp_bind_rndc_port(named_t)
+corenet_tcp_connect_all_ports(named_t)
 
 dev_read_sysfs(named_t)
 dev_read_rand(named_t)
@@ -196,6 +207,7 @@ corenet_tcp_sendrecv_all_nodes(ndc_t)
 corenet_raw_sendrecv_all_nodes(ndc_t)
 corenet_tcp_sendrecv_all_ports(ndc_t)
 corenet_tcp_bind_all_nodes(ndc_t)
+corenet_tcp_connect_rndc_port(ndc_t)
 
 fs_getattr_xattr_fs(ndc_t)
 
@@ -215,18 +227,11 @@ logging_send_syslog_msg(ndc_t)
 miscfiles_read_localization(ndc_t)
 
 sysnet_read_config(ndc_t)
+sysnet_dns_name_resolve(ndc_t)
 
 # for /etc/rndc.key
 ifdef(`distro_redhat',`
 	allow ndc_t named_conf_t:dir search;
-')
-
-tunable_policy(`use_dns',`
-	allow ndc_t self:udp_socket create_socket_perms;
-	corenet_udp_sendrecv_all_if(ndc_t)
-	corenet_udp_sendrecv_all_nodes(ndc_t)
-	corenet_udp_sendrecv_dns_port(ndc_t)
-	corenet_udp_bind_all_nodes(ndc_t)
 ')
 
 tunable_policy(`named_write_master_zones',`
