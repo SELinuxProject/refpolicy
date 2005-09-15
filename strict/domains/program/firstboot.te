@@ -10,7 +10,7 @@
 #
 # firstboot_exec_t is the type of the firstboot executable.
 #
-application_domain(firstboot,`, admin, etc_writer, fs_domain, privmem, auth_write, privlog, privowner, privmodule, sysctl_kernel_writer')
+application_domain(firstboot,`, admin, etc_writer, fs_domain, privmem, auth_write, privowner, privmodule, privuser, sysctl_kernel_writer')
 type firstboot_rw_t, file_type, sysadmfile;
 role system_r types firstboot_t;
 
@@ -29,8 +29,10 @@ domain_auto_trans(initrc_t, firstboot_exec_t, firstboot_t)
 file_type_auto_trans(firstboot_t, etc_t, firstboot_rw_t, file)
 
 can_exec_any(firstboot_t)
+ifdef(`useradd.te',`
 domain_auto_trans(firstboot_t, useradd_exec_t, useradd_t)
 domain_auto_trans(firstboot_t, groupadd_exec_t, groupadd_t)
+')
 allow firstboot_t etc_runtime_t:file { getattr read };
 
 r_dir_file(firstboot_t, etc_t)
@@ -107,8 +109,10 @@ read_sysctl(firstboot_t)
 
 allow firstboot_t var_run_t:dir getattr;
 allow firstboot_t var_t:dir getattr;
+ifdef(`hostname.te', `
 allow hostname_t devtty_t:chr_file { read write };
 allow hostname_t firstboot_t:fd use;
+')
 ifdef(`iptables.te', `
 allow iptables_t devtty_t:chr_file { read write };
 allow iptables_t firstboot_t:fd use;
@@ -128,4 +132,7 @@ file_type_auto_trans(firstboot_t, user_home_dir_t, user_home_t)
 # The big hammer
 #
 unconfined_domain(firstboot_t) 
+ifdef(`targeted_policy', `
+allow firstboot_t unconfined_t:process transition;
+')
 

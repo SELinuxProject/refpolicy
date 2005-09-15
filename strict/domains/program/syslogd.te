@@ -64,8 +64,6 @@ can_unix_connect(privlog,syslogd_t)
 allow privlog devlog_t:lnk_file read;
 
 ifdef(`crond.te', `
-# Write to the cron log.
-allow syslogd_t crond_log_t:file rw_file_perms;
 # for daemon re-start
 allow system_crond_t syslogd_t:lnk_file read;
 ')
@@ -79,16 +77,10 @@ allow syslogd_t initrc_var_run_t:file { read lock };
 dontaudit syslogd_t initrc_var_run_t:file write;
 allow syslogd_t ttyfile:chr_file { getattr write };
 
-ifdef(`klogd.te', `', `
-# Allow access to /proc/kmsg for syslog-ng
-allow syslogd_t proc_t:dir search;
-allow syslogd_t proc_kmsg_t:file { getattr read };
-allow syslogd_t kernel_t:system { syslog_mod syslog_console };
-')
 #
 # Special case to handle crashes
 #
-allow syslogd_t { device_t file_t }:sock_file unlink;
+allow syslogd_t { device_t file_t }:sock_file { getattr unlink };
 
 # Allow syslog to a terminal
 allow syslogd_t tty_device_t:chr_file { getattr write ioctl append };
@@ -100,6 +92,18 @@ allow syslogd_t syslogd_port_t:udp_socket name_bind;
 #
 dontaudit syslogd_t file_t:dir search;
 allow syslogd_t { tmpfs_t devpts_t }:dir search;
-dontaudit syslogd_t unlabeled_t:file read;
+dontaudit syslogd_t unlabeled_t:file { getattr read };
 dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
 allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
+ifdef(`targeted_policy', `
+allow syslogd_t var_run_t:fifo_file { ioctl read write };
+')
+
+# Allow access to /proc/kmsg for syslog-ng
+allow syslogd_t proc_t:dir search;
+allow syslogd_t proc_kmsg_t:file { getattr read };
+allow syslogd_t kernel_t:system { syslog_mod syslog_console };
+allow syslogd_t self:capability { sys_admin chown fsetid };
+allow syslogd_t var_log_t:dir { create setattr };
+allow syslogd_t syslogd_port_t:tcp_socket name_bind;
+allow syslogd_t rsh_port_t:tcp_socket name_connect;
