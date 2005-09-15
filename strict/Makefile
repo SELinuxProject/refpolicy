@@ -60,7 +60,7 @@ POLICYFILES += $(USER_FILES)
 POLICYFILES += constraints
 POLICYFILES += $(DEFCONTEXTFILES)
 CONTEXTFILES = $(DEFCONTEXTFILES)
-POLICY_DIRS = domains/program domains/misc
+POLICY_DIRS = domains domains/program domains/misc macros macros/program
 
 UNUSED_TE_FILES := $(wildcard domains/program/unused/*.te)
 
@@ -70,19 +70,19 @@ FCFILES=file_contexts/types.fc $(patsubst domains/program/%.te,file_contexts/pro
 CONTEXTFILES += $(FCFILES)
 
 APPDIR=$(CONTEXTPATH)
-APPFILES = $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
+APPFILES = $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types port_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard appconfig/*_context*) appconfig/media
 
 ROOTFILES = $(addprefix $(APPDIR)/users/,root)
 
 all:  policy
 
-tmp/valid_fc: $(APPFILES) $(ROOTFILES) $(LOADPATH) $(FCPATH) 
-	@echo "Validating file_contexts ..."	
-	$(SETFILES) -q -c $(LOADPATH) $(FCPATH)
+tmp/valid_fc: $(LOADPATH) $(FC) 
+	@echo "Validating file contexts files ..."	
+	$(SETFILES) -q -c $(LOADPATH) $(FC)
 	@touch tmp/valid_fc
 
-install: tmp/valid_fc $(USERPATH)/local.users
+install: $(FCPATH) $(APPFILES) $(ROOTFILES) $(USERPATH)/local.users
 
 $(USERPATH)/system.users: $(ALL_TUNABLES) $(USER_FILES) policy.conf
 	@mkdir -p $(USERPATH)
@@ -91,61 +91,64 @@ $(USERPATH)/system.users: $(ALL_TUNABLES) $(USER_FILES) policy.conf
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	m4 $(ALL_TUNABLES) tmp/program_used_flags.te $(USER_FILES) | grep -v "^#" >> tmp/system.users
+	@m4 $(ALL_TUNABLES) tmp/program_used_flags.te $(USER_FILES) | grep -v "^#" >> tmp/system.users
 	install -m 644 tmp/system.users $@
 
 $(USERPATH)/local.users: local.users
 	@mkdir -p $(USERPATH)
-	install -C -b -m 644 $< $@
+	install -b -m 644 $< $@
 
 $(CONTEXTPATH)/files/media: appconfig/media
-	mkdir -p $(CONTEXTPATH)/files/
+	@mkdir -p $(CONTEXTPATH)/files/
 	install -m 644 $< $@
 
 $(APPDIR)/default_contexts: appconfig/default_contexts
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/removable_context: appconfig/removable_context
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/customizable_types: policy.conf
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	@grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
 	install -m 644 tmp/customizable_types $@ 
 
+$(APPDIR)/port_types: policy.conf
+	@mkdir -p $(APPDIR)
+	@grep "^type .*port_type" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/port_types
+	install -m 644 tmp/port_types $@ 
+
 $(APPDIR)/default_type: appconfig/default_type
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/userhelper_context: appconfig/userhelper_context
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/initrc_context: appconfig/initrc_context
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/failsafe_context: appconfig/failsafe_context
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/dbus_contexts: appconfig/dbus_contexts
-	mkdir -p $(APPDIR)
+	@mkdir -p $(APPDIR)
 	install -m 644 $< $@
 
 $(APPDIR)/users/root: appconfig/root_default_contexts
-	mkdir -p $(APPDIR)/users
+	@mkdir -p $(APPDIR)/users
 	install -m 644 $< $@
 
-$(LOADPATH):  policy.conf $(CHECKPOLICY)
-	mkdir -p $(POLICYPATH)
+$(LOADPATH): policy.conf $(CHECKPOLICY) 
+	@echo "Compiling policy ..."
+	@mkdir -p $(POLICYPATH)
 	$(CHECKPOLICY) $(CHECKPOLMLS) -o $@ policy.conf
 ifneq ($(MLS),y)
-ifneq ($(VERS),18)
-	$(CHECKPOLICY) -c 18 -o $(POLICYPATH)/policy.18 policy.conf
-endif
 endif
 # Note: Can't use install, so not sure how to deal with mode, user, and group
 #	other than by default.
@@ -154,46 +157,39 @@ policy: $(POLICYVER)
 
 $(POLICYVER):  policy.conf $(FC) $(CHECKPOLICY)
 	$(CHECKPOLICY) $(CHECKPOLMLS) -o $@ policy.conf
-ifneq ($(MLS),y)
-ifneq ($(VERS),18)
-	$(CHECKPOLICY) -c 18 -o policy.18 policy.conf
-endif
-endif
-	@echo "Validating file_contexts ..."
+	@echo "Validating file contexts files ..."
 	$(SETFILES) -q -c $(POLICYVER) $(FC)
 
-reload tmp/load: $(FCPATH) $(LOADPATH)
-ifeq ($(VERS), $(KERNVERS))
+reload tmp/load: $(LOADPATH) 
+	@echo "Loading Policy ..."
 	$(LOADPOLICY) $(LOADPATH)
-else
-	$(LOADPOLICY) $(POLICYPATH)/policy.18
-endif
 	touch tmp/load
 
-load: tmp/load
+load: tmp/load $(FCPATH) 
 
 enableaudit: policy.conf 
 	grep -v dontaudit policy.conf > policy.audit
 	mv policy.audit policy.conf
 
 policy.conf: $(POLICYFILES) $(POLICY_DIRS)
-	mkdir -p tmp
+	@echo "Building policy.conf ..."
+	@mkdir -p tmp
 	m4 $(M4PARAM) -Imacros -s $(POLICYFILES) > $@.tmp
-	mv $@.tmp $@
+	@mv $@.tmp $@
 
 install-src: 
 	rm -rf $(SRCPATH)/policy.old
 	-mv $(SRCPATH)/policy $(SRCPATH)/policy.old
-	mkdir -p $(SRCPATH)/policy
+	@mkdir -p $(SRCPATH)/policy
 	cp -R . $(SRCPATH)/policy
 
 tmp/program_used_flags.te: $(wildcard domains/program/*.te) domains/program
-	mkdir -p tmp
+	@mkdir -p tmp
 	( cd domains/program/ ; for n in *.te ; do echo "define(\`$$n')"; done ) > $@.tmp
 	( cd domains/misc/ ; for n in *.te ; do echo "define(\`$$n')"; done ) >> $@.tmp
 	mv $@.tmp $@
 
-FILESYSTEMS=`mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';`
+FILESYSTEMS=`mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs | reiserfs ).*rw/{print $$3}';`
 
 checklabels: $(SETFILES)
 	$(SETFILES) -v -n $(FC) $(FILESYSTEMS)
@@ -205,20 +201,20 @@ relabel:  $(FC) $(SETFILES)
 	$(SETFILES) $(FC) $(FILESYSTEMS)
 
 file_contexts/misc:
-	mkdir -p file_contexts/misc
+	@mkdir -p file_contexts/misc
 
-
-$(FCPATH): $(FC) $(USERPATH)/system.users 
+$(FCPATH): tmp/valid_fc $(USERPATH)/system.users  $(APPDIR)/customizable_types $(APPDIR)/port_types
+	@echo "Installing file contexts files..."
 	@mkdir -p $(CONTEXTPATH)/files
-	install -m 644 $(FC) $(FCPATH)
 	install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
+	install -m 644 $(FC) $(FCPATH)
 	@$(GENHOMEDIRCON) -d $(TOPDIR) -t $(TYPE) $(USEPWD)
 
 $(FC): $(ALL_TUNABLES) tmp/program_used_flags.te $(FCFILES) domains/program domains/misc file_contexts/program file_contexts/misc users /etc/passwd
-	@echo "Building file_contexts ..."
+	@echo "Building file contexts files..."
 	@m4 $(M4PARAM) $(ALL_TUNABLES) tmp/program_used_flags.te $(FCFILES) > $@.tmp
-	@grep -v -e HOME -e ROLE $@.tmp > $@
-	@grep -e HOME -e ROLE $@.tmp  > $(HOMEDIR_TEMPLATE)
+	@grep -v -e HOME -e ROLE -e USER $@.tmp > $@
+	@grep -e HOME -e ROLE -e USER $@.tmp  > $(HOMEDIR_TEMPLATE)
 	@-rm $@.tmp
 
 # Create a tags-file for the policy:
@@ -239,7 +235,7 @@ tags: $(wildcard *.te types/*.te domains/*.te domains/misc/*.te domains/program/
 	  --regex-te='/^[ \t]*bool[ \t]+(\w+)/\1/b,bool/' $^
  
 clean:
-	rm -f policy.conf $(POLICYVER) policy.18
+	rm -f policy.conf $(POLICYVER)
 	rm -f tags
 	rm -f tmp/*
 	rm -f $(FC)
@@ -324,8 +320,11 @@ mlsconvert:
 	done
 	@for file in $(USER_FILES); do \
 		echo "Converting $$file"; \
-		sed -e 's/;/ level s0 range s0 - s9 : c0 . c127;/' $$file > $$file.new && \
+		sed -e 's/;/ level s0 range s0 - s9:c0.c127;/' $$file > $$file.new && \
 		mv $$file.new $$file; \
 	done
-	@sed -e '/sid kernel/s/s0/s0 - s9 : c0 . c127/' initial_sid_contexts > initial_sid_contexts.new && mv initial_sid_contexts.new initial_sid_contexts
+	@sed -e '/sid kernel/s/s0/s0 - s9:c0.c127/' initial_sid_contexts > initial_sid_contexts.new && mv initial_sid_contexts.new initial_sid_contexts
+	@echo "Enabling MLS in the Makefile"
+	@sed "s/MLS=n/MLS=y/" Makefile > Makefile.new
+	@mv Makefile.new Makefile
 	@echo "Done"

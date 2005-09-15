@@ -35,7 +35,8 @@ r_dir_file($1_t, usercanread)
 general_domain_access($1_t)
 
 if (allow_execmem) {
-# Allow loading DSOs that require executable stack.
+# Allow making anonymous memory executable, e.g. 
+# for runtime-code generation or executable stack.
 allow $1_t self:process execmem;
 }
 
@@ -131,10 +132,6 @@ ifdef(`cardmgr.te', `
 allow $1_t cardmgr_var_run_t:file { getattr read };
 ')
 
-# Read and write /var/catman.
-allow $1_t catman_t:dir rw_dir_perms;
-allow $1_t catman_t:file create_file_perms;
-
 # Modify mail spool file.
 allow $1_t mail_spool_t:dir r_dir_perms;
 allow $1_t mail_spool_t:file rw_file_perms;
@@ -176,19 +173,38 @@ ifdef(`crontab.te', `crontab_domain($1)')
 ifdef(`screen.te', `screen_domain($1)')
 ifdef(`tvtime.te', `tvtime_domain($1)')
 ifdef(`mozilla.te', `mozilla_domain($1)')
+ifdef(`thunderbird.te', `thunderbird_domain($1)')
 ifdef(`samba.te', `samba_domain($1)')
-ifdef(`games.te', `games_domain($1)')
 ifdef(`gpg.te', `gpg_domain($1)')
 ifdef(`xauth.te', `xauth_domain($1)')
+ifdef(`iceauth.te', `iceauth_domain($1)')
 ifdef(`startx.te', `xserver_domain($1)')
 ifdef(`lpr.te', `lpr_domain($1)')
 ifdef(`ssh.te', `ssh_domain($1)')
 ifdef(`irc.te', `irc_domain($1)')
 ifdef(`using_spamassassin', `spamassassin_domain($1)')
+ifdef(`pyzor.te', `pyzor_domain($1)')
+ifdef(`razor.te', `razor_domain($1)')
 ifdef(`uml.te', `uml_domain($1)')
 ifdef(`cdrecord.te', `cdrecord_domain($1)')
 ifdef(`mplayer.te', `mplayer_domains($1)')
+
+fontconfig_domain($1)
+
+# GNOME
+ifdef(`gnome.te', `
+gnome_domain($1)
+ifdef(`games.te', `games_domain($1)')
 ifdef(`gift.te', `gift_domains($1)')
+ifdef(`evolution.te', `evolution_domains($1)')
+ifdef(`ethereal.te', `ethereal_domain($1)')
+')
+
+# ICE communication channel
+ice_domain($1, $1)
+
+# ORBit communication channel (independent of GNOME)
+orbit_domain($1, $1)
 
 # Instantiate a derived domain for user cron jobs.
 ifdef(`crond.te', `crond_domain($1)')
@@ -213,7 +229,9 @@ dontaudit $1_t self:netlink_route_socket create_netlink_socket_perms;
 
 # Use the network.
 can_network($1_t)
+allow $1_t port_type:tcp_socket name_connect;
 can_ypbind($1_t)
+can_winbind($1_t)
 
 ifdef(`pamconsole.te', `
 allow $1_t pam_var_console_t:dir search;
@@ -321,13 +339,12 @@ allow $1_t mnt_t:dir { getattr search };
 
 # Get attributes of file systems.
 allow $1_t fs_type:filesystem getattr;
-allow $1_t removable_t:filesystem getattr;
 
 # Read and write /dev/tty and /dev/null.
 allow $1_t devtty_t:chr_file rw_file_perms;
 allow $1_t null_device_t:chr_file rw_file_perms;
 allow $1_t zero_device_t:chr_file { rw_file_perms execute };
-allow $1_t { random_device_t urandom_device_t }:chr_file { getattr read ioctl };
+allow $1_t { random_device_t urandom_device_t }:chr_file ra_file_perms;
 #
 # Added to allow reading of cdrom
 #
@@ -347,8 +364,11 @@ dontaudit $1_t wtmp_t:file write;
 # Read the devpts root directory.
 allow $1_t devpts_t:dir r_dir_perms;
 
-allow $1_t src_t:dir r_dir_perms;
-allow $1_t src_t:notdevfile_class_set r_file_perms;
+r_dir_file($1_t, src_t)
+
+# Allow user to read default_t files
+# This is different from reading default_t content, 
+# because it also includes sockets, fifos, and links
 
 if (read_default_t) {
 allow $1_t default_t:dir r_dir_perms;
@@ -367,8 +387,6 @@ dontaudit $1_t initrc_devpts_t:chr_file { ioctl read write };
 #
 dontaudit $1_t self:socket create;
 dontaudit $1_t sysctl_net_t:dir search;
-
-dontaudit $1_t default_context_t:dir search;
 
 ifdef(`rpcd.te', `
 create_dir_file($1_t, nfsd_rw_t)

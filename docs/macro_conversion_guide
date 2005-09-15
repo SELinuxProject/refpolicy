@@ -301,16 +301,7 @@ optional_policy(`kerberos.te',`
 #
 # can_ldap(): complete
 #
-optional_policy(`ldap.te',`
-	allow $1 self:tcp_socket create_socket_perms;
-	corenet_tcp_sendrecv_all_if($1)
-	corenet_raw_sendrecv_all_if($1)
-	corenet_tcp_sendrecv_all_nodes($1)
-	corenet_raw_sendrecv_all_nodes($1)
-	corenet_tcp_sendrecv_ldap_port($1)
-	corenet_tcp_bind_all_nodes($1)
-	sysnet_read_config($1)
-')
+sysnet_use_ldap($1)
 
 #
 # can_loadpol(): complete
@@ -421,18 +412,14 @@ allow $1 $2:process ptrace;
 allow $2 $1:process sigchld;
 
 #
+# can_portmap():
+#
+sysnet_use_portmap($1)
+
+#
 # can_resolve(): complete
 #
-tunable_policy(`use_dns',`
-	allow $1 self:udp_socket create_socket_perms;
-	corenet_udp_sendrecv_all_if($1)
-	corenet_raw_sendrecv_all_if($1)
-	corenet_udp_sendrecv_all_nodes($1)
-	corenet_raw_sendrecv_all_nodes($1)
-	corenet_udp_sendrecv_dns_port($1)
-	corenet_udp_bind_all_nodes($1)
-	sysnet_read_config($1)
-')
+sysnet_dns_name_resolve($1)
 
 #
 # can_setbool(): complete
@@ -790,7 +777,7 @@ optional_policy(`nscd.te',`
 #
 # legacy_domain(): complete
 #
-allow $1_t self:process execmem;
+allow $1_t self:process { execmem execstack };
 libs_legacy_use_shared_libs($1_t)
 libs_legacy_use_ld_so($1_t)
 
@@ -825,6 +812,30 @@ logging_create_log($1_t,$1_log_t,{ file dir })
 create_dir_file($1, $2)
 can_exec($1, $2)
 allow $1 $2:{ sock_file fifo_file } { create ioctl read getattr lock write setattr append link unlink rename };
+
+#
+# polyinstantiater():
+#
+ifdef(`support_polyinstantiation', `
+# Need to give access to /selinux/member
+selinux_compute_member($1)
+# Need sys_admin capability for mounting
+allow $1 self:capability sys_admin;
+# Need to give access to the directories to be polyinstantiated
+allow $1 polydir:dir { getattr mounton add_name create setattr write search };
+# Need to give access to the polyinstantiated subdirectories
+allow $1 polymember:dir {getattr search };
+# Need to give access to parent directories where original
+# is remounted for polyinstantiation aware programs (like gdm)
+allow $1 polyparent:dir { getattr mounton };
+# Need to give permission to create directories where applicable
+allow $1 polymember: dir { create setattr };
+allow $1 polydir: dir { write add_name };
+allow $1 self:process setfscreate;
+allow $1 polyparent:dir { write add_name };
+# Default type for mountpoints
+allow $1 poly_t:dir { create mounton };
+')
 
 #
 # pty_slave_label():
