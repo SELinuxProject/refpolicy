@@ -1,0 +1,165 @@
+
+policy_module(snmp,1.0)
+
+########################################
+#
+# Declarations
+#
+type snmpd_t;
+type snmpd_exec_t;
+init_daemon_domain(snmpd_t,snmpd_exec_t)
+
+type snmpd_etc_t; #, usercanread;
+files_type(snmpd_etc_t)
+
+type snmpd_log_t;
+logging_log_file(snmpd_log_t)
+
+type snmpd_var_run_t;
+files_pid_file(snmpd_var_run_t)
+
+type snmpd_var_lib_t;
+files_type(snmpd_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+allow snmpd_t self:capability { dac_override kill net_admin sys_nice sys_tty_config };
+allow snmpd_t self:file { getattr read };
+allow snmpd_t self:fifo_file rw_file_perms;
+allow snmpd_t self:tcp_socket create_stream_socket_perms;
+allow snmpd_t self:unix_dgram_socket create_socket_perms;
+allow snmpd_t self:unix_stream_socket create_socket_perms;
+
+allow snmpd_t snmpd_etc_t:file { getattr read };
+
+allow snmpd_t snmpd_log_t:file create_file_perms;
+logging_create_log(snmpd_t,snmpd_log_t)
+
+allow snmpd_t snmpd_var_lib_t:file create_file_perms;
+allow snmpd_t snmpd_var_lib_t:dir create_dir_perms;
+files_create_usr(snmpd_t,snmpd_var_lib_t)
+files_create_var(snmpd_t,snmpd_var_lib_t,{ file dir })
+files_create_var_lib(snmpd_t,snmpd_var_lib_t)
+
+allow snmpd_t snmpd_var_run_t:file create_file_perms;
+allow snmpd_t snmpd_var_run_t:dir rw_dir_perms;
+files_create_pid(snmpd_t,snmpd_var_run_t)
+
+kernel_read_kernel_sysctl(snmpd_t)
+kernel_read_net_sysctl(snmpd_t)
+kernel_read_proc_symlinks(snmpd_t)
+kernel_read_system_state(snmpd_t)
+kernel_read_network_state(snmpd_t)
+
+corenet_tcp_sendrecv_all_if(snmpd_t)
+corenet_raw_sendrecv_all_if(snmpd_t)
+corenet_tcp_sendrecv_all_nodes(snmpd_t)
+corenet_raw_sendrecv_all_nodes(snmpd_t)
+corenet_tcp_sendrecv_all_ports(snmpd_t)
+corenet_tcp_bind_all_nodes(snmpd_t)
+corenet_tcp_bind_snmp_port(snmpd_t)
+corenet_udp_bind_snmp_port(snmpd_t)
+
+dev_list_sysfs(snmpd_t)
+dev_read_sysfs(snmpd_t)
+dev_read_urand(snmpd_t)
+dev_read_rand(snmpd_t)
+
+fs_getattr_all_fs(snmpd_t)
+fs_search_auto_mountpoints(snmpd_t)
+
+storage_dontaudit_read_fixed_disk(snmpd_t)
+storage_dontaudit_read_removable_device(snmpd_t)
+
+term_dontaudit_use_console(snmpd_t)
+
+corecmd_exec_bin(snmpd_t)
+corecmd_exec_sbin(snmpd_t)
+corecmd_exec_shell(snmpd_t)
+
+domain_use_wide_inherit_fd(snmpd_t)
+domain_read_all_domains_state(snmpd_t)
+
+files_read_etc_files(snmpd_t)
+files_read_usr_files(snmpd_t)
+files_read_etc_runtime_files(snmpd_t)
+files_search_home(snmpd_t)
+
+init_read_script_pid(snmpd_t)
+init_use_fd(snmpd_t)
+init_use_script_pty(snmpd_t)
+init_dontaudit_write_script_pid(snmpd_t)
+
+libs_use_ld_so(snmpd_t)
+libs_use_shared_libs(snmpd_t)
+
+logging_send_syslog_msg(snmpd_t)
+
+miscfiles_read_localization(snmpd_t)
+
+seutil_dontaudit_search_config(snmpd_t)
+
+sysnet_read_config(snmpd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(snmpd_t)
+userdom_dontaudit_search_sysadm_home_dir(snmpd_t)
+
+ifdef(`distro_redhat', `
+	optional_policy(`rpm.te', `
+		rpm_read_db(snmpd_t)
+	')
+')
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(snmpd_t)
+	term_dontaudit_use_generic_pty(snmpd_t)
+	files_dontaudit_read_root_file(snmpd_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(snmpd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(snmpd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(snmpd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(snmpd_t)
+')
+
+
+ifdef(`TODO',`
+can_udp_send(sysadm_t, snmpd_t)
+can_udp_send(snmpd_t, sysadm_t)
+
+ifdef(`distro_redhat', `
+	optional_policy(`rpm.te', `
+		dontaudit snmpd_t rpm_var_lib_t:dir write;
+		dontaudit snmpd_t rpm_var_lib_t:file write;
+	')
+')
+
+dontaudit snmpd_t rpc_pipefs_t:dir getattr;
+allow snmpd_t rpc_pipefs_t:dir getattr;
+
+optional_policy(`amanda.te', `
+	dontaudit snmpd_t amanda_dumpdates_t:file { getattr read };
+')
+
+optional_policy(`cupsd.te', `
+	allow snmpd_t cupsd_rw_etc_t:file { getattr read };
+')
+
+allow snmpd_t var_lib_nfs_t:dir search;
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(snmpd_t)
+')
+') dnl end TODO

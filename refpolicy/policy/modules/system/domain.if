@@ -455,25 +455,34 @@ interface(`domain_read_all_domains_state',`
 		class dir r_dir_perms;
 		class lnk_file r_file_perms;
 		class file r_file_perms;
-		class process { getattr ptrace };
 	')
 
 	kernel_search_proc($1)
 	allow $1 domain:dir r_dir_perms;
 	allow $1 domain:lnk_file r_file_perms;
 	allow $1 domain:file r_file_perms;
-	allow $1 domain:process getattr;
-
-	# We need to suppress this denial because procps tries to access
-	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-	# running in a privileged domain.
-	dontaudit $1 domain:process ptrace;
 ')
 
 ########################################
 ## <summary>
-##	Read the process state (/proc/pid) of all domains.
+##	Get the attributes of all domains of all domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process getattr;
+	')
+
+	allow $1 domain:process getattr;
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid) of all confined domains.
 ## </summary>
 ## <param name="domain">
 ##	Domain allowed access.
@@ -485,7 +494,6 @@ interface(`domain_read_confined_domains_state',`
 		class dir r_dir_perms;
 		class lnk_file r_file_perms;
 		class file r_file_perms;
-		class process { getattr ptrace };
 	')
 
 	kernel_search_proc($1)
@@ -495,11 +503,76 @@ interface(`domain_read_confined_domains_state',`
 	allow $1 { domain -unconfined_domain }:process getattr;
 
 	dontaudit $1 unconfined_domain:dir search;
+')
 
-	# We need to suppress this denial because procps tries to access
-	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-	# running in a privileged domain.
+########################################
+## <summary>
+##	Get the attributes of all confined domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_confined_domains',`
+	gen_require(`
+		attribute domain, unconfined_domain;
+		class process getattr;
+	')
+
+	allow $1 { domain -unconfined_domain }:process getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to ptrace all domains.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to ptrace all domains.
+##	</p>
+##	<p>
+##	Generally this needs to be suppressed because procps tries to access
+##	/proc/pid/environ and this now triggers a ptrace check in recent kernels
+##	(2.4 and 2.6).
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_dontaudit_ptrace_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process ptrace;
+	')
+
+	dontaudit $1 domain:process ptrace;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to ptrace confined domains.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to ptrace confined domains.
+##	</p>
+##	<p>
+##	Generally this needs to be suppressed because procps tries to access
+##	/proc/pid/environ and this now triggers a ptrace check in recent kernels
+##	(2.4 and 2.6).
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_dontaudit_ptrace_confined_domains',`
+	gen_require(`
+		attribute domain, unconfined_domain;
+		class process ptrace;
+	')
+
 	dontaudit $1 { domain -unconfined_domain }:process ptrace;
 ')
 
@@ -518,19 +591,12 @@ interface(`domain_dontaudit_read_all_domains_state',`
 		class dir r_dir_perms;
 		class lnk_file r_file_perms;
 		class file r_file_perms;
-		class process { getattr ptrace };
 	')
 
 	dontaudit $1 domain:dir r_dir_perms;
 	dontaudit $1 domain:lnk_file r_file_perms;
 	dontaudit $1 domain:file r_file_perms;
 	dontaudit $1 domain:process getattr;
-
-	# We need to suppress this denial because procps tries to access
-	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-	# running in a privileged domain.
-	dontaudit $1 domain:process ptrace;
 ')
 
 ########################################
