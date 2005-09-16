@@ -1,8 +1,8 @@
 #!/bin/bash
 
 DISTROS="redhat gentoo debian suse"
-STRICT_TYPES="strict strict-mls"
-TARG_TYPES="targeted targeted-mls"
+STRICT_TYPES="strict strict-mls strict-mcs"
+TARG_TYPES="targeted targeted-mls targeted-mcs"
 POLVER="`checkpolicy -V |cut -f 1 -d ' '`"
 SETFILES="/usr/sbin/setfiles"
 

@@ -47,11 +47,13 @@ template(`authlogin_per_userdomain_template',`
 	role $3 types $1_chkpwd_t;
 	role $3 types system_chkpwd_t;
 
-	allow $1_chkpwd_t self:capability setuid;
+	allow $1_chkpwd_t self:capability { audit_write audit_control setuid };
 	allow $1_chkpwd_t self:process getattr;
 
 	files_list_etc($1_chkpwd_t)
 	allow $1_chkpwd_t shadow_t:file { getattr read };
+
+	allow $2 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 
 	# Transition from the user domain to this domain.
 	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
@@ -63,6 +65,9 @@ template(`authlogin_per_userdomain_template',`
 
 	# is_selinux_enabled
 	kernel_read_system_state($1_chkpwd_t)
+
+	dev_read_rand($1_chkpwd_t)
+	dev_read_urand($1_chkpwd_t)
 
 	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
 
@@ -82,6 +87,7 @@ template(`authlogin_per_userdomain_template',`
 	seutil_read_config($1_chkpwd_t)
 
 	sysnet_dns_name_resolve($1_chkpwd_t)
+	sysnet_use_ldap($1_chkpwd_t)
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_chkpwd_t)
@@ -91,17 +97,6 @@ template(`authlogin_per_userdomain_template',`
 
 	optional_policy(`kerberos.te',`
 		kerberos_use($1_chkpwd_t)
-	')
-
-	optional_policy(`ldap.te',`
-		allow $1_chkpwd_t self:tcp_socket create_socket_perms;
-		corenet_tcp_sendrecv_all_if($1_chkpwd_t)
-		corenet_raw_sendrecv_all_if($1_chkpwd_t)
-		corenet_tcp_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_tcp_sendrecv_ldap_port($1_chkpwd_t)
-		corenet_tcp_bind_all_nodes($1_chkpwd_t)
-		sysnet_read_config($1_chkpwd_t)
 	')
 
 	optional_policy(`nis.te',`
@@ -114,6 +109,12 @@ template(`authlogin_per_userdomain_template',`
 
 	optional_policy(`selinuxutil.te',`
 		seutil_use_newrole_fd($1_chkpwd_t)
+	')
+
+	ifdef(`TODO',`
+	can_winbind($1)
+	r_dir_file($1, cert_t)
+	dontaudit $1 shadow_t:file { getattr read };
 	')
 ')
 
@@ -221,6 +222,9 @@ interface(`auth_domtrans_chk_passwd',`
 	corecmd_search_sbin($1)
 	domain_auto_trans($1,chkpwd_exec_t,system_chkpwd_t)
 
+	allow $1 self:capability { audit_write audit_control };
+	allow $1 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
 	allow $1 system_chkpwd_t:fd use;
 	allow system_chkpwd_t $1:fd use;
 	allow system_chkpwd_t $1:fifo_file rw_file_perms;
@@ -228,25 +232,24 @@ interface(`auth_domtrans_chk_passwd',`
 
 	dontaudit $1 shadow_t:file { getattr read };
 
+	dev_read_rand($1)
+	dev_read_urand($1)
+
 	sysnet_dns_name_resolve($1)
+	sysnet_use_ldap($1)
 
 	optional_policy(`kerberos.te',`
 		kerberos_use($1)
 	')
 
-	optional_policy(`ldap.te',`
-		allow $1 self:tcp_socket create_socket_perms;
-		corenet_tcp_sendrecv_all_if($1)
-		corenet_raw_sendrecv_all_if($1)
-		corenet_tcp_sendrecv_all_nodes($1)
-		corenet_raw_sendrecv_all_nodes($1)
-		corenet_tcp_sendrecv_ldap_port($1)
-		corenet_tcp_bind_all_nodes($1)
-		sysnet_read_config($1)
-	')
-
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1)
+	')
+
+	ifdef(`TODO',`
+	can_winbind($1)
+	r_dir_file($1, cert_t)
+	dontaudit $1 shadow_t:file { getattr read };
 	')
 ')
 

@@ -6,6 +6,13 @@ policy_module(lvm,1.0)
 # Declarations
 #
 
+type clvmd_t;
+type clvmd_exec_t;
+init_daemon_domain(clvmd_t,clvmd_exec_t)
+
+type clvmd_var_run_t;
+files_pid_file(clvmd_var_run_t)
+
 type lvm_t;
 type lvm_exec_t;
 init_system_domain(lvm_t,lvm_exec_t)
@@ -28,7 +35,91 @@ files_tmp_file(lvm_tmp_t)
 
 ########################################
 #
-# Local policy
+# Cluster LVM daemon local policy
+#
+
+dontaudit clvmd_t self:capability sys_tty_config;
+allow clvmd_t self:socket create_socket_perms;
+allow clvmd_t self:fifo_file { read write };
+allow clvmd_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow clvmd_t self:tcp_socket create_stream_socket_perms;
+allow clvmd_t self:udp_socket create_socket_perms;
+
+allow clvmd_t clvmd_var_run_t:file create_file_perms;
+allow clvmd_t clvmd_var_run_t:dir rw_dir_perms;
+files_create_pid(clvmd_t,clvmd_var_run_t)
+
+kernel_read_kernel_sysctl(clvmd_t)
+kernel_list_proc(clvmd_t)
+kernel_read_proc_symlinks(clvmd_t)
+
+corenet_tcp_sendrecv_all_if(clvmd_t)
+corenet_udp_sendrecv_all_if(clvmd_t)
+corenet_raw_sendrecv_all_if(clvmd_t)
+corenet_tcp_sendrecv_all_nodes(clvmd_t)
+corenet_udp_sendrecv_all_nodes(clvmd_t)
+corenet_raw_sendrecv_all_nodes(clvmd_t)
+corenet_tcp_sendrecv_all_ports(clvmd_t)
+corenet_udp_sendrecv_all_ports(clvmd_t)
+corenet_tcp_bind_all_nodes(clvmd_t)
+corenet_udp_bind_all_nodes(clvmd_t)
+corenet_tcp_bind_reserved_port(clvmd_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(clvmd_t)
+
+dev_read_sysfs(clvmd_t)
+
+fs_getattr_all_fs(clvmd_t)
+fs_search_auto_mountpoints(clvmd_t)
+
+term_dontaudit_use_console(clvmd_t)
+
+domain_use_wide_inherit_fd(clvmd_t)
+
+init_use_fd(clvmd_t)
+init_use_script_pty(clvmd_t)
+
+libs_use_ld_so(clvmd_t)
+libs_use_shared_libs(clvmd_t)
+
+logging_send_syslog_msg(clvmd_t)
+
+miscfiles_read_localization(clvmd_t)
+
+seutil_dontaudit_search_config(clvmd_t)
+seutil_sigchld_newrole(clvmd_t)
+
+sysnet_read_config(clvmd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(clvmd_t)
+userdom_dontaudit_search_sysadm_home_dir(clvmd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(clvmd_t)
+	term_dontaudit_use_generic_pty(clvmd_t)
+	files_dontaudit_read_root_file(clvmd_t)
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(clvmd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(clvmd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(clvmd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(clvmd_t)
+')
+') dnl end TODO
+
+########################################
+#
+# LVM Local policy
 #
 
 # DAC overrides and mknod for modifying /dev entries (vgmknodes)
@@ -167,13 +258,10 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
-
 optional_policy(`gnome-pty-helper.te', `
 	allow lvm_t sysadm_gph_t:fd use;
 ')
-
 optional_policy(`rhgb.te',`
 rhgb_domain(lvm_t)
 ')
-
 ') dnl end TODO

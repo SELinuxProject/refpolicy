@@ -53,8 +53,7 @@ allow $1_ssh_t fs_type:filesystem getattr;
 base_file_read_access($1_ssh_t)
 
 # Read /var.
-allow $1_ssh_t var_t:dir r_dir_perms;
-allow $1_ssh_t var_t:notdevfile_class_set r_file_perms;
+r_dir_file($1_ssh_t, var_t)
 
 # Read /var/run, /var/log.
 allow $1_ssh_t var_run_t:dir r_dir_perms;
@@ -63,8 +62,7 @@ allow $1_ssh_t var_log_t:dir r_dir_perms;
 allow $1_ssh_t var_log_t:{ file lnk_file } r_file_perms;
 
 # Read /etc.
-allow $1_ssh_t etc_t:dir r_dir_perms;
-allow $1_ssh_t etc_t:notdevfile_class_set r_file_perms;
+r_dir_file($1_ssh_t, etc_t)
 allow $1_ssh_t etc_runtime_t:{ file lnk_file } r_file_perms;
 
 # Read /dev directories and any symbolic links.
@@ -80,6 +78,7 @@ allow $1_ssh_t { null_device_t zero_device_t }:chr_file rw_file_perms;
 # Grant permissions needed to create TCP and UDP sockets and
 # to access the network.
 can_network_client_tcp($1_ssh_t)
+allow $1_ssh_t ssh_port_t:tcp_socket name_connect;
 can_resolve($1_ssh_t)
 can_ypbind($1_ssh_t)
 can_kerberos($1_ssh_t)
@@ -130,18 +129,8 @@ allow $1_t $1_ssh_t:process signal;
 # allow ps to show ssh
 can_ps($1_t, $1_ssh_t)
 
-ifdef(`xserver.te', `
-# Communicate with the X server.
-ifdef(`startx.te', `
-can_unix_connect($1_ssh_t, $1_xserver_t)
-allow $1_ssh_t $1_xserver_tmp_t:sock_file rw_file_perms;
-allow $1_ssh_t $1_xserver_tmp_t:dir search;
-')dnl end if startx
-ifdef(`xdm.te', `
-allow $1_ssh_t { xdm_xserver_tmp_t xdm_tmp_t }:dir search;
-allow $1_ssh_t { xdm_tmp_t }:sock_file write;
-')
-')dnl end if xserver
+# Connect to X server
+x_client_domain($1_ssh, $1)
 
 ifdef(`ssh-agent.te', `
 ssh_agent_domain($1)
@@ -152,18 +141,26 @@ ssh_agent_domain($1)
 allow $1_ssh_t mnt_t:dir search;
 r_dir_file($1_ssh_t, removable_t) 
 
-ifdef(`xdm.te', `
-# should be able to remove these two later
-allow $1_ssh_t xdm_xserver_tmp_t:sock_file { read write };
-allow $1_ssh_t xdm_xserver_tmp_t:dir search;
-allow $1_ssh_t xdm_xserver_t:unix_stream_socket connectto;
-allow $1_ssh_t xdm_xserver_t:shm r_shm_perms;
-allow $1_ssh_t xdm_xserver_t:fd use;
-allow $1_ssh_t xdm_xserver_tmpfs_t:file read;
-allow $1_ssh_t xdm_t:fd use;
-')dnl end if xdm.te
-')dnl end macro definition
+type $1_ssh_keysign_t, domain, nscd_client_domain;
+role $1_r types $1_ssh_keysign_t;
 
+if (allow_ssh_keysign) {
+domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
+allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
+allow $1_ssh_keysign_t self:capability { setgid setuid };
+allow $1_ssh_keysign_t urandom_device_t:chr_file r_file_perms;
+uses_shlib($1_ssh_keysign_t)
+dontaudit $1_ssh_keysign_t selinux_config_t:dir search;
+dontaudit $1_ssh_keysign_t proc_t:dir search;
+dontaudit $1_ssh_keysign_t proc_t:{ lnk_file file } { getattr read };
+allow $1_ssh_keysign_t usr_t:dir search;
+allow $1_ssh_keysign_t etc_t:file { getattr read };
+allow $1_ssh_keysign_t self:dir search;
+allow $1_ssh_keysign_t self:file { getattr read };
+allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
+}
+
+')dnl end macro definition
 ', `
 
 define(`ssh_domain',`')
