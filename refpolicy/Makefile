@@ -108,8 +108,15 @@ USERPATH = $(INSTALLDIR)/users
 CONTEXTPATH = $(INSTALLDIR)/contexts
 
 # enable MLS if requested.
-ifneq ($(findstring mls,$(TYPE)),)
+ifneq ($(findstring -mls,$(TYPE)),)
 	override M4PARAM += -D enable_mls
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
+endif
+
+# enable MLS if MCS requested.
+ifneq ($(findstring -mcs,$(TYPE)),)
+	override M4PARAM += -D enable_mcs
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
 endif

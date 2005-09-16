@@ -15,6 +15,9 @@
 # Set to y if MLS is enabled in the policy.
 MLS=n
 
+# Set to y if MCS is enabled in the policy
+MCS=n
+
 FLASKDIR = flask/
 PREFIX = /usr
 BINDIR = $(PREFIX)/bin
@@ -24,14 +27,18 @@ CHECKPOLICY = $(BINDIR)/checkpolicy
 GENHOMEDIRCON = $(SBINDIR)/genhomedircon
 SETFILES = $(SBINDIR)/setfiles
 VERS := $(shell $(CHECKPOLICY) $(POLICYCOMPAT) -V |cut -f 1 -d ' ')
+PREVERS := 19
 KERNVERS := $(shell cat /selinux/policyvers)
 POLICYVER := policy.$(VERS)
 TOPDIR = $(DESTDIR)/etc/selinux
+TYPE=strict
 ifeq ($(MLS),y)
 TYPE=mls
-else
-TYPE=strict
 endif
+ifeq ($(MCS),y)
+TYPE=mcs
+endif
+
 INSTALLDIR = $(TOPDIR)/$(TYPE)
 POLICYPATH = $(INSTALLDIR)/policy
 SRCPATH = $(INSTALLDIR)/src
@@ -52,6 +59,10 @@ USER_FILES := users
 POLICYFILES = $(addprefix $(FLASKDIR),security_classes initial_sids access_vectors)
 ifeq ($(MLS),y)
 POLICYFILES += mls
+CHECKPOLMLS += -M
+endif
+ifeq ($(MCS), y)
+POLICYFILES += mcs
 CHECKPOLMLS += -M
 endif
 DEFCONTEXTFILES = initial_sid_contexts fs_use genfs_contexts net_contexts
@@ -148,8 +159,10 @@ $(LOADPATH): policy.conf $(CHECKPOLICY)
 	@echo "Compiling policy ..."
 	@mkdir -p $(POLICYPATH)
 	$(CHECKPOLICY) $(CHECKPOLMLS) -o $@ policy.conf
-ifneq ($(MLS),y)
+ifneq ($(VERS),$(PREVERS))
+	$(CHECKPOLICY) -c $(PREVERS) -o $(POLICYPATH)/policy.$(PREVERS) policy.conf
 endif
+
 # Note: Can't use install, so not sure how to deal with mode, user, and group
 #	other than by default.
 
@@ -162,7 +175,11 @@ $(POLICYVER):  policy.conf $(FC) $(CHECKPOLICY)
 
 reload tmp/load: $(LOADPATH) 
 	@echo "Loading Policy ..."
+ifeq ($(VERS), $(KERNVERS))
 	$(LOADPOLICY) $(LOADPATH)
+else
+	$(LOADPOLICY) $(POLICYPATH)/policy.$(PREVERS)
+endif
 	touch tmp/load
 
 load: tmp/load $(FCPATH) 
@@ -328,3 +345,22 @@ mlsconvert:
 	@sed "s/MLS=n/MLS=y/" Makefile > Makefile.new
 	@mv Makefile.new Makefile
 	@echo "Done"
+
+mcsconvert: 
+	@for file in $(CONTEXTFILES); do \
+		echo "Converting $$file"; \
+		sed -e 's/_t\b/_t:s0/g' $$file > $$file.new && \
+		mv $$file.new $$file; \
+	done
+	@for file in $(USER_FILES); do \
+		echo "Converting $$file"; \
+		sed -r -e 's/\;/ level s0 range s0;/' $$file | \
+		sed -r -e 's/(user (root|system_u).*);/\1 - s0:c0.c127;/' > $$file.new; \
+		mv $$file.new $$file; \
+	done
+	@sed -e '/sid kernel/s/s0/s0 - s0:c0.c127/' initial_sid_contexts > initial_sid_contexts.new && mv initial_sid_contexts.new initial_sid_contexts
+	@echo "Enabling MCS in the Makefile"
+	@sed "s/MCS=y/MCS=y/" Makefile > Makefile.new
+	@mv Makefile.new Makefile
+	@echo "Done"
+

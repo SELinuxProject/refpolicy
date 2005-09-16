@@ -12,14 +12,14 @@
 # administration.
 # fsadm_exec_t is the type of the corresponding programs.
 #
-type fsadm_t, domain, privlog, fs_domain;
+type fsadm_t, domain, privlog, fs_domain, mlsfileread;
 role system_r types fsadm_t;
 role sysadm_r types fsadm_t;
 
 general_domain_access(fsadm_t)
 
 # for swapon
-allow fsadm_t sysfs_t:dir { search getattr };
+r_dir_file(fsadm_t, sysfs_t)
 
 # Read system information files in /proc.
 r_dir_file(fsadm_t, proc_t)
@@ -33,8 +33,7 @@ allow fsadm_t tmpfs_t:dir { getattr search };
 base_file_read_access(fsadm_t)
 
 # Read /etc.
-allow fsadm_t etc_t:dir r_dir_perms;
-allow fsadm_t etc_t:notdevfile_class_set r_file_perms;
+r_dir_file(fsadm_t, etc_t)
 
 # Read module-related files.
 allow fsadm_t modules_conf_t:{ file lnk_file } r_file_perms;
@@ -47,8 +46,9 @@ uses_shlib(fsadm_t)
 
 type fsadm_exec_t, file_type, sysadmfile, exec_type;
 domain_auto_trans(initrc_t, fsadm_exec_t, fsadm_t)
+ifdef(`targeted_policy', `', `
 domain_auto_trans(sysadm_t, fsadm_exec_t, fsadm_t)
-
+')
 tmp_domain(fsadm)
 
 # remount file system to apply changes
@@ -63,7 +63,7 @@ allow fsadm_t proc_t:filesystem getattr;
 allow fsadm_t { urandom_device_t random_device_t }:chr_file { getattr read };
 
 # Use capabilities.  ipc_lock is for losetup
-allow fsadm_t self:capability { ipc_lock sys_rawio sys_admin sys_tty_config };
+allow fsadm_t self:capability { ipc_lock sys_rawio sys_admin sys_tty_config dac_override dac_read_search };
 
 # Write to /etc/mtab.
 file_type_auto_trans(fsadm_t, etc_t, etc_runtime_t, file)
@@ -101,7 +101,7 @@ allow fsadm_t fixed_disk_device_t:blk_file { getattr swapon };
 allow fsadm_t kernel_t:system syslog_console;
 
 # Access terminals.
-allow fsadm_t { initrc_devpts_t admin_tty_type }:chr_file rw_file_perms;
+allow fsadm_t { initrc_devpts_t admin_tty_type devtty_t console_device_t }:chr_file rw_file_perms;
 ifdef(`gnome-pty-helper.te', `allow fsadm_t sysadm_gph_t:fd use;')
 allow fsadm_t privfd:fd use;
 allow fsadm_t devpts_t:dir { getattr search };
