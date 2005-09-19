@@ -2,12 +2,6 @@
 # Macros for all user login domains.
 #
 
-define(`network_home_dir', `
-create_dir_file($1, $2)
-can_exec($1, $2)
-allow $1 $2:{ sock_file fifo_file } create_file_perms;
-')
-
 #
 # base_user_domain(domain_prefix)
 #
@@ -21,6 +15,30 @@ allow $1 $2:{ sock_file fifo_file } create_file_perms;
 # base_user_domain() is also called by the admin_domain() macro
 undefine(`base_user_domain')
 define(`base_user_domain', `
+
+# Type for network-obtained content
+type $1_untrusted_content_t, file_type, $1_file_type, sysadmfile, customizable, polymember;
+type $1_untrusted_content_tmp_t, file_type, $1_file_type, sysadmfile, tmpfile, customizable, polymember;
+
+# Allow user to relabel untrusted content
+allow $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:dir { create_dir_perms relabelto relabelfrom };
+allow $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:file { getattr unlink relabelto relabelfrom rename };
+
+# Read content
+read_content($1_t, $1)
+
+# Write trusted content. This includes proper transition
+# for /home, and /tmp, so no other transition is necessary (or allowed)
+write_trusted($1_t, $1)
+
+# Maybe the home directory is networked
+network_home($1_t)
+
+# Transition for { lnk, fifo, sock }. The rest is covered by write_trusted.
+# Relabel files in the home directory 
+file_type_auto_trans($1_t, $1_home_dir_t, $1_home_t, { fifo_file sock_file lnk_file }); 
+allow $1_t $1_home_t:{ notdevfile_class_set dir } { relabelfrom relabelto };
+can_setfscreate($1_t)
 
 allow $1_t self:capability { setgid chown fowner };
 dontaudit $1_t self:capability { sys_nice fsetid };
@@ -40,10 +58,13 @@ if (allow_execmem) {
 allow $1_t self:process execmem;
 }
 
-if (allow_execmod) {
+if (allow_execmem && allow_execstack) {
+# Allow making the stack executable via mprotect.
+allow $1_t self:process execstack;
+}
+
 # Allow text relocations on system shared libraries, e.g. libGL.
 allow $1_t texrel_shlib_t:file execmod;
-}
 
 #
 # kdeinit wants this access
@@ -63,38 +84,23 @@ allow $1_t event_device_t:chr_file { getattr read ioctl };
 allow $1_t dri_device_t:chr_file getattr;
 dontaudit $1_t dri_device_t:chr_file rw_file_perms;
 
-file_browse_domain($1_t)
+# Supress ls denials:
+# getattr() - ls -l
+# search_dir() - symlink path resolution
+# read_dir() - deep ls: ls parent/...
+
+dontaudit_getattr($1_t)
+dontaudit_search_dir($1_t)
+dontaudit_read_dir($1_t)
 
 # allow ptrace
 can_ptrace($1_t, $1_t)
 
-# Create, access, and remove files in home directory.
-file_type_auto_trans($1_t, $1_home_dir_t, $1_home_t)
-allow $1_t $1_home_t:notdevfile_class_set { relabelfrom relabelto };
-can_setfscreate($1_t)
+# Allow user to run restorecon and relabel files
+can_getsecurity($1_t)
+r_dir_file($1_t, default_context_t)
+r_dir_file($1_t, file_context_t)
 
-allow $1_t autofs_t:dir { search getattr };
-
-if (use_nfs_home_dirs) {
-network_home_dir($1_t, nfs_t)
-}
-
-if (use_samba_home_dirs) {
-network_home_dir($1_t, cifs_t)
-}
-
-can_exec($1_t, { removable_t noexattrfile } )
-if (user_rw_noexattrfile) {
-create_dir_file($1_t, noexattrfile)
-create_dir_file($1_t, removable_t)
-# Write floppies 
-allow $1_t removable_device_t:blk_file rw_file_perms;
-allow $1_t usbtty_device_t:chr_file write;
-} else {
-r_dir_file($1_t, noexattrfile)
-r_dir_file($1_t, removable_t)
-allow $1_t removable_device_t:blk_file r_file_perms;
-}
 allow $1_t usbtty_device_t:chr_file read;
 
 # GNOME checks for usb and other devices
@@ -104,15 +110,8 @@ can_exec($1_t, noexattrfile)
 # Bind to a Unix domain socket in /tmp.
 allow $1_t $1_tmp_t:unix_stream_socket name_bind;
 
-# Access ttys.
-allow $1_t privfd:fd use;
-allow $1_t $1_tty_device_t:chr_file { setattr rw_file_perms };
-
 # Use the type when relabeling terminal devices.
 type_change $1_t tty_device_t:chr_file $1_tty_device_t;
-
-# read localization information
-read_locale($1_t)
 
 # Debian login is from shadow utils and does not allow resetting the perms.
 # have to fix this!
@@ -297,21 +296,16 @@ dontaudit $1_t domain:process { getattr getsession };
 #
 dontaudit $1_t usr_t:file setattr;
 
+# Use X
+x_client_domain($1, $1)
+
 ifdef(`xserver.te', `
-# for /tmp/.ICE-unix
-file_type_auto_trans($1_t, xdm_xserver_tmp_t, $1_tmp_t, sock_file)
 allow $1_t xserver_misc_device_t:{ chr_file blk_file } rw_file_perms;
 ')
 
 ifdef(`xdm.te', `
 # Connect to the X server run by the X Display Manager.
 can_unix_connect($1_t, xdm_t)
-allow $1_t xdm_tmp_t:sock_file rw_file_perms;
-allow $1_t xdm_tmp_t:dir r_dir_perms;
-allow $1_t xdm_tmp_t:file { getattr read };
-allow $1_t xdm_xserver_tmp_t:sock_file { read write };
-allow $1_t xdm_xserver_tmp_t:dir search;
-allow $1_t xdm_xserver_t:unix_stream_socket connectto;
 # certain apps want to read xdm.pid file
 r_dir_file($1_t, xdm_var_run_t)
 allow $1_t xdm_var_lib_t:file { getattr read };
@@ -319,9 +313,6 @@ allow xdm_t $1_home_dir_t:dir getattr;
 ifdef(`xauth.te', `
 file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
 ')
-
-# for shared memory
-allow xdm_xserver_t $1_tmpfs_t:file { read write };
 
 ')dnl end ifdef xdm.te
 
@@ -374,6 +365,9 @@ if (read_default_t) {
 allow $1_t default_t:dir r_dir_perms;
 allow $1_t default_t:notdevfile_class_set r_file_perms;
 }
+
+# Read fonts
+read_fonts($1_t, $1)
 
 read_sysctl($1_t);
 

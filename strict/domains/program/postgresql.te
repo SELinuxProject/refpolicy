@@ -10,7 +10,6 @@
 #
 # postgresql_exec_t is the type of the postgresql executable.
 #
-type postgresql_port_t, port_type;
 daemon_domain(postgresql)
 allow initrc_t postgresql_exec_t:lnk_file read;
 allow postgresql_t usr_t:file { getattr read };
@@ -37,7 +36,6 @@ allow postgresql_t self:capability { kill dac_override dac_read_search chown fow
 dontaudit postgresql_t self:capability sys_admin;
 
 etcdir_domain(postgresql)
-typealias postgresql_etc_t alias etc_postgresql_t;
 type postgresql_db_t, file_type, sysadmfile;
 
 logdir_domain(postgresql)
@@ -52,7 +50,7 @@ tmp_domain(postgresql, `', `{ dir file sock_file }')
 file_type_auto_trans(postgresql_t, tmpfs_t, postgresql_tmp_t)
 
 # Use the network.
-can_network_server(postgresql_t)
+can_network(postgresql_t)
 can_ypbind(postgresql_t)
 allow postgresql_t self:fifo_file { getattr read write ioctl };
 allow postgresql_t self:unix_stream_socket create_stream_socket_perms;
@@ -69,6 +67,7 @@ if (allow_user_postgresql_connect) {
 can_tcp_connect(userdomain, postgresql_t)
 allow userdomain postgresql_t:unix_stream_socket connectto;
 allow userdomain postgresql_var_run_t:sock_file write;
+allow userdomain postgresql_tmp_t:sock_file write;
 }
 ')
 ifdef(`consoletype.te', `
@@ -80,6 +79,7 @@ can_exec(postgresql_t, hostname_exec_t)
 ')
 
 allow postgresql_t postgresql_port_t:tcp_socket name_bind;
+allow postgresql_t auth_port_t:tcp_socket name_connect;
 
 allow postgresql_t { proc_t self }:file { getattr read };
 
@@ -110,9 +110,9 @@ allow postgresql_t postgresql_exec_t:lnk_file { getattr read };
 allow postgresql_t self:sem create_sem_perms;
 
 allow postgresql_t initrc_var_run_t:file { getattr read lock };
-dontaudit postgresql_t selinux_config_t:dir { search };
-allow postgresql_t mail_spool_t:dir { search };
-rw_dir_create_file(postgresql_t, var_lock_t)
+dontaudit postgresql_t selinux_config_t:dir search;
+allow postgresql_t mail_spool_t:dir search;
+lock_domain(postgresql)
 can_exec(postgresql_t, { shell_exec_t bin_t postgresql_exec_t ls_exec_t } )
 ifdef(`apache.te', `
 # 
@@ -124,11 +124,15 @@ can_unix_connect(httpd_t, postgresql_t)
 
 ifdef(`distro_gentoo', `
 # "su - postgres ..." is called from initrc_t
-allow initrc_su_t postgresql_db_t:dir { search };
-allow postgresql_t initrc_su_t:process { sigchld };
+allow initrc_su_t postgresql_db_t:dir search;
+allow postgresql_t initrc_su_t:process sigchld;
 dontaudit initrc_su_t sysadm_devpts_t:chr_file rw_file_perms;
 ')
 
 dontaudit postgresql_t home_root_t:dir search;
 can_kerberos(postgresql_t)
 allow postgresql_t urandom_device_t:chr_file { getattr read };
+
+if (allow_execmem) {
+allow postgresql_t self:process execmem;
+}

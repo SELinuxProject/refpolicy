@@ -43,6 +43,8 @@ ifdef(`cardmgr.te', `
 domain_auto_trans(cardmgr_t, dhcpc_exec_t, dhcpc_t)
 allow cardmgr_t dhcpc_var_run_t:file { getattr read };
 allow cardmgr_t dhcpc_t:process signal_perms;
+allow cardmgr_t dhcpc_var_run_t:file unlink;
+allow dhcpc_t cardmgr_dev_t:chr_file { read write };
 ')
 ifdef(`hotplug.te', `
 domain_auto_trans(hotplug_t, dhcpc_exec_t, dhcpc_t)
@@ -126,7 +128,7 @@ can_exec(dhcpc_t, { bin_t shell_exec_t })
 ifdef(`hostname.te', `
 domain_auto_trans(dhcpc_t, hostname_exec_t, hostname_t)
 ')
-dontaudit dhcpc_t { ttyfile ptyfile tty_device_t }:chr_file { read write };
+dontaudit dhcpc_t { devpts_t ttyfile ptyfile tty_device_t }:chr_file rw_file_perms;
 allow dhcpc_t { userdomain kernel_t }:fd use;
 
 allow dhcpc_t home_root_t:dir search;
@@ -142,7 +144,22 @@ allow dhcpc_t initrc_var_run_t:file rw_file_perms;
 can_exec(dhcpc_t, initrc_exec_t)
 ifdef(`ypbind.te', `
 domain_auto_trans(dhcpc_t, ypbind_exec_t, ypbind_t)
+allow dhcpc_t ypbind_var_run_t:file { r_file_perms unlink };
 ')
 ifdef(`ntpd.te', `
 domain_auto_trans(dhcpc_t, ntpd_exec_t, ntpd_t)
+')
+role sysadm_r types dhcpc_t;
+domain_auto_trans(sysadm_t, dhcpc_exec_t, dhcpc_t)
+ifdef(`dbusd.te', `
+dbusd_client(system, dhcpc)
+domain_auto_trans(system_dbusd_t, dhcpc_exec_t, dhcpc_t)
+allow dhcpc_t system_dbusd_t:dbus { acquire_svc send_msg };
+allow dhcpc_t self:dbus send_msg;
+allow { NetworkManager_t initrc_t } dhcpc_t:dbus send_msg;
+allow dhcpc_t { NetworkManager_t initrc_t }:dbus send_msg;
+ifdef(`unconfined.te', `
+allow unconfined_t dhcpc_t:dbus send_msg;
+allow dhcpc_t unconfined_t:dbus send_msg;
+')dnl end ifdef unconfined.te
 ')

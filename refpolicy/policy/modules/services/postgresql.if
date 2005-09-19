@@ -1,0 +1,110 @@
+## <summary>PostgreSQL relational database</summary>
+
+########################################
+## <summary>
+##	Allow the specified domain to search postgresql's database directory.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postgresql_search_db_dir',`
+	gen_require(`
+		type postgresql_db_t;
+	')
+
+	allow $1 postgresql_db_t:dir search;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage postgresql's database.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+interface(`postgresql_manage_db',`
+	gen_require(`
+		type postgresql_db_t;
+	')
+
+	allow $1 postgresql_db_t:dir rw_dir_perms;
+	allow $1 postgresql_db_t:file rw_file_perms;
+	allow $1 postgresql_db_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Execute postgresql in the postgresql domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`postgresql_domtrans',`
+	gen_require(`
+		type postgresql_t, postgresql_exec_t;
+	')
+
+	domain_auto_trans($1,postgresql_exec_t,postgresql_t)
+
+	allow $1 postgresql_t:fd use;
+	allow postgresql_t $1:fd use;
+	allow postgresql_t $1:fifo_file rw_file_perms;
+	allow postgresql_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read postgresql's etc.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postgresql_read_config',`
+	gen_require(`
+		type postgresql_etc_t;
+	')
+
+	files_search_etc($1)
+	allow $1 postgresql_etc_t:dir { getattr read search };
+	allow $1 postgresql_etc_t:file { read getattr };
+	allow $1 postgresql_etc_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to connect to postgresql with a tcp socket.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postgresql_tcp_connect',`
+	gen_require(`
+		type postgresql_t;
+	')
+
+	kernel_tcp_recvfrom($1)
+	allow $1 postgresql_t:tcp_socket { connectto recvfrom };
+	allow postgresql_t $1:tcp_socket { acceptfrom recvfrom };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to connect to postgresql with a unix socket.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postgresql_unix_connect',`
+	gen_require(`
+		type postgresql_t, postgresql_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 postgresql_t:unix_stream_socket connectto;
+	allow $1 postgresql_var_run_t:sock_file write;
+')

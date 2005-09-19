@@ -16,6 +16,11 @@ files_tmp_file(hald_tmp_t)
 type hald_var_run_t;
 files_pid_file(hald_var_run_t)
 
+########################################
+#
+# Local policy
+#
+
 allow hald_t self:capability { net_admin sys_admin dac_override dac_read_search mknod sys_rawio };
 dontaudit hald_t self:capability sys_tty_config;
 allow hald_t self:fifo_file rw_file_perms;
@@ -46,15 +51,17 @@ corenet_tcp_sendrecv_all_ports(hald_t)
 corenet_tcp_bind_all_nodes(hald_t)
 
 dev_read_sysfs(hald_t)
-dev_read_usbfs(hald_t)
+dev_rw_usbfs(hald_t)
 dev_read_urand(hald_t)
 dev_read_input(hald_t)
 dev_read_mouse(hald_t)
 dev_rw_printer(hald_t)
+dev_read_lvm_control(hald_t)
 dev_getattr_all_chr_files(hald_t)
 dev_manage_generic_chr_file(hald_t)
 
 fs_getattr_all_fs(hald_t)
+fs_search_all(hald_t)
 fs_search_auto_mountpoints(hald_t)
 
 selinux_get_fs_mount(hald_t)
@@ -120,6 +127,10 @@ optional_policy(`hotplug.te',`
 	hotplug_read_config(hald_t)
 ')
 
+optional_policy(`mount.te',`
+	mount_domtrans(hald_t)
+')
+
 optional_policy(`nis.te',`
 	nis_use_ypbind(hald_t)
 ')
@@ -164,4 +175,18 @@ allow udev_t hald_t:unix_dgram_socket sendto;
 
 allow hald_t initrc_t:dbus send_msg;
 allow initrc_t hald_t:dbus send_msg;
+
+# For /usr/libexec/hald-addon-acpi - writes to /var/run/acpid.socket
+ifdef(`apmd.te', `
+allow hald_t apmd_var_run_t:sock_file write;
+allow hald_t apmd_t:unix_stream_socket connectto;
+')
+
+# For /usr/libexec/hald-probe-smbios
+domain_auto_trans(hald_t, dmidecode_exec_t, dmidecode_t)
+
+ifdef(`targeted_policy', `
+allow unconfined_t hald_t:dbus send_msg;
+allow hald_t unconfined_t:dbus send_msg;
+')
 ') dnl end TODO

@@ -74,6 +74,85 @@ interface(`files_pid_file',`
 
 ########################################
 ## <summary>
+##	Make the specified type a 
+##	polyinstantiated directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	polyinstantiated directory.
+## </param>
+#
+interface(`files_poly',`
+	gen_require(`
+		attribute polydir;
+	')
+
+	files_type($1)
+	typeattribute $1 polydir;
+')
+
+########################################
+## <summary>
+##	Make the specified type a parent
+##	of a polyinstantiated directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	parent directory.
+## </param>
+#
+interface(`files_poly_parent',`
+	gen_require(`
+		attribute polyparent;
+	')
+
+	files_type($1)
+	typeattribute $1 polyparent;
+')
+
+########################################
+## <summary>
+##	Make the specified type a
+##	polyinstantiation member directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	member directory.
+## </param>
+#
+interface(`files_poly_member',`
+	gen_require(`
+		attribute polymember;
+	')
+
+	files_type($1)
+	typeattribute $1 polymember;
+')
+
+########################################
+## <summary>
+##	Make the domain use the specified
+##	type of polyinstantiated directory.
+## </summary>
+## <param name="domain">
+##	Domain using the polyinstantiated
+##	directory.
+## </param>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	member directory.
+## </param>
+#
+interface(`files_poly_member_tmp',`
+	gen_require(`
+		type tmp_t;
+	')
+
+	type_member $1 tmp_t:dir $2;
+')
+
+########################################
+## <summary>
 ##	Make the specified type a file
 ##	used for temporary files.
 ## </summary>
@@ -81,14 +160,18 @@ interface(`files_pid_file',`
 ##	Type of the file to be used as a
 ##	temporary file.
 ## </param>
+#
 interface(`files_tmp_file',`
 	gen_require(`
 		attribute tmpfile;
+		type tmp_t;
 	')
 
 	files_type($1)
+	files_poly_member($1)
 	fs_associate_tmpfs($1)
 	typeattribute $1 tmpfile;
+	allow $1 tmp_t:filesystem associate;
 ')
 
 ########################################
@@ -648,7 +731,6 @@ interface(`files_unmount_rootfs',`
 interface(`files_dontaudit_getattr_default_dir',`
 	gen_require(`
 		type default_t;
-		class dir getattr;
 	')
 
 	dontaudit $1 default_t:dir getattr;
@@ -665,10 +747,26 @@ interface(`files_dontaudit_getattr_default_dir',`
 interface(`files_list_default',`
 	gen_require(`
 		type default_t;
-		class dir r_dir_perms;
 	')
 
 	allow $1 default_t:dir r_dir_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to list contents of
+##	directories with the default file type.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`files_dontaudit_list_default',`
+	gen_require(`
+		type default_t;
+	')
+
+	dontaudit $1 default_t:dir r_dir_perms;
 ')
 
 ########################################
@@ -682,7 +780,6 @@ interface(`files_list_default',`
 interface(`files_mounton_default',`
 	gen_require(`
 		type default_t;
-		class dir { getattr search mounton };
 	')
 
 	allow $1 default_t:dir { getattr search mounton };
@@ -716,10 +813,26 @@ interface(`files_dontaudit_getattr_default_files',`
 interface(`files_read_default_files',`
 	gen_require(`
 		type default_t;
-		class file r_file_perms;
 	')
 
 	allow $1 default_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read files
+##	with the default file type.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`files_dontaudit_read_default_files',`
+	gen_require(`
+		type default_t;
+	')
+
+	dontaudit $1 default_t:file r_file_perms;
 ')
 
 ########################################
@@ -1533,6 +1646,24 @@ interface(`files_read_world_readable_sockets',`
 
 ########################################
 ## <summary>
+##	Allow the specified type to associate
+##	to a filesystem with the type of the
+##	temporary directory (/tmp).
+## </summary>
+## <param name="file_type">
+##	Type of the file to associate.
+## </param>
+#
+interface(`files_associate_tmp',`
+	gen_require(`
+		type tmp_t;
+	')
+
+	allow $1 tmp_t:filesystem associate;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to get the
 ##	attributes of the tmp directory (/tmp).
 ## </summary>
@@ -2320,6 +2451,20 @@ interface(`files_delete_all_pids',`
 	allow $1 pidfile:dir rw_dir_perms;
 	allow $1 pidfile:file { getattr unlink };
 	allow $1 pidfile:sock_file { getattr unlink };
+')
+
+########################################
+#
+# files_delete_all_pid_dirs(domain)
+#
+interface(`files_delete_all_pid_dirs',`
+	gen_require(`
+		attribute pidfile;
+		type var_t;
+	')
+
+	allow $1 var_t:dir search;
+	allow $1 pidfile:dir { rw_dir_perms rmdir };
 ')
 
 ########################################
