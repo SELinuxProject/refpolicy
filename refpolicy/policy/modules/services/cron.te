@@ -13,7 +13,7 @@ files_type(anacron_exec_t)
 type cron_spool_t;
 files_type(cron_spool_t)
 
-type crond_t; #, privmail
+type crond_t;
 type crond_exec_t;
 init_daemon_domain(crond_t,crond_exec_t)
 domain_wide_inherit_fd(crond_t)
@@ -31,7 +31,7 @@ files_type(crontab_exec_t)
 type system_cron_spool_t, cron_spool_type;
 files_type(system_cron_spool_t)
 
-type system_crond_t; #, privmail
+type system_crond_t;
 init_daemon_domain(system_crond_t,anacron_exec_t)
 corecmd_shell_entry_type(system_crond_t)
 role system_r types system_crond_t;
@@ -100,6 +100,9 @@ domain_use_wide_inherit_fd(crond_t)
 
 files_read_etc_files(crond_t)
 files_read_generic_spools(crond_t)
+# Read from /var/spool/cron.
+files_search_var_lib(crond_t)
+files_search_default(crond_t)
 
 init_use_fd(crond_t)
 init_use_script_pty(crond_t)
@@ -116,6 +119,8 @@ seutil_sigchld_newrole(crond_t)
 miscfiles_read_localization(crond_t)
 
 userdom_use_unpriv_users_fd(crond_t)
+
+mta_send_mail(crond_t)
 
 ifdef(`distro_redhat', `
 	# Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -168,10 +173,6 @@ ifdef(`TODO',`
 optional_policy(`rhgb.te', `
 rhgb_domain(crond_t)
 ')
-
-# Read from /var/spool/cron.
-allow crond_t var_lib_t:dir search;
-allow crond_t default_t:dir search;
 
 # crond tries to search /root.  Not sure why.
 allow crond_t sysadm_home_dir_t:dir r_dir_perms;
@@ -257,6 +258,8 @@ corecmd_exec_bin(system_crond_t)
 corecmd_exec_sbin(system_crond_t)
 
 domain_exec_all_entry_files(system_crond_t)
+# quiet other ps operations
+domain_dontaudit_read_all_domains_state(system_crond_t)
 
 files_exec_etc_files(system_crond_t)
 files_read_etc_files(system_crond_t)
@@ -295,6 +298,8 @@ miscfiles_read_localization(system_crond_t)
 miscfiles_manage_man_pages(system_crond_t)
 
 seutil_read_config(system_crond_t)
+
+mta_send_mail(system_crond_t)
 
 ifdef(`distro_redhat', `
 	# Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -341,9 +346,6 @@ optional_policy(`squid.te',`
 
 ifdef(`TODO',`
 dontaudit userdomain system_crond_t:fd use;
-
-# quiet other ps operations
-dontaudit system_crond_t domain:dir { getattr search };
 
 # Do not audit attempts to search unlabeled directories (e.g. slocate).
 dontaudit system_crond_t unlabeled_t:dir r_dir_perms;

@@ -6,11 +6,12 @@ policy_module(rpm,1.0)
 # Declarations
 #
 
-type rpm_t; #, priv_system_role;
+type rpm_t;
 type rpm_exec_t;
 init_system_domain(rpm_t,rpm_exec_t)
 domain_obj_id_change_exempt(rpm_t)
 domain_role_change_exempt(rpm_t)
+domain_system_change_exempt(rpm_t)
 domain_wide_inherit_fd(rpm_t)
 role system_r types rpm_t;
 
@@ -30,9 +31,10 @@ type rpm_var_lib_t;
 files_type(rpm_var_lib_t)
 typealias rpm_var_lib_t alias var_lib_rpm_t;
 
-type rpm_script_t; #, admin, privmem, priv_system_role;
+type rpm_script_t;
 type rpm_script_exec_t;
 domain_obj_id_change_exempt(rpm_script_t)
+domain_system_change_exempt(rpm_script_t)
 corecmd_shell_entry_type(rpm_script_t)
 domain_type(rpm_script_t)
 domain_entry_file(rpm_t,rpm_script_exec_t)
@@ -92,7 +94,7 @@ fs_create_tmpfs_data(rpm_t,rpm_tmpfs_t,{ dir file lnk_file sock_file fifo_file }
 # Access /var/lib/rpm files
 allow rpm_t rpm_var_lib_t:file create_file_perms;
 allow rpm_t rpm_var_lib_t:dir rw_dir_perms;
-#files_create_private_libraries(rpm_t,rpm_var_lib_t,dir)
+files_create_var_lib(rpm_t,rpm_var_lib_t,dir)
 
 kernel_read_system_state(rpm_t)
 kernel_read_kernel_sysctl(rpm_t)
@@ -114,7 +116,7 @@ dev_list_usbfs(rpm_t)
 dev_read_urand(rpm_t)
 #devices_manage_all_device_types(rpm_t)
 
-#fs_manage_nfs_dir(rpm_t)
+fs_manage_nfs_dirs(rpm_t)
 fs_manage_nfs_files(rpm_t)
 fs_manage_nfs_symlinks(rpm_t)
 fs_getattr_all_fs(rpm_t)
@@ -182,10 +184,6 @@ optional_policy(`nis.te',`
 ifdef(`TODO',`
 # cjp: this seems way out of place
 role sysadm_r types initrc_t;
-
-type_transition rpm_t tmpfs_t:{ dir file lnk_file sock_file fifo_file } rpm_tmpfs_t;
-
-dontaudit rpm_t domain:process ptrace;
 
 # read/write/create any files in the system
 dontaudit rpm_t domain:{ socket unix_dgram_socket udp_socket unix_stream_socket tcp_socket fifo_file rawip_socket packet_socket } getattr;
@@ -312,15 +310,15 @@ seutil_domtrans_restorecon(rpm_script_t)
 
 userdom_use_all_user_fd(rpm_script_t)
 
-if (allow_execmem) {
-	allow rpm_script_t self:process execmem;
-}
-
 # this should be tunable_policy, but
 # typeattribute does not work in conditionals
 ifdef(`unlimitedRPM',`
 	unconfined_domain_template(rpm_t)
 	unconfined_domain_template(rpm_script_t)
+')
+
+tunable_policy(`allow_execmem',`
+	allow rpm_script_t self:process execmem;
 ')
 
 optional_policy(`bootloader.te',`
