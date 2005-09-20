@@ -152,14 +152,9 @@ endif
 FC := file_contexts
 POLVER := policy.$(PV)
 
-ifneq ($(findstring targeted,$(TYPE)),)
-	APPCONF := config/appconfig-targeted
-else
-	APPCONF := config/appconfig-strict
-endif
-
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
+APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media $(INSTALLDIR)/booleans
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
