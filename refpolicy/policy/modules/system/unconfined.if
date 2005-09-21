@@ -9,6 +9,11 @@
 ## </param>
 #
 template(`unconfined_domain_template',`
+	gen_require(`
+		class dbus all_dbus_perms;
+		class nscd all_nscd_perms;
+		class passwd all_passwd_perms;
+	')
 
 	# Use any Linux capability.
 	allow $1 self:capability *;
@@ -52,6 +57,11 @@ template(`unconfined_domain_template',`
 		bootloader_manage_kernel_modules($1)
 	')
 
+	optional_policy(`dbus.te', `
+		# Communicate via dbusd.
+		dbus_system_bus_unconfined($1)
+	')
+
 	optional_policy(`nscd.te', `
 		nscd_unconfined($1)
 	')
@@ -67,20 +77,12 @@ template(`unconfined_domain_template',`
 
 	ifdef(`TODO',`
 	if (allow_execmod) {
-		ifdef(`targeted_policy', `
-			allow $1 file_type:file execmod;
-		', `
+		ifdef(`targeted_policy', `', `
 			# Allow text relocations on system shared libraries, e.g. libGL.
 			allow $1 texrel_shlib_t:file execmod;
 			allow $1 home_type:file execmod;
 		')
 	}
-
-	ifdef(`dbusd.te', `
-		# Communicate via dbusd.
-		allow $1 system_dbusd_t:dbus *;
-	')
-
 	') dnl end TODO
 ')
 

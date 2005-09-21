@@ -27,7 +27,9 @@
 #OUTPUT_POLICY = 18
 
 # Policy Type
-# strict, targeted, strict-mls, targeted-mls
+# strict, targeted,
+# strict-mls, targeted-mls,
+# strict-mcs, targeted-mcs
 TYPE = strict
 
 # Policy Name
@@ -44,6 +46,13 @@ NAME = refpolicy
 # redhat, gentoo, debian, and suse are current options.
 # Fedora users should enable redhat.
 #DISTRO = redhat
+
+# Direct admin init
+# Setting this will allow sysadm to directly
+# run init scripts, instead of requring run_init.
+# This is a build option, as role transitions do
+# not work in conditional policy.
+DIRECT_INITRC=n
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
@@ -137,6 +146,10 @@ endif
 
 ifeq ($(NAME),)
 	NAME := $(TYPE)
+endif
+
+ifeq ($(DIRECT_INITRC),y)
+	override M4PARAM += -D direct_sysadm_daemon
 endif
 
 # determine the policy version and current kernel version if possible
