@@ -204,7 +204,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
-		| m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
@@ -212,7 +212,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $^ \
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
@@ -261,7 +261,7 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 -D monolithic_policy $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
 		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
