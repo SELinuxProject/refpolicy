@@ -275,7 +275,7 @@ $(USERPATH)/system.users: $(M4SUPPORT) tmp/generated_definitions.conf $(USER_FIL
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
 	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | \
-		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
+		egrep -v "^[[:blank:]]*($$|#)" >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
 $(USERPATH)/local.users: config/local.users
