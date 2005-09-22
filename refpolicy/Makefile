@@ -266,7 +266,7 @@ html: $(POLXML)
 #
 # Runtime binary policy patching of users
 #
-$(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
+$(USERPATH)/system.users: $(M4SUPPORT) tmp/generated_definitions.conf $(USER_FILES)
 	@mkdir -p $(USERPATH)
 	@echo "Installing system.users"
 	@echo "# " > tmp/system.users
@@ -274,7 +274,7 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 -D self_contained_policy $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | \
 		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
