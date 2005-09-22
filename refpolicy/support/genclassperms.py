@@ -31,17 +31,21 @@ class Class:
 		# True if the class is declared as common, False if not.
 		self.common = common
 
-def get_perms(name, av_db):
+def get_perms(name, av_db, common):
 	"""
 	Returns the list of permissions contained within an access vector
 	class that is stored in the access vector database av_db.
 	Returns an empty list if the object name is not found.
+	Specifiy whether get_perms is to return the class or the
+	common set of permissions with the boolean value 'common',
+	which is important in the case of having duplicate names (such as
+	class file and common file).
 	"""
 
 	# Traverse through the access vector database and try to find the
 	#  object with the name passed.
 	for obj in av_db:
-		if obj.name == name:
+		if obj.name == name and obj.common == common:
 			return obj.perms
 
 	return []
@@ -153,7 +157,8 @@ def get_av_db(file_name):
 				# av_data[0] is the name of the parent.
 				# Append the permissions of the parent to
 				#  the current class' permissions.
-				perms += get_perms(av_data[0], database)
+				perms += get_perms(av_data[0], database, True)
+
 				# Dequeue the name of the parent.
 				av_data = av_data[1:]
 
@@ -247,8 +252,8 @@ def gen_class_perms(av_db, sc_db):
 		if obj.common == True:
 			continue
 
-		# Get the list of permissions.
-		perms = get_perms(obj.name, av_db)
+		# Get the list of permissions from the specified class.
+		perms = get_perms(obj.name, av_db, False)
 
 		# Merge all the permissions into one string with one space
 		#  padding.

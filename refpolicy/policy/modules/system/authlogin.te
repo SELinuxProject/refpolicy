@@ -22,7 +22,7 @@ logging_log_file(lastlog_t)
 type login_exec_t;
 files_type(login_exec_t)
 
-type pam_console_t;
+type pam_console_t; #, mlsfileread
 type pam_console_exec_t;
 init_system_domain(pam_console_t,pam_console_exec_t)
 role system_r types pam_console_t;
@@ -124,6 +124,10 @@ optional_policy(`nscd.te',`
 
 ifdef(`TODO',`
 ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
+# Supress xdm denial
+ifdef(`xdm.te', `
+dontaudit pam_t xdm_t:fd use;
+') dnl ifdef
 ') dnl endif TODO
 
 ########################################
@@ -142,8 +146,9 @@ allow pam_console_t pam_var_console_t:file r_file_perms;
 allow pam_console_t pam_var_console_t:lnk_file r_file_perms;
 
 kernel_read_kernel_sysctl(pam_console_t)
-kernel_read_system_state(pam_console_t)
 kernel_use_fd(pam_console_t)
+# Read /proc/meminfo
+kernel_read_system_state(pam_console_t)
 
 dev_read_sysfs(pam_console_t)
 dev_getattr_apm_bios(pam_console_t)
@@ -162,6 +167,8 @@ dev_getattr_snd_dev(pam_console_t)
 dev_setattr_snd_dev(pam_console_t)
 dev_getattr_video_dev(pam_console_t)
 dev_setattr_video_dev(pam_console_t)
+dev_getattr_xserver_misc_dev(pam_console_t)
+dev_setattr_xserver_misc_dev(pam_console_t)
 
 fs_search_auto_mountpoints(pam_console_t)
 
@@ -173,6 +180,7 @@ storage_getattr_scsi_generic(pam_console_t)
 storage_setattr_scsi_generic(pam_console_t)
 
 term_use_console(pam_console_t)
+term_setattr_console(pam_console_t)
 term_getattr_unallocated_ttys(pam_console_t)
 term_setattr_unallocated_ttys(pam_console_t)
 
@@ -270,32 +278,13 @@ miscfiles_read_localization(system_chkpwd_t)
 
 seutil_read_config(system_chkpwd_t)
 
-userdom_dontaudit_use_unpriv_user_tty(system_chkpwd_t)
+sysnet_dns_name_resolve(system_chkpwd_t)
+sysnet_use_ldap(system_chkpwd_t)
 
-tunable_policy(`use_dns',`
-	allow system_chkpwd_t self:udp_socket create_socket_perms;
-	corenet_udp_sendrecv_all_if(system_chkpwd_t)
-	corenet_raw_sendrecv_all_if(system_chkpwd_t)
-	corenet_udp_sendrecv_all_nodes(system_chkpwd_t)
-	corenet_raw_sendrecv_all_nodes(system_chkpwd_t)
-	corenet_udp_bind_all_nodes(system_chkpwd_t)
-	corenet_udp_sendrecv_dns_port(system_chkpwd_t)
-	sysnet_read_config(system_chkpwd_t)
-')
+userdom_dontaudit_use_unpriv_user_tty(system_chkpwd_t)
 
 optional_policy(`kerberos.te',`
 	kerberos_use(system_chkpwd_t)
-')
-
-optional_policy(`ldap.te',`
-	allow system_chkpwd_t self:tcp_socket create_socket_perms;
-	corenet_tcp_sendrecv_all_if(system_chkpwd_t)
-	corenet_raw_sendrecv_all_if(system_chkpwd_t)
-	corenet_tcp_sendrecv_all_nodes(system_chkpwd_t)
-	corenet_raw_sendrecv_all_nodes(system_chkpwd_t)
-	corenet_tcp_sendrecv_ldap_port(system_chkpwd_t)
-	corenet_tcp_bind_all_nodes(system_chkpwd_t)
-	sysnet_read_config(system_chkpwd_t)
 ')
 
 optional_policy(`nis.te',`
@@ -340,9 +329,8 @@ optional_policy(`nscd.te',`
 	nscd_use_socket(utempter_t)
 ')
 
-optional_policy(`xdm.te', `
-	#allow utempter_t xdm_t:fd use;
-	xdm_use_fd(utempter_t)
-	#allow utempter_t xdm_t:fifo_file { write getattr };
-	xdm_write_pipe(utempter_t)
+ifdef(`TODO',`
+optional_policy(`xdm.te',`
+	can_pipe_xdm(utempter_t)
+')
 ')

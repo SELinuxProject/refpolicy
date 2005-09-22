@@ -27,6 +27,31 @@ interface(`sysnet_domtrans_dhcpc',`
 
 ########################################
 ## <summary>
+##	Execute DHCP clients in the dhcpc domain, and
+##	allow the specified role the dhcpc domain.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+## <param name="role">
+##	The role to be allowed the clock domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the clock domain to use.
+## </param>
+#
+interface(`sysnet_run_dhcpc',`
+	gen_require(`
+		type dhcpc_t;
+	')
+
+	sysnet_domtrans_dhcpc($1)
+	role $2 types dhcpc_t;
+	allow dhcpc_t $3:chr_file { getattr read write ioctl };
+')
+
+########################################
+## <summary>
 ##	Send a SIGCHLD signal to the dhcp client.
 ## </summary>
 ## <param name="domain">
@@ -227,9 +252,6 @@ interface(`sysnet_read_dhcpc_pid',`
 interface(`sysnet_domtrans_ifconfig',`
 	gen_require(`
 		type ifconfig_t, ifconfig_exec_t;
-		class process sigchld;
-		class fd use;
-		class fifo_file rw_file_perms;
 	')
 
 	corecmd_search_sbin($1)
@@ -260,13 +282,29 @@ interface(`sysnet_domtrans_ifconfig',`
 interface(`sysnet_run_ifconfig',`
 	gen_require(`
 		type ifconfig_t;
-		class chr_file rw_term_perms;
 	')
 
 	corecmd_search_sbin($1)
 	sysnet_domtrans_ifconfig($1)
 	role $2 types ifconfig_t;
 	allow ifconfig_t $3:chr_file rw_term_perms;
+')
+
+#######################################
+## <summary>
+##	Execute ifconfig in the caller domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_exec_ifconfig',`
+	gen_require(`
+		type ifconfig_exec_t;
+	')
+
+	corecmd_search_sbin($1)
+	can_exec($1,ifconfig_exec_t)
 ')
 
 ########################################
@@ -280,8 +318,6 @@ interface(`sysnet_run_ifconfig',`
 interface(`sysnet_read_dhcp_config',`
 	gen_require(`
 		type dhcp_etc_t;
-		class dir search;
-		class file { getattr read };
 	')
 
 	files_search_etc($1)
@@ -344,4 +380,92 @@ interface(`sysnet_create_dhcp_state',`
 	',`
 		type_transition $1 dhcp_state_t:$3 $2;
 	')
+')
+
+########################################
+## <summary>
+##	Perform a DNS name resolution.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_dns_name_resolve',`
+	gen_require(`
+		type net_conf_t;
+		class udp_socket create_socket_perms;
+	')
+
+	allow $1 self:udp_socket create_socket_perms;
+	corenet_udp_sendrecv_all_if($1)
+	corenet_raw_sendrecv_all_if($1)
+	corenet_udp_sendrecv_all_nodes($1)
+	corenet_raw_sendrecv_all_nodes($1)
+	corenet_udp_sendrecv_dns_port($1)
+	corenet_udp_bind_all_nodes($1)
+
+	files_search_etc($1)
+	allow $1 net_conf_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect and use a LDAP server.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_use_ldap',`
+	gen_require(`
+		type net_conf_t;
+		class tcp_socket create_socket_perms;
+	')		
+
+	allow $1 self:tcp_socket create_socket_perms;
+
+	corenet_tcp_sendrecv_all_if($1)
+	corenet_raw_sendrecv_all_if($1)
+	corenet_tcp_sendrecv_all_nodes($1)
+	corenet_raw_sendrecv_all_nodes($1)
+	corenet_tcp_sendrecv_ldap_port($1)
+	corenet_tcp_bind_all_nodes($1)
+	corenet_tcp_connect_ldap_port($1)
+
+	files_search_etc($1)
+	allow $1 net_conf_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect and use remote port mappers.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`sysnet_use_portmap',`
+	gen_require(`
+		type net_conf_t;
+		class tcp_socket create_socket_perms;
+		class udp_socket create_socket_perms;
+	')		
+
+	allow $1 self:tcp_socket create_socket_perms;
+	allow $1 self:udp_socket create_socket_perms;
+
+	corenet_tcp_sendrecv_all_if($1)
+	corenet_udp_sendrecv_all_if($1)
+	corenet_raw_sendrecv_all_if($1)
+	corenet_tcp_sendrecv_all_nodes($1)
+	corenet_udp_sendrecv_all_nodes($1)
+	corenet_raw_sendrecv_all_nodes($1)
+	corenet_tcp_sendrecv_portmap_port($1)
+	corenet_udp_sendrecv_portmap_port($1)
+	corenet_tcp_bind_all_nodes($1)
+	corenet_udp_bind_all_nodes($1)
+	corenet_tcp_connect_portmap_port($1)
+
+	files_search_etc($1)
+	allow $1 net_conf_t:file r_file_perms;
 ')

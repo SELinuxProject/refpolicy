@@ -30,58 +30,52 @@ neverallow domain ~domain:process { transition dyntransition };
 # Verify that only the insmod_t and kernel_t domains 
 # have the sys_module capability.
 #
-neverallow {domain -unrestricted -insmod_t -kernel_t ifdef(`howl.te', `-howl_t') } self:capability sys_module;
+neverallow {domain -privsysmod -unrestricted } self:capability sys_module;
 
 #
 # Verify that executable types, the system dynamic loaders, and the
 # system shared libraries can only be modified by administrators.
 #
-neverallow {domain  -kernel_t ifdef(`ldconfig.te', `-ldconfig_t') -admin} { exec_type ld_so_t shlib_t }:file { write append unlink rename };
-neverallow {domain  ifdef(`ldconfig.te', `-ldconfig_t') -change_context -admin } { exec_type ld_so_t shlib_t }:file relabelto;
+neverallow {domain  -kernel_t ifdef(`ldconfig.te', `-ldconfig_t') -admin -unrestricted } { exec_type ld_so_t shlib_t }:file { write append unlink rename };
+neverallow {domain  ifdef(`ldconfig.te', `-ldconfig_t') -change_context -admin -unrestricted } { exec_type ld_so_t shlib_t }:file relabelto;
 
 #
 # Verify that only appropriate domains can access /etc/shadow
-neverallow { domain -auth -auth_write } shadow_t:file ~getattr;
-neverallow { domain -auth_write } shadow_t:file ~r_file_perms;
+neverallow { domain -auth_bool -auth -auth_write -unrestricted } shadow_t:file ~getattr;
+neverallow { domain -auth_write -unrestricted } shadow_t:file ~r_file_perms;
 
 #
 # Verify that only appropriate domains can write to /etc (IE mess with
 # /etc/passwd)
-neverallow {domain -auth_write -etc_writer } etc_t:dir ~rw_dir_perms;
-neverallow {domain -auth_write -etc_writer } etc_t:lnk_file ~r_file_perms;
-neverallow {domain -auth_write -etc_writer } etc_t:file ~{ execute_no_trans rx_file_perms };
+neverallow {domain -auth_write -etc_writer -unrestricted } etc_t:dir ~rw_dir_perms;
+neverallow {domain -auth_write -etc_writer -unrestricted } etc_t:lnk_file ~r_file_perms;
+neverallow {domain -auth_write -etc_writer -unrestricted } etc_t:file ~{ execute_no_trans rx_file_perms };
 
 #
 # Verify that other system software can only be modified by administrators.
 #
-neverallow {domain -kernel_t ifdef(`ldconfig.te', `-ldconfig_t') -admin } { lib_t bin_t sbin_t }:dir { add_name remove_name rename };
-neverallow { domain -kernel_t -admin } { lib_t bin_t sbin_t }:file { write append unlink rename };
+neverallow {domain -kernel_t ifdef(`ldconfig.te', `-ldconfig_t') -admin -unrestricted } { lib_t bin_t sbin_t }:dir { add_name remove_name rename };
+neverallow { domain -kernel_t -admin -unrestricted } { lib_t bin_t sbin_t }:file { write append unlink rename };
 
 #
 # Verify that only certain domains have access to the raw disk devices.
 #
-neverallow { domain -fs_domain } fixed_disk_device_t:devfile_class_set { read write append };
+neverallow { domain -fs_domain -unrestricted } fixed_disk_device_t:devfile_class_set { read write append };
 
 #
 # Verify that only the X server and klogd have access to memory devices.
 #
-neverallow { domain -privmem } memory_device_t:devfile_class_set { read write append };
+neverallow { domain -privmem -unrestricted } memory_device_t:devfile_class_set { read write append };
 
 #
 # Verify that only domains with the privlog attribute can actually syslog
 #
-neverallow { domain -unrestricted -privlog } devlog_t:sock_file { read write append };
+neverallow { domain -privlog -unrestricted } devlog_t:sock_file { read write append };
 
 #
 # Verify that /proc/kmsg is only accessible to klogd.
 #
-ifdef(`klogd.te', `
-neverallow {domain -unrestricted -klogd_t } proc_kmsg_t:file ~stat_file_perms;
-', `
-ifdef(`syslogd.te', `
-neverallow {domain -unrestricted -syslogd_t } proc_kmsg_t:file ~stat_file_perms;
-')dnl end if syslogd
-')dnl end if klogd
+neverallow {domain -privkmsg -unrestricted } proc_kmsg_t:file ~stat_file_perms;
 
 #
 # Verify that /proc/kcore is inaccessible.
@@ -93,14 +87,14 @@ neverallow { domain -unrestricted } proc_kcore_t:file ~stat_file_perms;
 # Verify that sysctl variables are only changeable
 # by initrc and administrators.
 #
-neverallow { domain -initrc_t -admin -kernel_t -insmod_t } sysctl_t:file { write append };
-neverallow { domain -initrc_t -admin } sysctl_fs_t:file { write append };
-neverallow { domain -admin -sysctl_kernel_writer } sysctl_kernel_t:file { write append };
-neverallow { domain -initrc_t -admin -sysctl_net_writer } sysctl_net_t:file { write append };
-neverallow { domain -initrc_t -admin } sysctl_net_unix_t:file { write append };
-neverallow { domain -initrc_t -admin } sysctl_vm_t:file { write append };
-neverallow { domain -initrc_t -admin } sysctl_dev_t:file { write append };
-neverallow { domain -initrc_t -admin } sysctl_modprobe_t:file { write append };
+neverallow { domain -initrc_t -admin -kernel_t -insmod_t -unrestricted } sysctl_t:file { write append };
+neverallow { domain -initrc_t -admin -unrestricted } sysctl_fs_t:file { write append };
+neverallow { domain -admin -sysctl_kernel_writer -unrestricted } sysctl_kernel_t:file { write append };
+neverallow { domain -initrc_t -admin -sysctl_net_writer -unrestricted } sysctl_net_t:file { write append };
+neverallow { domain -initrc_t -admin -unrestricted } sysctl_net_unix_t:file { write append };
+neverallow { domain -initrc_t -admin -unrestricted } sysctl_vm_t:file { write append };
+neverallow { domain -initrc_t -admin -unrestricted } sysctl_dev_t:file { write append };
+neverallow { domain -initrc_t -admin -unrestricted } sysctl_modprobe_t:file { write append };
 
 #
 # Verify that certain domains are limited to only being
@@ -146,13 +140,13 @@ neverallow { passwd_t sysadm_passwd_t } ~{ bin_t sbin_t shell_exec_t ld_so_t }:f
 #
 # Verify that only the admin domains and initrc_t have setenforce.
 #
-neverallow { domain -admin -initrc_t } security_t:security setenforce;
+neverallow { domain -secadmin -initrc_t -unrestricted } security_t:security setenforce;
 
 #
 # Verify that only the kernel and load_policy_t have load_policy.
 #
 
-neverallow { domain -unrestricted -kernel_t -load_policy_t } security_t:security load_policy;
+neverallow { domain -kernel_t -load_policy_t -unrestricted } security_t:security load_policy;
 
 #
 # for gross mistakes in policy

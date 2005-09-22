@@ -12,49 +12,34 @@
 
 define(`gift_domain', `
 
-# Connect to X
-x_client_domain($1, gift, `')	
-
-# Transition
+# Type transition
+type $1_gift_t, domain, nscd_client_domain;
 domain_auto_trans($1_t, gift_exec_t, $1_gift_t)
-can_exec($1_gift_t, gift_exec_t)
 role $1_r types $1_gift_t;
 
-# Self permissions
-allow $1_gift_t self:process getsched;
-
-# Home files
+# X access, Home files, GNOME, /tmp
+x_client_domain($1_gift, $1)
+gnome_application($1_gift, $1)
 home_domain($1, gift)
+file_type_auto_trans($1_gift_t, $1_home_dir_t, $1_gift_home_t, dir)
 
-# Fonts, icons
-r_dir_file($1_gift_t, usr_t)
-r_dir_file($1_gift_t, fonts_t)
+# Allow the user domain to signal/ps.
+can_ps($1_t, $1_gift_t)
+allow $1_t $1_gift_t:process signal_perms;
 
 # Launch gift daemon
-allow $1_gift_t self:process fork;
+allow $1_gift_t bin_t:dir search;
 domain_auto_trans($1_gift_t, giftd_exec_t, $1_giftd_t)
 
 # Connect to gift daemon
-can_network($1_gift_t)
+can_network_client_tcp($1_gift_t, giftd_port_t)
+allow $1_gift_t giftd_port_t:tcp_socket name_connect;
 
 # Read /proc/meminfo
 allow $1_gift_t proc_t:dir search;
 allow $1_gift_t proc_t:file { getattr read };
 
-# Tmp/ORBit
-tmp_domain($1_gift)
-file_type_auto_trans($1_gift_t, $1_tmp_t, $1_gift_tmp_t)
-can_unix_connect($1_t, $1_gift_t)
-can_unix_connect($1_gift_t, $1_t)
-allow $1_t $1_gift_tmp_t:sock_file write;
-allow $1_gift_t $1_tmp_t:file { getattr read write lock };
-allow $1_gift_t $1_tmp_t:sock_file { read write };
-dontaudit $1_gift_t $1_tmp_t:dir setattr;
-
-# Access random device
-allow $1_gift_t urandom_device_t:chr_file { read getattr ioctl };
-
-# giftui looks in .icons, .themes, .fonts-cache.
+# giftui looks in .icons, .themes.
 dontaudit $1_gift_t $1_home_t:dir { getattr read search };
 dontaudit $1_gift_t $1_home_t:file { getattr read };
 
@@ -79,26 +64,34 @@ allow $1_giftd_t self:unix_stream_socket create_socket_perms;
 read_sysctl($1_giftd_t)
 read_locale($1_giftd_t)
 uses_shlib($1_giftd_t)
+access_terminal($1_giftd_t, $1)
+
+# Read /proc/meminfo
+allow $1_giftd_t proc_t:dir search;
+allow $1_giftd_t proc_t:file { getattr read };
+
+# Read /etc/mtab
+allow $1_giftd_t etc_runtime_t:file { getattr read };
 
 # Access home domain
 home_domain_access($1_giftd_t, $1, gift)
-	
-# Allow networking
-allow $1_giftd_t port_t:tcp_socket name_bind;
-allow $1_giftd_t port_t:udp_socket name_bind;
-can_network_server($1_giftd_t)
-can_network_client($1_giftd_t)
+file_type_auto_trans($1_gift_t, $1_home_dir_t, $1_gift_home_t, dir)
 
-# FIXME: ???
-dontaudit $1_giftd_t self:udp_socket listen;
+# Serve content on various p2p networks. Ports can be random.
+can_network_server($1_giftd_t)
+allow $1_giftd_t self:udp_socket listen;
+allow $1_giftd_t port_type:{ tcp_socket udp_socket } name_bind;
+
+# Connect to various p2p networks. Ports can be random.
+can_network_client($1_giftd_t)
+allow $1_giftd_t port_type:tcp_socket name_connect;
 
 # Plugins
 r_dir_file($1_giftd_t, usr_t)
 
 # Connect to xdm
 ifdef(`xdm.te', `
-allow $1_giftd_t xdm_t:fd use;
-allow $1_giftd_t xdm_t:fifo_file write;
+can_pipe_xdm($1_giftd_t)
 ') 
 
 ') dnl giftd_domain

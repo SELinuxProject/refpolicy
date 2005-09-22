@@ -24,6 +24,13 @@ ifdef(`su.te', `
 define(`su_restricted_domain', `
 # Derived domain based on the calling user domain and the program.
 type $1_su_t, domain, privlog, privrole, privuser, privowner, privfd, nscd_client_domain;
+ifdef(`support_polyinstantiation', `
+typeattribute $1_su_t mlsfileread;
+typeattribute $1_su_t mlsfilewrite;
+typeattribute $1_su_t mlsfileupgrade;
+typeattribute $1_su_t mlsfiledowngrade;
+typeattribute $1_su_t mlsprocsetsl;
+')
 
 # for SSP
 allow $1_su_t urandom_device_t:chr_file { getattr read };
@@ -32,7 +39,6 @@ allow $1_su_t urandom_device_t:chr_file { getattr read };
 domain_auto_trans($1_t, su_exec_t, $1_su_t)
 
 allow $1_su_t sbin_t:dir search;
-domain_auto_trans($1_su_t, chkpwd_exec_t, $2_chkpwd_t)
 
 uses_shlib($1_su_t)
 allow $1_su_t etc_t:file { getattr read };
@@ -62,7 +68,7 @@ allow $1_su_t crond_t:fifo_file read;
 ')
 
 # Use capabilities.
-allow $1_su_t self:capability { setuid setgid net_bind_service chown dac_override fowner sys_nice sys_resource };
+allow $1_su_t self:capability { setuid setgid net_bind_service chown dac_override fowner sys_nice sys_resource audit_control };
 dontaudit $1_su_t self:capability sys_tty_config;
 #
 # Caused by su - init scripts
@@ -88,6 +94,13 @@ allow $1_su_t privfd:fd use;
 allow $1_su_t { var_t var_run_t }:dir search;
 allow $1_su_t initrc_var_run_t:file rw_file_perms;
 can_kerberos($1_su_t)
+
+ifdef(`chkpwd.te', `
+domain_auto_trans($1_su_t, chkpwd_exec_t, $2_chkpwd_t)
+')
+
+allow $1_su_t self:netlink_audit_socket { nlmsg_relay create_netlink_socket_perms };
+
 ') dnl end su_restricted_domain
 
 define(`su_mini_domain', `
@@ -109,10 +122,6 @@ allow $1_su_t { ttyfile ptyfile }:chr_file { read write };
 
 define(`su_domain', `
 su_mini_domain($1)
-ifdef(`chkpwd.te', `
-# Run chkpwd.
-can_exec($1_su_t, chkpwd_exec_t)
-')
 
 # Inherit and use descriptors from gnome-pty-helper.
 ifdef(`gnome-pty-helper.te', `allow $1_su_t $1_gph_t:fd use;')
@@ -138,6 +147,16 @@ allow $1_su_t nfs_t:dir search;
 if (use_samba_home_dirs) {
 allow $1_su_t cifs_t:dir search;
 }
+
+ifdef(`support_polyinstantiation', `
+# Su can polyinstantiate
+polyinstantiater($1_su_t)
+# Su has to unmount polyinstantiated directories (like home)
+# that should not be polyinstantiated under the new user
+allow $1_su_t fs_t:filesystem unmount;
+# Su needs additional permission to mount over a previous mount
+allow $1_su_t polymember:dir mounton;
+')
 
 # Modify .Xauthority file (via xauth program).
 ifdef(`xauth.te', `

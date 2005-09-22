@@ -4,16 +4,31 @@
 
 # Booleans for user domains.
 
+# Allow applications to read untrusted content
+# If this is disallowed, Internet content has
+# to be manually relabeled for read access to be granted
+bool read_untrusted_content false;
+
+# Allow applications to write untrusted content
+# If this is disallowed, no Internet content
+# will be stored.
+bool write_untrusted_content false;
+
 # Allow users to read system messages.
 bool user_dmesg false;
 
 # Support NFS home directories
 bool use_nfs_home_dirs false;
 
-# Allow execution of anonymous mappings, e.g. executable stack.
+# Allow making anonymous memory executable, e.g. 
+# for runtime-code generation or executable stack.
 bool allow_execmem false;
 
-# Support Share libraries with Text Relocation
+# Allow making the stack executable via mprotect.
+# Also requires allow_execmem.
+bool allow_execstack false;
+
+# Allow making a modified private file mapping executable (text relocation).
 bool allow_execmod false;
 
 # Support SAMBA home directories
@@ -49,54 +64,6 @@ bool read_default_t false;
 # files (such as ~/.bashrc)
 bool staff_read_sysadm_file false;
 
-# change from role $1_r to $2_r and relabel tty appropriately
-define(`role_tty_type_change', `
-allow $1_r $2_r;
-type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
-type_change $2_t $1_tty_device_t:chr_file $2_tty_device_t;
-# avoid annoying messages on terminal hangup
-dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
-')
-
-# Reach sysadm_t via programs like userhelper/sudo/su
-undefine(`reach_sysadm')
-define(`reach_sysadm', `
-ifdef(`userhelper.te', `userhelper_domain($1)')
-ifdef(`sudo.te', `sudo_domain($1)')
-ifdef(`su.te', `
-su_domain($1)
-# When an ordinary user domain runs su, su may try to
-# update the /root/.Xauthority file, and the user shell may
-# try to update the shell history. This is not allowed, but 
-# we dont need to audit it.
-dontaudit $1_su_t { sysadm_home_dir_t staff_home_dir_t }:dir search;
-dontaudit $1_su_t { sysadm_home_t staff_home_t }:dir rw_dir_perms;
-dontaudit $1_su_t { sysadm_home_t staff_home_t }:file create_file_perms;
-') dnl ifdef su.te
-')
-
-# Privileged user domain
-undefine(`priv_user')
-define(`priv_user', `
-# Reach sysadm_t
-reach_sysadm($1)
-
-# Read file_contexts for rpm and get security decisions. 
-r_dir_file($1_t, file_context_t)
-can_getsecurity($1_t)
-
-# Signal and see information about unprivileged user domains.
-allow $1_t unpriv_userdomain:process signal_perms;
-can_ps($1_t, unpriv_userdomain)
-allow $1_t { ttyfile ptyfile tty_device_t }:chr_file getattr;
-
-# Read /root files if boolean is enabled.
-if (staff_read_sysadm_file) {
-allow $1_t sysadm_home_dir_t:dir { getattr search };
-allow $1_t sysadm_home_t:file { getattr read };
-}
-
-') dnl priv_user
 
 full_user_role(user)
 
@@ -126,7 +93,16 @@ dontaudit unpriv_userdomain { sysadm_home_dir_t staff_home_dir_t }:dir { getattr
 role_tty_type_change(sysadm, user)
 role_tty_type_change(staff, sysadm)
 role_tty_type_change(sysadm, staff)
+role_tty_type_change(sysadm, secadm)
+role_tty_type_change(staff, secadm)
 
 # "ps aux" and "ls -l /dev/pts" make too much noise without this
 dontaudit unpriv_userdomain ptyfile:chr_file getattr;
+
+# to allow w to display everyone...
+bool user_ttyfile_stat false;
+
+if (user_ttyfile_stat) {
+allow userdomain ttyfile:chr_file getattr;
+}
 

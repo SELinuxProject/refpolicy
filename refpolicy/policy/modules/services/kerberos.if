@@ -32,9 +32,6 @@
 interface(`kerberos_use',`
 	gen_require(`
 		type krb5_conf_t;
-		class file r_file_perms;
-		class tcp_socket create_socket_perms;
-		class udp_socket create_socket_perms;
 	')
 
 	files_search_etc($1)
@@ -54,11 +51,9 @@ interface(`kerberos_use',`
 		corenet_udp_sendrecv_kerberos_port($1)
 		corenet_tcp_bind_all_nodes($1)
 		corenet_udp_bind_all_nodes($1)
+		corenet_tcp_connect_kerberos_port($1)
 		sysnet_read_config($1)
-	')
-
-	tunable_policy(`allow_kerberos && use_dns',`
-		corenet_udp_sendrecv_dns_port($1)
+		sysnet_dns_name_resolve($1)
 	')
 ')
 
@@ -73,11 +68,27 @@ interface(`kerberos_use',`
 interface(`kerberos_read_config',`
 	gen_require(`
 		type krb5_conf_t;
-		class files r_file_perms;
 	')
 
 	files_search_etc($1)
 	allow $1 krb5_conf_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write the kerberos
+##	configuration file (/etc/krb5.conf).
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`kerberos_dontaudit_write_config',`
+	gen_require(`
+		type krb5_conf_t;
+	')
+
+	dontaudit $1 krb5_conf_t:file write;
 ')
 
 ########################################
@@ -91,9 +102,25 @@ interface(`kerberos_read_config',`
 interface(`kerberos_rw_config',`
 	gen_require(`
 		type krb5_conf_t;
-		class files rw_file_perms;
 	')
 
 	files_search_etc($1)
 	allow $1 krb5_conf_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Read the kerberos key table.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`kerberos_read_keytab',`
+	gen_require(`
+		type krb5_keytab_t;
+	')
+
+	files_search_etc($1)
+	allow $1 krb5_keytab_t:file r_file_perms;
 ')

@@ -10,10 +10,12 @@
 #
 # Rules for the named_t domain.
 #
-type rndc_port_t, port_type, reserved_port_type;
 
 daemon_domain(named, `, nscd_client_domain')
 tmp_domain(named)
+
+type named_checkconf_exec_t, file_type, exec_type, sysadmfile;
+domain_auto_trans(initrc_t, named_checkconf_exec_t, named_t)
 
 # For /var/run/ndc used in BIND 8
 file_type_auto_trans(named_t, var_run_t, named_var_run_t, sock_file)
@@ -54,11 +56,13 @@ allow named_t etc_runtime_t:{ file lnk_file } { getattr read };
 
 #Named can use network
 can_network(named_t)
+allow named_t port_type:tcp_socket name_connect;
 can_ypbind(named_t)
 # allow UDP transfer to/from any program
 can_udp_send(domain, named_t)
 can_udp_send(named_t, domain)
 can_tcp_connect(domain, named_t)
+log_domain(named)
 
 # Bind to the named port.
 allow named_t dns_port_t:udp_socket name_bind;
@@ -103,6 +107,7 @@ type ndc_exec_t, file_type,sysadmfile, exec_type;
 domain_auto_trans({ sysadm_t initrc_t }, ndc_exec_t, ndc_t)
 uses_shlib(ndc_t)
 can_network_client_tcp(ndc_t)
+allow ndc_t rndc_port_t:tcp_socket name_connect;
 can_ypbind(ndc_t)
 can_resolve(ndc_t)
 read_locale(ndc_t)
@@ -113,6 +118,7 @@ ifdef(`distro_redhat', `
 allow { ndc_t initrc_t } named_conf_t:dir search;
 # Allow init script to cp localtime to named_conf_t
 allow initrc_t named_conf_t:file { setattr write };
+allow initrc_t named_conf_t:dir create_dir_perms;
 ')
 allow { ndc_t initrc_t } named_conf_t:file { getattr read };
 

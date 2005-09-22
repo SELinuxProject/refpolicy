@@ -18,7 +18,6 @@ type lvm_vg_t, file_type, sysadmfile;
 type lvm_metadata_t, file_type, sysadmfile;
 type lvm_control_t, device_type, dev_fs;
 etcdir_domain(lvm)
-allow lvm_t var_t:dir search;
 lock_domain(lvm)
 allow lvm_t lvm_lock_t:dir rw_dir_perms;
 
@@ -35,7 +34,7 @@ allow lvm_t self:fifo_file rw_file_perms;
 allow lvm_t self:unix_dgram_socket create_socket_perms;
 
 r_dir_file(lvm_t, proc_t)
-allow lvm_t self:file r_file_perms;
+allow lvm_t self:file rw_file_perms;
 
 # Read system variables in /proc/sys
 read_sysctl(lvm_t)
@@ -65,7 +64,7 @@ tmp_domain(lvm)
 allow lvm_t { random_device_t urandom_device_t }:chr_file { getattr read ioctl };
 
 # DAC overrides and mknod for modifying /dev entries (vgmknodes)
-allow lvm_t self:capability { dac_override ipc_lock sys_admin sys_nice mknod };
+allow lvm_t self:capability { chown dac_override ipc_lock sys_admin sys_nice sys_resource mknod };
 
 # Write to /etc/lvm, /etc/lvmtab, /etc/lvmtab.d
 file_type_auto_trans(lvm_t, { etc_t lvm_etc_t }, lvm_metadata_t, file)
@@ -98,21 +97,22 @@ allow lvm_t devpts_t:dir { search getattr read };
 read_locale(lvm_t)
 
 # LVM (vgscan) scans for devices by stating every file in /dev and applying a regex...
-dontaudit lvm_t device_type:{ chr_file blk_file } getattr;
+dontaudit lvm_t device_type:{ chr_file blk_file } { getattr read };
 dontaudit lvm_t ttyfile:chr_file getattr;
 dontaudit lvm_t device_t:{ fifo_file dir chr_file blk_file } getattr;
 dontaudit lvm_t devpts_t:dir { getattr read };
+dontaudit lvm_t xconsole_device_t:fifo_file getattr;
 
 ifdef(`gpm.te', `
 dontaudit lvm_t gpmctl_t:sock_file getattr;
 ')
 dontaudit lvm_t initctl_t:fifo_file getattr;
 allow lvm_t sbin_t:dir search;
-dontaudit lvm_t sbin_t:file getattr;
+dontaudit lvm_t sbin_t:file { getattr read };
 allow lvm_t lvm_control_t:chr_file rw_file_perms;
 allow initrc_t lvm_control_t:chr_file { getattr read unlink };
 allow initrc_t device_t:chr_file create;
-dontaudit lvm_t var_run_t:dir getattr;
+var_run_domain(lvm)
 
 # for when /usr is not mounted
 dontaudit lvm_t file_t:dir search;
@@ -122,3 +122,18 @@ r_dir_file(lvm_t, selinux_config_t)
 
 # it has no reason to need this
 dontaudit lvm_t proc_kcore_t:file getattr;
+allow lvm_t var_t:dir { search getattr };
+allow lvm_t ramfs_t:filesystem unmount;
+
+# cluster LVM daemon
+daemon_domain(clvmd)
+can_network(clvmd_t)
+can_ypbind(clvmd_t)
+allow clvmd_t self:capability net_bind_service;
+allow clvmd_t self:socket create_socket_perms;
+allow clvmd_t self:fifo_file { read write };
+allow clvmd_t self:file { getattr read };
+allow clvmd_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow clvmd_t reserved_port_t:tcp_socket name_bind;
+dontaudit clvmd_t reserved_port_type:tcp_socket name_bind;
+dontaudit clvmd_t selinux_config_t:dir search;

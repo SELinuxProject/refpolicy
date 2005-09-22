@@ -75,7 +75,7 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_t self:capability { ipc_lock setuid };
 	allow { $2 $1_gpg_t } $1_gpg_t:process signal;
 	# setrlimit is for ulimit -c 0
-	allow $1_gpg_t self:process { setrlimit setcap };
+	allow $1_gpg_t self:process { setrlimit setcap setpgid };
 
 	allow $1_gpg_t self:fifo_file rw_file_perms;
 	allow $1_gpg_t self:tcp_socket create_stream_socket_perms;
@@ -83,9 +83,6 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_t $1_gpg_secret_t:dir rw_dir_perms;
 	allow $1_gpg_t $1_gpg_secret_t:file create_file_perms;
 	allow $1_gpg_t $1_gpg_secret_t:lnk_file create_lnk_perms;
-
-	allow $2 $1_gpg_secret_t:file getattr;
-	allow $2 $1_gpg_secret_t:dir rw_dir_perms;
 
 	corenet_tcp_sendrecv_all_if($1_gpg_t)
 	corenet_raw_sendrecv_all_if($1_gpg_t)
@@ -97,6 +94,7 @@ template(`gpg_per_userdomain_template',`
 	corenet_udp_sendrecv_all_ports($1_gpg_t)
 	corenet_tcp_bind_all_nodes($1_gpg_t)
 	corenet_udp_bind_all_nodes($1_gpg_t)
+	corenet_tcp_connect_all_ports($1_gpg_t)
 
 	dev_read_rand($1_gpg_t)
 	dev_read_urand($1_gpg_t)
@@ -108,8 +106,6 @@ template(`gpg_per_userdomain_template',`
 	files_read_etc_files($1_gpg_t)
 	files_read_usr_files($1_gpg_t)
 	files_dontaudit_search_var($1_gpg_t)
-	# should not need read access...
-	files_list_home($1_gpg_t)
 
 	libs_use_shared_libs($1_gpg_t)
 	libs_use_ld_so($1_gpg_t)
@@ -122,53 +118,21 @@ template(`gpg_per_userdomain_template',`
 
 	userdom_use_user_terminals($1,$1_gpg_t)
 
-	# Legacy
-	tunable_policy(`allow_gpg_execstack',`
-		allow $1_gpg_t self:process execmem;
-		libs_legacy_use_shared_libs($1_gpg_t)
-		libs_legacy_use_ld_so($1_gpg_t)
-		miscfiles_legacy_read_localization($1_gpg_t)
-		# Not quite sure why this is needed... 
-		allow $1_gpg_t gpg_exec_t:file execmod;
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_gpg_t)
-		fs_manage_nfs_files($1_gpg_t)
-		fs_manage_nfs_symlinks($1_gpg_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_gpg_t)
-		fs_manage_cifs_files($1_gpg_t)
-		fs_manage_cifs_symlinks($1_gpg_t)
-	')
-
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1_gpg_t)
 	')
 
 	ifdef(`TODO',`
+	# Read content to encrypt/decrypt/sign
+	read_content($1_gpg_t, $1)
+
+	# Write content to encrypt/decrypt/sign
+	write_trusted($1_gpg_t, $1)
 
 	ifdef(`gnome-pty-helper.te', `allow $1_gpg_t $1_gph_t:fd use;')
 
 	# allow ps to show gpg
 	can_ps($1_t, $1_gpg_t)
-
-	# use $1_gpg_secret_t for files it creates
-	# NB we are doing the type transition for directory creation only!
-	# so ~/.gnupg will be of $1_gpg_secret_t, then files created under it such as
-	# secring.gpg will be of $1_gpg_secret_t too.  But when you use gpg to decrypt
-	# a file and write output to your home directory it will use user_home_t.
-	file_type_auto_trans($1_gpg_t, $1_home_dir_t, $1_gpg_secret_t, dir)
-
-	file_type_auto_trans($1_gpg_t, $1_home_dir_t, $1_home_t, file)
-	create_dir_file($1_gpg_t, $1_home_t)
-
-	# allow the usual access to /tmp
-	file_type_auto_trans($1_gpg_t, tmp_t, $1_tmp_t)
-
-	rw_dir_create_file($1_gpg_t, $1_file_type)
 
 	') dnl end TODO
 
@@ -210,6 +174,7 @@ template(`gpg_per_userdomain_template',`
 	corenet_udp_sendrecv_all_ports($1_gpg_helper_t)
 	corenet_tcp_bind_all_nodes($1_gpg_helper_t)
 	corenet_udp_bind_all_nodes($1_gpg_helper_t)
+	corenet_tcp_connect_all_ports($1_gpg_helper_t)
 
 	dev_read_urand($1_gpg_helper_t)
 
@@ -232,9 +197,8 @@ template(`gpg_per_userdomain_template',`
 
 	ifdef(`TODO',`
 
-	ifdef(`xdm.te', `
-		dontaudit $1_gpg_t xdm_t:fd use;
-		dontaudit $1_gpg_t xdm_t:fifo_file read;
+	ifdef(`xdm.te',`
+		can_pipe_xdm($1_gpg_t)
 	')
 	') dnl end TODO
 
@@ -296,8 +260,6 @@ template(`gpg_per_userdomain_template',`
 
 	ifdef(`TODO',`
 
-	allow $1_gpg_agent_t xdm_t:fd use;
-
 	# allow ps to show gpg-agent
 	can_ps($1_t, $1_gpg_agent_t)
 
@@ -353,7 +315,6 @@ template(`gpg_per_userdomain_template',`
 		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:dir search;
 		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:sock_file { read write };
 		allow $1_gpg_pinentry_t xdm_xserver_t:unix_stream_socket connectto;
-		allow $1_gpg_pinentry_t xdm_t:fd use;
 	')
 
 	allow $1_gpg_pinentry_t { tmp_t home_root_t }:dir { getattr search };

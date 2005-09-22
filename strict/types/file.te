@@ -23,37 +23,37 @@ type fs_t, fs_type;
 type eventpollfs_t, fs_type;
 type futexfs_t, fs_type;
 type bdev_t, fs_type;
-type usbfs_t, fs_type;
+type usbfs_t, mount_point, fs_type;
 type nfsd_fs_t, fs_type;
 type rpc_pipefs_t, fs_type;
-type binfmt_misc_fs_t, fs_type;
+type binfmt_misc_fs_t, mount_point, fs_type;
 
 #
 # file_t is the default type of a file that has not yet been
 # assigned an extended attribute (EA) value (when using a filesystem
 # that supports EAs).
 #
-type file_t, file_type, sysadmfile;
+type file_t, file_type, mount_point, sysadmfile;
 
 # default_t is the default type for files that do not
 # match any specification in the file_contexts configuration
 # other than the generic /.* specification.
-type default_t, file_type, sysadmfile;
+type default_t, file_type, mount_point, sysadmfile;
 
 #
 # root_t is the type for the root directory.
 #
-type root_t, file_type, sysadmfile;
+type root_t, file_type, mount_point, polyparent, sysadmfile;
 
 #
 # mnt_t is the type for mount points such as /mnt/cdrom
-type mnt_t, file_type, sysadmfile;
+type mnt_t, file_type, mount_point, sysadmfile;
 
 #
 # home_root_t is the type for the directory where user home directories
 # are created
 #
-type home_root_t, file_type, sysadmfile;
+type home_root_t, file_type, mount_point, polyparent, sysadmfile;
 
 #
 # lost_found_t is the type for the lost+found directories.
@@ -64,7 +64,7 @@ type lost_found_t, file_type, sysadmfile;
 # boot_t is the type for files in /boot,
 # including the kernel.
 #
-type boot_t, file_type, sysadmfile;
+type boot_t, file_type, mount_point, sysadmfile;
 # system_map_t is for the system.map files in /boot
 type system_map_t, file_type, sysadmfile;
 
@@ -77,7 +77,7 @@ type boot_runtime_t, file_type, sysadmfile;
 #
 # tmp_t is the type of /tmp and /var/tmp.
 #
-type tmp_t, file_type, sysadmfile, tmpfile;
+type tmp_t, file_type, mount_point, sysadmfile, polydir, tmpfile;
 
 #
 # etc_t is the type of the system etc directories.
@@ -137,7 +137,11 @@ type shlib_t, file_type, sysadmfile;
 # texrel_shlib_t is the type of shared objects in the system lib
 # directories, which require text relocation.
 #
+ifdef(`targeted_policy', `
+typealias lib_t alias texrel_shlib_t;
+', `
 type texrel_shlib_t, file_type, sysadmfile;
+')
 
 # ld_so_t is the type of the system dynamic loaders.
 #
@@ -171,26 +175,27 @@ type sbin_t, file_type, sysadmfile;
 #
 # usr_t is the type for /usr.
 #
-type usr_t, file_type, sysadmfile;
+type usr_t, file_type, mount_point, sysadmfile;
 
 #
 # src_t is the type of files in the system src directories.
 #
-type src_t, file_type, sysadmfile;
+type src_t, file_type, mount_point, sysadmfile;
 
 #
 # var_t is the type for /var.
 #
-type var_t, file_type,  sysadmfile;
+type var_t, file_type, mount_point, sysadmfile;
 
 #
 # Types for subdirectories of /var.
 #
 type var_run_t, file_type, sysadmfile;
 type var_log_t, file_type, sysadmfile, logfile;
+typealias var_log_t alias crond_log_t;
 type faillog_t, file_type, sysadmfile, logfile;
 type var_lock_t, file_type, sysadmfile, lockfile;
-type var_lib_t, file_type, sysadmfile;
+type var_lib_t, mount_point, file_type, sysadmfile;
 # for /var/{spool,lib}/texmf index files
 type tetex_data_t, file_type, sysadmfile, tmpfile;
 type var_spool_t, file_type, sysadmfile, tmpfile;
@@ -203,17 +208,12 @@ type var_log_ksyms_t, file_type, sysadmfile, logfile;
 type lastlog_t, file_type, sysadmfile, logfile;
 
 # Type for /var/lib/nfs.
-type var_lib_nfs_t, file_type, sysadmfile, usercanread;
+type var_lib_nfs_t, file_type, mount_point, sysadmfile, usercanread;
 
 #
 # wtmp_t is the type of /var/log/wtmp.
 #
 type wtmp_t, file_type, sysadmfile, logfile;
-
-#
-# catman_t is the type for /var/catman.
-#
-type catman_t, file_type, sysadmfile, tmpfile;
 
 #
 # cron_spool_t is the type for /var/spool/cron.
@@ -239,6 +239,7 @@ type mqueue_spool_t, file_type, sysadmfile;
 # man_t is the type for the man directories.
 #
 type man_t, file_type, sysadmfile;
+typealias man_t alias catman_t;
 
 #
 # readable_t is a general type for
@@ -271,23 +272,24 @@ type locale_t, file_type, sysadmfile;
 # the default file system type.
 #
 allow { file_type device_type ttyfile } fs_t:filesystem associate;
-ifdef(`distro_redhat', `
-allow { dev_fs ttyfile } tmpfs_t:filesystem associate;
-')
 
 # Allow the pty to be associated with the file system.
 allow devpts_t self:filesystem associate;
 
-type tmpfs_t, file_type, sysadmfile, fs_type;
-allow { tmpfs_t tmp_t } tmpfs_t:filesystem associate;
+type tmpfs_t, file_type, mount_point, sysadmfile, fs_type;
+allow { logfile tmpfs_t tmpfile home_type } tmpfs_t:filesystem associate;
+allow { logfile tmpfile home_type } tmp_t:filesystem associate;
+ifdef(`distro_redhat', `
+allow { dev_fs ttyfile } { tmpfs_t tmp_t }:filesystem associate;
+')
 
 type autofs_t, fs_type, noexattrfile, sysadmfile;
 allow autofs_t self:filesystem associate;
 
-type usbdevfs_t, fs_type, noexattrfile, sysadmfile;
+type usbdevfs_t, fs_type, mount_point, noexattrfile, sysadmfile;
 allow usbdevfs_t self:filesystem associate;
 
-type sysfs_t, fs_type,  sysadmfile;
+type sysfs_t, mount_point, fs_type,  sysadmfile;
 allow sysfs_t self:filesystem associate;
 
 type iso9660_t, fs_type, noexattrfile, sysadmfile;
@@ -302,6 +304,12 @@ allow ramfs_t self:filesystem associate;
 type dosfs_t, fs_type, noexattrfile, sysadmfile;
 allow dosfs_t self:filesystem associate;
 
+type hugetlbfs_t, mount_point, fs_type,  sysadmfile;
+allow hugetlbfs_t self:filesystem associate;
+
+type mqueue_t, mount_point, fs_type,  sysadmfile;
+allow mqueue_t self:filesystem associate;
+
 # udev_runtime_t is the type of the udev table file
 type udev_runtime_t, file_type, sysadmfile;
 
@@ -310,7 +318,12 @@ type krb5_conf_t, file_type, sysadmfile;
 
 type cifs_t, fs_type, noexattrfile, sysadmfile;
 allow cifs_t self:filesystem associate;
-typealias cifs_t alias sambafs_t;
+
+type debugfs_t, fs_type, sysadmfile;
+allow debugfs_t self:filesystem associate;
+
+type inotifyfs_t, fs_type, sysadmfile;
+allow inotifyfs_t self:filesystem associate;
 
 # removable_t is the default type of all removable media
 type removable_t, file_type, sysadmfile, usercanread;
@@ -318,4 +331,12 @@ allow removable_t self:filesystem associate;
 allow file_type removable_t:filesystem associate;
 allow file_type noexattrfile:filesystem associate;
 
+# Type for anonymous FTP data, used by ftp and rsync
+type ftpd_anon_t, file_type, sysadmfile, customizable;
+type ftpd_anon_rw_t, file_type, sysadmfile, customizable;
+
+allow customizable self:filesystem associate;
+
+# type for /tmp/.ICE-unix
+type ice_tmp_t, file_type, sysadmfile, tmpfile;
 

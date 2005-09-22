@@ -15,7 +15,7 @@ attribute direct_init_entry;
 #
 # init_t is the domain of the init process.
 #
-type init_t;
+type init_t; #, mlsrangetrans, mlsfileread, mlsfilewrite;
 domain_type(init_t)
 role system_r types init_t;
 
@@ -37,10 +37,10 @@ files_pid_file(init_var_run_t)
 # by init during initialization.  This pipe is used
 # to communicate with init.
 #
-type initctl_t;
+type initctl_t; #, mlstrustedobject;
 files_type(initctl_t)
 
-type initrc_t;
+type initrc_t; #, mlsfileread, mlsfilewrite, mlsprocread, mlsprocwrite;
 domain_type(initrc_t)
 role system_r types initrc_t;
 
@@ -51,14 +51,14 @@ type initrc_devpts_t;
 term_pty(initrc_devpts_t)
 files_type(initrc_devpts_t)
 
-type initrc_var_run_t;
-files_pid_file(initrc_var_run_t)
-
 type initrc_state_t;
 files_type(initrc_state_t)
 
 type initrc_tmp_t;
 files_tmp_file(initrc_tmp_t)
+
+type initrc_var_run_t;
+files_pid_file(initrc_var_run_t)
 
 ########################################
 #
@@ -78,6 +78,8 @@ allow init_t self:fifo_file rw_file_perms;
 
 # Re-exec itself
 allow init_t init_exec_t:file { getattr read ioctl execute execute_no_trans };
+
+allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
@@ -162,6 +164,10 @@ optional_policy(`userdomain.te',`
 	userdom_shell_domtrans_sysadm(init_t)
 ')
 
+ifdef(`TODO',`
+allow init_t ramfs_t:sock_file write;
+')
+
 ########################################
 #
 # Init script local policy
@@ -201,12 +207,8 @@ kernel_read_ring_buffer(initrc_t)
 kernel_change_ring_buffer_level(initrc_t)
 kernel_clear_ring_buffer(initrc_t)
 kernel_get_sysvipc_info(initrc_t)
-dev_read_sysfs(initrc_t)
-dev_rw_sysfs(initrc_t)
 kernel_read_all_sysctl(initrc_t)
 kernel_rw_all_sysctl(initrc_t)
-selinux_get_enforce_mode(initrc_t)
-dev_list_usbfs(initrc_t)
 # for lsof which is used by alsa shutdown:
 kernel_dontaudit_getattr_message_if(initrc_t)
 
@@ -222,11 +224,14 @@ corenet_tcp_sendrecv_all_ports(initrc_t)
 corenet_udp_sendrecv_all_ports(initrc_t)
 corenet_tcp_bind_all_nodes(initrc_t)
 corenet_udp_bind_all_nodes(initrc_t)
+corenet_tcp_connect_all_ports(initrc_t)
 
 dev_read_rand(initrc_t)
 dev_read_urand(initrc_t)
 dev_write_rand(initrc_t)
 dev_write_urand(initrc_t)
+dev_rw_sysfs(initrc_t)
+dev_list_usbfs(initrc_t)
 dev_read_framebuffer(initrc_t)
 dev_read_realtime_clock(initrc_t)
 dev_read_snd_mixer_dev(initrc_t)
@@ -234,6 +239,7 @@ dev_write_snd_mixer_dev(initrc_t)
 dev_setattr_all_chr_files(initrc_t)
 dev_read_lvm_control(initrc_t)
 dev_delete_lvm_control(initrc_t)
+dev_manage_generic_symlinks(initrc_t)
 # Wants to remove udev.tbl:
 dev_del_generic_symlinks(initrc_t)
 
@@ -243,6 +249,8 @@ fs_mount_all_fs(initrc_t)
 fs_unmount_all_fs(initrc_t)
 fs_remount_all_fs(initrc_t)
 fs_getattr_all_fs(initrc_t)
+
+selinux_get_enforce_mode(initrc_t)
 
 storage_getattr_fixed_disk(initrc_t)
 storage_setattr_fixed_disk(initrc_t)
@@ -255,7 +263,7 @@ auth_rw_login_records(initrc_t)
 auth_rw_lastlog(initrc_t)
 auth_read_pam_pid(initrc_t)
 auth_delete_pam_pid(initrc_t)
-auth_list_pam_console_data(initrc_t)
+auth_delete_pam_console_data(initrc_t)
 
 corecmd_exec_bin(initrc_t)
 corecmd_exec_sbin(initrc_t)
@@ -269,6 +277,8 @@ domain_sigstop_all_domains(initrc_t)
 domain_sigstop_all_domains(initrc_t)
 domain_sigchld_all_domains(initrc_t)
 domain_read_all_domains_state(initrc_t)
+domain_getattr_all_domains(initrc_t)
+domain_dontaudit_ptrace_all_domains(initrc_t)
 domain_getsession_all_domains(initrc_t)
 domain_use_wide_inherit_fd(initrc_t)
 domain_exec_all_entry_files(initrc_t)
@@ -287,6 +297,7 @@ files_purge_tmp(initrc_t)
 files_delete_all_locks(initrc_t)
 files_read_all_pids(initrc_t)
 files_delete_all_pids(initrc_t)
+files_delete_all_pid_dirs(initrc_t)
 files_read_etc_files(initrc_t)
 files_manage_etc_runtime_files(initrc_t)
 files_manage_generic_locks(initrc_t)
@@ -307,9 +318,10 @@ libs_use_shared_libs(initrc_t)
 libs_exec_lib_files(initrc_t)
 
 logging_send_syslog_msg(initrc_t)
-logging_rw_generic_logs(initrc_t)
+logging_manage_generic_logs(initrc_t)
 logging_read_all_logs(initrc_t)
 logging_append_all_logs(initrc_t)
+logging_read_auditd_config(initrc_t)
 
 miscfiles_read_localization(initrc_t)
 
@@ -376,9 +388,14 @@ ifdef(`distro_redhat',`
 
 	# readahead asks for these
 	mta_read_aliases(initrc_t)
+
+	optional_policy(`bind.te',`
+		bind_manage_config_dir(initrc_t)
+	')
 ')
 
 ifdef(`targeted_policy',`
+	domain_subj_id_change_exempt(initrc_t)
 	unconfined_domain_template(initrc_t)
 	unconfined_shell_domtrans(initrc_t)
 ')
@@ -395,6 +412,11 @@ optional_policy(`bind.te',`
 		bind_write_config(initrc_t)
 	')
 
+')
+
+optional_policy(`cpucontrol.te',`
+	cpucontrol_stub()
+	dev_getattr_cpu(initrc_t)
 ')
 
 optional_policy(`gpm.te',`
@@ -461,6 +483,11 @@ optional_policy(`raid.te',`
 	raid_manage_mdadm_pid(initrc_t)
 ')
 
+optional_policy(`postgresql.te',`
+	postgresql_manage_db(initrc_t)
+	postgresql_read_config(initrc_t)
+')
+
 optional_policy(`quota.te',`
 	quota_manage_flags(initrc_t)
 ')
@@ -481,6 +508,10 @@ optional_policy(`rpm.te',`
 
 	# why is this needed:
 	rpm_manage_db(initrc_t)
+')
+
+optional_policy(`samba.te',`
+	samba_rw_config(initrc_t)
 ')
 
 optional_policy(`squid.te',`
@@ -515,6 +546,14 @@ ifdef(`TODO',`
 allow initrc_t xconsole_device_t:fifo_file setattr;
 
 allow initrc_t system_dbusd_t:dbus { send_msg acquire_svc };
+allow initrc_t system_dbusd_t:unix_stream_socket connectto;
+allow initrc_t system_dbusd_var_run_t:sock_file write;
+
+# rhgb-console writes to ramfs
+allow initrc_t ramfs_t:fifo_file write;
+
+# during boot up initrc needs to do the following
+allow initrc_t default_t:dir write;
 
 #
 #  These rules are here to allow init scripts to su
@@ -527,6 +566,17 @@ role system_r types initrc_su_t;
 ifdef(`distro_redhat', `
 	# readahead asks for these
 	allow initrc_t var_lib_nfs_t:file r_file_perms;
+
+	file_type_auto_trans(initrc_t, device_t, fixed_disk_device_t, blk_file)
+	allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
+	allow initrc_t self:capability sys_admin;
+	allow initrc_t device_t:dir create;
+
+	optional_policy(`rpm.te',`
+		rpm_stub()
+		#read ahead wants to read this
+		allow initrc_t system_cron_spool_t:file { getattr read };
+	')
 ')
 
 ifdef(`targeted_policy',`

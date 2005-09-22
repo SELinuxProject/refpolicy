@@ -60,7 +60,7 @@ allow $1 self:file { getattr read write };
 # read_sysctl(domain)
 #
 # Permissions for reading sysctl variables.
-# If the second parameter is 'full', allow
+# If the second parameter is full, allow
 # reading of any sysctl variables, else only
 # sysctl_kernel_t.
 #
@@ -106,6 +106,7 @@ allow $1 ld_so_t:file rx_file_perms;
 allow $1 ld_so_t:lnk_file r_file_perms;
 allow $1 { texrel_shlib_t shlib_t }:file rx_file_perms;
 allow $1 { texrel_shlib_t shlib_t }:lnk_file r_file_perms;
+allow $1 texrel_shlib_t:file execmod;
 allow $1 ld_so_cache_t:file r_file_perms;
 allow $1 device_t:dir search;
 allow $1 null_device_t:chr_file rw_file_perms;
@@ -155,7 +156,6 @@ allow $1 etc_t:lnk_file read;
 allow $1 lib_t:file r_file_perms;
 r_dir_file($1, locale_t)
 ')
-
 
 ###################################
 #
@@ -253,7 +253,7 @@ allow $1_t self:process { signal_perms fork };
 uses_shlib($1_t)
 
 allow $1_t { self proc_t }:dir r_dir_perms;
-allow $1_t { self proc_t }:lnk_file read;
+allow $1_t { self proc_t }:lnk_file { getattr read };
 
 allow $1_t device_t:dir r_dir_perms;
 ifdef(`udev.te', `
@@ -293,6 +293,8 @@ domain_auto_trans(init_t, $1_exec_t, $1_t)
 # Define a daemon domain with a base set of type declarations
 # and permissions that are common to most daemons.
 # attribs is the list of attributes which must start with "," if it is not empty
+# nosysadm may be given as an optional third parameter, to specify that the
+# sysadmin should not transition to the domain when directly calling the executable
 #
 # Author:  Russell Coker <russell@coker.com.au>
 #
@@ -353,6 +355,14 @@ file_type_auto_trans($1_t, var_run_t, $1_var_run_t, $2)
 allow $1_t var_t:dir search;
 allow $1_t $1_var_run_t:dir rw_dir_perms;
 ')
+
+#######################
+# daemon_domain(domain_prefix, attribs)
+#
+# see daemon_base_domain for calling details
+# daemon_domain defines some additional privileges needed by many domains,
+# like pid files and locale support
+
 define(`daemon_domain', `
 ifdef(`targeted_policy', `
 daemon_base_domain($1, `$2, transitionbool', $3)
@@ -396,8 +406,19 @@ type $2_exec_t, file_type, sysadmfile, exec_type;
 
 role system_r types $2_t;
 
+ifelse(index(`$3',`transitionbool'), -1, `
+
 domain_auto_trans($1, $2_exec_t, $2_t)
 
+', `
+
+bool $2_disable_trans false;
+
+if (! $2_disable_trans) {
+domain_auto_trans($1, $2_exec_t, $2_t)
+}
+
+');
 # Inherit and use descriptors from parent.
 allow $2_t $1:fd use;
 allow $2_t $1:process sigchld;
@@ -416,22 +437,29 @@ allow $2_t device_t:dir getattr;
 # by default, only plain files and dirs may be stored there.
 # This can be overridden with a third parameter
 define(`tmp_domain', `
-type $1_tmp_t, file_type, sysadmfile, tmpfile $2;
+type $1_tmp_t, file_type, sysadmfile, polymember, tmpfile $2;
 ifelse($3, `',
 `file_type_auto_trans($1_t, tmp_t, $1_tmp_t, `{ file dir }')',
 `file_type_auto_trans($1_t, tmp_t, $1_tmp_t, `$3')')
 ')
 
+# grant access to /tmp. Do not perform an automatic transition.
+define(`tmp_domain_notrans', `
+type $1_tmp_t, file_type, sysadmfile, polymember, tmpfile $2;
+')
+
 define(`tmpfs_domain', `
+ifdef(`$1_tmpfs_t_defined',`', `
+define(`$1_tmpfs_t_defined')
 type $1_tmpfs_t, file_type, sysadmfile, tmpfsfile;
 # Use this type when creating tmpfs/shm objects.
 file_type_auto_trans($1_t, tmpfs_t, $1_tmpfs_t)
 allow $1_tmpfs_t tmpfs_t:filesystem associate;
 ')
+')
 
 define(`var_lib_domain', `
 type $1_var_lib_t, file_type, sysadmfile;
-typealias $1_var_lib_t alias var_lib_$1_t;
 file_type_auto_trans($1_t, var_lib_t, $1_var_lib_t, file)
 allow $1_t $1_var_lib_t:dir rw_dir_perms;
 ')
@@ -474,105 +502,6 @@ type $1_lock_t, file_type, sysadmfile, lockfile;
 file_type_auto_trans($1_t, var_lock_t, $1_lock_t, file)
 ')
 
-####################################################################
-# home_domain_ro_access(source, user, app) 
-# 
-# Gives source access to the read-only home
-# domain of app for the given user type
-#
-
-define(`home_domain_ro_access', `
-
-allow $1 home_root_t:dir search;
-
-if (use_nfs_home_dirs) {
-r_dir_file($1, nfs_t)
-}
-if (use_samba_home_dirs) {
-r_dir_file($1, cifs_t)
-}
-allow $1 autofs_t:dir { search getattr };
-
-r_dir_file($1, $2_$3_ro_home_t)
-
-') dnl home_domain_ro_access
-
-####################################################################
-# home_domain_access(source, user, app)
-#
-# Gives source full access to the home
-# domain of app for the given user type
-#
-
-define(`home_domain_access', `
-
-allow $1 home_root_t:dir search;
-
-if (use_nfs_home_dirs) {
-create_dir_file($1, nfs_t)
-}
-if (use_samba_home_dirs) {
-create_dir_file($1, cifs_t)
-}
-allow $1 autofs_t:dir { search getattr };
-
-file_type_auto_trans($1, $2_home_dir_t, $2_$3_home_t)
-
-') dnl home_domain_access
-
-####################################################################
-# home_domain (prefix, app)
-#
-# Creates a domain in the prefix home where an application can
-# store its settings. It's accessible by the prefix domain.
-#
-
-define(`home_domain', `
-
-# Declare home domain
-# FIXME: the second alias is problematic because
-# home_domain and home_domain_ro cannot be used in parallel
-# Remove the second alias when compatibility is no longer an issue
-
-type $1_$2_home_t, file_type, $1_file_type, sysadmfile;
-typealias $1_$2_home_t alias $1_$2_rw_t;
-typealias $1_$2_home_t alias $1_home_$2_t;
-
-# User side access
-create_dir_file($1_t, $1_$2_home_t)
-allow $1_t $1_$2_home_t:{ dir file lnk_file } { relabelfrom relabelto };
-
-# App side access
-home_domain_access($1_$2_t, $1, $2)
-')
-
-####################################################################
-# home_domain_ro (user, app)
-#
-# Creates a read-only domain in the user home where an application can
-# store its settings. It's fully accessible by the user, but
-# it's read-only for the application.
-#
-
-define(`home_domain_ro', `
-
-# Declare home domain
-# FIXME: the second alias is problematic because
-# home_domain and home_domain_ro cannot be used in parallel
-# Remove the second alias when compatibility is no longer an issue
-
-type $1_$2_ro_home_t, file_type, $1_file_type, sysadmfile;
-typealias $1_$2_ro_home_t alias $1_$2_ro_t;
-typealias $1_$2_ro_home_t alias $1_home_$2_t;
-
-# User side access
-create_dir_file($1_t, $1_$2_ro_home_t)
-allow $1_t $1_$2_ro_home_t:{ dir file lnk_file } { relabelfrom relabelto };
-
-# App side access
-home_domain_ro_access($1_$2_t, $1, $2)
-')
-
 #######################
 # application_domain(domain_prefix)
 #
@@ -589,12 +518,6 @@ domain_auto_trans(sysadm_t, $1_exec_t, $1_t)
 uses_shlib($1_t)
 ')
 
-define(`user_application_domain', `
-application_domain($1, `$2')
-in_user_role($1_t)
-domain_auto_trans(userdomain, $1_exec_t, $1_t)
-')
-
 define(`system_domain', `
 type $1_t, domain, privlog $2;
 type $1_exec_t, file_type, sysadmfile, exec_type;
@@ -603,23 +526,25 @@ uses_shlib($1_t)
 allow $1_t etc_t:dir r_dir_perms;
 ')
 
-# Do not flood message log, if the user does a browse
-define(`file_browse_domain', `
+# Dontaudit macros to prevent flooding the log
 
-# Regular files/directories that are not security sensitive
+define(`dontaudit_getattr', `
 dontaudit $1 file_type - secure_file_type:dir_file_class_set getattr; 
-dontaudit $1 file_type - secure_file_type:dir { read search };
+dontaudit $1 unlabeled_t:dir_file_class_set getattr;
+dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir_file_class_set getattr;
+')dnl end dontaudit_getattr 
 
-# /dev
-dontaudit $1 dev_fs:dir_file_class_set getattr;
-dontaudit $1 dev_fs:dir { read search };
+define(`dontaudit_search_dir', `
+dontaudit $1 file_type - secure_file_type:dir search;
+dontaudit $1 unlabeled_t:dir search;
+dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir search;
+')dnl end dontaudit_search_dir
 
-# /proc
-dontaudit $1 sysctl_t:dir_file_class_set getattr;
-dontaudit $1 proc_fs:dir { read search };
-
-')dnl end file_browse_domain
-
+define(`dontaudit_read_dir', `
+dontaudit $1 file_type - secure_file_type:dir read;
+dontaudit $1 unlabeled_t:dir read;
+dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir read;
+')dnl end dontaudit_read_dir
 
 # Define legacy_domain  for legacy binaries (java)
 # "legacy" binary == lacks PT_GNU_STACK header, i.e. built with an old
@@ -629,12 +554,58 @@ dontaudit $1 proc_fs:dir { read search };
 # shlib_t and ld_so_t unlike non-legacy binaries.
 
 define(`legacy_domain', `
-allow $1_t self:process { execmem };
+allow $1_t self:process { execmem execstack };
 allow $1_t { texrel_shlib_t shlib_t }:file execmod;
 allow $1_t ld_so_t:file execmod;
 allow $1_t ld_so_cache_t:file execute;
 ')
 
+
+# Allow domain to perform polyinstantiation functions
+# polyinstantiater(domain)
+
+define(`polyinstantiater', `
+
+ifdef(`support_polyinstantiation', `
+# Need to give access to /selinux/member
+allow $1 security_t:security compute_member;
+
+# Need to give access to the directories to be polyinstantiated
+allow $1 polydir:dir { getattr mounton add_name create setattr write search };
+
+# Need to give access to the polyinstantiated subdirectories
+allow $1 polymember:dir {getattr search };
+
+# Need to give access to parent directories where original
+# is remounted for polyinstantiation aware programs (like gdm)
+allow $1 polyparent:dir { getattr mounton };
+
+# Need to give permission to create directories where applicable
+allow $1 polymember: dir { create setattr };
+allow $1 polydir: dir { write add_name };
+allow $1 self:process setfscreate;
+allow $1 polyparent:dir { write add_name };
+# Default type for mountpoints
+allow $1 poly_t:dir { create mounton };
+
+# Need sys_admin capability for mounting
+allow $1 self:capability sys_admin;
+')dnl end else support_polyinstantiation
+
+')dnl end polyinstantiater
+
+# 
+# Domain that is allow to read anonymous data off the network
+# without providing authentication.
+# Also define boolean to allow anonymous writing
+#
+define(`anonymous_domain', `
+r_dir_file($1_t, ftpd_anon_t)
+bool allow_$1_anon_write false;
+if (allow_$1_anon_write) {
+create_dir_file($1_t,ftpd_anon_rw_t)
+}
+')
 # 
 # Define a domain that can do anything, so that it is
 # effectively unconfined by the SELinux policy.  This
@@ -679,6 +650,7 @@ can_sysctl($1)
 allow $1 node_type:node *;
 allow $1 netif_type:netif *;
 allow $1 port_type:{ tcp_socket udp_socket } { send_msg recv_msg };
+allow $1 port_type:tcp_socket name_connect;
 
 # Bind to any network address.
 allow $1 port_type:{ tcp_socket udp_socket } name_bind;
@@ -698,13 +670,24 @@ allow $1 domain:process ~{ transition dyntransition execmem };
 allow $1 self:process transition;
 
 if (allow_execmem) {
-# Allow loading DSOs that require executable stack.
+# Allow making anonymous memory executable, e.g. 
+# for runtime-code generation or executable stack.
 allow $1 self:process execmem;
+}
+
+if (allow_execmem && allow_execstack) {
+# Allow making the stack executable via mprotect.
+allow $1 self:process execstack;
 }
 
 if (allow_execmod) {
 # Allow text relocations on system shared libraries, e.g. libGL.
+ifdef(`targeted_policy', `
+allow $1 file_type:file execmod;
+', `
 allow $1 texrel_shlib_t:file execmod;
+allow $1 home_type:file execmod;
+')
 }
 
 # Create/access any System V IPC objects.
@@ -737,3 +720,34 @@ allow $1 nscd_t:nscd *;
 ')
 
 ')dnl end unconfined_domain
+
+
+define(`access_removable_media', `
+
+can_exec($1, { removable_t noexattrfile } )
+if (user_rw_noexattrfile) {
+create_dir_file($1, noexattrfile)
+create_dir_file($1, removable_t)
+# Write floppies 
+allow $1 removable_device_t:blk_file rw_file_perms;
+allow $1 usbtty_device_t:chr_file write;
+} else {
+r_dir_file($1, noexattrfile)
+r_dir_file($1, removable_t)
+allow $1 removable_device_t:blk_file r_file_perms;
+}
+allow $1 removable_t:filesystem getattr;
+
+')
+
+define(`authentication_domain', `
+can_ypbind($1)
+can_kerberos($1)
+can_ldap($1)
+can_resolve($1)
+can_winbind($1)
+r_dir_file($1, cert_t)
+allow $1 { random_device_t urandom_device_t }:chr_file { getattr read };
+allow $1 self:capability { audit_write audit_control };
+dontaudit $1 shadow_t:file { getattr read };
+')

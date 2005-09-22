@@ -91,12 +91,15 @@ template(`cron_per_userdomain_template',`
 	corenet_udp_sendrecv_all_ports($1_crond_t)
 	corenet_tcp_bind_all_nodes($1_crond_t)
 	corenet_udp_bind_all_nodes($1_crond_t)
+	corenet_tcp_connect_all_ports($1_crond_t)
 
 	dev_read_urand($1_crond_t)
 
 	fs_getattr_all_fs($1_crond_t)
 
 	domain_exec_all_entry_files($1_crond_t)
+	# quiet other ps operations
+	domain_dontaudit_read_all_domains_state($1_crond_t)
 
 	files_read_usr_files($1_crond_t)
 	files_exec_etc_files($1_crond_t)
@@ -112,6 +115,8 @@ template(`cron_per_userdomain_template',`
 	libs_exec_ld_so($1_crond_t)
 
 	files_read_etc_runtime_files($1_crond_t)
+	files_read_var_files($1_crond_t)
+	files_search_spool($1_crond_t)
 
 	logging_search_logs($1_crond_t)
 
@@ -125,6 +130,13 @@ template(`cron_per_userdomain_template',`
 	userdom_manage_user_tmp_sockets($1,$1_crond_t)
 	# Run scripts in user home directory and access shared libs.
 	userdom_exec_user_home_files($1,$1_crond_t)
+	# Access user files and dirs.
+#	userdom_manage_user_home_subdir_dirs($1,$1_crond_t)
+	userdom_manage_user_home_subdir_files($1,$1_crond_t)
+	userdom_manage_user_home_subdir_symlinks($1,$1_crond_t)
+	userdom_manage_user_home_subdir_pipes($1,$1_crond_t)
+	userdom_manage_user_home_subdir_sockets($1,$1_crond_t)
+#	userdom_create_user_home($1,$1_crond_t,notdevfile_class_set)
 
 	tunable_policy(`fcron_crond', `
 		allow crond_t $1_cron_spool_t:file create_file_perms;
@@ -135,9 +147,6 @@ template(`cron_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-	# Access user files and dirs.
-	file_type_auto_trans($1_crond_t, $1_home_dir_t, $1_home_t)
-
 	allow $1_crond_t tmp_t:dir rw_dir_perms;
 	type_transition $1_crond_t $1_tmp_t:{ file lnk_file sock_file fifo_file } $1_tmp_t;
 
@@ -149,13 +158,6 @@ template(`cron_per_userdomain_template',`
 		dontaudit $1_mail_t crond_t:fifo_file write;
 		allow mta_user_agent $1_crond_t:fd use;
 	')
-
-	allow $1_crond_t var_spool_t:dir search;
-	allow $1_crond_t var_t:dir r_dir_perms;
-	allow $1_crond_t var_t:file r_file_perms;
-
-	# quiet other ps operations
-	dontaudit $1_crond_t domain:dir { getattr search };
 	') dnl endif TODO
 
 	##############################
@@ -169,6 +171,12 @@ template(`cron_per_userdomain_template',`
 	allow $1_crontab_t $2:fd use;
 	allow $1_crontab_t $2:fifo_file rw_file_perms;
 	allow $1_crontab_t $2:process sigchld;
+
+	# crontab shows up in user ps
+	allow $2 $1_crontab_t:dir { search getattr read };
+	allow $2 $1_crontab_t:{ file lnk_file } { read getattr };
+	allow $2 $1_crontab_t:process getattr;
+	dontaudit $2 $1_crontab_t:process ptrace;
 
 	# for ^Z
 	allow $2 $1_crontab_t:process signal;
@@ -188,7 +196,7 @@ template(`cron_per_userdomain_template',`
 	# crontab signals crond by updating the mtime on the spooldir
 	allow $1_crontab_t cron_spool_t:dir setattr;
 
-	allow $1_crontab_t crond_log_t:file ra_file_perms;
+	kernel_read_system_state($1_crontab_t)
 
 	# for the checks used by crontab -u
 	selinux_dontaudit_search_fs($1_crontab_t)
@@ -212,7 +220,7 @@ template(`cron_per_userdomain_template',`
 
 	miscfiles_read_localization($1_crontab_t)
 
-	seutil_dontaudit_search_config($1_crontab_t)
+	seutil_read_config($1_crontab_t)
 
 	userdom_manage_user_tmp_dirs($1,$1_crontab_t)
 	userdom_manage_user_tmp_files($1,$1_crontab_t)
@@ -228,15 +236,10 @@ template(`cron_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-	can_ps($1_t, $1_crontab_t)
-
-	dontaudit $1_crontab_t proc_t:dir search;
-
 	allow $1_crond_t tmp_t:dir rw_dir_perms;
 	type_transition $1_crond_t $1_tmp_t:{ file dir } $1_tmp_t;
 
 	# Read user crontabs
-	allow $1_crontab_t { $1_home_t $1_home_dir_t }:dir r_dir_perms;  
 	dontaudit $1_crontab_t $1_home_dir_t:dir write;
 
 	# Inherit and use descriptors from gnome-pty-helper.
@@ -382,24 +385,6 @@ interface(`cron_rw_pipe',`
 	')
 
 	allow $1 crond_t:file { read write };
-')
-
-########################################
-## <summary>
-##	Read and write the cron daemon log files.
-## </summary>
-## <param name="domain">
-##	The type of the process to performing this action.
-## </param>
-#
-interface(`cron_rw_log',`
-	gen_require(`
-		type crond_log_t;
-		class file rw_file_perms;
-	')
-
-	logging_search_logs($1)
-	allow $1 crond_log_t:file rw_file_perms;
 ')
 
 ########################################

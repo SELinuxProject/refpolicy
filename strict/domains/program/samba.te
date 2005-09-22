@@ -9,14 +9,13 @@
 # Declarations for Samba
 #
 
-daemon_domain(smbd, `, auth_chkpwd')
+daemon_domain(smbd, `, auth_chkpwd, nscd_client_domain')
 daemon_domain(nmbd)
 type samba_etc_t, file_type, sysadmfile, usercanread;
 type samba_log_t, file_type, sysadmfile, logfile;
 type samba_var_t, file_type, sysadmfile;
 type samba_share_t, file_type, sysadmfile, customizable;
 type samba_secrets_t, file_type, sysadmfile;
-typealias samba_var_t alias samba_spool_t;
 
 # for /var/run/samba/messages.tdb
 allow smbd_t nmbd_var_run_t:file rw_file_perms;
@@ -41,14 +40,17 @@ allow system_crond_t samba_log_t:file { read getattr lock };
 general_domain_access(smbd_t)
 general_proc_read_access(smbd_t)
 
-type smbd_port_t, port_type, reserved_port_type;
 allow smbd_t smbd_port_t:tcp_socket name_bind;
 
 # Use capabilities.
 allow smbd_t self:capability { setgid setuid sys_resource net_bind_service lease dac_override dac_read_search };
 
 # Use the network.
-can_network_server(smbd_t)
+can_network(smbd_t)
+can_ldap(smbd_t)
+can_kerberos(smbd_t)
+can_winbind(smbd_t)
+allow smbd_t { smbd_port_t ipp_port_t }:tcp_socket name_connect;
 
 allow smbd_t urandom_device_t:chr_file { getattr read };
 
@@ -62,18 +64,22 @@ allow smbd_t { etc_t samba_etc_t etc_runtime_t }:file r_file_perms;
 
 # Permissions for Samba cache files in /var/cache/samba and /var/lib/samba
 allow smbd_t var_lib_t:dir search;
-allow smbd_t samba_var_t:dir create_dir_perms;
-allow smbd_t samba_var_t:file create_file_perms;
+create_dir_file(smbd_t, samba_var_t)
+
+# Needed for shared printers
+allow smbd_t var_spool_t:dir search;
 
 # Permissions to write log files.
 allow smbd_t samba_log_t:file { create ra_file_perms };
 allow smbd_t var_log_t:dir search;
 allow smbd_t samba_log_t:dir ra_dir_perms;
+dontaudit smbd_t samba_log_t:dir remove_name;
 
 allow smbd_t usr_t:file { getattr read };
 
 # Access Samba shares.
 create_dir_file(smbd_t, samba_share_t)
+anonymous_domain(smbd)
 
 ifdef(`logrotate.te', `
 # the application should be changed
@@ -88,7 +94,6 @@ can_exec(logrotate_t, samba_log_t)
 general_domain_access(nmbd_t)
 general_proc_read_access(nmbd_t)
 
-type nmbd_port_t, port_type, reserved_port_type;
 allow nmbd_t nmbd_port_t:udp_socket name_bind;
 
 # Use capabilities.
@@ -111,6 +116,7 @@ allow nmbd_t usr_t:file { getattr read };
 allow nmbd_t samba_log_t:file { create ra_file_perms };
 allow nmbd_t var_log_t:dir search;
 allow nmbd_t samba_log_t:dir ra_dir_perms;
+allow nmbd_t etc_t:file { getattr read };
 ifdef(`cups.te', `
 allow smbd_t cupsd_rw_etc_t:file { getattr read };
 ')
@@ -136,6 +142,7 @@ allow smbmount_t self:capability { net_bind_service sys_rawio sys_admin dac_over
 # Access samba config
 allow smbmount_t samba_etc_t:file r_file_perms;
 allow smbmount_t samba_etc_t:dir r_dir_perms;
+allow initrc_t samba_etc_t:file rw_file_perms;
 
 # Write samba log
 allow smbmount_t samba_log_t:file create_file_perms;
@@ -153,6 +160,7 @@ allow smbmount_t etc_t:file r_file_perms;
 
 # Networking
 can_network(smbmount_t)
+allow smbmount_t port_type:tcp_socket name_connect;
 can_ypbind(smbmount_t)
 allow smbmount_t self:unix_dgram_socket create_socket_perms;
 allow smbmount_t self:unix_stream_socket create_socket_perms;
@@ -180,3 +188,30 @@ access_terminal(smbmount_t, sysadm)
 allow smbmount_t userdomain:fd use;
 allow smbmount_t local_login_t:fd use;
 ')
+# Derive from app. domain. Transition from mount.
+application_domain(samba_net, `, nscd_client_domain')
+role system_r types samba_net_t;
+in_user_role(samba_net_t)
+file_type_auto_trans(samba_net_t, samba_etc_t, samba_secrets_t, file)
+read_locale(samba_net_t) 
+allow samba_net_t samba_etc_t:file r_file_perms;
+r_dir_file(samba_net_t, samba_var_t)
+can_network_udp(samba_net_t)
+access_terminal(samba_net_t, sysadm)
+allow samba_net_t self:unix_dgram_socket create_socket_perms;
+allow samba_net_t self:unix_stream_socket create_stream_socket_perms;
+rw_dir_create_file(samba_net_t, samba_var_t)
+allow samba_net_t etc_t:file { getattr read };
+can_network_client(samba_net_t)
+allow samba_net_t smbd_port_t:tcp_socket name_connect;
+can_ldap(samba_net_t)
+can_kerberos(samba_net_t)
+allow samba_net_t urandom_device_t:chr_file r_file_perms;
+allow samba_net_t proc_t:dir search;
+allow samba_net_t proc_t:lnk_file read;
+allow samba_net_t self:dir search;
+allow samba_net_t self:file read;
+allow samba_net_t self:process signal;
+tmp_domain(samba_net)
+dontaudit samba_net_t sysadm_home_dir_t:dir search;
+allow samba_net_t privfd:fd use;

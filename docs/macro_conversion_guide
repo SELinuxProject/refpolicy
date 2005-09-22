@@ -23,6 +23,21 @@ auth_read_shadow($1)
 auth_domtrans_chk_passwd($1)
 
 #
+# auth_write: complete
+#
+# handled by appropriate interfaces
+
+#
+# domain: complete
+#
+domain_type($1)
+
+#
+# etc_writer: complete
+#
+# handled by appropriate interfaces
+
+#
 # file_type: complete
 #
 files_type($1)
@@ -98,6 +113,11 @@ logging_send_syslog_msg($1)
 mta_send_mail($1)
 
 #
+# privmem: complete
+#
+# handled by appropriate interfaces
+
+#
 # privmodule: complete
 #
 modutils_domtrans_insmod($1)
@@ -118,9 +138,19 @@ domain_role_change_exempt($1)
 domain_subj_id_change_exempt($1)
 
 #
+# priv_system_role: complete
+#
+domain_system_change_exempt($1)
+
+#
 # sysadmfile: complete
 #
 files_type($1)
+
+#
+# sysctl_kernel_writer: complete
+#
+# handled by appropriate interfaces
 
 #
 # userspace_objmgr: complete
@@ -301,16 +331,7 @@ optional_policy(`kerberos.te',`
 #
 # can_ldap(): complete
 #
-optional_policy(`ldap.te',`
-	allow $1 self:tcp_socket create_socket_perms;
-	corenet_tcp_sendrecv_all_if($1)
-	corenet_raw_sendrecv_all_if($1)
-	corenet_tcp_sendrecv_all_nodes($1)
-	corenet_raw_sendrecv_all_nodes($1)
-	corenet_tcp_sendrecv_ldap_port($1)
-	corenet_tcp_bind_all_nodes($1)
-	sysnet_read_config($1)
-')
+sysnet_use_ldap($1)
 
 #
 # can_loadpol(): complete
@@ -382,7 +403,9 @@ sysnet_read_config($1)
 # can_network_server():
 #
 allow $1 self:tcp_socket create_stream_socket_perms;
+allow $1 self:udp_socket { connect };
 base_can_network($1, tcp, `$2')
+base_can_network($1, udp, `$2')
 
 #
 # can_network_server_tcp():
@@ -421,18 +444,14 @@ allow $1 $2:process ptrace;
 allow $2 $1:process sigchld;
 
 #
+# can_portmap():
+#
+sysnet_use_portmap($1)
+
+#
 # can_resolve(): complete
 #
-tunable_policy(`use_dns',`
-	allow $1 self:udp_socket create_socket_perms;
-	corenet_udp_sendrecv_all_if($1)
-	corenet_raw_sendrecv_all_if($1)
-	corenet_udp_sendrecv_all_nodes($1)
-	corenet_raw_sendrecv_all_nodes($1)
-	corenet_udp_sendrecv_dns_port($1)
-	corenet_udp_bind_all_nodes($1)
-	sysnet_read_config($1)
-')
+sysnet_dns_name_resolve($1)
 
 #
 # can_setbool(): complete
@@ -584,6 +603,7 @@ type $1_var_run_t;
 files_pid_file($1_var_run_t)
 dontaudit $1_t self:capability sys_tty_config;
 allow $1_t $1_var_run_t:file create_file_perms;
+allow $1_t $1_var_run_t:dir rw_dir_perms;
 files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
 kernel_list_proc($1_t)
@@ -750,8 +770,6 @@ allow $1_t self:tcp_socket connected_stream_socket_perms;
 # cjp: this should probably only be inetd_child rules?
 allow $1_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
 allow $1_t self:capability { setuid setgid };
-allow $1_t self:dir search;
-allow $1_t self:{ lnk_file file } { getattr read };
 files_search_home($1_t)
 optional_policy(`kerberos.te',`
 	kerberos_use($1_t)
@@ -761,16 +779,21 @@ allow $1_t $1_tmp_t:dir create_dir_perms;
 allow $1_t $1_tmp_t:file create_file_perms;
 files_create_tmp_files($1_t, $1_tmp_t, { file dir })
 allow $1_t $1_var_run_t:file create_file_perms;
+allow $1_t $1_var_run_t:dir rw_dir_perms;
 files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
 kernel_read_system_state($1_t)
 kernel_read_network_state($1_t)
 corenet_tcp_sendrecv_all_if($1_t)
+corenet_udp_sendrecv_all_if($1_t)
 corenet_raw_sendrecv_all_if($1_t)
 corenet_tcp_sendrecv_all_nodes($1_t)
+corenet_udp_sendrecv_all_nodes($1_t)
 corenet_raw_sendrecv_all_nodes($1_t)
-corenet_tcp_bind_all_nodes($1_t)
 corenet_tcp_sendrecv_all_ports($1_t)
+corenet_udp_sendrecv_all_ports($1_t)
+corenet_tcp_bind_all_nodes($1_t)
+corenet_udp_bind_all_nodes($1_t)
 dev_read_urand($1_t)
 fs_getattr_xattr_fs($1_t)
 files_read_etc_files($1_t)
@@ -789,7 +812,7 @@ optional_policy(`nscd.te',`
 #
 # legacy_domain(): complete
 #
-allow $1_t self:process execmem;
+allow $1_t self:process { execmem execstack };
 libs_legacy_use_shared_libs($1_t)
 libs_legacy_use_ld_so($1_t)
 
@@ -799,7 +822,7 @@ libs_legacy_use_ld_so($1_t)
 type $1_lock_t;
 files_lock_file($1_lock_t)
 allow $1_t $1_lock_t:file create_file_perms;
-files_create_lock_file($1_t,$1_lock_t)
+files_create_lock($1_t,$1_lock_t)
 
 #
 # log_domain(): complete
@@ -824,6 +847,30 @@ logging_create_log($1_t,$1_log_t,{ file dir })
 create_dir_file($1, $2)
 can_exec($1, $2)
 allow $1 $2:{ sock_file fifo_file } { create ioctl read getattr lock write setattr append link unlink rename };
+
+#
+# polyinstantiater():
+#
+ifdef(`support_polyinstantiation', `
+# Need to give access to /selinux/member
+selinux_compute_member($1)
+# Need sys_admin capability for mounting
+allow $1 self:capability sys_admin;
+# Need to give access to the directories to be polyinstantiated
+allow $1 polydir:dir { getattr mounton add_name create setattr write search };
+# Need to give access to the polyinstantiated subdirectories
+allow $1 polymember:dir {getattr search };
+# Need to give access to parent directories where original
+# is remounted for polyinstantiation aware programs (like gdm)
+allow $1 polyparent:dir { getattr mounton };
+# Need to give permission to create directories where applicable
+allow $1 polymember: dir { create setattr };
+allow $1 polydir: dir { write add_name };
+allow $1 self:process setfscreate;
+allow $1 polyparent:dir { write add_name };
+# Default type for mountpoints
+allow $1 poly_t:dir { create mounton };
+')
 
 #
 # pty_slave_label():

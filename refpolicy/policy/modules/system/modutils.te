@@ -14,7 +14,7 @@ files_type(modules_conf_t)
 type modules_dep_t;
 files_type(modules_dep_t)
 
-type insmod_t;
+type insmod_t; #, mlsfilewrite
 type insmod_exec_t;
 kernel_userland_entry(insmod_t,insmod_exec_t)
 init_system_domain(insmod_t,insmod_exec_t)
@@ -51,6 +51,8 @@ can_exec(insmod_t, insmod_exec_t)
 
 kernel_load_module(insmod_t)
 kernel_read_system_state(insmod_t)
+kernel_mount_debugfs(insmod_t)
+kernel_search_debugfs(insmod_t)
 # Rules for /proc/sys/kernel/tainted
 kernel_read_kernel_sysctl(insmod_t)
 kernel_rw_kernel_sysctl(insmod_t)
@@ -111,16 +113,28 @@ ifdef(`targeted_policy',`
 	unconfined_domain_template(insmod_t)
 ')
 
+optional_policy(`hotplug.te',`
+	hotplug_search_config(insmod_t)
+')
+
 optional_policy(`mount.te',`
 	mount_domtrans(insmod_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(insmod_t)
 ')
 
 optional_policy(`rpm.te',`
 	rpm_rw_pipe(insmod_t)
 ')
 
+ifdef(`TODO',`
+allow insmod_t proc_t:file rw_file_perms;
 optional_policy(`xserver.te',`
 	xserver_getattr_log(insmod_t)
+	allow insmod_t xserver_misc_device_t:chr_file { read write };
+')
 ')
 
 ########################################
@@ -171,6 +185,7 @@ optional_policy(`rpm.te',`
 ')
 
 ifdef(`TODO',`
+allow depmod_t modules_object_t:file unlink;
 ifdef(`gnome-pty-helper.te', `allow depmod_t sysadm_gph_t:fd use;')
 ') dnl end ifdef TODO
 

@@ -110,6 +110,7 @@ template(`ssh_per_userdomain_template',`
 	corenet_raw_sendrecv_all_nodes($1_ssh_t)
 	corenet_tcp_sendrecv_all_ports($1_ssh_t)
 	corenet_tcp_bind_all_nodes($1_ssh_t)
+	corenet_tcp_connect_ssh_port($1_ssh_t)
 
 	dev_read_urand($1_ssh_t)
 
@@ -132,6 +133,7 @@ template(`ssh_per_userdomain_template',`
 	files_read_usr_files($1_ssh_t)
 	files_read_etc_runtime_files($1_ssh_t)
 	files_read_etc_files($1_ssh_t)
+	files_read_var_files($1_ssh_t)
 
 	libs_use_ld_so($1_ssh_t)
 	libs_use_shared_libs($1_ssh_t)
@@ -144,6 +146,7 @@ template(`ssh_per_userdomain_template',`
 	seutil_read_config($1_ssh_t)
 
 	sysnet_read_config($1_ssh_t)
+	sysnet_dns_name_resolve($1_ssh_t)
 
 	userdom_use_unpriv_users_fd($1_ssh_t)
 
@@ -153,14 +156,6 @@ template(`ssh_per_userdomain_template',`
 		files_read_default_symlinks($1_ssh_t)
 		files_read_default_sockets($1_ssh_t)
 		files_read_default_pipes($1_ssh_t)
-	')
-
-	tunable_policy(`use_dns',`
-		allow $1_ssh_t self:udp_socket { create ioctl read getattr write setattr append bind getopt setopt shutdown connect };
-		corenet_udp_sendrecv_all_if($1_ssh_t)
-		corenet_udp_sendrecv_all_nodes($1_ssh_t)
-		corenet_udp_sendrecv_dns_port($1_ssh_t)
-		corenet_udp_bind_all_nodes($1_ssh_t)
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
@@ -191,9 +186,6 @@ template(`ssh_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-	# Read /var.
-	allow $1_ssh_t var_t:dir r_dir_perms;
-	allow $1_ssh_t var_t:notdevfile_class_set r_file_perms;
 
 	# Read /var/run, /var/log.
 	allow $1_ssh_t var_run_t:dir r_dir_perms;
@@ -222,32 +214,33 @@ template(`ssh_per_userdomain_template',`
 	# allow ps to show ssh
 	can_ps($1_t, $1_ssh_t)
 
-	ifdef(`xserver.te', `
-	# Communicate with the X server.
-	can_unix_connect($1_ssh_t, $1_xserver_t)
-	allow $1_ssh_t $1_xserver_tmp_t:sock_file rw_file_perms;
-	allow $1_ssh_t $1_xserver_tmp_t:dir search;
-	ifdef(`xdm.te', `
-	allow $1_ssh_t { xdm_xserver_tmp_t xdm_tmp_t }:dir search;
-	allow $1_ssh_t { xdm_tmp_t }:sock_file write;
-	')
-	')dnl end if xserver
+	# Connect to X server
+	x_client_domain($1_ssh, $1)
 
 	#allow ssh to access keys stored on removable media
 	# Should we have a boolean around this?
 	files_search_mnt($1_ssh_t)
 	r_dir_file($1_ssh_t, removable_t) 
 
-	ifdef(`xdm.te', `
-	# should be able to remove these two later
-	allow $1_ssh_t xdm_xserver_tmp_t:sock_file { read write };
-	allow $1_ssh_t xdm_xserver_tmp_t:dir search;
-	allow $1_ssh_t xdm_xserver_t:unix_stream_socket connectto;
-	allow $1_ssh_t xdm_xserver_t:shm r_shm_perms;
-	allow $1_ssh_t xdm_xserver_t:fd use;
-	allow $1_ssh_t xdm_xserver_tmpfs_t:file read;
-	allow $1_ssh_t xdm_t:fd use;
-	')dnl end if xdm.te
+	type $1_ssh_keysign_t, domain, nscd_client_domain;
+	role $1_r types $1_ssh_keysign_t;
+
+	if (allow_ssh_keysign) {
+	domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
+	allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
+	allow $1_ssh_keysign_t self:capability { setgid setuid };
+	allow $1_ssh_keysign_t urandom_device_t:chr_file r_file_perms;
+	uses_shlib($1_ssh_keysign_t)
+	dontaudit $1_ssh_keysign_t selinux_config_t:dir search;
+	dontaudit $1_ssh_keysign_t proc_t:dir search;
+	dontaudit $1_ssh_keysign_t proc_t:{ lnk_file file } { getattr read };
+	allow $1_ssh_keysign_t usr_t:dir search;
+	allow $1_ssh_keysign_t etc_t:file { getattr read };
+	allow $1_ssh_keysign_t self:dir search;
+	allow $1_ssh_keysign_t self:file { getattr read };
+	allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
+	}
+
 	') dnl endif TODO
 
 	##############################
@@ -308,7 +301,7 @@ template(`ssh_per_userdomain_template',`
 
 	miscfiles_read_localization($1_ssh_agent_t)
 
-	seutil_dontaudit_search_config($1_ssh_agent_t)
+	seutil_dontaudit_read_config($1_ssh_agent_t)
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_ssh_agent_t)
@@ -332,14 +325,14 @@ template(`ssh_per_userdomain_template',`
 	')
 
 	optional_policy(`xdm.te', `
-		xdm_use_fd($1_ssh_agent_t)
-		xdm_rw_pipe($1_ssh_agent_t)
-
 		# KDM:
-		xdm_sigchld($1_ssh_agent_t)
+		#xdm_sigchld($1_ssh_agent_t)
 	')
 
 	ifdef(`TODO',`
+	ifdef(`xdm.te',`
+	can_pipe_xdm($1_ssh_agent_t)
+	')
 
 	# allow ps to show ssh
 	can_ps($1_t, $1_ssh_agent_t)
@@ -388,7 +381,7 @@ template(`ssh_per_userdomain_template',`
 ## </param>
 #
 template(`ssh_server_template', `
-	type $1_t, ssh_server;
+	type $1_t, ssh_server; #, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl;
 	domain_type($1_t)
 	role system_r types $1_t;
 
@@ -428,6 +421,7 @@ template(`ssh_server_template', `
 	corenet_tcp_sendrecv_all_ports($1_t)
 	corenet_tcp_bind_all_nodes($1_t)
 	corenet_udp_bind_all_nodes($1_t)
+	corenet_tcp_connect_all_ports($1_t)
 
 	dev_read_urand($1_t)
 
@@ -444,8 +438,10 @@ template(`ssh_server_template', `
 	auth_domtrans_chk_passwd($1_t)
 	auth_rw_login_records($1_t)
 	auth_rw_lastlog($1_t)
+	auth_append_faillog($1_t)
 
 	corecmd_read_bin_symlink($1_t)
+	corecmd_getattr_bin_file($1_t)
 	# for sshd subsystems, such as sftp-server.
 	corecmd_getattr_bin_file($1_t)
 
@@ -473,6 +469,9 @@ template(`ssh_server_template', `
 
 	userdom_search_all_users_home($1_t)
 
+	# Allow checking users mail at login
+	mta_getattr_spool($1_t)
+
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_read_nfs_files($1_t)
 	')
@@ -481,21 +480,27 @@ template(`ssh_server_template', `
 		fs_read_cifs_files($1_t)
 	')
 
-	optional_policy(`inetd.te',`
-		tunable_policy(`run_ssh_inetd',`
-			allow $1_t self:process signal;
-			files_list_pids($1_t)
-		',`
-			corenet_tcp_bind_ssh_port($1_t)
-			init_use_fd($1_t)
-			init_use_script_pty($1_t)
-		')
-	',`
+	# cjp: commenting out until typeattribute works in conditional
+	# and require block in optional else is resolved
+	#optional_policy(`inetd.te',`
+	#	tunable_policy(`run_ssh_inetd',`
+	#		allow $1_t self:process signal;
+	#		files_list_pids($1_t)
+	#	',`
+	#		corenet_tcp_bind_ssh_port($1_t)
+	#		init_use_fd($1_t)
+	#		init_use_script_pty($1_t)
+	#	')
+	#',`
 		# These rules should match the else block
 		# of the run_ssh_inetd tunable directly above
 		corenet_tcp_bind_ssh_port($1_t)
 		init_use_fd($1_t)
 		init_use_script_pty($1_t)
+	#')
+
+	optional_policy(`kerberos.te',`
+		kerberos_use($1_t)
 	')
 
 	optional_policy(`mount.te', `

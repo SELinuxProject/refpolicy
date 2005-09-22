@@ -6,7 +6,7 @@ policy_module(locallogin,1.0)
 # Declarations
 #
 
-type local_login_t;
+type local_login_t; #, mlsfilewrite, mlsprocsetsl, mlsfileupgrade, mlsfiledowngrade;
 auth_login_entry_type(local_login_t)
 domain_type(local_login_t)
 domain_obj_id_change_exempt(local_login_t)
@@ -14,6 +14,9 @@ domain_subj_id_change_exempt(local_login_t)
 domain_role_change_exempt(local_login_t)
 domain_wide_inherit_fd(local_login_t)
 role system_r types local_login_t;
+
+type local_login_lock_t;
+files_lock_file(local_login_lock_t)
 
 type local_login_tmp_t;
 files_type(local_login_tmp_t)
@@ -46,6 +49,9 @@ allow local_login_t self:shm create_shm_perms;
 allow local_login_t self:sem create_sem_perms;
 allow local_login_t self:msgq create_msgq_perms;
 allow local_login_t self:msg { send receive };
+
+allow local_login_t local_login_lock_t:file create_file_perms;
+files_create_lock(local_login_t,local_login_lock_t)
 
 allow local_login_t local_login_tmp_t:dir create_dir_perms;
 allow local_login_t local_login_tmp_t:file create_file_perms;
@@ -125,7 +131,6 @@ domain_read_all_entry_files(local_login_t)
 files_read_etc_files(local_login_t)
 files_read_etc_runtime_files(local_login_t)
 files_read_usr_files(local_login_t)
-files_manage_generic_locks(var_lock_t)
 files_list_mnt(local_login_t)
 files_list_world_readable(local_login_t)
 files_read_world_readable_files(local_login_t)
@@ -209,6 +214,8 @@ optional_policy(`locallogin.te',`
 	# FIXME: what is this for?
 	locallogin_signull(xdm_t)
 ')
+# Login can polyinstantiate
+polyinstantiater(local_login_t)
 ') dnl endif TODO
 
 #################################
@@ -255,10 +262,8 @@ userdom_search_staff_home_dir(sulogin_t)
 userdom_search_sysadm_home_dir(sulogin_t)
 
 # suse and debian do not use pam with sulogin...
-ifdef(`monolithic_policy',`
-	ifdef(`distro_suse', `define(`sulogin_no_pam')')
-	ifdef(`distro_debian', `define(`sulogin_no_pam')')
-')
+ifdef(`distro_suse', `define(`sulogin_no_pam')')
+ifdef(`distro_debian', `define(`sulogin_no_pam')')
 
 ifdef(`sulogin_no_pam', `
 	allow sulogin_t self:capability sys_tty_config;

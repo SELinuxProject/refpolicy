@@ -90,9 +90,13 @@ interface(`init_daemon_domain',`
 
 	# Red Hat systems seem to have a stray
 	# fd open from the initrd
-	optional_policy(`distro_redhat',`
+	ifdef(`distro_redhat',`
 		kernel_dontaudit_use_fd($1)
 		files_dontaudit_read_root_file($1)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1)
 	')
 ')
 
@@ -155,6 +159,23 @@ interface(`init_domtrans',`
 	allow init_t $1:fd use;
 	allow init_t $1:fifo_file rw_file_perms;
 	allow init_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute the init program in the caller domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`init_exec',`
+	gen_require(`
+		type init_exec_t;
+	')
+
+	corecmd_search_sbin($1)
+	can_exec($1,init_exec_t)
 ')
 
 ########################################
@@ -571,11 +592,10 @@ interface(`init_dontaudit_use_script_pty',`
 #
 interface(`init_rw_script_tmp_files',`
 	gen_require(`
-		type initrc_var_run_t;
-		class file rw_file_perms;
+		type initrc_tmp_t;
 	')
 
-	# FIXME: read tmp_t dir
+	files_search_tmp($1)
 	allow $1 initrc_tmp_t:file rw_file_perms;
 ')
 

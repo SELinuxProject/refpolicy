@@ -73,16 +73,105 @@ interface(`files_pid_file',`
 ')
 
 ########################################
+## <summary>
+##	Make the specified type a 
+##	polyinstantiated directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	polyinstantiated directory.
+## </param>
 #
-# files_tmp_file(type)
+interface(`files_poly',`
+	gen_require(`
+		attribute polydir;
+	')
+
+	files_type($1)
+	typeattribute $1 polydir;
+')
+
+########################################
+## <summary>
+##	Make the specified type a parent
+##	of a polyinstantiated directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	parent directory.
+## </param>
+#
+interface(`files_poly_parent',`
+	gen_require(`
+		attribute polyparent;
+	')
+
+	files_type($1)
+	typeattribute $1 polyparent;
+')
+
+########################################
+## <summary>
+##	Make the specified type a
+##	polyinstantiation member directory.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	member directory.
+## </param>
+#
+interface(`files_poly_member',`
+	gen_require(`
+		attribute polymember;
+	')
+
+	files_type($1)
+	typeattribute $1 polymember;
+')
+
+########################################
+## <summary>
+##	Make the domain use the specified
+##	type of polyinstantiated directory.
+## </summary>
+## <param name="domain">
+##	Domain using the polyinstantiated
+##	directory.
+## </param>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	member directory.
+## </param>
+#
+interface(`files_poly_member_tmp',`
+	gen_require(`
+		type tmp_t;
+	')
+
+	type_member $1 tmp_t:dir $2;
+')
+
+########################################
+## <summary>
+##	Make the specified type a file
+##	used for temporary files.
+## </summary>
+## <param name="file_type">
+##	Type of the file to be used as a
+##	temporary file.
+## </param>
 #
 interface(`files_tmp_file',`
 	gen_require(`
 		attribute tmpfile;
+		type tmp_t;
 	')
 
 	files_type($1)
+	files_poly_member($1)
+	fs_associate_tmpfs($1)
 	typeattribute $1 tmpfile;
+	allow $1 tmp_t:filesystem associate;
 ')
 
 ########################################
@@ -463,7 +552,7 @@ interface(`files_dontaudit_search_all_dirs',`
 interface(`files_relabelto_all_file_type_fs',`
 	gen_require(`
 		attribute file_type;
-		filesystem relabelto;
+		class filesystem relabelto;
 	')
 
 	allow $1 file_type:filesystem relabelto;
@@ -476,7 +565,7 @@ interface(`files_relabelto_all_file_type_fs',`
 interface(`files_mount_all_file_type_fs',`
 	gen_require(`
 		attribute file_type;
-		filesystem mount;
+		class filesystem mount;
 	')
 
 	allow $1 file_type:filesystem mount;
@@ -489,7 +578,7 @@ interface(`files_mount_all_file_type_fs',`
 interface(`files_unmount_all_file_type_fs',`
 	gen_require(`
 		attribute file_type;
-		filesystem unmount;
+		class filesystem unmount;
 	')
 
 	allow $1 file_type:filesystem unmount;
@@ -642,10 +731,25 @@ interface(`files_unmount_rootfs',`
 interface(`files_dontaudit_getattr_default_dir',`
 	gen_require(`
 		type default_t;
-		class dir getattr;
 	')
 
 	dontaudit $1 default_t:dir getattr;
+')
+
+########################################
+## <summary>
+##	Search the contents of directories with the default file type.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_search_default',`
+	gen_require(`
+		type default_t;
+	')
+
+	allow $1 default_t:dir search;
 ')
 
 ########################################
@@ -659,10 +763,26 @@ interface(`files_dontaudit_getattr_default_dir',`
 interface(`files_list_default',`
 	gen_require(`
 		type default_t;
-		class dir r_dir_perms;
 	')
 
 	allow $1 default_t:dir r_dir_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to list contents of
+##	directories with the default file type.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`files_dontaudit_list_default',`
+	gen_require(`
+		type default_t;
+	')
+
+	dontaudit $1 default_t:dir r_dir_perms;
 ')
 
 ########################################
@@ -676,7 +796,6 @@ interface(`files_list_default',`
 interface(`files_mounton_default',`
 	gen_require(`
 		type default_t;
-		class dir { getattr search mounton };
 	')
 
 	allow $1 default_t:dir { getattr search mounton };
@@ -694,7 +813,6 @@ interface(`files_mounton_default',`
 interface(`files_dontaudit_getattr_default_files',`
 	gen_require(`
 		type default_t;
-		class files getattr;
 	')
 
 	dontaudit $1 default_t:file getattr;
@@ -711,10 +829,26 @@ interface(`files_dontaudit_getattr_default_files',`
 interface(`files_read_default_files',`
 	gen_require(`
 		type default_t;
-		class file r_file_perms;
 	')
 
 	allow $1 default_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read files
+##	with the default file type.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`files_dontaudit_read_default_files',`
+	gen_require(`
+		type default_t;
+	')
+
+	dontaudit $1 default_t:file r_file_perms;
 ')
 
 ########################################
@@ -1371,6 +1505,23 @@ interface(`files_list_mnt',`
 
 ########################################
 ## <summary>
+##	Mount a filesystem on /mnt.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_mounton_mnt',`
+	gen_require(`
+		type mnt_t;
+		class dir { search mounton };
+	')
+
+	allow $1 mnt_t:dir { search mounton };
+')
+
+########################################
+## <summary>
 ##	Create, read, write, and delete directories in /mnt.
 ## </summary>
 ## <param name="domain">
@@ -1507,6 +1658,24 @@ interface(`files_read_world_readable_sockets',`
 	')
 
 	allow $1 readable_t:sock_file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified type to associate
+##	to a filesystem with the type of the
+##	temporary directory (/tmp).
+## </summary>
+## <param name="file_type">
+##	Type of the file to associate.
+## </param>
+#
+interface(`files_associate_tmp',`
+	gen_require(`
+		type tmp_t;
+	')
+
+	allow $1 tmp_t:filesystem associate;
 ')
 
 ########################################
@@ -1699,6 +1868,35 @@ interface(`files_read_usr_symlinks',`
 
 ########################################
 ## <summary>
+##	Create objects in the /usr directory
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="file_type">
+##	The type of the object to be created
+## </param>
+## <param name="object_class" optional="true">
+##	The object class.  If not specified, file is used.
+## </param>
+#
+interface(`files_create_usr',`
+	gen_require(`
+		type usr_t;
+		class dir rw_dir_perms;
+	')
+
+	allow $1 usr_t:dir rw_dir_perms;
+
+	ifelse(`$3',`',`
+		type_transition $1 usr_t:file $2;
+	',`
+		type_transition $1 usr_t:$3 $2;
+	')
+')
+
+########################################
+## <summary>
 ##	Execute programs in /usr/src in the caller domain.
 ## </summary>
 ## <param name="domain">
@@ -1855,6 +2053,35 @@ interface(`files_manage_var_symlinks',`
 
 	allow $1 var_t:dir rw_dir_perms;
 	allow $1 var_t:lnk_file create_lnk_perms;
+')
+
+########################################
+## <summary>
+##	Create objects in the /var directory
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="file_type">
+##	The type of the object to be created
+## </param>
+## <param name="object_class" optional="true">
+##	The object class.  If not specified, file is used.
+## </param>
+#
+interface(`files_create_var',`
+	gen_require(`
+		type var_t;
+		class dir rw_dir_perms;
+	')
+
+	allow $1 var_t:dir rw_dir_perms;
+
+	ifelse(`$3',`',`
+		type_transition $1 var_t:file $2;
+	',`
+		type_transition $1 var_t:$3 $2;
+	')
 ')
 
 ########################################
@@ -2244,6 +2471,20 @@ interface(`files_delete_all_pids',`
 
 ########################################
 #
+# files_delete_all_pid_dirs(domain)
+#
+interface(`files_delete_all_pid_dirs',`
+	gen_require(`
+		attribute pidfile;
+		type var_t;
+	')
+
+	allow $1 var_t:dir search;
+	allow $1 pidfile:dir { rw_dir_perms rmdir };
+')
+
+########################################
+#
 # files_search_spool(domain)
 #
 interface(`files_search_spool',`
@@ -2327,8 +2568,6 @@ interface(`files_manage_generic_spools',`
 interface(`files_unconfined',`
 	gen_require(`
 		attribute file_type;
-		class unix_stream_socket name_bind;
-		class unix_dgram_socket name_bind;
 	')
 
 	# Create/access any file in a labeled filesystem;
@@ -2341,4 +2580,10 @@ interface(`files_unconfined',`
 	# Bind to any network address.
 	# cjp: need to check this, I dont think this has any effect.
 	allow $1 file_type:{ unix_stream_socket unix_dgram_socket } name_bind;
+
+	ifdef(`targeted_policy',`
+		tunable_policy(`allow_execmod',`
+			allow $1 file_type:file execmod;
+		')
+	')
 ')

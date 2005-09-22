@@ -71,6 +71,11 @@ interface(`domain_type',`
 		unconfined_sigchld($1)
 	')
 
+	# allow any domain to connect to the LDAP server
+	optional_policy(`ldap.te',`
+		ldap_use($1)
+	')
+
 	# this seems highly questionable:
 	optional_policy(`rpm.te',`
 		rpm_use_fd($1)
@@ -127,6 +132,24 @@ interface(`domain_dyntrans_type',`
 	')
 
 	typeattribute $1 set_curr_context;
+')
+
+########################################
+## <summary>
+##	Makes caller and execption to the constraint
+##	preventing changing to the system user
+##	identity and system role.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_system_change_exempt',`
+	gen_require(`
+		attribute can_system_change;
+	')
+
+	typeattribute $1 can_system_change;
 ')
 
 ########################################
@@ -423,13 +446,30 @@ interface(`domain_kill_all_domains',`
 	allow $1 domain:process sigkill;
 	allow $1 self:capability kill;
 ')
+########################################
+## <summary>
+##	Search the process state directory (/proc/pid) of all domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_search_all_domains_state',`
+	gen_require(`
+		attribute domain;
+		class dir search;
+	')
+
+	kernel_search_proc($1)
+	allow $1 domain:dir search;
+')
 
 ########################################
 ## <summary>
 ##	Read the process state (/proc/pid) of all domains.
 ## </summary>
 ## <param name="domain">
-##	The type of the process performing this action.
+##	Domain allowed access.
 ## </param>
 #
 interface(`domain_read_all_domains_state',`
@@ -438,19 +478,125 @@ interface(`domain_read_all_domains_state',`
 		class dir r_dir_perms;
 		class lnk_file r_file_perms;
 		class file r_file_perms;
-		class process { getattr ptrace };
 	')
 
+	kernel_search_proc($1)
 	allow $1 domain:dir r_dir_perms;
 	allow $1 domain:lnk_file r_file_perms;
 	allow $1 domain:file r_file_perms;
-	allow $1 domain:process getattr;
+')
 
-	# We need to suppress this denial because procps tries to access
-	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-	# running in a privileged domain.
+########################################
+## <summary>
+##	Get the attributes of all domains of all domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process getattr;
+	')
+
+	allow $1 domain:process getattr;
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid) of all confined domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_read_confined_domains_state',`
+	gen_require(`
+		attribute domain, unconfined_domain;
+		class dir r_dir_perms;
+		class lnk_file r_file_perms;
+		class file r_file_perms;
+	')
+
+	kernel_search_proc($1)
+	allow $1 { domain -unconfined_domain }:dir r_dir_perms;
+	allow $1 { domain -unconfined_domain }:lnk_file r_file_perms;
+	allow $1 { domain -unconfined_domain }:file r_file_perms;
+	allow $1 { domain -unconfined_domain }:process getattr;
+
+	dontaudit $1 unconfined_domain:dir search;
+')
+
+########################################
+## <summary>
+##	Get the attributes of all confined domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_getattr_confined_domains',`
+	gen_require(`
+		attribute domain, unconfined_domain;
+		class process getattr;
+	')
+
+	allow $1 { domain -unconfined_domain }:process getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to ptrace all domains.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to ptrace all domains.
+##	</p>
+##	<p>
+##	Generally this needs to be suppressed because procps tries to access
+##	/proc/pid/environ and this now triggers a ptrace check in recent kernels
+##	(2.4 and 2.6).
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_dontaudit_ptrace_all_domains',`
+	gen_require(`
+		attribute domain;
+		class process ptrace;
+	')
+
 	dontaudit $1 domain:process ptrace;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to ptrace confined domains.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to ptrace confined domains.
+##	</p>
+##	<p>
+##	Generally this needs to be suppressed because procps tries to access
+##	/proc/pid/environ and this now triggers a ptrace check in recent kernels
+##	(2.4 and 2.6).
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`domain_dontaudit_ptrace_confined_domains',`
+	gen_require(`
+		attribute domain, unconfined_domain;
+		class process ptrace;
+	')
+
+	dontaudit $1 { domain -unconfined_domain }:process ptrace;
 ')
 
 ########################################
@@ -468,19 +614,12 @@ interface(`domain_dontaudit_read_all_domains_state',`
 		class dir r_dir_perms;
 		class lnk_file r_file_perms;
 		class file r_file_perms;
-		class process { getattr ptrace };
 	')
 
 	dontaudit $1 domain:dir r_dir_perms;
 	dontaudit $1 domain:lnk_file r_file_perms;
 	dontaudit $1 domain:file r_file_perms;
 	dontaudit $1 domain:process getattr;
-
-	# We need to suppress this denial because procps tries to access
-	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-	# running in a privileged domain.
-	dontaudit $1 domain:process ptrace;
 ')
 
 ########################################
@@ -759,13 +898,10 @@ interface(`domain_unconfined',`
 		attribute can_change_process_identity;
 		attribute can_change_process_role;
 		attribute can_change_object_identity;
-		class fd use;
-		class fifo_file rw_file_perms;
-		class process { transition dyntransition execmem };
-		class dir r_dir_perms;
-		class file r_file_perms;
-		class lnk_file r_file_perms;
+		attribute unconfined_domain;
 	')
+
+	typeattribute $1 unconfined_domain;
 
 	# pass all constraints
 	typeattribute $1 can_change_process_identity;

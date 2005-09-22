@@ -46,12 +46,13 @@ template(`dbus_per_userdomain_template',`
 	#
 
 	allow $1_dbusd_t self:process { getattr sigkill signal };
+	allow $1_dbusd_t self:file { getattr read write };
 	allow $1_dbusd_t self:dbus { send_msg acquire_svc };
 	allow $1_dbusd_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_dbusd_t self:unix_dgram_socket create_socket_perms;
 	allow $1_dbusd_t self:tcp_socket create_stream_socket_perms;
 	# Receive notifications of policy reloads and enforcing status changes.
-	allow $1_dbusd_t self:netlink_selinux_socket { create bind read };
+	allow $1_dbusd_t self:netlink_selinux_socket create_socket_perms;
 
 	# For connecting to the bus
 	allow $2 $1_dbusd_t:unix_stream_socket connectto;
@@ -141,6 +142,12 @@ template(`dbus_per_userdomain_template',`
 	optional_policy(`nscd.te',`
 		nscd_use_socket($1_dbusd_t)
 	')
+
+	ifdef(`TODO',`
+	ifdef(`xdm.te', `
+	can_pipe_xdm($1_dbusd_t)
+	')
+	')
 ')
 
 #######################################
@@ -212,4 +219,21 @@ interface(`dbus_send_system_bus_msg',`
 	')
 
 	allow $1 system_dbusd_t:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Allow unconfined access to the system DBUS.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`dbus_system_bus_unconfined',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus all_dbus_perms;
+	')
+
+	allow $1 system_dbusd_t:dbus *;
 ')

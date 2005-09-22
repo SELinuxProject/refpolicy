@@ -8,7 +8,15 @@ policy_module(logging,1.0)
 
 attribute logfile;
 
-type auditd_log_t;
+type auditctl_t; #, privlog;
+type auditctl_exec_t;
+init_system_domain(auditctl_t,auditctl_exec_t)
+role system_r types auditctl_t;
+
+type auditd_etc_t; #, secure_file_type;
+files_type(auditd_etc_t)
+
+type auditd_log_t; # secure_file_type;
 files_type(auditd_log_t)
 
 type auditd_t;
@@ -18,10 +26,10 @@ init_daemon_domain(auditd_t,auditd_exec_t)
 type auditd_var_run_t;
 files_pid_file(auditd_var_run_t)
 
-type devlog_t;
+type devlog_t; #, mlstrustedobject;
 files_type(devlog_t)
 
-type klogd_t;
+type klogd_t; #, mlsfileread
 type klogd_exec_t;
 init_daemon_domain(klogd_t,klogd_exec_t)
 
@@ -43,6 +51,44 @@ files_pid_file(syslogd_var_run_t)
 
 type var_log_t, logfile;
 files_type(var_log_t)
+files_associate_tmp(var_log_t)
+
+########################################
+#
+# Auditd local policy
+#
+
+allow auditctl_t self:capability { audit_write audit_control };
+allow auditctl_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay nlmsg_readpriv };
+
+libs_use_ld_so(auditctl_t)
+libs_use_shared_libs(auditctl_t)
+
+allow auditctl_t etc_t:file { getattr read };
+
+allow auditctl_t auditd_etc_t:file r_file_perms;
+
+kernel_read_kernel_sysctl(auditctl_t)
+
+domain_use_wide_inherit_fd(auditctl_t)
+
+init_use_script_pty(auditctl_t)
+init_dontaudit_use_fd(auditctl_t)
+
+locallogin_dontaudit_use_fd(auditctl_t)
+
+ifdef(`TODO',`
+role secadm_r types auditctl_t;
+role sysadm_r types auditctl_t;
+audit_manager_domain(secadm_t)
+
+ifdef(`targeted_policy', `', `
+ifdef(`separate_secadm', `', `
+audit_manager_domain(sysadm_t)
+allow auditctl_t admin_tty_type:chr_file rw_file_perms;
+') 
+')
+') dnl end TODO
 
 ########################################
 #
@@ -52,10 +98,15 @@ files_type(var_log_t)
 allow auditd_t self:capability { audit_write audit_control sys_nice sys_resource };
 dontaudit auditd_t self:capability sys_tty_config;
 allow auditd_t self:process { signal_perms setsched };
-allow auditd_t self:netlink_audit_socket { bind create getattr nlmsg_read nlmsg_write read write };
+allow auditd_t self:file { getattr read write };
+allow auditd_t self:unix_dgram_socket create_socket_perms;
+allow auditd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay nlmsg_readpriv };
 
-allow auditd_t var_log_t:dir rw_dir_perms;
+allow auditd_t auditd_etc_t:file r_file_perms;
+
+allow auditd_t auditd_log_t:dir rw_dir_perms;
 allow auditd_t auditd_log_t:file create_file_perms;
+allow auditd_t var_log_t:dir search;
 
 allow auditd_t auditd_var_run_t:file create_file_perms;
 files_create_pid(auditd_t,auditd_var_run_t)
@@ -72,6 +123,8 @@ fs_search_auto_mountpoints(auditd_t)
 term_dontaudit_use_console(auditd_t)
 
 init_use_fd(auditd_t)
+init_exec(auditd_t)
+init_write_initctl(auditd_t)
 init_use_script_pty(auditd_t)
 
 domain_use_wide_inherit_fd(auditd_t)
@@ -91,10 +144,8 @@ userdom_dontaudit_search_sysadm_home_dir(auditd_t)
 # cjp: this is questionable
 userdom_use_sysadm_tty(auditd_t)
 
-ifdef(`targeted_policy', `
-	term_dontaudit_use_unallocated_tty(auditd_t)
-	term_dontaudit_use_generic_pty(auditd_t)
-	files_dontaudit_read_root_file(auditd_t)
+ifdef(`targeted_policy',`
+	unconfined_domain_template(auditd_t)
 ')
 
 optional_policy(`selinuxutil.te',`
@@ -150,15 +201,23 @@ logging_send_syslog_msg(klogd_t)
 
 miscfiles_read_localization(klogd_t)
 
+ifdef(`TODO',`
+ifdef(`targeted_policy', `
+allow klogd_t unconfined_t:system syslog_mod;
+')
+')
+
 ########################################
 #
 # syslogd local policy
 #
 
-allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
+# sys_admin chown fsetid for syslog-ng
+# cjp: why net_admin!
+allow syslogd_t self:capability { dac_override sys_resource sys_tty_config net_admin sys_admin chown fsetid };
 dontaudit syslogd_t self:capability sys_tty_config;
 allow syslogd_t self:process signal_perms;
-
+allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
 # receive messages to be logged
 allow syslogd_t self:unix_dgram_socket create_socket_perms;
 allow syslogd_t self:unix_stream_socket create_stream_socket_perms;
@@ -166,9 +225,18 @@ allow syslogd_t self:unix_dgram_socket sendto;
 allow syslogd_t self:fifo_file rw_file_perms;
 allow syslogd_t self:udp_socket { connected_socket_perms connect };
 
+# Create and bind to /dev/log or /var/run/log.
+allow syslogd_t devlog_t:sock_file create_file_perms;
+files_create_pid(syslogd_t,devlog_t,sock_file)
+# cjp: I belive these are not needed:
+allow syslogd_t devlog_t:unix_stream_socket name_bind;
+allow syslogd_t devlog_t:unix_dgram_socket name_bind;
+
 # create/append log files.
 allow syslogd_t var_log_t:dir rw_dir_perms;
 allow syslogd_t var_log_t:file create_file_perms;
+# Allow access for syslog-ng
+allow syslogd_t var_log_t:dir { create setattr };
 
 # manage temporary files
 allow syslogd_t syslogd_tmp_t:file create_file_perms;
@@ -177,13 +245,6 @@ files_create_tmp_files(syslogd_t,syslogd_tmp_t)
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
 files_create_pid(syslogd_t,syslogd_var_run_t,file)
 
-# Create and bind to /dev/log or /var/run/log.
-allow syslogd_t devlog_t:sock_file create_file_perms;
-files_create_pid(syslogd_t,devlog_t,sock_file)
-# I belive these are not needed:
-allow syslogd_t devlog_t:unix_stream_socket name_bind;
-allow syslogd_t devlog_t:unix_dgram_socket name_bind;
-
 # manage pid file
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
 files_create_pid(syslogd_t,syslogd_var_run_t)
@@ -191,6 +252,10 @@ files_create_pid(syslogd_t,syslogd_var_run_t)
 kernel_read_kernel_sysctl(syslogd_t)
 kernel_read_proc_symlinks(syslogd_t)
 kernel_send_syslog_msg_from(devlog_t,syslogd_t)
+# Allow access to /proc/kmsg for syslog-ng
+kernel_read_messages(klogd_t)
+kernel_clear_ring_buffer(klogd_t)
+kernel_change_ring_buffer_level(klogd_t)
 
 dev_create_dev_node(syslogd_t,devlog_t,sock_file)
 dev_read_sysfs(syslogd_t)
@@ -212,7 +277,9 @@ corenet_raw_sendrecv_all_nodes(syslogd_t)
 corenet_udp_sendrecv_all_nodes(syslogd_t)
 corenet_udp_sendrecv_all_ports(syslogd_t)
 corenet_udp_bind_all_nodes(syslogd_t)
-corenet_udp_bind_syslogd_port(syslogd_t)
+corenet_tcp_bind_syslogd_port(syslogd_t)
+#cjp: why?
+corenet_tcp_connect_rsh_port(syslogd_t)
 
 fs_getattr_all_fs(syslogd_t)
 
@@ -222,6 +289,8 @@ init_use_script_pty(syslogd_t)
 domain_use_wide_inherit_fd(syslogd_t)
 
 files_read_etc_files(syslogd_t)
+# /initrd is not umounted before minilog starts
+files_dontaudit_search_isid_type_dir(syslogd_t)
 
 libs_use_ld_so(syslogd_t)
 libs_use_shared_libs(syslogd_t)
@@ -233,36 +302,16 @@ miscfiles_read_localization(syslogd_t)
 userdom_dontaudit_use_unpriv_user_fd(syslogd_t)
 userdom_dontaudit_search_sysadm_home_dir(syslogd_t)
 
-#
-# /initrd is not umounted before minilog starts
-#
-files_dontaudit_search_isid_type_dir(syslogd_t)
-#allow syslogd_t tmpfs_t:dir search;
-#dontaudit syslogd_t unlabeled_t:file read;
-#dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
-allow syslogd_t self:capability net_admin;
-allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
-
-ifdef(`distro_suse', `
+ifdef(`distro_suse',`
 	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
 	files_create_var_lib(syslogd_t,devlog_t,sock_file)
 ')
 
-ifdef(`klogd.te', `', `
-	# Allow access to /proc/kmsg for syslog-ng
-	kernel_read_messages(syslogd_t)
-	kernel_clear_ring_buffer(syslogd_t)
-	kernel_change_ring_buffer_level(syslogd_t)
-')
-
-ifdef(`targeted_policy', `
+ifdef(`targeted_policy',`
+	allow syslogd_t var_run_t:fifo_file { ioctl read write };
 	term_dontaudit_use_unallocated_tty(syslogd_t)
 	term_dontaudit_use_generic_pty(syslogd_t)
 	files_dontaudit_read_root_file(syslogd_t)
-')
-
-optional_policy(`cron.te',`
-	cron_rw_log(syslogd_t)
 ')
 
 optional_policy(`inn.te',`
@@ -282,10 +331,13 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
-
 optional_policy(`rhgb.te', `
 	rhgb_domain(syslogd_t)
 ')
+
+allow syslogd_t tmpfs_t:dir search;
+dontaudit syslogd_t unlabeled_t:file { getattr read };
+dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
 
 # log to the xconsole
 allow syslogd_t xconsole_device_t:fifo_file { ioctl read write };
@@ -293,5 +345,5 @@ allow syslogd_t xconsole_device_t:fifo_file { ioctl read write };
 #
 # Special case to handle crashes
 #
-allow syslogd_t { device_t file_t }:sock_file unlink;
+allow syslogd_t { device_t file_t }:sock_file { getattr unlink };
 ') dnl end TODO

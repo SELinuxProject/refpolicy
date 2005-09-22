@@ -32,13 +32,6 @@ template(`authlogin_per_userdomain_template',`
 	gen_require(`
 		attribute can_read_shadow_passwords;
 		type chkpwd_exec_t, system_chkpwd_t, shadow_t;
-		class file rx_file_perms;
-		class process { getattr transition sigchld };
-		class capability setuid;
-		class unix_stream_socket { create read getattr write setattr append bind connect getopt setopt shutdown }; 
-		class unix_dgram_socket { create read getattr write setattr append bind connect getopt setopt shutdown };
-		class fd use;
-		class fifo_file rw_file_perms;
 	')
 
 	type $1_chkpwd_t, can_read_shadow_passwords;
@@ -47,14 +40,29 @@ template(`authlogin_per_userdomain_template',`
 	role $3 types $1_chkpwd_t;
 	role $3 types system_chkpwd_t;
 
-	allow $1_chkpwd_t self:capability setuid;
+	allow $1_chkpwd_t self:capability { audit_write audit_control setuid };
 	allow $1_chkpwd_t self:process getattr;
 
 	files_list_etc($1_chkpwd_t)
 	allow $1_chkpwd_t shadow_t:file { getattr read };
 
+	allow $2 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
+	# Transition from the user domain to this domain.
+	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
+
+	allow $1_chkpwd_t $2:fd use;
+	allow $2 $1_chkpwd_t:fd use;
+	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
+	allow $1_chkpwd_t $2:process sigchld;
+
+	dontaudit $2 shadow_t:file { getattr read };
+
 	# is_selinux_enabled
 	kernel_read_system_state($1_chkpwd_t)
+
+	dev_read_rand($1_chkpwd_t)
+	dev_read_urand($1_chkpwd_t)
 
 	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
 
@@ -73,13 +81,8 @@ template(`authlogin_per_userdomain_template',`
 
 	seutil_read_config($1_chkpwd_t)
 
-	# Transition from the user domain to this domain.
-	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
-
-	allow $1_chkpwd_t $2:fd use;
-	allow $2 $1_chkpwd_t:fd use;
-	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
-	allow $1_chkpwd_t $2:process sigchld;
+	sysnet_dns_name_resolve($1_chkpwd_t)
+	sysnet_use_ldap($1_chkpwd_t)
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_chkpwd_t)
@@ -87,30 +90,8 @@ template(`authlogin_per_userdomain_template',`
 	# Inherit and use descriptors from gnome-pty-helper.
 	#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
 
-	tunable_policy(`use_dns',`
-		allow $1_chkpwd_t self:udp_socket create_socket_perms;
-		corenet_udp_sendrecv_all_if($1_chkpwd_t)
-		corenet_raw_sendrecv_all_if($1_chkpwd_t)
-		corenet_udp_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_udp_bind_all_nodes($1_chkpwd_t)
-		corenet_udp_sendrecv_dns_port($1_chkpwd_t)
-		sysnet_read_config($1_chkpwd_t)
-	')
-
 	optional_policy(`kerberos.te',`
 		kerberos_use($1_chkpwd_t)
-	')
-
-	optional_policy(`ldap.te',`
-		allow $1_chkpwd_t self:tcp_socket create_socket_perms;
-		corenet_tcp_sendrecv_all_if($1_chkpwd_t)
-		corenet_raw_sendrecv_all_if($1_chkpwd_t)
-		corenet_tcp_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_raw_sendrecv_all_nodes($1_chkpwd_t)
-		corenet_tcp_sendrecv_ldap_port($1_chkpwd_t)
-		corenet_tcp_bind_all_nodes($1_chkpwd_t)
-		sysnet_read_config($1_chkpwd_t)
 	')
 
 	optional_policy(`nis.te',`
@@ -123,6 +104,11 @@ template(`authlogin_per_userdomain_template',`
 
 	optional_policy(`selinuxutil.te',`
 		seutil_use_newrole_fd($1_chkpwd_t)
+	')
+
+	ifdef(`TODO',`
+	can_winbind($1)
+	r_dir_file($1, cert_t)
 	')
 ')
 
@@ -230,6 +216,9 @@ interface(`auth_domtrans_chk_passwd',`
 	corecmd_search_sbin($1)
 	domain_auto_trans($1,chkpwd_exec_t,system_chkpwd_t)
 
+	allow $1 self:capability { audit_write audit_control };
+	allow $1 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
 	allow $1 system_chkpwd_t:fd use;
 	allow system_chkpwd_t $1:fd use;
 	allow system_chkpwd_t $1:fifo_file rw_file_perms;
@@ -237,34 +226,24 @@ interface(`auth_domtrans_chk_passwd',`
 
 	dontaudit $1 shadow_t:file { getattr read };
 
-	tunable_policy(`use_dns',`
-		allow $1 self:udp_socket create_socket_perms;
-		corenet_udp_sendrecv_all_if($1)
-		corenet_raw_sendrecv_all_if($1)
-		corenet_udp_sendrecv_all_nodes($1)
-		corenet_raw_sendrecv_all_nodes($1)
-		corenet_udp_bind_all_nodes($1)
-		corenet_udp_sendrecv_dns_port($1)
-		sysnet_read_config($1)
-	')
+	dev_read_rand($1)
+	dev_read_urand($1)
+
+	sysnet_dns_name_resolve($1)
+	sysnet_use_ldap($1)
 
 	optional_policy(`kerberos.te',`
 		kerberos_use($1)
 	')
 
-	optional_policy(`ldap.te',`
-		allow $1 self:tcp_socket create_socket_perms;
-		corenet_tcp_sendrecv_all_if($1)
-		corenet_raw_sendrecv_all_if($1)
-		corenet_tcp_sendrecv_all_nodes($1)
-		corenet_raw_sendrecv_all_nodes($1)
-		corenet_tcp_sendrecv_ldap_port($1)
-		corenet_tcp_bind_all_nodes($1)
-		sysnet_read_config($1)
-	')
-
 	optional_policy(`nis.te',`
 		nis_use_ypbind($1)
+	')
+
+	ifdef(`TODO',`
+	can_winbind($1)
+	r_dir_file($1, cert_t)
+	dontaudit $1 shadow_t:file { getattr read };
 	')
 ')
 
@@ -393,6 +372,24 @@ interface(`auth_relabelto_shadow',`
 	files_search_etc($1)
 	allow $1 shadow_t:file relabelto;
 	typeattribute $1 can_relabelto_shadow_passwords;
+')
+
+#######################################
+## <summary>
+##	Append to the login failure log.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`auth_append_faillog',`
+	gen_require(`
+		type faillog_t;
+		class file { getattr append };
+	')
+
+	logging_search_logs($1)
+	allow $1 faillog_t:file { getattr append };
 ')
 
 #######################################
@@ -595,6 +592,25 @@ interface(`auth_manage_pam_console_data',`
 	allow $1 pam_var_console_t:dir rw_dir_perms;
 	allow $1 pam_var_console_t:file create_file_perms;
 	allow $1 pam_var_console_t:lnk_file create_lnk_perms;
+')
+
+#######################################
+## <summary>
+##	Delete pam_console data.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`auth_delete_pam_console_data',`
+	gen_require(`
+		type pam_var_console_t;
+	')
+
+	files_search_var($1)
+	files_search_pids($1)
+	allow $1 pam_var_console_t:dir rw_dir_perms;
+	allow $1 pam_var_console_t:file unlink;
 ')
 
 ########################################

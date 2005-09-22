@@ -1,6 +1,10 @@
 
 policy_module(cron, 1.0)
 
+gen_require(`
+	class passwd rootok;
+')
+
 ########################################
 #
 # Declarations
@@ -13,14 +17,11 @@ files_type(anacron_exec_t)
 type cron_spool_t;
 files_type(cron_spool_t)
 
-type crond_t; #, privmail
+type crond_t;
 type crond_exec_t;
 init_daemon_domain(crond_t,crond_exec_t)
 domain_wide_inherit_fd(crond_t)
 domain_cron_exemption_source(crond_t)
-
-type crond_log_t;
-logging_log_file(crond_log_t)
 
 type crond_tmp_t;
 files_tmp_file(crond_tmp_t)
@@ -34,7 +35,7 @@ files_type(crontab_exec_t)
 type system_cron_spool_t, cron_spool_type;
 files_type(system_cron_spool_t)
 
-type system_crond_t; #, privmail
+type system_crond_t;
 init_daemon_domain(system_crond_t,anacron_exec_t)
 corecmd_shell_entry_type(system_crond_t)
 role system_r types system_crond_t;
@@ -64,8 +65,6 @@ allow crond_t self:shm create_shm_perms;
 allow crond_t self:sem create_sem_perms;
 allow crond_t self:msgq create_msgq_perms;
 allow crond_t self:msg { send receive };
-
-allow crond_t crond_log_t:file create_file_perms;
 
 allow crond_t crond_var_run_t:file create_file_perms;
 files_create_pid(crond_t,crond_var_run_t)
@@ -105,6 +104,9 @@ domain_use_wide_inherit_fd(crond_t)
 
 files_read_etc_files(crond_t)
 files_read_generic_spools(crond_t)
+# Read from /var/spool/cron.
+files_search_var_lib(crond_t)
+files_search_default(crond_t)
 
 init_use_fd(crond_t)
 init_use_script_pty(crond_t)
@@ -121,6 +123,8 @@ seutil_sigchld_newrole(crond_t)
 miscfiles_read_localization(crond_t)
 
 userdom_use_unpriv_users_fd(crond_t)
+
+mta_send_mail(crond_t)
 
 ifdef(`distro_redhat', `
 	# Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -157,6 +161,11 @@ optional_policy(`rpm.te',`
 	rpm_read_pipe(crond_t)
 ')
 
+optional_policy(`postgresql.te', `
+	# allow crond to find /usr/lib/postgresql/bin/do.maintenance
+	postgresql_search_db_dir(crond_t)
+')
+
 optional_policy(`udev.te', `
 	udev_read_db(crond_t)
 ')
@@ -168,10 +177,6 @@ ifdef(`TODO',`
 optional_policy(`rhgb.te', `
 rhgb_domain(crond_t)
 ')
-
-# Read from /var/spool/cron.
-allow crond_t var_lib_t:dir search;
-allow crond_t default_t:dir search;
 
 # crond tries to search /root.  Not sure why.
 allow crond_t sysadm_home_dir_t:dir r_dir_perms;
@@ -228,10 +233,6 @@ type_transition system_crond_t crond_tmp_t:file system_crond_tmp_t;
 allow system_crond_t cron_spool_t:dir r_dir_perms;
 allow system_crond_t cron_spool_t:file r_file_perms;
 
-# Access crond log files
-allow system_crond_t crond_log_t:file create_file_perms;
-logging_create_log(system_crond_t,crond_log_t)
-
 kernel_read_kernel_sysctl(system_crond_t)
 kernel_read_system_state(system_crond_t)
 kernel_read_software_raid_state(system_crond_t)
@@ -261,6 +262,8 @@ corecmd_exec_bin(system_crond_t)
 corecmd_exec_sbin(system_crond_t)
 
 domain_exec_all_entry_files(system_crond_t)
+# quiet other ps operations
+domain_dontaudit_read_all_domains_state(system_crond_t)
 
 files_exec_etc_files(system_crond_t)
 files_read_etc_files(system_crond_t)
@@ -296,10 +299,11 @@ logging_read_generic_logs(system_crond_t)
 logging_send_syslog_msg(system_crond_t)
 
 miscfiles_read_localization(system_crond_t)
-miscfiles_read_man_pages(system_crond_t)
-miscfiles_rw_man_cache(system_crond_t)
+miscfiles_manage_man_pages(system_crond_t)
 
 seutil_read_config(system_crond_t)
+
+mta_send_mail(system_crond_t)
 
 ifdef(`distro_redhat', `
 	# Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -321,12 +325,22 @@ tunable_policy(`cron_can_relabel',`
 	seutil_read_file_contexts(system_crond_t)
 ')
 
+optional_policy(`mysql.te',`
+	mysql_read_config(system_crond_t)
+')
+
 optional_policy(`nis.te',`
 	nis_use_ypbind(system_crond_t)
 ')
 
 optional_policy(`nscd.te',`
 	nscd_use_socket(system_crond_t)
+')
+
+optional_policy(`samba.te',`
+	samba_read_config(system_crond_t)
+	samba_read_log(system_crond_t)
+	#samba_read_secrets(system_crond_t)
 ')
 
 optional_policy(`squid.te',`
@@ -336,9 +350,6 @@ optional_policy(`squid.te',`
 
 ifdef(`TODO',`
 dontaudit userdomain system_crond_t:fd use;
-
-# quiet other ps operations
-dontaudit system_crond_t domain:dir { getattr search };
 
 # Do not audit attempts to search unlabeled directories (e.g. slocate).
 dontaudit system_crond_t unlabeled_t:dir r_dir_perms;
@@ -366,7 +377,7 @@ allow system_crond_su_t crond_t:fifo_file ioctl;
 # Required for webalizer
 #
 ifdef(`apache.te', `
-allow system_crond_t httpd_log_t:file r_file_perms;
+allow system_crond_t { httpd_log_t httpd_config_t }:file r_file_perms;
 ')
 
 ifdef(`mta.te', `

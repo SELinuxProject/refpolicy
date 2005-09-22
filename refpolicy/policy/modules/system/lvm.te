@@ -6,6 +6,13 @@ policy_module(lvm,1.0)
 # Declarations
 #
 
+type clvmd_t;
+type clvmd_exec_t;
+init_daemon_domain(clvmd_t,clvmd_exec_t)
+
+type clvmd_var_run_t;
+files_pid_file(clvmd_var_run_t)
+
 type lvm_t;
 type lvm_exec_t;
 init_system_domain(lvm_t,lvm_exec_t)
@@ -23,23 +30,108 @@ files_lock_file(lvm_lock_t)
 type lvm_metadata_t;
 files_type(lvm_metadata_t)
 
+type lvm_var_run_t;
+files_pid_file(lvm_var_run_t)
+
 type lvm_tmp_t;
 files_tmp_file(lvm_tmp_t)
 
 ########################################
 #
-# Local policy
+# Cluster LVM daemon local policy
+#
+
+dontaudit clvmd_t self:capability sys_tty_config;
+allow clvmd_t self:socket create_socket_perms;
+allow clvmd_t self:fifo_file { read write };
+allow clvmd_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow clvmd_t self:tcp_socket create_stream_socket_perms;
+allow clvmd_t self:udp_socket create_socket_perms;
+
+allow clvmd_t clvmd_var_run_t:file create_file_perms;
+allow clvmd_t clvmd_var_run_t:dir rw_dir_perms;
+files_create_pid(clvmd_t,clvmd_var_run_t)
+
+kernel_read_kernel_sysctl(clvmd_t)
+kernel_list_proc(clvmd_t)
+kernel_read_proc_symlinks(clvmd_t)
+
+corenet_tcp_sendrecv_all_if(clvmd_t)
+corenet_udp_sendrecv_all_if(clvmd_t)
+corenet_raw_sendrecv_all_if(clvmd_t)
+corenet_tcp_sendrecv_all_nodes(clvmd_t)
+corenet_udp_sendrecv_all_nodes(clvmd_t)
+corenet_raw_sendrecv_all_nodes(clvmd_t)
+corenet_tcp_sendrecv_all_ports(clvmd_t)
+corenet_udp_sendrecv_all_ports(clvmd_t)
+corenet_tcp_bind_all_nodes(clvmd_t)
+corenet_udp_bind_all_nodes(clvmd_t)
+corenet_tcp_bind_reserved_port(clvmd_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(clvmd_t)
+
+dev_read_sysfs(clvmd_t)
+
+fs_getattr_all_fs(clvmd_t)
+fs_search_auto_mountpoints(clvmd_t)
+
+term_dontaudit_use_console(clvmd_t)
+
+domain_use_wide_inherit_fd(clvmd_t)
+
+init_use_fd(clvmd_t)
+init_use_script_pty(clvmd_t)
+
+libs_use_ld_so(clvmd_t)
+libs_use_shared_libs(clvmd_t)
+
+logging_send_syslog_msg(clvmd_t)
+
+miscfiles_read_localization(clvmd_t)
+
+seutil_dontaudit_search_config(clvmd_t)
+seutil_sigchld_newrole(clvmd_t)
+
+sysnet_read_config(clvmd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(clvmd_t)
+userdom_dontaudit_search_sysadm_home_dir(clvmd_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(clvmd_t)
+	term_dontaudit_use_generic_pty(clvmd_t)
+	files_dontaudit_read_root_file(clvmd_t)
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(clvmd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(clvmd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(clvmd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(clvmd_t)
+')
+') dnl end TODO
+
+########################################
+#
+# LVM Local policy
 #
 
 # DAC overrides and mknod for modifying /dev entries (vgmknodes)
-allow lvm_t self:capability { dac_override ipc_lock sys_admin sys_nice mknod };
+allow lvm_t self:capability { dac_override ipc_lock sys_admin sys_nice mknod chown sys_resource };
 dontaudit lvm_t self:capability sys_tty_config;
-
 allow lvm_t self:process { sigchld sigkill sigstop signull signal };
 # LVM will complain a lot if it cannot set its priority.
 allow lvm_t self:process setsched;
-
-allow lvm_t self:file r_file_perms;
+allow lvm_t self:file rw_file_perms;
 allow lvm_t self:fifo_file rw_file_perms;
 allow lvm_t self:unix_dgram_socket create_socket_perms;
 
@@ -58,6 +150,10 @@ can_exec(lvm_t, lvm_exec_t)
 allow lvm_t lvm_lock_t:dir rw_dir_perms;
 allow lvm_t lvm_lock_t:file create_file_perms;
 files_create_lock(lvm_t,lvm_lock_t)
+
+allow lvm_t lvm_var_run_t:file create_file_perms;
+allow lvm_t lvm_var_run_t:dir create_dir_perms;
+files_create_pid(lvm_t,lvm_var_run_t)
 
 allow lvm_t lvm_etc_t:file r_file_perms;
 allow lvm_t lvm_etc_t:lnk_file r_file_perms;
@@ -97,8 +193,8 @@ dev_read_sysfs(sysfs_t)
 # perhaps this should be blk_files?
 dev_relabel_generic_symlinks(lvm_t)
 # LVM (vgscan) scans for devices by stating every file in /dev and applying a regex...
-dev_dontaudit_getattr_all_chr_files(lvm_t)
-dev_dontaudit_getattr_all_blk_files(lvm_t)
+dev_dontaudit_read_all_chr_files(lvm_t)
+dev_dontaudit_read_all_blk_files(lvm_t)
 dev_dontaudit_getattr_generic_chr_file(lvm_t)
 dev_dontaudit_getattr_generic_blk_file(lvm_t)
 dev_dontaudit_getattr_generic_pipe(lvm_t)
@@ -122,10 +218,8 @@ corecmd_dontaudit_getattr_sbin_file(lvm_t)
 
 domain_use_wide_inherit_fd(lvm_t)
 
-files_search_var(lvm_t)
 files_read_etc_files(lvm_t)
 files_read_etc_runtime_files(lvm_t)
-files_dontaudit_getattr_pid_dir(lvm_t)
 # for when /usr is not mounted:
 files_dontaudit_search_isid_type_dir(lvm_t)
 
@@ -170,13 +264,15 @@ optional_policy(`udev.te', `
 ')
 
 ifdef(`TODO',`
+# it has no reason to need this
+allow lvm_t var_t:dir { search getattr };
+allow lvm_t ramfs_t:filesystem unmount;
 
 optional_policy(`gnome-pty-helper.te', `
 	allow lvm_t sysadm_gph_t:fd use;
 ')
-
 optional_policy(`rhgb.te',`
 rhgb_domain(lvm_t)
 ')
-
+dontaudit lvm_t xconsole_device_t:fifo_file getattr;
 ') dnl end TODO

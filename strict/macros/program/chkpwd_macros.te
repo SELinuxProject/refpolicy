@@ -17,30 +17,25 @@ define(`chkpwd_domain',`
 # Derived domain based on the calling user domain and the program.
 type $1_chkpwd_t, domain, privlog, nscd_client_domain, auth;
 
+role $1_r types $1_chkpwd_t;
+
 # is_selinux_enabled
 allow $1_chkpwd_t proc_t:file read;
+
 can_getcon($1_chkpwd_t)
-can_ypbind($1_chkpwd_t)
-can_kerberos($1_chkpwd_t)
-can_ldap($1_chkpwd_t)
-can_resolve($1_chkpwd_t)
-# Transition from the user domain to this domain.
+authentication_domain($1_chkpwd_t)
+
 ifelse($1, system, `
 domain_auto_trans(auth_chkpwd, chkpwd_exec_t, system_chkpwd_t)
-role system_r types system_chkpwd_t;
-dontaudit auth_chkpwd shadow_t:file { getattr read };
 allow auth_chkpwd sbin_t:dir search;
-dontaudit $1_chkpwd_t { user_tty_type tty_device_t }:chr_file rw_file_perms;
-can_ypbind(auth_chkpwd)
-can_kerberos(auth_chkpwd)
-can_ldap(auth_chkpwd)
-can_resolve(auth_chkpwd)
+allow auth_chkpwd self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
+dontaudit system_chkpwd_t { user_tty_type tty_device_t }:chr_file rw_file_perms;
+authentication_domain(auth_chkpwd)
 ', `
 domain_auto_trans($1_t, chkpwd_exec_t, $1_chkpwd_t)
 allow $1_t sbin_t:dir search;
-
-# The user role is authorized for this domain.
-role $1_r types $1_chkpwd_t;
+allow $1_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 
 # Write to the user domain tty.
 access_terminal($1_chkpwd_t, $1)

@@ -12,11 +12,12 @@
 # initrc_exec_t is the type of the init program.
 #
 # do not use privmail for sendmail as it creates a type transition conflict
-type initrc_t, ifdef(`unlimitedRC', `admin, etc_writer, fs_domain, privmem, auth_write, ') domain, privlog, privowner, privmodule, ifdef(`sendmail.te', `', `privmail,') ifdef(`distro_debian', `etc_writer, ') sysctl_kernel_writer, nscd_client_domain;
+type initrc_t, fs_domain, ifdef(`unlimitedRC', `admin, etc_writer, privmem, auth_write, ') domain, privlog, privowner, privmodule, ifdef(`sendmail.te', `', `privmail,') ifdef(`distro_debian', `etc_writer, ') sysctl_kernel_writer, nscd_client_domain, mlsfileread, mlsfilewrite, mlsprocread, mlsprocwrite;
 
 role system_r types initrc_t;
 uses_shlib(initrc_t);
 can_network(initrc_t)
+allow initrc_t port_type:tcp_socket name_connect;
 can_ypbind(initrc_t)
 type initrc_exec_t, file_type, sysadmfile, exec_type;
 
@@ -119,7 +120,13 @@ allow initrc_t domain:process { getattr getsession };
 
 # Mount and unmount file systems.
 allow initrc_t fs_type:filesystem mount_fs_perms;
-allow initrc_t { file_t default_t }:dir { read search getattr mounton };
+allow initrc_t file_t:dir { read search getattr mounton };
+
+# during boot up initrc needs to do the following
+allow initrc_t default_t:dir { write read search getattr mounton };
+
+# rhgb-console writes to ramfs
+allow initrc_t ramfs_t:fifo_file write;
 
 # Create runtime files in /etc, e.g. /etc/mtab, /etc/HOSTNAME.
 file_type_auto_trans(initrc_t, etc_t, etc_runtime_t, file)
@@ -130,7 +137,7 @@ allow initrc_t ld_so_cache_t:file rw_file_perms;
 # Update /var/log/wtmp and /var/log/dmesg.
 allow initrc_t wtmp_t:file { setattr rw_file_perms };
 allow initrc_t var_log_t:dir rw_dir_perms;
-allow initrc_t var_log_t:file { setattr rw_file_perms };
+allow initrc_t var_log_t:file create_file_perms;
 allow initrc_t lastlog_t:file { setattr rw_file_perms };
 allow initrc_t logfile:file { read append };
 
@@ -151,9 +158,6 @@ allow initrc_t clock_device_t:devfile_class_set rw_file_perms;
 
 # Kill all processes.
 allow initrc_t domain:process signal_perms;
-
-# Read and unlink /var/run/*.pid files.
-allow initrc_t pidfile:file { getattr read unlink };
 
 # Write to /dev/urandom.
 allow initrc_t { random_device_t urandom_device_t }:chr_file rw_file_perms;
@@ -194,10 +198,8 @@ file_type_auto_trans(initrc_t, boot_t, boot_runtime_t, file)
 allow initrc_t tmpfs_t:chr_file rw_file_perms;
 allow initrc_t tmpfs_t:dir r_dir_perms;
 
-ifdef(`distro_redhat', ` 
 # Allow initrc domain to set the enforcing flag.
 can_setenforce(initrc_t)
-')
 
 #
 # readahead asks for these
@@ -207,6 +209,11 @@ allow initrc_t var_lib_nfs_t:file { getattr read };
 
 # for /halt /.autofsck and other flag files
 file_type_auto_trans({ initrc_t sysadm_t }, root_t, etc_runtime_t, file)
+
+file_type_auto_trans(initrc_t, device_t, fixed_disk_device_t, blk_file)
+allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
+allow initrc_t self:capability sys_admin;
+allow initrc_t device_t:dir create;
 
 ')dnl end distro_redhat
 
@@ -225,9 +232,13 @@ allow initrc_t sound_device_t:chr_file { setattr ioctl read write };
 allow initrc_t { home_root_t home_type }:dir r_dir_perms;
 allow initrc_t home_type:file r_file_perms;
 
+# Read and unlink /var/run/*.pid files.
+allow initrc_t pidfile:file { getattr read unlink };
+
 # for system start scripts
-allow initrc_t pidfile:dir rw_dir_perms;
+allow initrc_t pidfile:dir { rmdir rw_dir_perms };
 allow initrc_t pidfile:sock_file unlink;
+
 rw_dir_create_file(initrc_t, var_lib_t)
 
 # allow start scripts to clean /tmp
@@ -248,7 +259,9 @@ type run_init_t, domain;
 domain_auto_trans(unconfined_t, initrc_exec_t, initrc_t)
 allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
 allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
+typeattribute initrc_t privuser;
 domain_trans(initrc_t, shell_exec_t, unconfined_t)
+allow initrc_t unconfined_t:system syslog_mod;
 ', `
 run_program(sysadm_t, sysadm_r, init, initrc_exec_t, initrc_t)
 ')
@@ -287,10 +300,6 @@ allow initrc_t device_t:lnk_file unlink;
 
 r_dir_file(initrc_t,selinux_config_t)
 
-ifdef(`distro_redhat', `
-#allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
-')
-
 ifdef(`unlimitedRC', `
 unconfined_domain(initrc_t) 
 ')
@@ -309,3 +318,7 @@ ifdef(`distro_gentoo', `
 domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
 ')
 allow initrc_t self:netlink_route_socket r_netlink_socket_perms;
+allow initrc_t device_t:lnk_file create_file_perms;
+ifdef(`dbusd.te', `
+allow initrc_t system_dbusd_var_run_t:sock_file write;
+')

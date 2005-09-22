@@ -9,6 +9,9 @@
 # Allow ssh logins as sysadm_r:sysadm_t
 bool ssh_sysadm_login false;
 
+# allow host key based authentication
+bool allow_ssh_keysign false;
+
 ifdef(`inetd.te', `
 # Allow ssh to run from inetd instead of as a daemon.
 bool run_ssh_inetd false;
@@ -23,7 +26,7 @@ define(`sshd_program_domain', `
 # privowner is for changing the identity on the terminal device
 # privfd is for passing the terminal file handle to the user process
 # auth_chkpwd is for running unix_chkpwd and unix_verify.
-type $1_t, domain, privuser, privrole, privlog, privowner, privfd, auth_chkpwd, nscd_client_domain;
+type $1_t, domain, privuser, privrole, privlog, privowner, privfd, auth_chkpwd, nscd_client_domain, mlsfileread, mlsfilewrite, mlsfileupgrade, mlsfiledowngrade, mlsprocsetsl;
 can_exec($1_t, sshd_exec_t)
 r_dir_file($1_t, self)
 role system_r types $1_t;
@@ -67,6 +70,8 @@ allow $1_t { null_device_t zero_device_t }:chr_file rw_file_perms;
 allow $1_t urandom_device_t:chr_file { getattr read };
 
 can_network($1_t)
+allow $1_t port_type:tcp_socket name_connect;
+can_kerberos($1_t)
 
 allow $1_t self:capability { kill sys_chroot sys_resource chown dac_override fowner fsetid setgid setuid sys_tty_config };
 allow $1_t { home_root_t home_dir_type }:dir { search getattr };
@@ -109,6 +114,14 @@ read_sysctl($1_t)
 can_create_pty($1, `, server_pty')
 allow $1_t $1_devpts_t:chr_file { setattr getattr relabelfrom };
 dontaudit sshd_t userpty_type:chr_file relabelfrom;
+
+allow $1_t faillog_t:file { append getattr };
+allow $1_t sbin_t:file getattr;
+
+# Allow checking users mail at login
+allow $1_t { var_spool_t mail_spool_t }:dir search;
+allow $1_t mail_spool_t:lnk_file read;
+allow $1_t mail_spool_t:file getattr;
 ')dnl end sshd_program_domain
 
 # macro for defining which domains a sshd can spawn
@@ -145,10 +158,8 @@ sshd_spawn_domain(sshd, userdomain, { sysadm_devpts_t userpty_type })
 sshd_spawn_domain(sshd, unpriv_userdomain, userpty_type)
 }
 
-ifdef(`use_x_ports', `
 # for X forwarding
 allow sshd_t xserver_port_t:tcp_socket name_bind;
-')
 
 r_dir_file(sshd_t, selinux_config_t)
 sshd_program_domain(sshd_extern)
@@ -156,11 +167,6 @@ sshd_spawn_domain(sshd_extern, user_mini_domain, mini_pty_type)
 
 # for when the network connection breaks after running newrole -r sysadm_r
 dontaudit sshd_t sysadm_devpts_t:chr_file setattr;
-
-# Allow checking users mail at login
-allow sshd_t { var_spool_t mail_spool_t }:dir search;
-allow sshd_t mail_spool_t:lnk_file read;
-allow sshd_t mail_spool_t:file getattr;
 
 ifdef(`inetd.te', `
 if (run_ssh_inetd) {
@@ -217,6 +223,7 @@ file_type_auto_trans(ssh_keygen_t, etc_t, sshd_key_t, file)
 
 # Type for the ssh executable.
 type ssh_exec_t, file_type, exec_type, sysadmfile;
+type ssh_keysign_exec_t, file_type, exec_type, sysadmfile;
 
 # Everything else is in the ssh_domain macro in
 # macros/program/ssh_macros.te.

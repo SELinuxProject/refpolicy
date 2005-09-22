@@ -1,5 +1,5 @@
 
-policy_module(devices,1.0)
+policy_module(netutils,1.0)
 
 ########################################
 #
@@ -53,6 +53,7 @@ corenet_tcp_sendrecv_all_ports(netutils_t)
 corenet_udp_sendrecv_all_ports(netutils_t)
 corenet_tcp_bind_all_nodes(netutils_t)
 corenet_udp_bind_all_nodes(netutils_t)
+corenet_tcp_connect_all_ports(netutils_t)
 
 fs_getattr_xattr_fs(netutils_t)
 
@@ -116,12 +117,22 @@ libs_use_ld_so(ping_t)
 libs_use_shared_libs(ping_t)
 
 sysnet_read_config(ping_t)
+sysnet_dns_name_resolve(ping_t)
 
 logging_send_syslog_msg(ping_t)
 
-tunable_policy(`user_ping',`
+ifdef(`hide_broken_symptoms',`
+	init_dontaudit_use_fd(ping_t)
+')
+
+ifdef(`targeted_policy',`
 	term_use_all_user_ttys(ping_t)
 	term_use_all_user_ptys(ping_t)
+',`
+	tunable_policy(`user_ping',`
+		term_use_all_user_ttys(ping_t)
+		term_use_all_user_ptys(ping_t)
+	')
 ')
 
 optional_policy(`nis.te',`
@@ -132,10 +143,12 @@ optional_policy(`nscd.te',`
 	nscd_use_socket(ping_t)
 ')
 
-optional_policy(`sysnetwork.te',`
-	optional_policy(`hotplug.te',`
-		hotplug_use_fd(ping_t)
-	')
+optional_policy(`pcmcia.te',`
+	pcmcia_use_cardmgr_fd(ping_t)
+')
+
+optional_policy(`hotplug.te',`
+	hotplug_use_fd(ping_t)
 ')
 
 ifdef(`TODO',`
@@ -143,9 +156,6 @@ in_user_role(ping_t)
 tunable_policy(`user_ping',`
 	domain_auto_trans(unpriv_userdomain, ping_exec_t, ping_t)
 	ifdef(`gnome-pty-helper.te', `allow ping_t gphdomain:fd use;')
-')
-ifdef(`cardmgr.te',`
-	allow ping_t cardmgr_t:fd use;
 ')
 ') dnl end TODO
 

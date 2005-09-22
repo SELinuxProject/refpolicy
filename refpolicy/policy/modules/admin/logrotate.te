@@ -6,13 +6,17 @@ policy_module(logrotate,1.0)
 # Declarations
 #
 
-type logrotate_t; #, priv_system_role
+type logrotate_t;
 domain_type(logrotate_t)
 domain_obj_id_change_exempt(logrotate_t)
+domain_system_change_exempt(logrotate_t)
 role system_r types logrotate_t;
 
 type logrotate_exec_t;
 files_type(logrotate_exec_t)
+
+type logrotate_lock_t;
+files_lock_file(logrotate_lock_t)
 
 type logrotate_tmp_t;
 files_tmp_file(logrotate_tmp_t)
@@ -46,13 +50,19 @@ allow logrotate_t self:sem create_sem_perms;
 allow logrotate_t self:msgq create_msgq_perms;
 allow logrotate_t self:msg { send receive };
 
+allow logrotate_t logrotate_lock_t:file create_file_perms;
+files_create_lock(logrotate_t,logrotate_lock_t)
+
 can_exec(logrotate_t, logrotate_tmp_t)
 
 allow logrotate_t logrotate_tmp_t:dir create_dir_perms;
 allow logrotate_t logrotate_tmp_t:file create_file_perms;
 files_create_tmp_files(logrotate_t, logrotate_tmp_t, { file dir })
 
+# for /var/lib/logrotate.status and /var/lib/logcheck
 allow logrotate_t logrotate_var_lib_t:dir { create rw_dir_perms };
+allow logrotate_t logrotate_var_lib_t:file create_file_perms;
+files_create_var_lib(logrotate_t, logrotate_var_lib_t)
 
 kernel_read_system_state(logrotate_t)
 kernel_read_kernel_sysctl(logrotate_t)
@@ -63,6 +73,7 @@ fs_search_auto_mountpoints(logrotate_t)
 fs_getattr_xattr_fs(logrotate_t)
 
 selinux_get_fs_mount(logrotate_t)
+selinux_get_enforce_mode(logrotate_t)
 
 auth_manage_login_records(logrotate_t)
 
@@ -74,11 +85,13 @@ corecmd_exec_ls(logrotate_t)
 
 domain_signal_all_domains(logrotate_t)
 domain_use_wide_inherit_fd(logrotate_t)
+domain_getattr_all_entry_files(logrotate_t)
+# Read /proc/PID directories for all domains.
+domain_read_all_domains_state(logrotate_t)
 
 files_read_usr_files(logrotate_t)
 files_read_etc_files(logrotate_t)
 files_read_etc_runtime_files(logrotate_t)
-files_manage_generic_locks(logrotate_t)
 files_read_all_pids(logrotate_t)
 # Write to /var/spool/slrnpull - should be moved into its own type.
 files_manage_generic_spools(logrotate_t)
@@ -88,6 +101,7 @@ files_manage_generic_spool_dirs(logrotate_t)
 init_domtrans_script(logrotate_t)
 
 logging_manage_all_logs(logrotate_t)
+logging_send_syslog_msg(logrotate_t)
 # cjp: why is this needed?
 logging_exec_all_logs(logrotate_t)
 
@@ -95,6 +109,8 @@ libs_use_ld_so(logrotate_t)
 libs_use_shared_libs(logrotate_t)
 
 miscfiles_read_localization(logrotate_t)
+
+seutil_dontaudit_read_config(logrotate_t)
 
 sysnet_read_config(logrotate_t)
 
@@ -111,6 +127,10 @@ ifdef(`distro_debian', `
 	can_exec(logrotate_t, logrotate_exec_t)
 ')
 
+ifdef(`targeted_policy',`
+	unconfined_domain_template(logrotate_t)
+')
+
 optional_policy(`acct.te',`
 	acct_domtrans(logrotate_t)
 	acct_manage_data(logrotate_t)
@@ -124,6 +144,10 @@ optional_policy(`consoletype.te',`
 
 optional_policy(`hostname.te',`
 	hostname_exec(logrotate_t)
+')
+
+optional_policy(`samba.te',`
+	samba_exec_log(logrotate_t)
 ')
 
 optional_policy(`mysql.te',`
@@ -146,32 +170,15 @@ optional_policy(`squid.te',`
 ')
 
 ifdef(`TODO',`
-
-#from privmail this needs more work:
-allow mta_user_agent logrotate_t:fd use;
-allow mta_user_agent logrotate_t:process sigchld;
-allow mta_user_agent logrotate_t:fifo_file { read write };
-
 ifdef(`gnome-pty-helper.te', `allow logrotate_t sysadm_gph_t:fd use;')
 
 # it should not require this
 allow logrotate_t {staff_home_dir_t sysadm_home_dir_t}:dir { getattr read search };
-
-# Read /proc/PID directories for all domains.
-allow logrotate_t domain:notdevfile_class_set r_file_perms;
-allow logrotate_t domain:dir r_dir_perms;
-allow logrotate_t exec_type:file getattr;
-
-# for /var/lib/logrotate.status and /var/lib/logcheck
-file_type_auto_trans(logrotate_t, var_lib_t, logrotate_var_lib_t, file)
 
 # for /var/backups on Debian
 ifdef(`backup.te', `
 rw_dir_create_file(logrotate_t, backup_store_t)
 ')
 
-allow logrotate_t syslogd_t:unix_dgram_socket sendto;
 allow logrotate_t syslogd_exec_t:file r_file_perms;
-
-dontaudit logrotate_t selinux_config_t:dir search;
 ') dnl end TODO

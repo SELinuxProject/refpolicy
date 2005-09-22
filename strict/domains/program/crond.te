@@ -37,13 +37,11 @@ allow mta_user_agent system_crond_t:fd use;
 
 # read files in /etc
 allow system_crond_t etc_t:file r_file_perms;
-allow system_crond_t etc_runtime_t:file read;
+allow system_crond_t etc_runtime_t:file { getattr read };
 
 allow system_crond_t { sysfs_t rpc_pipefs_t }:dir getattr;
 
 read_locale(crond_t)
-
-log_domain(crond)
 
 # Use capabilities.
 allow crond_t self:capability { dac_override setgid setuid net_bind_service sys_nice };
@@ -88,6 +86,8 @@ allow crond_t rpm_log_t: file create_file_perms;
 
 system_crond_entry(rpm_exec_t, rpm_t)
 allow system_crond_t rpm_log_t:file create_file_perms;
+#read ahead wants to read this
+allow initrc_t system_cron_spool_t:file { getattr read };
 ')
 ')
 
@@ -100,9 +100,6 @@ can_setexec(crond_t)
 # Transition to this domain for anacron as well.
 # Still need to study anacron.
 domain_auto_trans(initrc_t, anacron_exec_t, system_crond_t)
-
-# Access log files
-file_type_auto_trans(system_crond_t, var_log_t, crond_log_t, file)
 
 # Inherit and use descriptors from init for anacron.
 allow system_crond_t init_t:fd use;
@@ -131,9 +128,8 @@ allow system_crond_t var_lib_t:dir rw_dir_perms;
 allow system_crond_t var_lib_t:file create_file_perms;
 
 # Update whatis files.
-allow system_crond_t catman_t:dir create_dir_perms;
-allow system_crond_t catman_t:file create_file_perms;
-allow system_crond_t man_t:file r_file_perms;
+allow system_crond_t man_t:dir create_dir_perms;
+allow system_crond_t man_t:file create_file_perms;
 allow system_crond_t man_t:lnk_file read;
 
 # Write /var/lock/makewhatis.lock.
@@ -205,11 +201,11 @@ domain_auto_trans(system_crond_t, setfiles_exec_t, setfiles_t)
 r_dir_file(system_crond_t, file_context_t)
 can_getsecurity(system_crond_t)
 }
-allow system_crond_t removable_t:filesystem { getattr };
+dontaudit system_crond_t removable_t:filesystem getattr;
 #
 # Required for webalizer
 #
 ifdef(`apache.te', `
-allow system_crond_t httpd_log_t:file { getattr read };
+allow system_crond_t { httpd_log_t httpd_config_t }:file { getattr read };
 ')
-dontaudit crond_t self:capability { sys_tty_config };
+dontaudit crond_t self:capability sys_tty_config;

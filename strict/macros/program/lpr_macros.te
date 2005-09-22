@@ -35,6 +35,7 @@ role $1_r types $1_lpr_t;
 
 # This domain is granted permissions common to most domains (including can_net)
 can_network_client($1_lpr_t)
+allow $1_lpr_t port_type:tcp_socket name_connect;
 can_ypbind($1_lpr_t)
 
 # Use capabilities.
@@ -52,7 +53,6 @@ r_dir_file($1_lpr_t, printconf_t)
 ')
 
 tmp_domain($1_lpr)
-r_dir_file($1_lpr_t, $1_tmp_t)
 
 # Type for spool files.
 type $1_print_spool_t, file_type, sysadmfile;
@@ -71,18 +71,8 @@ ifdef(`gnome-pty-helper.te', `allow $1_lpr_t $1_gph_t:fd use;')
 allow $1_lpr_t privfd:fd use;
 
 # Read user files. 
-allow sysadm_lpr_t { home_root_t $1_home_t $1_home_dir_t }:dir search;  
-allow sysadm_lpr_t $1_home_t:{ file lnk_file } r_file_perms;  
-allow $1_lpr_t { home_root_t $1_home_t $1_home_dir_t }:dir search;  
-allow $1_lpr_t $1_home_t:{ file lnk_file } r_file_perms;  
-
-if (use_nfs_home_dirs) {
-r_dir_file($1_lpr_t, nfs_t)
-}
-
-if (use_samba_home_dirs) {
-r_dir_file($1_lpr_t, cifs_t)
-}
+read_content(sysadm_lpr_t, $1) 
+read_content($1_lpr_t, $1)
 
 # Read and write shared files in the spool directory.
 allow $1_lpr_t print_spool_t:file rw_file_perms;
@@ -114,8 +104,7 @@ allow $1_lpr_t lpd_t:process signal;
 ')dnl end if lpd.te
 
 ifdef(`xdm.te', `
-allow $1_lpr_t xdm_t:fd use;
-allow $1_lpr_t xdm_t:fifo_file write;
+can_pipe_xdm($1_lpr_t)
 ')
 
 ifdef(`cups.te', `
@@ -123,12 +112,6 @@ allow { $1_lpr_t $1_t } cupsd_etc_t:dir search;
 allow $1_lpr_t { cupsd_etc_t cupsd_rw_etc_t }:file { getattr read };
 can_tcp_connect({ $1_lpr_t $1_t }, cupsd_t)
 ')dnl end ifdef cups.te
-
-ifdef(`hide_broken_symptoms', `
-# thunderbird causes these
-dontaudit $1_lpr_t $1_t:tcp_socket { read write };
-dontaudit $1_lpr_t { $1_home_t $1_tmp_t }:file write;
-')
 
 ')dnl end macro definition
 

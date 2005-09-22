@@ -32,11 +32,8 @@ allow pppd_t sysfs_t:dir search;
 log_domain(pppd)
 
 # Use the network.
-can_network(pppd_t)
+can_network_server(pppd_t)
 can_ypbind(pppd_t)
-
-allow pppd_t fingerd_port_t:tcp_socket name_connect;
-
 
 # Use capabilities.
 allow pppd_t self:capability { net_admin setuid setgid fsetid fowner net_raw dac_override };
@@ -55,8 +52,6 @@ allow postfix_postqueue_t pppd_t:process sigchld;
 
 # allow running ip-up and ip-down scripts and running chat.
 can_exec(pppd_t, { shell_exec_t bin_t sbin_t etc_t ifconfig_exec_t })
-can_exec(pppd_t, pppd_etc_rw_t)
-can_exec(pppd_t, hostname_exec_t)
 allow pppd_t { bin_t sbin_t }:dir search;
 allow pppd_t { sbin_t bin_t }:lnk_file read;
 
@@ -115,7 +110,6 @@ ifdef(`modutil.te', `
 domain_auto_trans(pppd_t, insmod_exec_t, insmod_t)
 ')
 }
-domain_auto_trans(pppd_t, named_exec_t, named_t)
 
 daemon_domain(pptp)
 can_network_client_tcp(pptp_t)
@@ -136,4 +130,17 @@ allow pptp_t self:capability net_raw;
 allow pptp_t self:fifo_file { read write };
 allow pptp_t ptmx_t:chr_file rw_file_perms;
 log_domain(pptp)
+
+# Fix sockets
+allow pptp_t pptp_var_run_t:sock_file create_file_perms;
+
+# Allow pptp to append to pppd log files
 allow pptp_t pppd_log_t:file append;
+
+ifdef(`named.te', `
+dontaudit ndc_t pppd_t:fd use;
+')
+
+# Allow /etc/ppp/ip-{up,down} to run most anything
+type pppd_script_exec_t, file_type, sysadmfile;
+domain_auto_trans(pppd_t, pppd_script_exec_t, initrc_t)

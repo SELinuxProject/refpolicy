@@ -27,7 +27,9 @@
 #OUTPUT_POLICY = 18
 
 # Policy Type
-# strict, targeted, strict-mls, targeted-mls
+# strict, targeted,
+# strict-mls, targeted-mls,
+# strict-mcs, targeted-mcs
 TYPE = strict
 
 # Policy Name
@@ -44,6 +46,13 @@ NAME = refpolicy
 # redhat, gentoo, debian, and suse are current options.
 # Fedora users should enable redhat.
 #DISTRO = redhat
+
+# Direct admin init
+# Setting this will allow sysadm to directly
+# run init scripts, instead of requring run_init.
+# This is a build option, as role transitions do
+# not work in conditional policy.
+DIRECT_INITRC=n
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
@@ -108,8 +117,15 @@ USERPATH = $(INSTALLDIR)/users
 CONTEXTPATH = $(INSTALLDIR)/contexts
 
 # enable MLS if requested.
-ifneq ($(findstring mls,$(TYPE)),)
+ifneq ($(findstring -mls,$(TYPE)),)
 	override M4PARAM += -D enable_mls
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
+endif
+
+# enable MLS if MCS requested.
+ifneq ($(findstring -mcs,$(TYPE)),)
+	override M4PARAM += -D enable_mcs
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
 endif
@@ -132,6 +148,10 @@ ifeq ($(NAME),)
 	NAME := $(TYPE)
 endif
 
+ifeq ($(DIRECT_INITRC),y)
+	override M4PARAM += -D direct_sysadm_daemon
+endif
+
 # determine the policy version and current kernel version if possible
 PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
 KV := $(shell cat /selinux/policyvers)
@@ -145,14 +165,9 @@ endif
 FC := file_contexts
 POLVER := policy.$(PV)
 
-ifneq ($(findstring targeted,$(TYPE)),)
-	APPCONF := config/appconfig-targeted
-else
-	APPCONF := config/appconfig-strict
-endif
-
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
+APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media $(INSTALLDIR)/booleans
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
@@ -202,7 +217,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
-		| m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
@@ -210,7 +225,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 -D monolithic_policy $(M4PARAM) $(M4SUPPORT) $^ \
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
@@ -251,7 +266,7 @@ html: $(POLXML)
 #
 # Runtime binary policy patching of users
 #
-$(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
+$(USERPATH)/system.users: $(M4SUPPORT) tmp/generated_definitions.conf $(USER_FILES)
 	@mkdir -p $(USERPATH)
 	@echo "Installing system.users"
 	@echo "# " > tmp/system.users
@@ -259,8 +274,9 @@ $(USERPATH)/system.users: $(USER_FILES) tmp/generated_definitions.conf
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 -D monolithic_policy $(M4PARAM) tmp/generated_definitions.conf $(USER_FILES) | \
-		egrep -v "^[[:space:]]*($$|#)" >> tmp/system.users
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | \
+		egrep -v "^[[:blank:]]*($$|#)" | \
+		sed -r -e 's/^[[:blank:]]+//' >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
 $(USERPATH)/local.users: config/local.users

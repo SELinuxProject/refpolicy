@@ -14,9 +14,9 @@
 # by syslogd.
 #
 ifdef(`klogd.te', `
-daemon_domain(syslogd)
+daemon_domain(syslogd, `, privkmsg')
 ', `
-daemon_domain(syslogd, `, privmem')
+daemon_domain(syslogd, `, privmem, privkmsg')
 ')
 
 # can_network is for the UDP socket
@@ -25,7 +25,7 @@ can_ypbind(syslogd_t)
 
 r_dir_file(syslogd_t, sysfs_t)
 
-type devlog_t, file_type, sysadmfile, dev_fs;
+type devlog_t, file_type, sysadmfile, dev_fs, mlstrustedobject;
 
 # if something can log to syslog they should be able to log to the console
 allow privlog console_device_t:chr_file { ioctl read write getattr };
@@ -36,7 +36,7 @@ tmp_domain(syslogd)
 allow syslogd_t etc_t:file r_file_perms;
 
 # Use capabilities.
-allow syslogd_t self:capability { dac_override net_bind_service sys_resource sys_tty_config };
+allow syslogd_t self:capability { dac_override net_admin net_bind_service sys_resource sys_tty_config };
 
 # Modify/create log files.
 create_append_log_file(syslogd_t, var_log_t)
@@ -64,8 +64,6 @@ can_unix_connect(privlog,syslogd_t)
 allow privlog devlog_t:lnk_file read;
 
 ifdef(`crond.te', `
-# Write to the cron log.
-allow syslogd_t crond_log_t:file rw_file_perms;
 # for daemon re-start
 allow system_crond_t syslogd_t:lnk_file read;
 ')
@@ -79,29 +77,33 @@ allow syslogd_t initrc_var_run_t:file { read lock };
 dontaudit syslogd_t initrc_var_run_t:file write;
 allow syslogd_t ttyfile:chr_file { getattr write };
 
-ifdef(`klogd.te', `', `
-# Allow access to /proc/kmsg for syslog-ng
-allow syslogd_t proc_t:dir search;
-allow syslogd_t proc_kmsg_t:file { getattr read };
-allow syslogd_t kernel_t:system { syslog_mod syslog_console };
-')
 #
 # Special case to handle crashes
 #
-allow syslogd_t { device_t file_t }:sock_file unlink;
+allow syslogd_t { device_t file_t }:sock_file { getattr unlink };
 
 # Allow syslog to a terminal
 allow syslogd_t tty_device_t:chr_file { getattr write ioctl append };
 
 # Allow name_bind for remote logging
-type syslogd_port_t, port_type, reserved_port_type;
 allow syslogd_t syslogd_port_t:udp_socket name_bind;
 #
 # /initrd is not umounted before minilog starts
 #
 dontaudit syslogd_t file_t:dir search;
 allow syslogd_t { tmpfs_t devpts_t }:dir search;
-dontaudit syslogd_t unlabeled_t:file read;
+dontaudit syslogd_t unlabeled_t:file { getattr read };
 dontaudit syslogd_t { userpty_type devpts_t }:chr_file getattr;
-allow syslogd_t self:capability net_admin;
 allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
+ifdef(`targeted_policy', `
+allow syslogd_t var_run_t:fifo_file { ioctl read write };
+')
+
+# Allow access to /proc/kmsg for syslog-ng
+allow syslogd_t proc_t:dir search;
+allow syslogd_t proc_kmsg_t:file { getattr read };
+allow syslogd_t kernel_t:system { syslog_mod syslog_console };
+allow syslogd_t self:capability { sys_admin chown fsetid };
+allow syslogd_t var_log_t:dir { create setattr };
+allow syslogd_t syslogd_port_t:tcp_socket name_bind;
+allow syslogd_t rsh_port_t:tcp_socket name_connect;

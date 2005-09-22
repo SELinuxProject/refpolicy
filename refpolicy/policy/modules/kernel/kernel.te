@@ -25,10 +25,19 @@ attribute sysctl_type;
 # kernel_t is the domain of kernel threads.
 # It is also the target type when checking permissions in the system class.
 # 
-type kernel_t, can_load_kernmodule;
+type kernel_t, can_load_kernmodule; # mlsprocread, mlsprocwrite, privrangetrans
 role system_r types kernel_t;
 domain_base_type(kernel_t)
-sid kernel context_template(system_u:system_r:kernel_t,s0 - s9:c0.c127)
+sid kernel context_template(system_u:system_r:kernel_t,s0 - s9:c0.c127, c0.c127)
+
+#
+# DebugFS
+#
+
+type debugfs_t;
+fs_type(debugfs_t)
+allow debugfs_t self:filesystem associate;
+genfscon debugfs / context_template(system_u:object_r:debugfs_t,s0)
 
 #
 # Procfs types
@@ -169,6 +178,9 @@ allow kernel_t sysctl_t:dir r_dir_perms;
 allow kernel_t sysctl_kernel_t:dir r_dir_perms;
 allow kernel_t sysctl_kernel_t:file r_file_perms;
 
+# cjp: this seems questionable
+allow kernel_t unlabeled_t:fifo_file rw_file_perms;
+
 # Kernel-generated traffic e.g., ICMP replies:
 corenet_raw_sendrecv_all_if(kernel_t)
 corenet_raw_sendrecv_all_nodes(kernel_t)
@@ -176,13 +188,16 @@ corenet_raw_sendrecv_all_nodes(kernel_t)
 corenet_tcp_sendrecv_all_if(kernel_t)
 corenet_tcp_sendrecv_all_nodes(kernel_t)
 
-selinux_load_policy(kernel_t)
-
-term_use_console(kernel_t)
+dev_read_sysfs(kernel_t)
+dev_search_usbfs(kernel_t)
 
 # Mount root file system.  Used when loading a policy
 # from initrd, then mounting the root filesystem
 fs_mount_all_fs(kernel_t)
+
+selinux_load_policy(kernel_t)
+
+term_use_console(kernel_t)
 
 corecmd_exec_shell(kernel_t)
 corecmd_list_sbin(kernel_t)
@@ -190,11 +205,22 @@ corecmd_list_sbin(kernel_t)
 corecmd_exec_bin(kernel_t)
 
 domain_signal_all_domains(kernel_t)
+domain_search_all_domains_state(kernel_t)
 
 files_list_root(kernel_t)
 files_list_etc(kernel_t)
 files_list_home(kernel_t)
 files_read_usr_files(kernel_t)
+
+ifdef(`TODO',`
+ifdef(`targeted_policy', `
+unconfined_domain(kernel_t)
+')
+ifdef(`mls_policy', `
+# run init with maximum MLS range
+range_transition kernel_t init_exec_t s0 - s9:c0.c127;
+')
+') dnl end TODO
 
 ########################################
 #
