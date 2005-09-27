@@ -57,23 +57,12 @@ interface(`init_daemon_domain',`
 		attribute direct_run_init, direct_init, direct_init_entry;
 		type initrc_t;
 		role system_r;
-		class fifo_file rw_file_perms;
-		class fd use;
-		class process { noatsecure siginh rlimitinh sigchld };
 	')
 
 	domain_type($1)
 	domain_entry_file($1,$2)
 
 	role system_r types $1;
-
-	domain_auto_trans(initrc_t,$2,$1)
-
-	allow initrc_t $1:fd use;
-	allow initrc_t $1:process { noatsecure siginh rlimitinh };
-	allow $1 initrc_t:fd use;
-	allow $1 initrc_t:fifo_file rw_file_perms;
-	allow $1 initrc_t:process sigchld;
 
 	ifdef(`direct_sysadm_daemon',`
 		domain_auto_trans(direct_run_init,$2,$1)
@@ -93,6 +82,31 @@ interface(`init_daemon_domain',`
 	ifdef(`distro_redhat',`
 		kernel_dontaudit_use_fd($1)
 		files_dontaudit_read_root_file($1)
+	')
+
+	ifdef(`targeted_policy',`
+		# this regex is a hack, since it assumes there is a
+		# _t at the end of the domain type.  If there is no _t
+		# at the end of the type, it returns empty!
+		bool regexp($1, `\(\w+\)_t', `disable_\1_trans') false;
+		if(! regexp($1, `\(\w+\)_t', `disable_\1_trans') ) {
+			domain_auto_trans(initrc_t,$2,$1)
+			allow initrc_t $1:fd use;
+			allow initrc_t $1:process { noatsecure siginh rlimitinh };
+			allow $1 initrc_t:fd use;
+			allow $1 initrc_t:fifo_file rw_file_perms;
+			allow $1 initrc_t:process sigchld;
+		} else {
+			can_exec(initrc_t,$2)
+			can_exec(direct_run_init,$2)
+		}
+	',`
+		domain_auto_trans(initrc_t,$2,$1)
+		allow initrc_t $1:fd use;
+		allow initrc_t $1:process { noatsecure siginh rlimitinh };
+		allow $1 initrc_t:fd use;
+		allow $1 initrc_t:fifo_file rw_file_perms;
+		allow $1 initrc_t:process sigchld;
 	')
 
 	optional_policy(`nscd.te',`
