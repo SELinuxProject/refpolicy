@@ -54,6 +54,26 @@ domain_type(smbmount_t)
 type smbmount_exec_t;
 domain_entry_file(smbmount_t,smbmount_exec_t)
 
+type winbind_t; # privhome
+type winbind_exec_t;
+init_daemon_domain(winbind_t,winbind_exec_t)
+
+type winbind_helper_t;
+domain_type(winbind_helper_t)
+role system_r types winbind_helper_t;
+
+type winbind_helper_exec_t;
+domain_entry_file(winbind_helper_t,winbind_helper_exec_t)
+
+type winbind_log_t;
+logging_log_file(winbind_log_t)
+
+type winbind_tmp_t;
+files_tmp_file(winbind_tmp_t)
+
+type winbind_var_run_t;
+files_pid_file(winbind_var_run_t)
+
 ########################################
 #
 # Samba net local policy
@@ -387,6 +407,7 @@ optional_policy(`rhgb.te',`
 #
 # smbmount Local policy
 #
+
 allow smbmount_t self:capability { sys_rawio sys_admin dac_override chown }; # FIXME: is all of this really necessary?
 allow smbmount_t self:process { fork signal_perms };
 allow smbmount_t self:tcp_socket create_stream_socket_perms;
@@ -471,4 +492,155 @@ ifdef(`TODO',`
 ifdef(`cups.te', `
 	allow smbd_t cupsd_rw_etc_t:file { getattr read };
 ')
+')
+
+########################################
+#
+# Winbind local policy
+#
+
+dontaudit winbind_t self:capability sys_tty_config;
+allow winbind_t self:process signal_perms;
+allow winbind_t self:fifo_file { read write };
+allow winbind_t self:unix_dgram_socket create_socket_perms;
+allow winbind_t self:unix_stream_socket create_stream_socket_perms;
+allow winbind_t self:netlink_route_socket r_netlink_socket_perms;
+allow winbind_t self:tcp_socket create_stream_socket_perms;
+allow winbind_t self:udp_socket create_socket_perms;
+
+allow winbind_t samba_etc_t:dir r_dir_perms;
+allow winbind_t samba_etc_t:lnk_file { getattr read };
+allow winbind_t samba_etc_t:file r_file_perms;
+
+allow winbind_t samba_secrets_t:file create_file_perms;
+allow winbind_t samba_etc_t:dir rw_dir_perms;
+type_transition winbind_t samba_etc_t:file samba_secrets_t;
+
+allow winbind_t samba_log_t:dir rw_dir_perms;
+allow winbind_t samba_log_t:file create_file_perms;
+allow winbind_t samba_log_t:lnk_file create_lnk_perms;
+
+allow winbind_t samba_var_t:dir rw_dir_perms;
+allow winbind_t samba_var_t:file create_file_perms;
+allow winbind_t samba_var_t:lnk_file create_lnk_perms;
+
+allow winbind_t winbind_log_t:file create_file_perms;
+logging_create_log(winbind_t,winbind_log_t)
+
+allow winbind_t winbind_tmp_t:dir create_dir_perms;
+allow winbind_t winbind_tmp_t:file create_file_perms;
+files_create_tmp_files(winbind_t, winbind_tmp_t, { file dir })
+
+allow winbind_t winbind_var_run_t:file create_file_perms;
+allow winbind_t winbind_var_run_t:sock_file create_file_perms;
+allow winbind_t winbind_var_run_t:dir rw_dir_perms;
+files_create_pid(winbind_t,winbind_var_run_t)
+
+kernel_read_kernel_sysctl(winbind_t)
+kernel_list_proc(winbind_t)
+kernel_read_proc_symlinks(winbind_t)
+
+corenet_tcp_sendrecv_all_if(winbind_t)
+corenet_udp_sendrecv_all_if(winbind_t)
+corenet_raw_sendrecv_all_if(winbind_t)
+corenet_tcp_sendrecv_all_nodes(winbind_t)
+corenet_udp_sendrecv_all_nodes(winbind_t)
+corenet_raw_sendrecv_all_nodes(winbind_t)
+corenet_tcp_sendrecv_all_ports(winbind_t)
+corenet_udp_sendrecv_all_ports(winbind_t)
+corenet_tcp_bind_all_nodes(winbind_t)
+corenet_udp_bind_all_nodes(winbind_t)
+corenet_tcp_connect_smbd_port(winbind_t)
+
+dev_read_sysfs(winbind_t)
+dev_read_urand(winbind_t)
+
+fs_getattr_all_fs(winbind_t)
+fs_search_auto_mountpoints(winbind_t)
+
+term_dontaudit_use_console(winbind_t)
+
+auth_domtrans_chk_passwd(winbind_t)
+
+domain_use_wide_inherit_fd(winbind_t)
+
+files_read_etc_files(winbind_t)
+
+init_use_fd(winbind_t)
+init_use_script_pty(winbind_t)
+
+libs_use_ld_so(winbind_t)
+libs_use_shared_libs(winbind_t)
+
+logging_send_syslog_msg(winbind_t)
+
+miscfiles_read_localization(winbind_t)
+
+sysnet_read_config(winbind_t)
+sysnet_dns_name_resolve(winbind_t)
+
+userdom_dontaudit_use_unpriv_user_fd(winbind_t)
+userdom_dontaudit_search_sysadm_home_dir(winbind_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(winbind_t)
+	term_dontaudit_use_generic_pty(winbind_t)
+	files_dontaudit_read_root_file(winbind_t)
+')
+
+optional_policy(`kerberos.te',`
+	kerberos_use(winbind_t)
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(winbind_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(winbind_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(winbind_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(winbind_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(winbind_t)
+')
+') dnl end TODO
+
+########################################
+#
+# Winbind helper local policy
+#
+
+allow winbind_helper_t self:unix_dgram_socket create_socket_perms;
+allow winbind_helper_t self:unix_stream_socket create_stream_socket_perms;
+
+allow winbind_helper_t samba_etc_t:dir r_dir_perms;
+allow winbind_helper_t samba_etc_t:lnk_file { getattr read };
+allow winbind_helper_t samba_etc_t:file r_file_perms;
+
+allow winbind_helper_t winbind_var_run_t:dir r_dir_perms;
+allow winbind_helper_t winbind_var_run_t:sock_file { getattr read write };
+allow winbind_helper_t winbind_t:unix_stream_socket connectto;
+
+term_list_ptys(winbind_helper_t)
+
+domain_use_wide_inherit_fd(winbind_helper_t)
+
+libs_use_ld_so(winbind_helper_t)
+libs_use_shared_libs(winbind_helper_t)
+
+logging_send_syslog_msg(winbind_helper_t)
+
+miscfiles_read_localization(winbind_helper_t) 
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(winbind_helper_t)
 ')
