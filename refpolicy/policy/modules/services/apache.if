@@ -1,0 +1,353 @@
+## <summary>Apache web server</summary>
+
+template(`apache_content_template',`
+
+	#This type is for webpages
+	type httpd_$1_content_t, httpdcontent; # customizable
+	files_type(httpd_$1_content_t)
+
+	# This type is used for .htaccess files
+	type httpd_$1_htaccess_t; # customizable;
+	files_type(httpd_$1_htaccess_t)
+
+	# Type that CGI scripts run as
+	type httpd_$1_script_t;
+	domain_type(httpd_$1_script_t)
+	role system_r types httpd_$1_script_t;
+
+	# This type is used for executable scripts files
+	type httpd_$1_script_exec_t; # customizable;
+	domain_entry_file(httpd_$1_script_t,httpd_$1_script_exec_t)
+
+	# The following three are the only areas that 
+	# scripts can read, read/write, or append to
+	type httpd_$1_script_ro_t, httpdcontent; # customizable
+	files_type(httpd_$1_script_ro_t)
+
+	type httpd_$1_script_rw_t, httpdcontent; # customizable
+	files_type(httpd_$1_script_rw_t)
+
+	type httpd_$1_script_ra_t, httpdcontent; # customizable
+	files_type(httpd_$1_script_ra_t)
+
+	allow httpd_t httpd_$1_htaccess_t:file r_file_perms;
+
+	domain_auto_trans(httpd_suexec_t, httpd_$1_script_exec_t, httpd_$1_script_t)
+	allow httpd_suexec_t httpd_$1_script_t:fd use;
+	allow httpd_$1_script_t httpd_suexec_t:fd use;
+	allow httpd_$1_script_t httpd_suexec_t:fifo_file rw_file_perms;
+	allow httpd_$1_script_t httpd_suexec_t:process sigchld;
+
+	allow httpd_suexec_t { httpd_$1_content_t httpd_$1_script_ro_t httpd_$1_script_rw_t httpd_$1_script_exec_t }:dir { getattr search };
+
+	allow httpd_$1_script_t self:fifo_file rw_file_perms;
+
+	allow httpd_$1_script_t httpd_t:fifo_file write;
+	# apache should set close-on-exec
+	dontaudit httpd_$1_script_t httpd_t:unix_stream_socket { read write };
+
+	# Allow the script process to search the cgi directory, and users directory
+	allow httpd_$1_script_t httpd_$1_content_t:dir { getattr search };
+
+	allow httpd_$1_script_t httpd_log_t:file { getattr append };
+	allow httpd_$1_script_t httpd_log_t:dir search;
+	logging_search_logs(httpd_$1_script_t)
+
+	can_exec(httpd_$1_script_t, httpd_$1_script_exec_t)
+	allow httpd_$1_script_t httpd_$1_script_exec_t:dir { search getattr };
+
+	allow httpd_$1_script_t httpd_$1_script_ra_t:dir ra_dir_perms;
+	allow httpd_$1_script_t httpd_$1_script_ra_t:file ra_file_perms;
+	allow httpd_$1_script_t httpd_$1_script_ra_t:lnk_file { getattr read };
+
+	allow httpd_$1_script_t httpd_$1_script_ro_t:dir { getattr read search };
+	allow httpd_$1_script_t httpd_$1_script_ro_t:file { read getattr };
+	allow httpd_$1_script_t httpd_$1_script_ro_t:lnk_file { getattr read };
+
+	allow httpd_$1_script_t httpd_$1_script_rw_t:dir create_dir_perms;
+	allow httpd_$1_script_t httpd_$1_script_rw_t:file create_file_perms;
+	allow httpd_$1_script_t httpd_$1_script_rw_t:lnk_file create_lnk_perms;
+	allow httpd_$1_script_t httpd_$1_script_rw_t:sock_file create_file_perms;
+	allow httpd_$1_script_t httpd_$1_script_rw_t:fifo_file create_file_perms;
+	files_create_tmp_files(httpd_$1_script_t,httpd_$1_script_rw_t,{ file lnk_file sock_file fifo_file })
+
+	dev_read_rand(httpd_$1_script_t)
+	dev_read_urand(httpd_$1_script_t)
+
+	corecmd_exec_bin(httpd_$1_script_t)
+	corecmd_exec_sbin(httpd_$1_script_t)
+
+	domain_exec_all_entry_files(httpd_$1_script_t)
+
+	files_exec_etc_files(httpd_$1_script_t)
+	files_read_etc_files(httpd_$1_script_t)
+	files_search_home(httpd_$1_script_t)
+
+	libs_use_ld_so(httpd_$1_script_t)
+	libs_use_shared_libs(httpd_$1_script_t)
+	libs_exec_ld_so(httpd_$1_script_t)
+	libs_exec_lib_files(httpd_$1_script_t)
+
+	miscfiles_read_fonts(httpd_$1_script_t)
+
+	seutil_dontaudit_search_config(httpd_$1_script_t)
+
+	ifdef(`targeted_policy',`
+		tunable_policy(`httpd_enable_cgi && httpd_unified && ! httpd_disable_trans',`
+			allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
+			allow httpd_$1_script_t httpdcontent:file create_file_perms;
+			allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
+			can_exec(httpd_$1_script_t, httpdcontent)
+		')
+	',`
+		tunable_policy(`httpd_enable_cgi && httpd_unified',`
+			allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
+			allow httpd_$1_script_t httpdcontent:file create_file_perms;
+			allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
+			can_exec(httpd_$1_script_t, httpdcontent)
+		')
+	')
+
+	# Allow the web server to run scripts and serve pages
+	tunable_policy(`httpd_builtin_scripting',`
+		allow httpd_t httpd_$1_script_rw_t:dir create_dir_perms;
+		allow httpd_t httpd_$1_script_rw_t:file create_file_perms;
+		allow httpd_t httpd_$1_script_rw_t:lnk_file create_lnk_perms;
+		allow httpd_t httpd_$1_script_rw_t:sock_file rw_file_perms;
+
+		allow httpd_t httpd_$1_script_ra_t:dir ra_dir_perms;
+		allow httpd_t httpd_$1_script_ra_t:file ra_file_perms;
+		allow httpd_t httpd_$1_script_ra_t:lnk_file { getattr read };
+
+		allow httpd_t httpd_$1_script_ro_t:dir r_dir_perms;
+		allow httpd_t httpd_$1_script_ro_t:file r_file_perms;
+		allow httpd_t httpd_$1_script_ro_t:lnk_file { getattr read };
+
+		allow httpd_t httpd_$1_content_t:dir r_dir_perms;
+		allow httpd_t httpd_$1_content_t:file r_file_perms;
+		allow httpd_t httpd_$1_content_t:lnk_file { getattr read };
+	')
+
+	tunable_policy(`httpd_enable_cgi',`
+		domain_auto_trans(httpd_t, httpd_$1_script_exec_t, httpd_$1_script_t)
+		allow httpd_t httpd_$1_script_t:fd use;
+		allow httpd_$1_script_t httpd_t:fd use;
+		allow httpd_$1_script_t httpd_t:fifo_file rw_file_perms;
+		allow httpd_$1_script_t httpd_t:process sigchld;
+
+		allow httpd_t httpd_$1_script_t:process { signal sigkill sigstop };
+		allow httpd_t httpd_$1_script_exec_t:dir r_dir_perms;
+		allow httpd_t httpd_$1_script_exec_t:file r_file_perms;
+
+		allow httpd_$1_script_t self:process signal_perms;
+		allow httpd_$1_script_t self:unix_stream_socket create_stream_socket_perms;
+
+		allow httpd_$1_script_t httpd_t:fd use;
+		allow httpd_$1_script_t httpd_t:process sigchld;
+
+		kernel_read_system_state(httpd_$1_script_t)
+
+		dev_read_urand(httpd_$1_script_t)
+
+		fs_getattr_xattr_fs(httpd_$1_script_t)
+
+		files_read_etc_runtime_files(httpd_$1_script_t)
+		files_read_usr_files(httpd_$1_script_t)
+
+		libs_read_lib(httpd_$1_script_t)
+
+		miscfiles_read_localization(httpd_$1_script_t)
+	')
+
+	tunable_policy(`httpd_enable_cgi && httpd_can_network_connect',`
+		allow httpd_$1_script_t self:tcp_socket create_stream_socket_perms;
+		allow httpd_$1_script_t self:udp_socket create_socket_perms;
+		corenet_tcp_sendrecv_all_if(httpd_$1_script_t)
+		corenet_udp_sendrecv_all_if(httpd_$1_script_t)
+		corenet_raw_sendrecv_all_if(httpd_$1_script_t)
+		corenet_tcp_sendrecv_all_nodes(httpd_$1_script_t)
+		corenet_udp_sendrecv_all_nodes(httpd_$1_script_t)
+		corenet_raw_sendrecv_all_nodes(httpd_$1_script_t)
+		corenet_tcp_sendrecv_all_ports(httpd_$1_script_t)
+		corenet_udp_sendrecv_all_ports(httpd_$1_script_t)
+		corenet_tcp_bind_all_nodes(httpd_$1_script_t)
+		corenet_udp_bind_all_nodes(httpd_$1_script_t)
+		corenet_tcp_connect_all_ports(httpd_$1_script_t)
+
+		sysnet_read_config(httpd_$1_script_t)
+	')
+
+	optional_policy(`mount.te',`
+		tunable_policy(`httpd_enable_cgi && httpd_can_network_connect',`
+			mount_send_nfs_client_request(httpd_$1_script_t)
+		')
+	')
+
+
+	optional_policy(`mta.te',`
+		mta_send_mail(httpd_$1_script_t)
+	')
+
+	optional_policy(`nis.te',`
+		tunable_policy(`httpd_enable_cgi && allow_ypbind',`
+			nis_use_ypbind_uncond(httpd_$1_script_t)
+		')
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket(httpd_$1_script_t)
+	')
+
+	ifdef(`TODO',`
+	anonymous_domain(httpd_$1_script)
+
+	#
+	# If a user starts a script by hand it gets the proper context
+	#
+	ifdef(`targeted_policy', `', `
+	if (httpd_enable_cgi) {
+	domain_auto_trans(sysadm_t, httpd_$1_script_exec_t, httpd_$1_script_t)
+	}
+	')
+	role sysadm_r types httpd_$1_script_t;
+
+	dontaudit httpd_$1_script_t sysctl_kernel_t:dir search;
+	dontaudit httpd_$1_script_t sysctl_t:dir search;
+	') dnl end TODO
+')
+
+template(`apache_per_userdomain_template', `
+
+	apache_content_template($1)
+
+#	typeattribute httpd_$1_content_t $1_file_type;
+
+	role $3 types httpd_$1_script_t;
+
+	allow $2 httpd_$1_content_t:{ dir file lnk_file } { relabelto relabelfrom };
+
+	allow $2 httpd_$1_htaccess_t:file { create_file_perms relabelto relabelfrom };
+
+	allow $2 httpd_$1_script_ra_t:lnk_file { create_lnk_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_ra_t:dir { create_dir_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_ra_t:file { create_file_perms relabelto relabelfrom };
+
+	allow $2 httpd_$1_script_ro_t:lnk_file { create_lnk_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_ro_t:dir { create_dir_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_ro_t:file { create_file_perms relabelto relabelfrom };
+
+	allow $2 httpd_$1_script_rw_t:lnk_file { create_lnk_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_rw_t:dir { create_dir_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_rw_t:file { create_file_perms relabelto relabelfrom };
+
+	allow $2 httpd_$1_script_exec_t:dir create_dir_perms;
+	allow $2 httpd_$1_script_exec_t:file create_file_perms;
+	allow $2 httpd_$1_script_exec_t:lnk_file create_lnk_perms;
+
+	allow $2 httpd_$1_script_exec_t:dir { create_dir_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_exec_t:file { create_file_perms relabelto relabelfrom };
+	allow $2 httpd_$1_script_exec_t:lnk_file { create_lnk_perms relabelto relabelfrom };
+
+	ifdef(`targeted_policy',`
+		tunable_policy(`httpd_enable_cgi && httpd_unified && ! httpd_disable_trans',`
+			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
+			allow $2 httpd_$1_script_t:fd use;
+			allow httpd_$1_script_t $2:fd use;
+			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+			allow httpd_$1_script_t $2:process sigchld;
+		')
+
+		tunable_policy(`httpd_enable_cgi && ! httpd_disable_trans',`
+			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
+			allow $2 httpd_$1_script_t:fd use;
+			allow httpd_$1_script_t $2:fd use;
+			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+			allow httpd_$1_script_t $2:process sigchld;
+		')
+	',`
+		tunable_policy(`httpd_enable_cgi',`
+			# If a user starts a script by hand it gets the proper context
+			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
+			allow $2 httpd_$1_script_t:fd use;
+			allow httpd_$1_script_t $2:fd use;
+			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+			allow httpd_$1_script_t $2:process sigchld;
+		')
+
+		tunable_policy(`httpd_enable_cgi && httpd_unified',`
+			domain_auto_trans($1_t, httpdcontent, httpd_$1_script_t)
+			allow $2 httpd_$1_script_t:fd use;
+			allow httpd_$1_script_t $2:fd use;
+			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+			allow httpd_$1_script_t $2:process sigchld;
+		')
+	')
+
+	# allow accessing files/dirs below the users home dir
+	tunable_policy(`httpd_enable_homedirs',`
+		userdom_search_user_home($1,httpd_t)
+		userdom_search_user_home($1,httpd_suexec_t)
+		userdom_search_user_home($1,httpd_$1_script_t)
+	')
+')
+
+########################################
+## <summary>
+##	Transition to Apache.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_domtrans',`
+	gen_require(`
+		type httpd_t, httpd_exec_t;
+		class process sigchld;
+		class fd use;
+		class fifo_file rw_file_perms;
+	')
+
+	corecmd_search_sbin($1)
+	domain_auto_trans($1,httpd_exec_t,httpd_t)
+
+	allow $1 httpd_t:fd use;
+	allow httpd_t $1:fd use;
+	allow httpd_t $1:fifo_file rw_file_perms;
+	allow httpd_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Send a null signal to apache.
+## </summary>
+## <param name="domain">
+##	The type of the process performing this action.
+## </param>
+#
+interface(`apache_signull',`
+	gen_require(`
+		type httpd_t;
+	')
+
+	allow $1 httpd_t:process signull;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	apache configuration files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_read_config',`
+	gen_require(`
+		type httpd_config_t;
+	')
+
+	files_search_etc($1)
+	allow $1 httpd_config_t:dir r_dir_perms;
+	allow $1 httpd_config_t:file r_file_perms;
+	allow $1 httpd_config_t:lnk_file { getattr read };
+')
