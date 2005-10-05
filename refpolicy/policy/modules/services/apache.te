@@ -103,6 +103,13 @@ files_pid_file(httpd_var_run_t)
 type squirrelmail_spool_t;
 files_tmp_file(squirrelmail_spool_t)
 
+# mod_jk2 creates /var/log/httpd/jk2.shm to communicate with tomcat
+# This is a bug but it still exists in FC2
+# cjp: probably can remove this
+ifdef(`distro_redhat',`
+	typealias httpd_log_t alias httpd_runtime_t;
+')
+
 ########################################
 #
 # Apache server local policy
@@ -223,6 +230,8 @@ files_getattr_home_dir(httpd_t)
 files_read_etc_runtime_files(httpd_t)
 # Allow httpd_t to have access to files such as nisswitch.conf
 files_read_etc_files(httpd_t)
+# for tomcat
+files_read_var_lib_symlinks(httpd_t)
 
 init_use_fd(httpd_t)
 init_use_script_pty(httpd_t)
@@ -235,6 +244,8 @@ logging_send_syslog_msg(httpd_t)
 
 miscfiles_read_localization(httpd_t)
 miscfiles_read_fonts(httpd_t)
+miscfiles_read_public_files(httpd_t)
+miscfiles_read_certs(httpd_t)
 
 seutil_dontaudit_search_config(httpd_t)
 
@@ -253,31 +264,13 @@ ifdef(`targeted_policy',`
 	files_dontaudit_read_root_file(httpd_t)
 ')
 
-tunable_policy(`httpd_enable_cgi',`
-	domain_auto_trans(httpd_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
-	allow httpd_t httpd_unconfined_script_t:fd use;
-	allow httpd_unconfined_script_t httpd_t:fd use;
-	allow httpd_unconfined_script_t httpd_t:fifo_file rw_file_perms;
-	allow httpd_unconfined_script_t httpd_t:process sigchld;
-
-	allow httpd_t httpd_unconfined_script_t:process { signal sigkill sigstop };
-	allow httpd_t httpd_unconfined_script_exec_t:dir r_dir_perms;
-')
-
-tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
-	fs_read_nfs_files(httpd_t)
-	fs_read_nfs_symlinks(httpd_t)
-')
-
-tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
-	fs_read_cifs_files(httpd_t)
-	fs_read_cifs_symlinks(httpd_t)
-')
+tunable_policy(`allow_httpd_anon_write',`
+	miscfiles_manage_public_files(httpd_t)
+') 
 
 tunable_policy(`httpd_can_network_connect',`
 	allow httpd_t self:tcp_socket create_socket_perms;
-	allow httpd_t self:udp_socket { connect };
-	allow httpd_t self:udp_socket connected_socket_perms;
+	allow httpd_t self:udp_socket create_socket_perms;
 
 	corenet_tcp_sendrecv_all_if(httpd_t)
 	corenet_udp_sendrecv_all_if(httpd_t)
@@ -292,6 +285,49 @@ tunable_policy(`httpd_can_network_connect',`
 	corenet_tcp_connect_all_ports(httpd_t)
 
 	sysnet_read_config(httpd_t)
+')
+
+tunable_policy(`httpd_enable_cgi',`
+	domain_auto_trans(httpd_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+	allow httpd_t httpd_unconfined_script_t:fd use;
+	allow httpd_unconfined_script_t httpd_t:fd use;
+	allow httpd_unconfined_script_t httpd_t:fifo_file rw_file_perms;
+	allow httpd_unconfined_script_t httpd_t:process sigchld;
+
+	allow httpd_t httpd_unconfined_script_t:process { signal sigkill sigstop };
+	allow httpd_t httpd_unconfined_script_exec_t:dir r_dir_perms;
+')
+
+tunable_policy(`httpd_enable_cgi && httpd_unified && httpd_builtin_scripting',`
+	domain_auto_trans(httpd_t, httpdcontent, httpd_sys_script_t)
+	allow httpd_t httpd_sys_script_t:fd use;
+	allow httpd_sys_script_t httpd_t:fd use;
+	allow httpd_sys_script_t httpd_t:fifo_file rw_file_perms;
+	allow httpd_sys_script_t httpd_t:process sigchld;
+
+	allow httpd_t httpdcontent:dir create_dir_perms;
+	allow httpd_t httpdcontent:file create_file_perms;
+	allow httpd_t httpdcontent:lnk_file create_lnk_perms;
+')
+
+tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
+	fs_read_nfs_files(httpd_t)
+	fs_read_nfs_symlinks(httpd_t)
+')
+
+tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
+	fs_read_cifs_files(httpd_t)
+	fs_read_cifs_symlinks(httpd_t)
+')
+
+# When the admin starts the server, the server wants to access
+# the TTY or PTY associated with the session. The httpd appears
+# to run correctly without this permission, so the permission
+# are dontaudited here. 
+tunable_policy(`httpd_tty_comm',`
+	userdom_use_sysadm_terms(httpd_t)
+',`
+	userdom_dontaudit_use_sysadm_terms(httpd_t)
 ')
 
 optional_policy(`kerberos.te',`
@@ -335,18 +371,9 @@ can_tcp_connect(web_client_domain, httpd_t)
 
 allow httpd_t crypt_device_t:chr_file rw_file_perms;
 
-# for tomcat
-allow httpd_t var_lib_t:lnk_file { getattr read };
-
-#########################################
-# Allow httpd to search users directories
-#########################################
-allow httpd_t home_root_t:dir { getattr search };
+allow httpd_t home_root_t:dir getattr;
 
 dontaudit httpd_t sysadm_home_dir_t:dir getattr;
-
-# Allow apache to used ftpd_anon_t
-anonymous_domain(httpd)
 
 optional_policy(`mysql.te',`
 	allow httpd_t mysqld_db_t:dir search;
@@ -360,33 +387,11 @@ ifdef(`snmpd.te', `
 	dontaudit httpd_t usr_t:dir write;
 ')
 
-r_dir_file(initrc_t, httpd_config_t)
-allow initrc_t httpd_modules_t:dir r_dir_perms;
-
-
-# setup the system domain for system CGI scripts
-dontaudit httpd_sys_script_t httpd_config_t:dir search;
-allow httpd_sys_script_t httpd_t:tcp_socket { read write };
-kernel_read_kernel_sysctl(httpd_sys_script_t)
-allow httpd_sys_script_t var_spool_t:dir { getattr search };
-r_dir_file(httpd_sys_script_t, squirrelmail_spool_t)
-allow httpd_sys_script_t httpd_squirrelmail_t:file { append read };
-allow httpd_sys_script_t var_lib_t:dir search;
-
-# Run SSI execs in system CGI script domain.
-tunable_policy(`httpd_ssi_exec',`
-	corecmd_shell_domtrans(httpd_t,httpd_sys_script_t)
-	allow httpd_t httpd_sys_script_t:fd use;
-	allow httpd_sys_script_t httpd_t:fd use;
-	allow httpd_sys_script_t httpd_t:fifo_file rw_file_perms;
-	allow httpd_sys_script_t httpd_t:process sigchld;
-')
+allow httpd_sys_script_t var_spool_t:dir getattr;
 
 optional_policy(`mysql.te',`
 	allow httpd_sys_script_t mysqld_db_t:dir search;
 	allow httpd_sys_script_t mysqld_db_t:sock_file rw_file_perms;
-
-	mysql_stream_connect(httpd_sys_script_t)
 ')
 
 ifdef(`targeted_policy', `
@@ -407,61 +412,11 @@ ifdef(`targeted_policy', `
 # We no longer call httpd_domain(sysadm), but need httpd_sysadm_content_t for file context
 typealias httpd_sys_content_t alias httpd_sysadm_content_t;
 
-ifdef(`distro_redhat',`
-	# mod_jk2 creates /var/log/httpd/jk2.shm to communicate with tomcat
-	# This is a bug but it still exists in FC2
-	typealias httpd_log_t alias httpd_runtime_t;
-
-	allow httpd_sys_script_t httpd_log_t:file { getattr append };
-')
-
-########################################
-# When the admin starts the server, the server wants to access
-# the TTY or PTY associated with the session. The httpd appears
-# to run correctly without this permission, so the permission
-# are dontaudited here. 
-##################################################
-
-if (httpd_tty_comm) {
-	allow { httpd_t httpd_helper_t } devpts_t:dir search;
-	allow { httpd_t httpd_helper_t } admin_tty_type:chr_file { read write };
-} else {
-	dontaudit httpd_t admin_tty_type:chr_file rw_file_perms;
-}
-
-r_dir_file(httpd_t, cert_t)
-
-dontaudit httpd_suexec_t var_run_t:dir search;
-allow httpd_suexec_t home_root_t:dir search;
-
-if (httpd_enable_cgi && httpd_unified ifdef(`targeted_policy', ` && ! httpd_disable_trans')) {
-	domain_auto_trans(httpd_suexec_t, httpdcontent, httpd_sys_script_t)
-	allow httpd_suexec_t httpd_sys_script_t:fd use;
-	allow httpd_sys_script_t httpd_suexec_t:fd use;
-	allow httpd_sys_script_t httpd_suexec_t:fifo_file rw_file_perms;
-	allow httpd_sys_script_t httpd_suexec_t:process sigchld;
-
+tunable_policy(`httpd_enable_cgi && httpd_unified',`
 	ifdef(`targeted_policy', `', `
 		domain_auto_trans(sysadm_t, httpdcontent, httpd_sys_script_t)
 	')
-}
-
-if (httpd_enable_cgi && httpd_unified && httpd_builtin_scripting ifdef(`targeted_policy', ` && ! httpd_disable_trans')) {
-	domain_auto_trans(httpd_t, httpdcontent, httpd_sys_script_t)
-	allow httpd_t httpd_sys_script_t:fd use;
-	allow httpd_sys_script_t httpd_t:fd use;
-	allow httpd_sys_script_t httpd_t:fifo_file rw_file_perms;
-	allow httpd_sys_script_t httpd_t:process sigchld;
-
-	allow httpd_t httpdcontent:dir create_dir_perms;
-	allow httpd_t httpdcontent:file create_file_perms;
-	allow httpd_t httpdcontent:lnk_file create_lnk_perms;
-}
-
-tunable_policy(`httpd_enable_cgi',`
-	domain_auto_trans(httpd_suexec_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
 ')
-
 
 optional_policy(`mta.te',`
 	# apache should set close-on-exec
@@ -578,6 +533,7 @@ corecmd_exec_shell(httpd_suexec_t)
 
 files_read_etc_files(httpd_suexec_t)
 files_read_usr_files(httpd_suexec_t)
+files_dontaudit_search_pids(httpd_suexec_t)
 
 libs_use_ld_so(httpd_suexec_t)
 libs_use_shared_libs(httpd_suexec_t)
@@ -604,6 +560,18 @@ tunable_policy(`httpd_can_network_connect',`
 	corenet_tcp_connect_all_ports(httpd_suexec_t)
 
 	sysnet_read_config(httpd_suexec_t)
+')
+
+tunable_policy(`httpd_enable_cgi',`
+	domain_auto_trans(httpd_suexec_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+')
+
+tunable_policy(`httpd_enable_cgi && httpd_unified',`
+	domain_auto_trans(httpd_suexec_t, httpdcontent, httpd_sys_script_t)
+	allow httpd_suexec_t httpd_sys_script_t:fd use;
+	allow httpd_sys_script_t httpd_suexec_t:fd use;
+	allow httpd_sys_script_t httpd_suexec_t:fifo_file rw_file_perms;
+	allow httpd_sys_script_t httpd_suexec_t:process sigchld;
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -633,7 +601,31 @@ optional_policy(`nis.te',`
 # Apache system script local policy
 #
 
+# setup the system domain for system CGI scripts
 apache_content_template(sys)
+
+allow httpd_sys_script_t httpd_t:tcp_socket { read write };
+
+dontaudit httpd_sys_script_t httpd_config_t:dir search;
+
+allow httpd_sys_script_t httpd_squirrelmail_t:file { append read };
+
+allow httpd_sys_script_t squirrelmail_spool_t:dir r_dir_perms;
+allow httpd_sys_script_t squirrelmail_spool_t:file r_file_perms;
+allow httpd_sys_script_t squirrelmail_spool_t:lnk_file { getattr read };
+
+kernel_read_kernel_sysctl(httpd_sys_script_t)
+
+files_search_var_lib(httpd_sys_script_t)
+files_search_spool(httpd_sys_script_t)
+
+ifdef(`distro_redhat',`
+	allow httpd_sys_script_t httpd_log_t:file { getattr append };
+')
+
+optional_policy(`mysql.te',`
+	mysql_stream_connect(httpd_sys_script_t)
+')
 
 ########################################
 #
