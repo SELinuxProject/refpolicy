@@ -1,0 +1,199 @@
+
+policy_module(ftp,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type ftpd_t;
+type ftpd_exec_t;
+init_daemon_domain(ftpd_t,ftpd_exec_t)
+
+type ftpd_etc_t;
+files_type(ftpd_etc_t)
+
+# ftpd_lock_t is only needed when ftpd_is_daemon is true, but we cannot define types conditionally
+type ftpd_lock_t;
+files_lock_file(ftpd_lock_t)
+
+type ftpd_tmp_t;
+files_tmp_file(ftpd_tmp_t)
+
+type ftpd_tmpfs_t;
+files_tmpfs_file(ftpd_tmpfs_t)
+
+type ftpd_var_run_t;
+files_pid_file(ftpd_var_run_t)
+
+type xferlog_t;
+logging_log_file(xferlog_t)
+
+########################################
+#
+# Local policy
+#
+
+allow ftpd_t self:capability { chown fowner fsetid setgid setuid sys_chroot sys_nice sys_resource };
+dontaudit ftpd_t self:capability sys_tty_config;
+allow ftpd_t self:process signal_perms;
+allow ftpd_t self:process { getcap setcap setsched setrlimit };
+allow ftpd_t self:fifo_file rw_file_perms;
+allow ftpd_t self:unix_dgram_socket { sendto create_socket_perms };
+allow ftpd_t self:unix_stream_socket create_socket_perms;
+allow ftpd_t self:tcp_socket create_stream_socket_perms;
+allow ftpd_t self:udp_socket create_socket_perms;
+
+allow ftpd_t ftpd_etc_t:file { getattr read };
+
+allow ftpd_t ftpd_tmp_t:dir create_dir_perms;
+allow ftpd_t ftpd_tmp_t:file create_file_perms;
+files_create_tmp_files(ftpd_t, ftpd_tmp_t, { file dir })
+
+allow ftpd_t ftpd_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow ftpd_t ftpd_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+allow ftpd_t ftpd_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+allow ftpd_t ftpd_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+allow ftpd_t ftpd_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+fs_create_tmpfs_data(ftpd_t,ftpd_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+# Create and modify /var/log/xferlog.
+allow ftpd_t xferlog_t:file create_file_perms;
+logging_create_log(ftpd_t,xferlog_t)
+
+kernel_read_kernel_sysctl(ftpd_t)
+kernel_read_system_state(ftpd_t)
+
+dev_read_sysfs(ftpd_t)
+dev_read_urand(ftpd_t)
+
+fs_search_auto_mountpoints(ftpd_t)
+fs_getattr_all_fs(ftpd_t)
+
+corenet_tcp_sendrecv_all_if(ftpd_t)
+corenet_udp_sendrecv_all_if(ftpd_t)
+corenet_raw_sendrecv_all_if(ftpd_t)
+corenet_tcp_sendrecv_all_nodes(ftpd_t)
+corenet_udp_sendrecv_all_nodes(ftpd_t)
+corenet_raw_sendrecv_all_nodes(ftpd_t)
+corenet_tcp_sendrecv_all_ports(ftpd_t)
+corenet_udp_sendrecv_all_ports(ftpd_t)
+corenet_tcp_bind_all_nodes(ftpd_t)
+corenet_udp_bind_all_nodes(ftpd_t)
+corenet_tcp_bind_ftp_data_port(ftpd_t)
+corenet_tcp_bind_generic_port(ftpd_t)
+corenet_tcp_connect_all_ports(ftpd_t)
+
+term_dontaudit_use_console(ftpd_t)
+
+# Append to /var/log/wtmp.
+auth_append_login_records(ftpd_t)
+#kerberized ftp requires the following
+auth_write_login_records(ftpd_t)
+
+corecmd_exec_bin(ftpd_t)
+# Execute /bin/ls (can comment this out for proftpd)
+# also may need rules to allow tar etc...
+corecmd_exec_ls(ftpd_t)
+
+domain_use_wide_inherit_fd(ftpd_t)
+
+files_search_etc(ftpd_t)
+files_read_etc_files(ftpd_t)
+files_read_etc_runtime_files(ftpd_t)
+
+init_use_fd(ftpd_t)
+init_use_script_pty(ftpd_t)
+
+libs_use_ld_so(ftpd_t)
+libs_use_shared_libs(ftpd_t)
+
+logging_send_syslog_msg(ftpd_t)
+
+miscfiles_read_localization(ftpd_t)
+miscfiles_read_public_files(ftpd_t)
+
+seutil_dontaudit_search_config(ftpd_t)
+
+sysnet_read_config(ftpd_t)
+
+userdom_dontaudit_search_sysadm_home_dir(ftpd_t)
+userdom_dontaudit_use_unpriv_user_fd(ftpd_t)
+
+ifdef(`targeted_policy',`
+	files_dontaudit_read_root_file(ftpd_t)
+
+	term_dontaudit_use_generic_pty(ftpd_t)
+	term_dontaudit_use_unallocated_tty(ftpd_t)
+')
+
+tunable_policy(`allow_ftpd_anon_write',`
+	miscfiles_manage_public_files(ftpd_t)
+') 
+
+tunable_policy(`ftp_home_dir',`
+	# allow access to /home
+	files_getattr_home_dir(ftpd_t)
+	userdom_read_all_user_files(ftpd_t)
+	userdom_manage_all_user_dirs(ftpd_t)
+	userdom_manage_all_user_files(ftpd_t)
+	userdom_manage_all_user_symlinks(ftpd_t)
+')
+
+tunable_policy(`ftpd_is_daemon',`
+	allow ftpd_t ftpd_lock_t:file create_file_perms;
+	files_create_lock(ftpd_t,ftpd_lock_t)
+
+	corenet_tcp_bind_ftp_port(ftpd_t)
+')
+
+tunable_policy(`use_nfs_home_dirs && ftp_home_dir',`
+	fs_read_nfs_files(ftpd_t)
+	fs_read_nfs_symlinks(ftpd_t)
+')
+
+tunable_policy(`use_samba_home_dirs && ftp_home_dir',`
+	fs_read_cifs_files(ftpd_t)
+	fs_read_cifs_symlinks(ftpd_t)
+')
+
+optional_policy(`crond.te', `
+	corecmd_exec_shell(ftpd_t)
+
+	files_read_usr_file(ftpd_t)
+
+       	cron_system_entry(ftpd_t, ftpd_exec_t)
+
+	optional_policy(`logrotate.te',`
+		logrotate_exec(ftpd_t)
+	')
+')
+
+optional_policy(`inetd.te',`
+	if (!ftpd_is_daemon) {
+		#reh: typeattributes not allowed in conditionals yet.
+		#inetd_tcp_service_domain(ftpd_t,ftpd_exec_t)
+
+		optional_policy(`tcpd.te',`
+			tcpd_domtrans(tcpd_t)
+		')
+	}
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(ftpd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(ftpd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(ftpd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(ftpd_t)
+')
+')
