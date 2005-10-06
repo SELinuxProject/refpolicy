@@ -426,7 +426,7 @@ ifelse($4,`',`',`determine_reserved_capability(shiftn(3,$*))')dnl end inner ifel
 
 define(`declare_ports',`dnl
 ifelse(eval($3 < 1024),1,`typeattribute $1 reserved_port_type;',`dnl')
-portcon $2 $3 context_template(system_u:object_r:$1,$4)
+portcon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 ')
 

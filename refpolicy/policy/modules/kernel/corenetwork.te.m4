@@ -1,5 +1,5 @@
 define(`declare_netifs',`dnl
-netifcon $2 context_template(system_u:object_r:$1,$3) context_template(system_u:object_r:unlabeled_t,$3)
+netifcon $2 gen_context(system_u:object_r:$1,$3) gen_context(system_u:object_r:unlabeled_t,$3)
 ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
 ')
 
@@ -17,7 +17,7 @@ declare_netifs($1_netif_t,shift($*))
 #
 define(`network_node',`
 type $1_node_t alias node_$1_t, node_type;
-nodecon $3 $4 context_template(system_u:object_r:$1_node_t,$2)
+nodecon $3 $4 gen_context(system_u:object_r:$1_node_t,$2)
 ')
 
 # These next three macros have formatting, and should not me indented
@@ -35,7 +35,7 @@ ifelse($4,`',`',`determine_reserved_capability_depend(shiftn(3,$*))')dnl end inn
 
 define(`declare_ports',`dnl
 ifelse(eval($3 < 1024),1,`typeattribute $1 reserved_port_type;',`dnl')
-portcon $2 $3 context_template(system_u:object_r:$1,$4)
+portcon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 ')
 
