@@ -584,7 +584,7 @@ def gen_docs(doc, working_dir, templatedir):
 
 	#build the global boolean index
 	global_bool_buf = []
-	for boolean in doc.getElementsByTagName("boolean"):
+	for boolean in doc.getElementsByTagName("bool"):
 		if boolean.parentNode.nodeName == "policy":
 			bool_name = boolean.getAttribute("name")
 			default_value = boolean.getAttribute("dftval")

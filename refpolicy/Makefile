@@ -106,8 +106,10 @@ DOCTEMPLATE = $(DOCS)/templates
 
 # config file paths
 GLOBALTUN := $(POLDIR)/global_tunables
+GLOBALBOOL := $(POLDIR)/global_booleans
 MOD_CONF := $(POLDIR)/modules.conf
 TUNABLES := $(POLDIR)/tunables.conf
+BOOLEANS := $(POLDIR)/booleans.conf
 
 # install paths
 TOPDIR = $(DESTDIR)/etc/selinux
@@ -232,11 +234,11 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 #
 # Create config files
 #
-conf: $(MOD_CONF) $(TUNABLES) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
+conf: $(MOD_CONF) $(BOOLEANS) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
 
-$(MOD_CONF) $(TUNABLES): $(POLXML)
-	@echo "Updating $(MOD_CONF) and $(TUNABLES)"
-	$(QUIET) cd $(DOCS) && ../$(GENDOC) -t ../$(TUNABLES) -m ../$(MOD_CONF) -x ../$(POLXML)
+$(MOD_CONF) $(BOOLEANS): $(POLXML)
+	@echo "Updating $(MOD_CONF) and $(BOOLEANS)"
+	$(QUIET) cd $(DOCS) && ../$(GENDOC) -t ../$(BOOLEANS) -m ../$(MOD_CONF) -x ../$(POLXML)
 
 ########################################
 #
@@ -252,7 +254,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	@mkdir -p tmp
 	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(QUIET) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(QUIET) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) $(ALL_LAYERS) >> $@
+	$(QUIET) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) $(ALL_LAYERS) >> $@
 	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
@@ -290,9 +292,9 @@ $(USERPATH)/local.users: config/local.users
 #
 install-appconfig: $(APPFILES)
 
-$(INSTALLDIR)/booleans: $(TUNABLES)
+$(INSTALLDIR)/booleans: $(BOOLEANS)
 	@mkdir -p $(INSTALLDIR)
-	$(QUIET) egrep '^[[:blank:]]*[[:alpha:]]' $(TUNABLES) \
+	$(QUIET) egrep '^[[:blank:]]*[[:alpha:]]' $(BOOLEANS) \
 		| sed -e 's/false/0/g' -e 's/true/1/g' > tmp/booleans
 	$(QUIET) install -m 644 tmp/booleans $@
 
@@ -356,7 +358,7 @@ bare: clean
 	rm -f $(SUPPORT)/*.pyc
 	rm -f $(FCSORT)
 	rm -f $(MOD_CONF)
-	rm -f $(TUNABLES)
+	rm -f $(BOOLEANS)
 	rm -fR $(HTMLDIR)
 ifneq ($(GENERATED_TE),)
 	rm -f $(GENERATED_TE)

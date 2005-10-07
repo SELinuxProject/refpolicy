@@ -15,104 +15,51 @@
 import sys
 import os
 import glob
-
+import re
 
 # GLOBALS
-class dec_style:
-	'''
-	"Declaration Style"
-	Specifies the syntax of a declaration. Intended to be used with
-	getParams().
-	'''
 
-	# Example of a line: foo(bar,one,two);
-	# A style that would fit this: dec_style("foo(",3,",",");")
-	#  "foo(" - the opening of it, ends at the begining of the first param.
-	#  3 - the number of parameters.
-	#  "," - the delimeter to parse apart parameters.
-	#  ");" - the end of the declaration statement.
-
-	def __init__(self,open_str,params,delim,close_str):
-		self.open_str = open_str
-		self.params = params
-		self.delim = delim
-		self.close_str = close_str
-
-
-INTERFACE = dec_style("interface(`",1,None,"'")
-TEMPLATE = dec_style("template(`",1,None,"'")
-TUNABLE = dec_style("gen_tunable(",2,",",")")
-# boolean FIXME: may have to change in the future.
-BOOLEAN = dec_style("gen_bool(",2,",",")")
-
-
-# Default values of command line arguments.
+# Default values of command line arguments:
 directory = "./"
 warn = False
 meta = "metadata"
 layers = []
 tunable_files = []
+bool_files = []
 
+# Pre compiled regular expressions:
+
+# Matches either an interface or a template declaration. Will give the tuple:
+#	("interface" or "template", name)
+# Some examples:
+#	"interface(`kernel_read_system_state',`"
+#	 -> ("interface", "kernel_read_system_state")
+#	"template(`base_user_template',`"
+#	 -> ("template", "base_user_template")
+INTERFACE = re.compile("^\s*(interface|template)\(`([A-Za-z0-9_]*)'")
+
+# Matches either a gen_bool or a gen_tunable statement. Will give the tuple:
+#	("tunable" or "bool", name, "true" or "false")
+# Some examples:
+#	"gen_bool(secure_mode, false)"
+#	 -> ("bool", "secure_mode", "false")
+#	"gen_tunable(allow_kerberos, false)"
+#	 -> ("tunable", "allow_kerberos", "false")
+BOOLEAN = re.compile("^\s*gen_(tunable|bool)\(\s*([A-Za-z0-9_]*)\s*,\s*(true|false)\s*\)")
+
+# Matches a XML comment in the policy, which is defined as any line starting
+#  with two # and at least one character of white space. Will give the single
+#  valued tuple:
+#	("comment")
+# Some Examples:
+#	"## <summary>"
+#	 -> ("<summary>")
+#	"##		The domain allowed access.	"
+#	 -> ("The domain allowed access.")
+XML_COMMENT = re.compile("^##\s+(.*?)\s*$")
 
 
 # FUNCTIONS
-def getXMLComment(line):
-	'''
-	Returns the XML comment, (removes "## " from the front of the line).
-	Returns False if the line is not an XML comment.
-	'''
-
-	for i in range(0,len(line)-1):
-		# Check if the first 3 characters are "## "
-		if line[i:i+3] in ("## ", "##\t"):
-			# The chars before '#' in the line must be whitespace.
-			if i > 0 and not line[0:i-1].isspace():
-				return False
-			else:
-				return line[i+3:]
-
-	# No XML comment.
-	return False	
-
-def getParams(line, style):
-	'''
-	Returns a list of items, containing the values of each parameter.
-	'''
-
-	# Clean out whitespace.
-	temp_line = line.strip()
-
-	# Check to see if the string begins with the specified opening
-	# string specified by style.
-	if temp_line[0:len(style.open_str)] == style.open_str:
-		temp_line = temp_line[len(style.open_str):].strip()
-	else:
-		return False
-
-	# If there is a delimeter.
-	if style.delim:
-		temp_line = temp_line.split(style.delim)
-	else:
-		temp_line = [temp_line]
-
-	# Only interested in a sertain number of tokens, specified by style.
-	temp_line = temp_line[:style.params]
-
-	# Remove the end of the declaration, specified by style.
-	end = temp_line[-1].find(style.close_str)
-	if end == -1:
-		warning("line \"%s\" may be syntactically incorrect"\
-			% line.strip())
-		return False
-
-	temp_line[-1] = temp_line[-1][:end]
-
-	# Remove whitespace
-	for i in range(0,len(temp_line)-1):
-		temp_line[i] = temp_line[i].strip()
-
-	return temp_line
-
 def getModuleXML(file_name):
 	'''
 	Returns the XML data for a module in a list, one line per list item.
@@ -134,96 +81,89 @@ def getModuleXML(file_name):
 		% os.path.splitext(os.path.split(file_name)[-1])[0])
 
 	temp_buf = []
+	interface = None
 
-	# Phases:	find header - looking for the header of the file.
-	#		get header - get the header comments and stop when first
-	#			     whitespace is encountered.
-	#		find interface - looking for interfaces to get info for.
-	phase = "find header"
+	# finding_header is a flag to denote whether we are still looking
+	#  for the XML documentation at the head of the file.
+	finding_header = True
+
+	# Get rid of whitespace at top of file
+	while(module_code and module_code[0].isspace()):
+		module_code = module_code[1:]
 
 	# Go line by line and figure out what to do with it.
 	for line in module_code:
-		# In this phase, whitespace and stray code is ignored at the
-		# top of the file.
-		if phase == "find header":
-			if line.isspace():
+		if finding_header:
+			# If there is a XML comment, add it to the temp buffer.
+			comment = XML_COMMENT.match(line)
+			if comment:
+				temp_buf.append(comment.group(1) + "\n")
 				continue
-			# Once a comment is encountered, start trying to get the
-			# header documentation.
-			elif getXMLComment(line):
-				phase = "get header"
-			# If an interface is found, there is no header, and no
-			# documentation for the interface.
-			elif getParams(line,INTERFACE)\
-				 or getParams(line,TEMPLATE):
-				phase = "find interface"
 
-		# In this phase, XML comments are being retrieved for the file.
-		if phase == "get header":
-			if getXMLComment(line):
-				temp_buf.append(getXMLComment(line))
-				continue
-			# If the line is whitespace, the file header is over,
-			# continue on to find interfaces.
-			elif line.isspace():
+			# Once a line that is not an XML comment is reached,
+			#  either put the XML out to module buffer as the
+			#  module's documentation, or attribute it to an
+			#  interface/template.
+			elif temp_buf:
+				finding_header = False
+				interface = INTERFACE.match(line)
+				if not interface:
+					module_buf += temp_buf
+					temp_buf = []
+					continue
+
+		# Skip over empty lines
+		if line.isspace():
+			continue
+
+		# Grab a comment and add it to the temprorary buffer, if it
+		#  is there.
+		comment = XML_COMMENT.match(line)
+		if comment:
+			temp_buf.append(comment.group(1) + "\n")
+			continue
+
+		# Grab the interface information. This is only not true when
+		#  the interface is at the top of the file and there is no
+		#  documentation for the module.
+		if not interface:
+			interface = INTERFACE.match(line)
+		if interface:
+			# Add the opening tag for the interface/template
+			module_buf.append("<%s name=\"%s\">\n" % interface.groups())
+
+			# Add all the comments attributed to this interface to
+			#  the module buffer.
+			if temp_buf:
 				module_buf += temp_buf
 				temp_buf = []
-				phase = "find interface"
-				continue
-			# Oops! The comments we have been getting weren't part
-			# of the header so attribute them to an interface
-			# instead.
-			elif getParams(line,INTERFACE)\
-				 or getParams(line,TEMPLATE):
-				phase = "find interface"
 
-		# In this phase, XML comments are being attributed
-		if phase == "find interface":
-			if getXMLComment(line):
-				temp_buf.append(getXMLComment(line))
-				continue
-			# If the line is the declaration of a interface,
-			# infer the interface name and add all the comments
-			# to the main buffer.
-			elif getParams(line,INTERFACE):
-				module_buf.append("<interface name=\"%s\">\n"\
-					% getParams(line,INTERFACE)[0])
-				if len(temp_buf):
-					module_buf += temp_buf
-				else:
-					module_buf.append("<summary>\n")
-					module_buf.append("Summary is missing!\n")
-					module_buf.append("</summary>\n")
-					module_buf.append("<param name=\"?\">\n")
-					module_buf.append("Parameter descriptions are missing!\n")
-					module_buf.append("</param>\n")
-				temp_buf = []
-				module_buf.append("</interface>\n")
-				continue
-			elif getParams(line,TEMPLATE):
-				module_buf.append("<template name =\"%s\">\n"\
-					% getParams(line,TEMPLATE)[0])
-				if len(temp_buf):
-					module_buf += temp_buf
-				else:
-					module_buf.append("<summary>\n")
-					module_buf.append("Summary is missing!\n")
-					module_buf.append("</summary>\n")
-					module_buf.append("<param name=\"?\">\n")
-					module_buf.append("Parameter descriptions are missing!\n")
-					module_buf.append("</param>\n")
-				temp_buf = []
-				module_buf.append("</template>\n")
+			# Add default summaries and parameters so that the
+			#  DTD is happy.
+			else:
+				module_buf.append("<summary>\n")
+				module_buf.append("Summary is missing!\n")
+				module_buf.append("</summary>\n")
+				module_buf.append("<param name=\"?\">\n")
+				module_buf.append("Parameter descriptions are missing!\n")
+				module_buf.append("</param>\n")
 
-	# The file had no interfaces, just a header.
-	if phase == "get header":
+			# Close the interface/template tag.
+			module_buf.append("</%s>\n" % interface.group(1))
+
+			interface = None
+			continue
+
+
+
+	# If the file just had a header, add the comments to the module buffer.
+	if finding_header:
 		module_buf += temp_buf
-
-	# If there are XML comments at the end of the file, they arn't
-	# attributed to anything. These are ignored.
-	elif len(temp_buf):
+	# Otherwise there are some lingering XML comments at the bottom, warn
+	#  the user.
+	elif temp_buf:
 		warning("orphan XML comments at bottom of file %s" % file_name)
-		
+
 	module_buf.append("</module>\n")
 
 	return module_buf
@@ -256,9 +196,9 @@ def getLayerXML(directory):
 
 	return layer_buf
 
-def getTunableXML(file_name):
+def getTunableXML(file_name, kind):
 	'''
-	Return all the XML for the tunables in the file specified.
+	Return all the XML for the tunables/bools in the file specified.
 	'''
 
 	# Try to open the file, if it cant, just ignore it.
@@ -277,28 +217,26 @@ def getTunableXML(file_name):
 	# them.
 	for line in tunable_code:
 		# If it is an XML comment, add it to the buffer and go on.
-		if getXMLComment(line):
-			temp_buf.append(getXMLComment(line))
+		comment = XML_COMMENT.match(line)
+		if comment:
+			temp_buf.append(comment.group(1))
 			continue
 
-		# Get the parameters of a TUNABLE style line.
-		params = getParams(line,TUNABLE)
-		tag = "tunable"
+		# Get the boolean/tunable data.
+		boolean = BOOLEAN.match(line)
 
-		# If the line is not a TUNABLE style declaration, try BOOLEAN.
-		if not params:
-			params = getParams(line,BOOLEAN)
-			tag = "boolean"
+		# If we reach a boolean/tunable declaration, attribute all XML
+		#  in the temp buffer to it and add XML to the tunable buffer.
+		if boolean:
+			# If there is a gen_bool in a tunable file or a
+			# gen_tunable in a boolean file, error and exit.
+			if boolean.group(1) != kind:
+				error("%s in a %s file." % (boolean.group(1), kind))
 
-		# If the line is one of the two styles above, add a tunable tag
-		# and give it the data from the temprorary buffer.
-		if params:
-			tunable_buf.append\
-				("<%s name=\"%s\" dftval=\"%s\">\n"
-				% (tag, params[0], params[1]))
+			tunable_buf.append("<%s name=\"%s\" dftval=\"%s\">\n" % boolean.groups())
 			tunable_buf += temp_buf
 			temp_buf = []
-			tunable_buf.append("</%s>\n" % tag)
+			tunable_buf.append("</%s>\n" % boolean.group(1))
 
 	# If there are XML comments at the end of the file, they arn't
 	# attributed to anything. These are ignored.
@@ -332,9 +270,13 @@ def getPolicyXML(directory):
 	for layer in layers:
 		policy_buf += getLayerXML(layer)
 
-	# Add to the XML each tunable specified by the user.
+	# Add to the XML each tunable file specified by the user.
 	for tunable_file in tunable_files:
-		policy_buf += getTunableXML(tunable_file)
+		policy_buf += getTunableXML(tunable_file, "tunable")
+
+	# Add to the XML each bool file specified by the user.
+	for bool_file in bool_files:
+		policy_buf += getTunableXML(bool_file, "bool")
 
 
 	policy_buf.append("</policy>\n")
@@ -371,6 +313,9 @@ def usage():
 	sys.stdout.write("-t --tunable <file>	--	"+\
 				"A file containing tunable declarations\n")
 
+	sys.stdout.write("-b --bool <file>      --      "+\
+				"A file containing bool declarations\n")
+
 def warning(description):
 	'''
 	Warns the user of a non-critical error.
@@ -402,7 +347,7 @@ if len(sys.argv) <= 1:
 # Parse the command line arguments
 for i in range(1, len(sys.argv)):
 	if sys.argv[i-1] in ("-d", "--directory", "-m", "--meta",\
-					"-t", "--tunable"):
+					"-t", "--tunable", "-b", "--bool"):
 		continue
 	elif sys.argv[i] in ("-w", "--warn"):
 		warn = True
@@ -421,6 +366,12 @@ for i in range(1, len(sys.argv)):
 			tunable_files.append(sys.argv[i+1])
 		else:
 			usage()
+	elif sys.argv[i] in ("-b", "--bool"):
+		if i < len(sys.argv)-1:
+			bool_files.append(sys.argv[i+1])
+		else:
+			usage()
+
 	else:
 		layers.append(sys.argv[i])
 
