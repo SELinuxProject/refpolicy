@@ -318,6 +318,10 @@ template(`base_user_template',`
 		')
 	')
 
+	optional_policy(`finger.te',`
+		finger_tcp_connect($1_t)
+	')
+
 	optional_policy(`inetd.te',`
 		inetd_tcp_connect($1_t)
 	')
@@ -1644,6 +1648,26 @@ interface(`userdom_use_sysadm_pty',`
 
 ########################################
 ## <summary>
+##	Dont audit attempts to read and write sysadm ptys.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`userdom_dontaudit_use_sysadm_pty',`
+	ifdef(`targeted_policy',`
+		term_dontaudit_use_generic_pty($1)
+	',`
+		gen_require(`
+			type sysadm_devpts_t;
+		')
+
+		dontaudit $1 sysadm_devpts_t:chr_file { read write };
+	')
+')
+
+########################################
+## <summary>
 ##	Read and write sysadm ttys and ptys.
 ## </summary>
 ## <param name="domain">
@@ -2022,6 +2046,23 @@ interface(`userdom_create_user_home',`
 
 ########################################
 ## <summary>
+##	Don't audit search on the user home subdirectory.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_dontaudit_search_user_home_dirs',`
+	gen_require(`
+		type user_home_t;
+		class dir search;
+	')
+
+	dontaudit $1 user_home_t:dir search;
+')
+
+########################################
+## <summary>
 ##	Create, read, write, and delete
 ##	subdirectories of generic user
 ##	home directories.
@@ -2117,6 +2158,24 @@ interface(`userdom_manage_user_home_sockets',`
 
 	allow $1 user_home_t:dir rw_dir_perms;
 	allow $1 user_home_t:sock_file create_file_perms;
+')
+
+########################################
+## <summary>
+##	Read all unprivileged users home directory
+##	files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_read_unpriv_user_home_files',`
+	gen_require(`
+		type user_home_dir_type, user_home_type;
+	')
+
+	allow $1 user_home_dir_type:dir search;
+	allow $1 user_home_type:file r_file_perms;
 ')
 
 ########################################
