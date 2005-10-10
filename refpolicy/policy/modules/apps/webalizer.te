@@ -1,0 +1,113 @@
+
+policy_module(webalizer,1.0)
+
+########################################
+#
+# Declarations
+#
+type webalizer_t;
+type webalizer_exec_t;
+domain_type(webalizer_t)
+domain_entry_file(webalizer_t,webalizer_exec_t)
+role system_r types webalizer_t;
+
+type webalizer_etc_t; #, usercanread;
+files_type(webalizer_etc_t)
+
+type webalizer_usage_t;
+files_type(webalizer_usage_t)
+
+type webalizer_tmp_t;
+files_tmp_file(webalizer_tmp_t)
+
+type webalizer_var_lib_t;
+files_type(webalizer_var_lib_t)
+
+type webalizer_write_t;
+files_type(webalizer_write_t)
+
+########################################
+#
+# Local policy
+#
+allow webalizer_t self:capability dac_override;
+allow webalizer_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow webalizer_t self:fd use;
+allow webalizer_t self:fifo_file rw_file_perms;
+allow webalizer_t self:shm create_shm_perms;
+allow webalizer_t self:sem create_sem_perms;
+allow webalizer_t self:msgq create_msgq_perms;
+allow webalizer_t self:msg { send receive };
+allow webalizer_t self:unix_dgram_socket create_socket_perms;
+allow webalizer_t self:unix_stream_socket create_stream_socket_perms;
+allow webalizer_t self:unix_dgram_socket sendto;
+allow webalizer_t self:unix_stream_socket connectto;
+allow webalizer_t self:tcp_socket connected_stream_socket_perms;
+allow webalizer_t self:udp_socket { connect connected_socket_perms };
+
+allow webalizer_t webalizer_etc_t:file { getattr read };
+
+allow webalizer_t webalizer_tmp_t:dir create_dir_perms;
+allow webalizer_t webalizer_tmp_t:file create_file_perms;
+files_create_tmp_files(webalizer_t, webalizer_tmp_t, { file dir })
+
+allow webalizer_t webalizer_var_lib_t:file create_file_perms;
+allow webalizer_t webalizer_var_lib_t:dir rw_dir_perms;
+files_create_var_lib(webalizer_t,webalizer_var_lib_t)
+
+kernel_read_kernel_sysctl(webalizer_t)
+kernel_read_system_state(webalizer_t)
+
+corenet_tcp_sendrecv_all_if(webalizer_t)
+corenet_udp_sendrecv_all_if(webalizer_t)
+corenet_raw_sendrecv_all_if(webalizer_t)
+corenet_udp_sendrecv_all_nodes(webalizer_t)
+corenet_tcp_sendrecv_all_nodes(webalizer_t)
+corenet_raw_sendrecv_all_nodes(webalizer_t)
+corenet_tcp_sendrecv_all_ports(webalizer_t)
+corenet_udp_sendrecv_all_ports(webalizer_t)
+corenet_tcp_bind_all_nodes(webalizer_t)
+corenet_udp_bind_all_nodes(webalizer_t)
+
+fs_search_auto_mountpoints(webalizer_t)
+
+files_read_etc_files(webalizer_t)
+files_read_etc_runtime_files(webalizer_t)
+
+libs_use_ld_so(webalizer_t)
+libs_use_shared_libs(webalizer_t)
+
+logging_list_logs(webalizer_t)
+logging_send_syslog_msg(webalizer_t)
+
+miscfiles_read_localization(webalizer_t)
+
+sysnet_read_config(webalizer_t)
+
+userdom_use_unpriv_users_fd(webalizer_t)
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(webalizer_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(webalizer_t)
+')
+
+optional_policy(`cron.te',`
+	cron_system_entry(webalizer_t,webalizer_exec_t)
+')
+
+ifdef(`TODO',`
+# a "run" interface needs to be
+# added, and have sysadm_t use it
+# in a optional_policy block.
+
+allow webalizer_t httpd_log_t:dir { getattr read search };
+allow webalizer_t httpd_log_t:file { read getattr };
+allow webalizer_t httpd_log_t:lnk_file { getattr read };
+
+allow webalizer_t httpd_sys_content_t:dir create_dir_perms;
+allow webalizer_t httpd_sys_content_t:file create_file_perms;
+allow webalizer_t httpd_sys_content_t:lnk_file create_lnk_perms;
+')
