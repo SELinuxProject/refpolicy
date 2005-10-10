@@ -39,10 +39,17 @@ template(`ssh_per_userdomain_template',`
 
 	type $1_ssh_t;
 	domain_type($1_ssh_t)
+	domain_entry_file($1_ssh_t,ssh_exec_t)
 
 	type $1_ssh_agent_t;
 	domain_type($1_ssh_agent_t)
+	domain_entry_file($1_ssh_agent_t,ssh_agent_exec_t)
 	role $3 types $1_ssh_agent_t;
+
+	type $1_ssh_keysign_t; #, nscd_client_domain;
+	domain_type($1_ssh_keysign_t)
+	domain_entry_file($1_ssh_keysign_t,ssh_keysign_exec_t)
+	role $3 types $1_ssh_keysign_t;
 
 	##############################
 	#
@@ -222,9 +229,6 @@ template(`ssh_per_userdomain_template',`
 	files_search_mnt($1_ssh_t)
 	r_dir_file($1_ssh_t, removable_t) 
 
-	type $1_ssh_keysign_t, domain, nscd_client_domain;
-	role $1_r types $1_ssh_keysign_t;
-
 	if (allow_ssh_keysign) {
 	domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
 	allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
@@ -360,6 +364,15 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t $1_tmp_t:sock_file write;
 	allow $1_ssh_t $2:unix_stream_socket connectto;
 	') dnl endif TODO
+
+	##############################
+	#
+	# $1_ssh_keysign_t local policy
+	#
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_ssh_keysign_t)
+	')
 ')
 
 #######################################

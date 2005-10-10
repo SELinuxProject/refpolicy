@@ -1,0 +1,218 @@
+
+policy_module(apm,1.0)
+
+########################################
+#
+# Declarations
+#
+type apmd_t;
+type apmd_exec_t;
+init_daemon_domain(apmd_t,apmd_exec_t)
+
+type apm_t;
+domain_type(apm_t)
+role sysadm_r types apm_t;
+role system_r types apm_t;
+
+type apm_exec_t;
+domain_entry_file(apm_t,apm_exec_t)
+
+type apmd_log_t;
+logging_log_file(apmd_log_t)
+
+type apmd_var_run_t;
+files_pid_file(apmd_var_run_t)
+
+ifdef(`distro_redhat',`
+	type apmd_lock_t;
+	files_lock_file(apmd_lock_t)
+')
+
+ifdef(`distro_suse',`
+	type apmd_var_lib_t;
+	files_type(apmd_var_lib_t)
+')
+
+########################################
+#
+# apm client Local policy
+#
+
+allow apm_t self:capability { dac_override sys_admin };
+
+kernel_read_system_state(apm_t)
+
+dev_rw_apm_bios(apm_t)
+
+fs_getattr_xattr_fs(apm_t)
+
+term_use_all_terms(apm_t)
+
+domain_use_wide_inherit_fd(apm_t)
+
+libs_use_ld_so(apm_t)
+libs_use_shared_libs(apm_t)
+
+logging_send_syslog_msg(apm_t)
+
+########################################
+#
+# apm daemon Local policy
+#
+
+# mknod: controlling an orderly resume of PCMCIA requires creating device
+# nodes 254,{0,1,2} for some reason.
+allow apmd_t self:capability { sys_admin sys_nice sys_time kill mknod };
+dontaudit apmd_t self:capability { setuid dac_override dac_read_search sys_tty_config };
+allow apmd_t self:process { signal_perms getsession };
+allow apmd_t self:fifo_file rw_file_perms;
+allow apmd_t self:unix_dgram_socket create_socket_perms;
+allow apmd_t self:unix_stream_socket create_stream_socket_perms;
+
+allow apmd_t apmd_log_t:file create_file_perms;
+logging_create_log(apmd_t,apmd_log_t)
+
+allow apmd_t apmd_var_run_t:dir rw_dir_perms;
+allow apmd_t apmd_var_run_t:file create_file_perms;
+allow apmd_t apmd_var_run_t:sock_file create_file_perms;
+files_create_pid(apmd_t, apmd_var_run_t, { file sock_file })
+
+kernel_read_kernel_sysctl(apmd_t)
+kernel_rw_all_sysctl(apmd_t)
+kernel_read_system_state(apmd_t)
+
+dev_read_realtime_clock(apmd_t)
+dev_read_urand(apmd_t)
+dev_rw_apm_bios(apmd_t)
+dev_rw_sysfs(apmd_t)
+dev_dontaudit_getattr_all_chr_files(apmd_t) # Excessive?
+dev_dontaudit_getattr_all_blk_files(apmd_t) # Excessive?
+
+fs_dontaudit_list_tmpfs(apmd_t)
+fs_getattr_all_fs(apmd_t)
+fs_search_auto_mountpoints(apmd_t)
+fs_dontaudit_getattr_all_files(apmd_t); # Excessive?
+fs_dontaudit_getattr_all_symlinks(apmd_t); # Excessive?
+fs_dontaudit_getattr_all_pipes(apmd_t); # Excessive?
+fs_dontaudit_getattr_all_sockets(apmd_t); # Excessive?
+
+term_dontaudit_use_console(apmd_t)
+
+corecmd_exec_bin(apmd_t)
+corecmd_exec_sbin(apmd_t)
+corecmd_exec_ls(apmd_t)
+
+domain_exec_all_entry_files(apmd_t)
+domain_read_all_domains_state(apmd_t)
+domain_use_wide_inherit_fd(apmd_t)
+domain_dontaudit_getattr_all_sockets(apmd_t)
+domain_dontaudit_getattr_all_key_sockets(apmd_t) # Excessive?
+domain_dontaudit_list_all_domains_proc(apmd_t) # Excessive?
+
+files_exec_etc_files(apmd_t)
+files_read_etc_runtime_files(apmd_t)
+files_dontaudit_getattr_all_files(apmd_t) # Excessive?
+files_dontaudit_getattr_all_symlinks(apmd_t) # Excessive?
+files_dontaudit_getattr_all_pipes(apmd_t) # Excessive?
+files_dontaudit_getattr_all_sockets(apmd_t) # Excessive?
+
+init_domtrans_script(apmd_t)
+init_use_fd(apmd_t)
+init_use_script_pty(apmd_t)
+init_rw_script_pid(apmd_t)
+init_write_initctl(apmd_t)
+
+libs_exec_ld_so(apmd_t)
+libs_use_ld_so(apmd_t)
+libs_exec_lib_files(apmd_t)
+libs_use_shared_libs(apmd_t)
+
+logging_send_syslog_msg(apmd_t)
+
+miscfiles_read_localization(apmd_t)
+
+modutils_domtrans_insmod(apmd_t)
+modutils_read_module_conf(apmd_t)
+
+seutil_dontaudit_search_config(apmd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(apmd_t)
+userdom_dontaudit_search_sysadm_home_dir(apmd_t)
+userdom_dontaudit_search_all_users_home(apmd_t) # Excessive?
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(apmd_t)
+	term_dontaudit_use_generic_pty(apmd_t)
+	files_dontaudit_read_root_file(apmd_t)
+')
+
+ifdef(`distro_redhat',`
+	allow apmd_t apmd_lock_t:file create_file_perms;
+	files_create_lock(apmd_t,apmd_lock_t)
+
+	can_exec(apmd_t, apmd_var_run_t)
+
+	# ifconfig_exec_t needs to be run in its own domain for Red Hat
+	optional_policy(`ifconfig.te',`
+		sysnet_domtrans_ifconfig(apmd_t)
+	')
+
+	optional_policy(`iptables.te',`
+		iptables_domtrans(apmd_t)
+	')
+
+	optional_policy(`netutils.te',`
+		netutils_domtrans(apmd_t)
+	')
+
+	',`
+
+	# for ifconfig which is run all the time
+	kernel_dontaudit_search_sysctl_dir(apmd_t)
+')
+
+ifdef(`distro_suse',`
+	allow apmd_t apmd_var_lib_t:file create_file_perms;
+	allow apmd_t apmd_var_lib_t:dir create_dir_perms;
+	files_create_var_lib(apmd_t,apmd_var_lib_t)
+')
+
+optional_policy(`clock.te',`
+	clock_domtrans(apmd_t)
+	clock_rw_adjtime(apmd_t)
+')
+
+optional_policy(`mta.te',`
+	mta_send_mail(apmd_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(apmd_t)
+')
+
+optional_policy(`pcmcia.te',`
+	pcmcia_domtrans_cardmgr(apmd_t)
+	pcmcia_domtrans_cardctl(apmd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(apmd_t)
+')
+
+optional_policy(`udev.te',`
+	udev_read_db(apmd_t)
+	udev_read_state(apmd_t) #necessary?
+')
+
+ifdef(`TODO',`
+allow apmd_t proc_t:file write;
+allow apmd_t user_tty_type:chr_file { ioctl read getattr lock write append };
+optional_policy(`cron.te',`
+	domain_auto_trans(apmd_t, anacron_exec_t, system_crond_t)
+	allow apmd_t crond_t:fifo_file { getattr read write ioctl };
+')
+
+optional_policy(`rhgb.te',`
+	rhgb_domain(apmd_t)
+')
+')
