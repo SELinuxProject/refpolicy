@@ -232,6 +232,14 @@ interface(`mta_mailserver_delivery',`
 	')
 
 	typeattribute $1 mailserver_delivery;
+
+	optional_policy(`mailman.te',`
+		# so MTA can access /var/lib/mailman/mail/wrapper
+		files_search_var_lib($1)
+
+		mailman_domtrans($1)
+		mailman_read_data_symlinks($1)
+	')
 ')
 
 #######################################
@@ -281,22 +289,6 @@ interface(`mta_send_mail',`
 ')
 
 #######################################
-## <summary>
-##	Connect to all mail servers over TCP.
-## </summary>
-## <param name="domain">
-##	Mail server domain.
-## </param>
-#
-interface(`mta_tcp_connect_all_mailservers',`
-	gen_require(`
-		attribute mailserver_domain;
-	')
-
-	allow $1 mailserver_domain:tcp_socket { connectto recvfrom };
-')
-
-#######################################
 #
 # mta_exec(domain)
 #
@@ -338,6 +330,41 @@ interface(`mta_rw_aliases',`
 
 	files_search_etc($1)
 	allow sendmail_t etc_aliases_t:file { rw_file_perms setattr };
+')
+
+#######################################
+## <summary>
+##	Do not audit attempts to read and write TCP
+##	sockets of mail delivery domains.
+## </summary>
+## <param name="domain">
+##	Mail server domain.
+## </param>
+#
+interface(`mta_dontaudit_rw_delivery_tcp_socket',`
+	gen_require(`
+		attribute mailserver_domain;
+	')
+
+	dontaudit $1 mailserver_delivery:tcp_socket { read write };
+')
+
+#######################################
+## <summary>
+##	Connect to all mail servers over TCP.
+## </summary>
+## <param name="domain">
+##	Mail server domain.
+## </param>
+#
+interface(`mta_tcp_connect_all_mailservers',`
+	gen_require(`
+		attribute mailserver_domain;
+	')
+
+	allow $1 mailserver_domain:tcp_socket { connectto recvfrom };
+	allow mailserver_domain $1:tcp_socket { acceptfrom recvfrom };
+	kernel_tcp_recvfrom($1)
 ')
 
 #######################################

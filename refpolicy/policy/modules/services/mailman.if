@@ -1,0 +1,254 @@
+## <summary>Mailman is for managing electronic mail discussion and e-newsletter lists</summary>
+
+#######################################
+## <summary>
+##	The template to define a mailmain domain.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a domain to be used for
+##	a new mailman daemon.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The type of daemon to be used eg, cgi would give mailman_cgi_
+## </param>
+#
+template(`mailman_domain_template', `
+	type mailman_$1_t;
+	domain_type(mailman_$1_t)
+	role system_r types mailman_$1_t;
+
+	type mailman_$1_exec_t;
+	domain_entry_file(mailman_$1_t, mailman_$1_exec_t)
+
+	type mailman_$1_tmp_t;
+	files_tmp_file(mailman_$1_tmp_t)
+
+	allow mailman_$1_t self:{ unix_stream_socket unix_dgram_socket } create_socket_perms;
+	allow mailman_$1_t self:tcp_socket create_stream_socket_perms;
+	allow mailman_$1_t self:udp_socket create_socket_perms;
+
+	allow mailman_$1_t mailman_data_t:dir create_dir_perms;
+	allow mailman_$1_t mailman_data_t:file create_file_perms;
+	allow mailman_$1_t mailman_data_t:lnk_file create_lnk_perms;
+
+	allow mailman_$1_t mailman_lock_t:dir rw_dir_perms;
+	allow mailman_$1_t mailman_lock_t:file create_file_perms;
+	files_create_lock(mailman_$1_t,mailman_lock_t)
+
+	allow mailman_$1_t mailman_log_t:dir rw_dir_perms;
+	allow mailman_$1_t mailman_log_t:file create_file_perms;
+	logging_create_log(mailman_$1_t,mailman_log_t)
+
+	allow mailman_$1_t mailman_$1_tmp_t:dir create_dir_perms;
+	allow mailman_$1_t mailman_$1_tmp_t:file create_file_perms;
+	files_create_tmp_files(mailman_$1_t, mailman_$1_tmp_t, { file dir })
+
+	kernel_read_kernel_sysctl(mailman_$1_t)
+	kernel_read_system_state(mailman_$1_t)
+
+	corenet_tcp_sendrecv_all_if(mailman_$1_t)
+	corenet_udp_sendrecv_all_if(mailman_$1_t)
+	corenet_raw_sendrecv_all_if(mailman_$1_t)
+	corenet_tcp_sendrecv_all_nodes(mailman_$1_t)
+	corenet_udp_sendrecv_all_nodes(mailman_$1_t)
+	corenet_raw_sendrecv_all_nodes(mailman_$1_t)
+	corenet_tcp_sendrecv_all_ports(mailman_$1_t)
+	corenet_udp_sendrecv_all_ports(mailman_$1_t)
+	corenet_tcp_bind_all_nodes(mailman_$1_t)
+	corenet_udp_bind_all_nodes(mailman_$1_t)
+	corenet_tcp_connect_smtp_port(mailman_$1_t)
+
+	fs_getattr_xattr_fs(mailman_$1_t)
+
+	corecmd_exec_bin(mailman_$1_t)
+	corecmd_exec_sbin(mailman_$1_t)
+
+	domain_exec_all_entry_files(mailman_$1_t)
+
+	files_exec_etc_files(mailman_$1_t)
+	files_list_usr(mailman_$1_t)
+	files_list_var(mailman_$1_t)
+	files_list_var_lib(mailman_$1_t)
+	files_read_var_lib_symlinks(mailman_$1_t)
+	files_read_etc_runtime_files(mailman_$1_t)
+
+	libs_use_ld_so(mailman_$1_t)
+	libs_use_shared_libs(mailman_$1_t)
+	libs_exec_ld_so(mailman_$1_t)
+	libs_exec_lib_files(mailman_$1_t)
+
+	miscfiles_read_localization(mailman_$1_t)
+
+	sysnet_read_config(mailman_$1_t)
+
+	optional_policy(`mount.te',`
+		mount_send_nfs_client_request(mailman_$1_t)
+	')
+
+	optional_policy(`nis.te',`
+		nis_use_ypbind(mailman_$1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Execute mailman in the mailman domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_domtrans',`
+	gen_require(`
+		type mailman_mail_exec_t, mailman_mail_t;
+	')
+
+	domain_auto_trans($1, mailman_mail_exec_t, mailman_mail_t)
+
+	allow $1 mailman_mail_t:fd use;
+	allow mailman_mail_t $1:fd use;
+	allow mailman_mail_t $1:fifo_file rw_file_perms;
+	allow mailman_mail_t $1:process sigchld;
+')
+
+#######################################
+## <summary>
+##	Execute mailman CGI scripts in the 
+##	mailman CGI domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_domtrans_cgi',`
+	gen_require(`
+		type mailman_cgi_exec_t, mailman_cgi_t;
+	')
+
+	domain_auto_trans($1, mailman_cgi_exec_t, mailman_cgi_t)
+
+	allow $1 mailman_cgi_t:fd use;
+	allow mailman_cgi_t $1:fd use;
+	allow mailman_cgi_t $1:fifo_file rw_file_perms;
+	allow mailman_cgi_t $1:process sigchld;
+')
+
+#######################################
+## <summary>
+##	Execute mailman in the caller domain.
+## </summary>
+## <param name="domain">
+##	Domain allowd access.
+## </param>
+#
+interface(`mailman_exec',`
+	gen_require(`
+		type mailman_mail_exec_t;
+	')
+
+	can_exec($1,mailman_mail_exec_t)
+')
+
+#######################################
+## <summary>
+##	Send generic signals to the mailman cgi domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_signal_cgi',`
+	gen_require(`
+		type mailman_cgi_t;
+	')
+
+	allow $1 mailman_cgi_t:process signal;
+')
+
+#######################################
+## <summary>
+##	Allow domain to search data directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_search_data',`
+	gen_require(`
+		type mailman_data_t;
+	')
+
+	allow $1 mailman_data_t:dir search;
+')
+
+#######################################
+## <summary>
+##	List the contents of mailman data directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_list_data',`
+	gen_require(`
+		type mailman_data_t;
+	')
+
+	allow $1 mailman_data_t:dir r_dir_perms;
+')
+
+#######################################
+## <summary>
+##	Allow read acces to mailman data symbolic links.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_read_data_symlinks',`
+	gen_require(`
+		type mailman_data_t;
+	')
+
+	allow $1 mailman_data_t:dir search;
+	allow $1 mailman_data_t:lnk_file read;
+')
+
+#######################################
+## <summary>
+##	Create, read, write, and delete
+##	mailman logs.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_manage_log',`
+	gen_require(`
+		type mailman_log_t;
+	')
+
+	allow $1 mailman_log_t:dir rw_dir_perms;
+	allow $1 mailman_log_t:file create_file_perms;
+	allow $1 mailman_log_t:lnk_file create_lnk_perms;
+')
+
+#######################################
+## <summary>
+##	Allow domain to read mailman archive files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mailman_read_archive',`
+	gen_require(`
+		type mailman_archive_t;
+	')
+
+	allow $1 mailman_archive_t:dir { getattr read search };
+	allow $1 mailman_archive_t:file { read getattr };
+	allow $1 mailman_archive_t:lnk_file { getattr read };
+')
