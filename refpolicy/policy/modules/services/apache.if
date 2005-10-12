@@ -1,6 +1,19 @@
 ## <summary>Apache web server</summary>
 
+########################################
+## <summary>
+##	Create a set of derived types for apache
+##	web content.
+## </summary>
+## <param name="prefix">
+##	The prefix to be used for deriving type names.
+## </param>
+#
 template(`apache_content_template',`
+
+	# allow write access to public file transfer
+	# services files.
+	gen_tunable(allow_httpd_$1_script_anon_write,false)
 
 	#This type is for webpages
 	type httpd_$1_content_t, httpdcontent; # customizable
@@ -89,6 +102,7 @@ template(`apache_content_template',`
 	libs_exec_lib_files(httpd_$1_script_t)
 
 	miscfiles_read_fonts(httpd_$1_script_t)
+	miscfiles_read_public_files(httpd_$1_script_t)
 
 	seutil_dontaudit_search_config(httpd_$1_script_t)
 
@@ -107,6 +121,10 @@ template(`apache_content_template',`
 			can_exec(httpd_$1_script_t, httpdcontent)
 		')
 	')
+
+	tunable_policy(`allow_httpd_$1_script_anon_write',`
+		miscfiles_manage_public_files(httpd_$1_script_t)
+	') 
 
 	# Allow the web server to run scripts and serve pages
 	tunable_policy(`httpd_builtin_scripting',`
@@ -199,8 +217,6 @@ template(`apache_content_template',`
 	')
 
 	ifdef(`TODO',`
-	anonymous_domain(httpd_$1_script)
-
 	#
 	# If a user starts a script by hand it gets the proper context
 	#
@@ -216,6 +232,32 @@ template(`apache_content_template',`
 	') dnl end TODO
 ')
 
+#######################################
+## <summary>
+##	The per user domain template for the apache module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates types used for web pages
+##	and web cgi to be used from the user home directory.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
 template(`apache_per_userdomain_template', `
 
 	apache_content_template($1)
@@ -249,16 +291,16 @@ template(`apache_per_userdomain_template', `
 	allow $2 httpd_$1_script_exec_t:lnk_file { create_lnk_perms relabelto relabelfrom };
 
 	ifdef(`targeted_policy',`
-		tunable_policy(`httpd_enable_cgi && httpd_unified && ! httpd_disable_trans',`
-			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
+		tunable_policy(`httpd_enable_cgi',`
+			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
 			allow $2 httpd_$1_script_t:fd use;
 			allow httpd_$1_script_t $2:fd use;
 			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
 			allow httpd_$1_script_t $2:process sigchld;
 		')
 
-		tunable_policy(`httpd_enable_cgi && ! httpd_disable_trans',`
-			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
+		tunable_policy(`httpd_enable_cgi && httpd_unified',`
+			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
 			allow $2 httpd_$1_script_t:fd use;
 			allow httpd_$1_script_t $2:fd use;
 			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
@@ -275,7 +317,7 @@ template(`apache_per_userdomain_template', `
 		')
 
 		tunable_policy(`httpd_enable_cgi && httpd_unified',`
-			domain_auto_trans($1_t, httpdcontent, httpd_$1_script_t)
+			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
 			allow $2 httpd_$1_script_t:fd use;
 			allow httpd_$1_script_t $2:fd use;
 			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
@@ -293,7 +335,7 @@ template(`apache_per_userdomain_template', `
 
 ########################################
 ## <summary>
-##	Transition to Apache.
+##	Transition to apache.
 ## </summary>
 ## <param name="domain">
 ##	Domain allowed access.
