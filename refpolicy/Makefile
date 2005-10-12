@@ -77,6 +77,7 @@ LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
 GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 XMLLINT := $(BINDIR)/xmllint
+SECHECK := $(BINDIR)/sechecker
 
 CFLAGS := -Wall
 
