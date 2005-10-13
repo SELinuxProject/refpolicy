@@ -188,6 +188,7 @@ allow hplip_t hplip_port_t:tcp_socket name_bind;
 # Uses networking to talk to the daemons
 allow hplip_t self:unix_dgram_socket create_socket_perms;
 allow hplip_t self:unix_stream_socket create_socket_perms;
+allow hplip_t self:rawip_socket create_socket_perms;
 
 # for python
 can_exec(hplip_t, bin_t)
@@ -196,6 +197,9 @@ allow hplip_t self:file { getattr read };
 allow hplip_t proc_t:file r_file_perms;
 allow hplip_t urandom_device_t:chr_file { getattr read };
 allow hplip_t usr_t:{ file lnk_file } r_file_perms;
+allow hplip_t devpts_t:dir search;
+allow hplip_t devpts_t:chr_file { getattr ioctl };
+
 
 dontaudit cupsd_t selinux_config_t:dir search;
 dontaudit cupsd_t selinux_config_t:file { getattr read };
@@ -209,7 +213,7 @@ allow cupsd_t userdomain:dbus send_msg;
 ')
 
 # CUPS configuration daemon
-daemon_domain(cupsd_config)
+daemon_domain(cupsd_config, `, nscd_client_domain')
 
 allow cupsd_config_t devpts_t:dir search;
 allow cupsd_config_t devpts_t:chr_file { getattr ioctl };
@@ -231,12 +235,13 @@ allow cupsd_config_t cupsd_t:process { signal };
 allow cupsd_config_t cupsd_t:{ file lnk_file } { getattr read };
 can_ps(cupsd_config_t, cupsd_t)
 
-allow cupsd_config_t self:capability chown;
+allow cupsd_config_t self:capability { chown sys_tty_config };
 
 rw_dir_create_file(cupsd_config_t, cupsd_etc_t)
 rw_dir_create_file(cupsd_config_t, cupsd_rw_etc_t)
 file_type_auto_trans(cupsd_config_t, cupsd_etc_t, cupsd_rw_etc_t, file)
 file_type_auto_trans(cupsd_config_t, var_t, cupsd_rw_etc_t, file)
+allow cupsd_config_t var_t:lnk_file read;
 
 can_network_tcp(cupsd_config_t)
 can_ypbind(cupsd_config_t)
@@ -245,6 +250,7 @@ can_tcp_connect(cupsd_config_t, cupsd_t)
 allow cupsd_config_t self:fifo_file rw_file_perms;
 
 allow cupsd_config_t self:unix_stream_socket create_socket_perms;
+allow cupsd_config_t self:unix_dgram_socket create_socket_perms;
 ifdef(`dbusd.te', `
 dbusd_client(system, cupsd_config)
 allow cupsd_config_t userdomain:dbus send_msg;
@@ -255,9 +261,8 @@ allow userdomain cupsd_config_t:dbus send_msg;
 ifdef(`hald.te', `
 
 ifdef(`dbusd.te', `
-allow cupsd_t hald_t:dbus send_msg;
-allow cupsd_config_t hald_t:dbus send_msg;
-allow hald_t cupsd_t:dbus send_msg;
+allow { cupsd_t cupsd_config_t } hald_t:dbus send_msg;
+allow hald_t { cupsd_t cupsd_config_t }:dbus send_msg;
 ')dnl end if dbusd.te
 
 allow hald_t cupsd_config_t:process signal;
@@ -310,3 +315,7 @@ allow inetd_t printer_port_t:tcp_socket name_bind;
 r_dir_file(cupsd_lpd_t, cupsd_etc_t)
 r_dir_file(cupsd_lpd_t, cupsd_rw_etc_t)
 allow cupsd_lpd_t ipp_port_t:tcp_socket name_connect;
+ifdef(`use_mcs', `
+range_transition initrc_t cupsd_exec_t s0 - s0:c0.c255;
+')
+

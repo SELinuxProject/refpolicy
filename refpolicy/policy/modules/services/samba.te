@@ -225,10 +225,12 @@ dev_read_sysfs(smbd_t)
 dev_read_urand(smbd_t)
 
 fs_getattr_all_fs(smbd_t)
+fs_get_xattr_fs_quotas(smbd_t)
 fs_search_auto_mountpoints(smbd_t)
 
 term_dontaudit_use_console(smbd_t)
 
+auth_use_nsswitch(smbd_t)
 auth_domtrans_chk_passwd(smbd_t)
 
 domain_use_wide_inherit_fd(smbd_t)
@@ -238,6 +240,8 @@ files_read_etc_files(smbd_t)
 files_read_etc_runtime_files(smbd_t)
 files_read_usr_files(smbd_t)
 files_search_spool(smbd_t)
+# Allow samba to list mnt_t for potential mounted dirs
+files_list_mnt(smbd_t)
 
 init_use_fd(smbd_t)
 init_use_script_pty(smbd_t)
@@ -268,17 +272,6 @@ optional_policy(`kerberos.te',`
 	kerberos_use(smbd_t)
 ')
 
-optional_policy(`ldap.te',`
-	allow smbd_t self:tcp_socket create_socket_perms;
-	corenet_tcp_sendrecv_all_if(smbd_t)
-	corenet_raw_sendrecv_all_if(smbd_t)
-	corenet_tcp_sendrecv_all_nodes(smbd_t)
-	corenet_raw_sendrecv_all_nodes(smbd_t)
-	corenet_tcp_sendrecv_ldap_port(smbd_t)
-	corenet_tcp_bind_all_nodes(smbd_t)
-	sysnet_read_config(smbd_t)
-')
-
 optional_policy(`nis.te',`
 	nis_use_ypbind(smbd_t)
 ')
@@ -300,7 +293,10 @@ optional_policy(`rhgb.te',`
 	rhgb_domain(smbd_t)
 ')
 anonymous_domain(smbd)
-can_winbind(smbd_t)
+ifdef(`hide_broken_symptoms', `
+dontaudit smbd_t { devpts_t boot_t default_t tmpfs_t }:dir getattr;
+dontaudit smbd_t devpts_t:dir getattr;
+')
 ')
 
 ########################################
@@ -626,6 +622,8 @@ allow winbind_helper_t samba_etc_t:dir r_dir_perms;
 allow winbind_helper_t samba_etc_t:lnk_file { getattr read };
 allow winbind_helper_t samba_etc_t:file r_file_perms;
 
+allow winbind_helper_t samba_var_t:dir search;
+
 allow winbind_helper_t winbind_var_run_t:dir r_dir_perms;
 allow winbind_helper_t winbind_var_run_t:sock_file { getattr read write };
 allow winbind_helper_t winbind_t:unix_stream_socket connectto;
@@ -643,4 +641,8 @@ miscfiles_read_localization(winbind_helper_t)
 
 optional_policy(`nscd.te',`
 	nscd_use_socket(winbind_helper_t)
+')
+
+ifdef(`TODO',`
+allow winbind_helper_t squid_log_t:file ra_file_perms;
 ')

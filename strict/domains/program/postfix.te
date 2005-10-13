@@ -54,6 +54,8 @@ allow postfix_$1_t fs_t:filesystem getattr;
 allow postfix_$1_t proc_net_t:dir search;
 allow postfix_$1_t proc_net_t:file { getattr read };
 can_exec(postfix_$1_t, postfix_$1_exec_t)
+r_dir_file(postfix_$1_t, cert_t)
+allow postfix_$1_t { urandom_device_t random_device_t }:chr_file { read getattr };
 
 allow postfix_$1_t tmp_t:dir getattr;
 
@@ -68,6 +70,9 @@ ifdef(`crond.te',
 
 postfix_domain(master, `, mail_server_domain')
 rhgb_domain(postfix_master_t)
+
+# for a find command
+dontaudit postfix_master_t security_t:dir search;
 
 read_sysctl(postfix_master_t)
 
@@ -97,10 +102,12 @@ allow postfix_master_t initrc_devpts_t:chr_file rw_file_perms;
 dontaudit postfix_master_t selinux_config_t:dir search;
 can_exec({ sysadm_mail_t system_mail_t }, postfix_master_exec_t)
 ifdef(`distro_redhat', `
+# compatability for old default main.cf
 file_type_auto_trans({ sysadm_mail_t system_mail_t postfix_master_t }, postfix_etc_t, etc_aliases_t)
-', `
-file_type_auto_trans({ sysadm_mail_t system_mail_t }, etc_t, etc_aliases_t)
+# for newer main.cf that uses /etc/aliases
+file_type_auto_trans(postfix_master_t, etc_t, etc_aliases_t)
 ')
+file_type_auto_trans({ sysadm_mail_t system_mail_t }, etc_t, etc_aliases_t)
 allow postfix_master_t sendmail_exec_t:file r_file_perms;
 allow postfix_master_t sbin_t:lnk_file { getattr read };
 ifdef(`pppd.te', `
@@ -121,7 +128,7 @@ allow postfix_master_t postfix_private_t:fifo_file create_file_perms;
 can_network(postfix_master_t)
 allow postfix_master_t port_type:tcp_socket name_connect;
 can_ypbind(postfix_master_t)
-allow postfix_master_t smtp_port_t:tcp_socket name_bind;
+allow postfix_master_t { amavisd_send_port_t smtp_port_t }:tcp_socket name_bind;
 allow postfix_master_t postfix_spool_maildrop_t:dir rw_dir_perms;
 allow postfix_master_t postfix_spool_maildrop_t:file { unlink rename getattr };
 allow postfix_master_t postfix_prng_t:file getattr;
@@ -135,13 +142,9 @@ can_unix_connect(postfix_smtpd_t,saslauthd_t)
 ')
 
 create_dir_file(postfix_master_t, postfix_spool_flush_t)
-allow postfix_master_t random_device_t:chr_file { read getattr };
 allow postfix_master_t postfix_prng_t:file rw_file_perms;
 # for ls to get the current context
 allow postfix_master_t self:file { getattr read };
-
-# for SSP
-allow postfix_master_t urandom_device_t:chr_file read;
 
 # allow access to deferred queue and allow removing bogus incoming entries
 allow postfix_master_t postfix_spool_t:dir create_dir_perms;
@@ -163,7 +166,6 @@ postfix_server_domain(smtp, `, mail_server_sender')
 allow postfix_smtp_t postfix_spool_t:file rw_file_perms;
 allow postfix_smtp_t { postfix_private_t postfix_public_t }:dir search;
 allow postfix_smtp_t { postfix_private_t postfix_public_t }:sock_file write;
-allow postfix_smtp_t urandom_device_t:chr_file { getattr read };
 allow postfix_smtp_t postfix_master_t:unix_stream_socket connectto;
 # if you have two different mail servers on the same host let them talk via
 # SMTP, also if one mail server wants to talk to itself then allow it and let
@@ -172,7 +174,6 @@ allow postfix_smtp_t postfix_master_t:unix_stream_socket connectto;
 can_tcp_connect(postfix_smtp_t, mail_server_domain)
 
 postfix_server_domain(smtpd)
-allow postfix_smtpd_t urandom_device_t:chr_file { getattr read };
 allow postfix_smtpd_t postfix_master_t:tcp_socket rw_stream_socket_perms;
 allow postfix_smtpd_t { postfix_private_t postfix_public_t }:dir search;
 allow postfix_smtpd_t { postfix_private_t postfix_public_t }:sock_file rw_file_perms;
@@ -184,7 +185,6 @@ allow postfix_smtpd_t self:file { getattr read };
 
 # for prng_exch
 allow postfix_smtpd_t postfix_spool_t:file rw_file_perms;
-
 allow { postfix_smtp_t postfix_smtpd_t } postfix_prng_t:file rw_file_perms;
 
 postfix_server_domain(local, `, mta_delivery_agent')
@@ -196,7 +196,7 @@ dontaudit procmail_t postfix_master_t:fd use;
 ')
 allow postfix_local_t etc_aliases_t:file r_file_perms;
 allow postfix_local_t self:fifo_file rw_file_perms;
-allow postfix_local_t self:process setrlimit;
+allow postfix_local_t self:process { setsched setrlimit };
 allow postfix_local_t postfix_spool_t:file rw_file_perms;
 # for .forward - maybe we need a new type for it?
 allow postfix_local_t postfix_private_t:dir search;
@@ -241,6 +241,7 @@ postfix_user_domain(postqueue)
 allow postfix_postqueue_t postfix_public_t:dir search;
 allow postfix_postqueue_t postfix_public_t:fifo_file getattr;
 allow postfix_postqueue_t self:udp_socket { create ioctl };
+allow postfix_postqueue_t self:tcp_socket create;
 allow postfix_master_t postfix_postqueue_exec_t:file getattr;
 domain_auto_trans(postfix_master_t, postfix_postqueue_exec_t, postfix_postqueue_t)
 allow postfix_postqueue_t initrc_t:process sigchld;
@@ -260,7 +261,7 @@ dontaudit postfix_postqueue_t net_conf_t:file r_file_perms;
 postfix_user_domain(showq)
 # the following auto_trans is usually in postfix server domain
 domain_auto_trans(postfix_master_t, postfix_showq_exec_t, postfix_showq_t)
-allow postfix_showq_t self:udp_socket { create ioctl };
+can_resolve(postfix_showq_t)
 r_dir_file(postfix_showq_t, postfix_spool_maildrop_t)
 domain_auto_trans(postfix_postqueue_t, postfix_showq_exec_t, postfix_showq_t)
 allow postfix_showq_t self:capability { setuid setgid };
@@ -284,6 +285,7 @@ ifdef(`crond.te',
 allow postfix_postdrop_t { crond_t system_crond_t }:fifo_file rw_file_perms;')
 # usually it does not need a UDP socket
 allow postfix_postdrop_t self:udp_socket create_socket_perms;
+allow postfix_postdrop_t self:tcp_socket create;
 allow postfix_postdrop_t self:capability sys_resource;
 
 postfix_public_domain(pickup)
@@ -329,7 +331,8 @@ ifdef(`procmail.te', `
 domain_auto_trans(postfix_pipe_t, procmail_exec_t, procmail_t)
 ')
 ifdef(`sendmail.te', `
-allow sendmail_t postfix_etc_t:dir search;
+r_dir_file(sendmail_t, postfix_etc_t)
+allow sendmail_t postfix_spool_t:dir search;
 ')
 
 # Program for creating database files
@@ -350,3 +353,4 @@ can_network_server(postfix_map_t)
 allow postfix_map_t port_type:tcp_socket name_connect;
 allow postfix_local_t mail_spool_t:dir { remove_name };
 allow postfix_local_t mail_spool_t:file { unlink };
+can_exec(postfix_local_t, bin_t)

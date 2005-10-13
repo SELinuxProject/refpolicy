@@ -56,6 +56,10 @@ allow initrc_t self:process { fork sigchld getpgid setsched setpgid setrlimit ge
 can_create_pty(initrc)
 
 tmp_domain(initrc)
+#
+# Some initscripts generate scripts that they need to execute (ldap)
+#
+can_exec(initrc_t, initrc_tmp_t)
 
 var_run_domain(initrc)
 allow initrc_t var_run_t:{ file sock_file lnk_file } unlink;
@@ -214,7 +218,15 @@ file_type_auto_trans(initrc_t, device_t, fixed_disk_device_t, blk_file)
 allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
 allow initrc_t self:capability sys_admin;
 allow initrc_t device_t:dir create;
-
+# wants to delete /poweroff and other files 
+allow initrc_t root_t:file unlink;
+# wants to read /.fonts directory
+allow initrc_t default_t:file { getattr read };
+ifdef(`xserver.te', `
+# wants to cleanup xserver log dir
+allow initrc_t xserver_log_t:dir rw_dir_perms;
+allow initrc_t xserver_log_t:file unlink;
+')
 ')dnl end distro_redhat
 
 allow initrc_t system_map_t:{ file lnk_file } r_file_perms;
@@ -322,3 +334,6 @@ allow initrc_t device_t:lnk_file create_file_perms;
 ifdef(`dbusd.te', `
 allow initrc_t system_dbusd_var_run_t:sock_file write;
 ')
+
+# Slapd needs to read cert files from its initscript
+r_dir_file(initrc_t, cert_t)

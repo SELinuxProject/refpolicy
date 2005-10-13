@@ -22,7 +22,11 @@ role system_r types init_t;
 #
 # init_exec_t is the type of the init program.
 #
-type init_exec_t;
+# real declaration moved to mls until
+# range_transition works in loadable modules
+gen_require(`
+	type init_exec_t;
+')
 kernel_userland_entry(init_t,init_exec_t)
 domain_entry_file(init_t,init_exec_t)
 
@@ -41,7 +45,11 @@ type initctl_t;
 files_type(initctl_t)
 mls_trusted_object(initctl_t)
 
-type initrc_t;
+# real declaration moved to mls until
+# range_transition works in loadable modules
+gen_require(`
+	type initrc_t;
+')
 domain_type(initrc_t)
 role system_r types initrc_t;
 
@@ -192,7 +200,7 @@ allow initrc_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow initrc_t init_t:fd use;
 
-allow initrc_t initrc_exec_t:file { getattr read ioctl execute execute_no_trans };
+can_exec(initrc_t,initrc_exec_t)
 
 allow initrc_t initrc_state_t:dir create_dir_perms;
 allow initrc_t initrc_state_t:file create_file_perms;
@@ -201,6 +209,7 @@ allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rena
 allow initrc_t initrc_var_run_t:file create_file_perms;
 files_create_pid(initrc_t,initrc_var_run_t)
 
+can_exec(initrc_t,initrc_tmp_t)
 allow initrc_t initrc_tmp_t:file create_file_perms;
 allow initrc_t initrc_tmp_t:dir create_dir_perms;
 files_create_tmp_files(initrc_t,initrc_tmp_t, { file dir })
@@ -329,6 +338,8 @@ logging_append_all_logs(initrc_t)
 logging_read_auditd_config(initrc_t)
 
 miscfiles_read_localization(initrc_t)
+# slapd needs to read cert files from its initscript
+miscfiles_read_certs(initrc_t)
 
 mls_file_read_up(initrc_t)
 mls_file_write_down(initrc_t)
@@ -609,6 +620,16 @@ ifdef(`distro_redhat', `
 	allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
 	allow initrc_t self:capability sys_admin;
 	allow initrc_t device_t:dir create;
+
+	# wants to delete /poweroff and other files 
+	allow initrc_t root_t:file unlink;
+	# wants to read /.fonts directory
+	allow initrc_t default_t:file { getattr read };
+	ifdef(`xserver.te', `
+	# wants to cleanup xserver log dir
+	allow initrc_t xserver_log_t:dir rw_dir_perms;
+	allow initrc_t xserver_log_t:file unlink;
+	')
 
 	optional_policy(`rpm.te',`
 		rpm_stub()

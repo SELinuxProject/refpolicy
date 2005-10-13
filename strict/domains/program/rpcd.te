@@ -19,7 +19,7 @@ daemon_base_domain($1)
 can_network($1_t)
 allow $1_t port_type:tcp_socket name_connect;
 can_ypbind($1_t)
-allow $1_t etc_t:file { getattr read };
+allow $1_t { etc_runtime_t etc_t }:file { getattr read };
 read_locale($1_t)
 allow $1_t self:capability net_bind_service;
 dontaudit $1_t self:capability net_admin;
@@ -148,6 +148,15 @@ r_dir_file(gssd_t, proc_net_t)
 allow gssd_t rpc_pipefs_t:dir r_dir_perms;
 allow gssd_t rpc_pipefs_t:sock_file { read write };
 allow gssd_t rpc_pipefs_t:file r_file_perms;
-allow gssd_t self:capability setuid;
+allow gssd_t self:capability { dac_override dac_read_search setuid };
 allow nfsd_t devtty_t:chr_file rw_file_perms;
 allow rpcd_t devtty_t:chr_file rw_file_perms;
+
+bool allow_gssd_read_tmp true;
+if (allow_gssd_read_tmp) {
+ifdef(`targeted_policy', `
+r_dir_file(gssd_t, tmp_t)
+', `
+r_dir_file(gssd_t, user_tmpfile)
+')
+}

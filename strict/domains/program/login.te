@@ -200,23 +200,20 @@ login_domain(remote)
 # since very weak authentication is used.
 login_spawn_domain(remote_login, unpriv_userdomain)
 
-allow remote_login_t devpts_t:dir search;
 allow remote_login_t userpty_type:chr_file { setattr write };
 
 # Use the pty created by rlogind.
 ifdef(`rlogind.te', `
-allow remote_login_t rlogind_devpts_t:chr_file { setattr rw_file_perms };
-
+can_access_pty(remote_login_t, rlogind)
 # Relabel ptys created by rlogind.
-allow remote_login_t rlogind_devpts_t:chr_file { relabelfrom relabelto };
+allow remote_login_t rlogind_devpts_t:chr_file { setattr relabelfrom relabelto };
 ')
 
 # Use the pty created by telnetd.
 ifdef(`telnetd.te', `
-allow remote_login_t telnetd_devpts_t:chr_file { setattr rw_file_perms };
-
+can_access_pty(remote_login_t, telnetd)
 # Relabel ptys created by telnetd.
-allow remote_login_t telnetd_devpts_t:chr_file { relabelfrom relabelto };
+allow remote_login_t telnetd_devpts_t:chr_file { setattr relabelfrom relabelto };
 ')
 
 allow remote_login_t ptyfile:chr_file { getattr relabelfrom relabelto ioctl };
@@ -225,3 +222,8 @@ allow remote_login_t fs_t:filesystem { getattr };
 # Allow remote login to resolve host names (passed in via the -h switch)
 can_resolve(remote_login_t)
 
+ifdef(`use_mcs', `
+ifdef(`getty.te', `
+range_transition getty_t login_exec_t s0 - s0:c0.c255;
+')
+')

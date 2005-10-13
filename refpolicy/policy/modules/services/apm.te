@@ -20,6 +20,9 @@ domain_entry_file(apm_t,apm_exec_t)
 type apmd_log_t;
 logging_log_file(apmd_log_t)
 
+type apmd_tmp_t;
+files_tmp_file(apmd_tmp_t)
+
 type apmd_var_run_t;
 files_pid_file(apmd_var_run_t)
 
@@ -72,6 +75,10 @@ allow apmd_t self:unix_stream_socket create_stream_socket_perms;
 allow apmd_t apmd_log_t:file create_file_perms;
 logging_create_log(apmd_t,apmd_log_t)
 
+allow apmd_t apmd_tmp_t:dir create_dir_perms;
+allow apmd_t apmd_tmp_t:file create_file_perms;
+files_create_tmp_files(apmd_t, apmd_tmp_t, { file dir })
+
 allow apmd_t apmd_var_run_t:dir rw_dir_perms;
 allow apmd_t apmd_var_run_t:file create_file_perms;
 allow apmd_t apmd_var_run_t:sock_file create_file_perms;
@@ -95,6 +102,8 @@ fs_dontaudit_getattr_all_files(apmd_t); # Excessive?
 fs_dontaudit_getattr_all_symlinks(apmd_t); # Excessive?
 fs_dontaudit_getattr_all_pipes(apmd_t); # Excessive?
 fs_dontaudit_getattr_all_sockets(apmd_t); # Excessive?
+
+selinux_search_fs(apmd_t)
 
 term_dontaudit_use_console(apmd_t)
 
@@ -144,6 +153,7 @@ ifdef(`targeted_policy',`
 	term_dontaudit_use_unallocated_tty(apmd_t)
 	term_dontaudit_use_generic_pty(apmd_t)
 	files_dontaudit_read_root_file(apmd_t)
+	unconfined_domain_template(apmd_t)
 ')
 
 ifdef(`distro_redhat',`
@@ -165,10 +175,10 @@ ifdef(`distro_redhat',`
 		netutils_domtrans(apmd_t)
 	')
 
-	',`
+',`
 
 	# for ifconfig which is run all the time
-	kernel_dontaudit_search_sysctl_dir(apmd_t)
+	kernel_dontaudit_search_sysctl(apmd_t)
 ')
 
 ifdef(`distro_suse',`
@@ -180,6 +190,10 @@ ifdef(`distro_suse',`
 optional_policy(`clock.te',`
 	clock_domtrans(apmd_t)
 	clock_rw_adjtime(apmd_t)
+')
+
+optional_policy(`logrotate.te',`
+	logrotate_use_fd(apmd_t)
 ')
 
 optional_policy(`mta.te',`
@@ -211,6 +225,8 @@ optional_policy(`cron.te',`
 	domain_auto_trans(apmd_t, anacron_exec_t, system_crond_t)
 	allow apmd_t crond_t:fifo_file { getattr read write ioctl };
 ')
+
+r_dir_file(apmd_t, hwdata_t)
 
 optional_policy(`rhgb.te',`
 	rhgb_domain(apmd_t)

@@ -113,9 +113,12 @@ allow httpd_t bin_t:lnk_file read;
 can_network_server(httpd_t)
 can_kerberos(httpd_t)
 can_resolve(httpd_t)
-can_ypbind(httpd_t)
-can_ldap(httpd_t)
+nsswitch_domain(httpd_t)
 allow httpd_t { http_port_t http_cache_port_t }:tcp_socket name_bind;
+# allow httpd to connect to mysql/posgresql 
+allow httpd_t { postgresql_port_t mysqld_port_t }:tcp_socket name_connect;
+# allow httpd to work as a relay
+allow httpd_t { gopher_port_t ftp_port_t http_port_t http_cache_port_t }:tcp_socket name_connect;
 
 if (httpd_can_network_connect) {
 can_network_client(httpd_t)
@@ -222,7 +225,7 @@ tmp_domain(httpd_php)
 # Creation of lock files for apache2
 lock_domain(httpd)
 
-# Allow apache to used ftpd_anon_t
+# Allow apache to used public_content_t
 anonymous_domain(httpd)
 
 # connect to mysql
@@ -305,9 +308,9 @@ allow httpd_helper_t httpd_log_t:file { append };
 if (httpd_tty_comm) {
 allow { httpd_t httpd_helper_t } devpts_t:dir search;
 ifdef(`targeted_policy', `
-allow { httpd_helper_t httpd_t } { devtty_t devpts_t }:chr_file { read write };
+allow { httpd_helper_t httpd_t } { devtty_t devpts_t }:chr_file rw_file_perms;
 ')
-allow { httpd_t httpd_helper_t } admin_tty_type:chr_file { read write };
+allow { httpd_t httpd_helper_t } admin_tty_type:chr_file rw_file_perms;
 } else {
 dontaudit httpd_t admin_tty_type:chr_file rw_file_perms;
 }
@@ -367,13 +370,13 @@ allow httpd_suexec_t { usr_t lib_t }:file { getattr read ioctl };
 allow httpd_suexec_t autofs_t:dir { search getattr };
 tmp_domain(httpd_suexec)
 
-if (httpd_enable_cgi && httpd_unified ifdef(`targeted_policy', ` && ! httpd_disable_trans')) {
+if (httpd_enable_cgi && httpd_unified) {
 domain_auto_trans(httpd_suexec_t, httpdcontent, httpd_sys_script_t)
 ifdef(`targeted_policy', `', `
 domain_auto_trans(sysadm_t, httpdcontent, httpd_sys_script_t)
 ')
 }
-if (httpd_enable_cgi && httpd_unified && httpd_builtin_scripting ifdef(`targeted_policy', ` && ! httpd_disable_trans')) {
+if (httpd_enable_cgi && httpd_unified && httpd_builtin_scripting) {
 domain_auto_trans(httpd_t, httpdcontent, httpd_sys_script_t)
 create_dir_file(httpd_t, httpdcontent)
 }
