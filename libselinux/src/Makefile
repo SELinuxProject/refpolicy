@@ -2,6 +2,7 @@
 PREFIX ?= $(DESTDIR)/usr
 LIBDIR ?= $(PREFIX)/lib
 SHLIBDIR ?= $(DESTDIR)/lib
+INCLUDEDIR ?= $(PREFIX)/include
 
 LIBVERSION = 1
 
@@ -12,7 +13,7 @@ LIBSO=$(TARGET).$(LIBVERSION)
 OBJS= $(patsubst %.c,%.o,$(wildcard *.c))
 LOBJS= $(patsubst %.c,%.lo,$(wildcard *.c))
 CFLAGS ?= -Wall -W -Wundef -Wmissing-noreturn -Wmissing-format-attribute
-override CFLAGS += -I../include -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
+override CFLAGS += -I../include -I$(INCLUDEDIR) -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 RANLIB=ranlib
 
 all: $(LIBA) $(LIBSO)

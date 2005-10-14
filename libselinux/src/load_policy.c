@@ -11,6 +11,7 @@
 #include <errno.h>
 #include "selinux_internal.h"
 #include <sepol/sepol.h>
+#include <sepol/policydb.h>
 #include "policy.h"
 #include <limits.h>
 
@@ -36,20 +37,21 @@ int load_setlocaldefs hidden = 1;
 
 int selinux_mkload_policy(int preservebools)
 {
-	int vers = security_policyvers();
+	int vers = sepol_policy_kern_vers_max();
+	int kernvers = security_policyvers();
 	char path[PATH_MAX], **names;
 	struct stat sb;
 	size_t size;
 	void *map, *data;
 	int fd, rc = -1, *values, len, i, prot;
+	sepol_policydb_t *policydb;
+	sepol_policy_file_t *pf;
 
-	if (vers < 0)
-		return -1;
-
+search:
 	snprintf(path, sizeof(path), "%s.%d", 
 		 selinux_binary_policy_path(), vers);
 	fd = open(path, O_RDONLY);
-	while (fd < 0 && errno == ENOENT && --vers > 0) {
+	while (fd < 0 && errno == ENOENT && --vers >= sepol_policy_kern_vers_min()) {
 		/* Check prior versions to see if old policy is available */
 		snprintf(path, sizeof(path), "%s.%d", 
 			 selinux_binary_policy_path(), vers);
@@ -70,13 +72,46 @@ int selinux_mkload_policy(int preservebools)
 	if (map == MAP_FAILED) 
 		goto close;
 
+	if (vers > kernvers) {
+		/* Need to downgrade to kernel-supported version. */
+		if (sepol_policy_file_create(&pf))
+			goto unmap;
+		if (sepol_policydb_create(&policydb)) {
+			sepol_policy_file_free(pf);
+			goto unmap;
+		}
+		sepol_policy_file_set_mem(pf, data, size);
+		if (sepol_policydb_read(policydb, pf)) {
+			sepol_policy_file_free(pf);
+			sepol_policydb_free(policydb);
+			goto unmap;
+		}
+		if (sepol_policydb_set_vers(policydb, kernvers) ||
+		    sepol_policydb_to_image(policydb, &data, &size)) {
+			/* Downgrade failed, keep searching. */
+			sepol_policy_file_free(pf);
+			sepol_policydb_free(policydb);
+			munmap(map, sb.st_size);
+			close(fd);			
+			vers--;
+			goto search;
+		}
+		sepol_policy_file_free(pf);
+		sepol_policydb_free(policydb);
+	}
+
 	if (load_setlocaldefs) {
-		rc = sepol_genusers(data, size, selinux_users_path(), &data, &size);
+		void *olddata = data;
+		size_t oldsize = size;
+		rc = sepol_genusers(olddata, oldsize, selinux_users_path(), &data, &size);
 		if (rc < 0) {
-			/* Fall back to the base image if genusers failed. */
-			data = map;
-			size = sb.st_size;
+			/* Fall back to the prior image if genusers failed. */
+			data = olddata;
+			size = oldsize;
 			rc = 0;
+		} else {
+			if (olddata != map)
+				free(olddata);
 		}
 	}
 
