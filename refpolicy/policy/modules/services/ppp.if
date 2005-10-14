@@ -1,0 +1,111 @@
+## <summary>Point to Point Protocol daemon creates links in ppp networks</summary>
+
+########################################
+## <summary>
+##	Use PPP file discriptors.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`ppp_use_fd',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Allow domain to send sigchld to parent of PPP domain type.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`ppp_sigchld',`
+	gen_require(`
+		type pppd_t;
+
+	')
+
+	allow $1 pppd_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Allow domain to send a signal to PPP domain type.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`ppp_signal',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:process signal;
+')
+
+########################################
+## <summary>
+##	 Execute domain in the ppp domain.
+## </summary>
+## <param name="domain">
+##	 Domain allowed access.
+## </param>
+#
+interface(`ppp_domtrans',`
+	gen_require(`
+		type pppd_t, pppd_exec_t;
+	')
+
+	corecmd_search_sbin($1)
+	domain_auto_trans($1, pppd_exec_t, pppd_t)
+
+	allow $1 pppd_t:fd use;
+	allow pppd_t $1:fd use;
+	allow pppd_t $1:fifo_file rw_file_perms;
+	allow pppd_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	 Conditionally execute ppp daemon on behalf of a user or staff type.
+## </summary>
+## <param name="domain">
+##	 Domain allowed access.
+## </param>
+#
+interface(`ppp_run_cond',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	role $2 types pppd_t;
+
+	tunable_policy(`pppd_for_user',`
+		ppp_domtrans($1)
+		allow pppd_t $3:chr_file rw_term_perms;
+	')
+')
+
+########################################
+## <summary>
+##	 Unconditionally execute ppp daemon on behalf of a user or staff type.
+## </summary>
+## <param name="domain">
+##	 Domain allowed access.
+## </param>
+#
+interface(`ppp_run',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	ppp_domtrans($1)
+	role $2 types pppd_t;
+	allow pppd_t $3:chr_file rw_term_perms;
+')
