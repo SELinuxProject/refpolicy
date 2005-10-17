@@ -84,6 +84,9 @@ template(`apache_content_template',`
 	allow httpd_$1_script_t httpd_$1_script_rw_t:fifo_file create_file_perms;
 	files_create_tmp_files(httpd_$1_script_t,httpd_$1_script_rw_t,{ file lnk_file sock_file fifo_file })
 
+	kernel_dontaudit_search_sysctl(httpd_$1_script_t)
+	kernel_dontaudit_search_kernel_sysctl(httpd_$1_script_t)
+
 	dev_read_rand(httpd_$1_script_t)
 	dev_read_urand(httpd_$1_script_t)
 
@@ -106,20 +109,11 @@ template(`apache_content_template',`
 
 	seutil_dontaudit_search_config(httpd_$1_script_t)
 
-	ifdef(`targeted_policy',`
-		tunable_policy(`httpd_enable_cgi && httpd_unified && ! httpd_disable_trans',`
-			allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
-			allow httpd_$1_script_t httpdcontent:file create_file_perms;
-			allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
-			can_exec(httpd_$1_script_t, httpdcontent)
-		')
-	',`
-		tunable_policy(`httpd_enable_cgi && httpd_unified',`
-			allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
-			allow httpd_$1_script_t httpdcontent:file create_file_perms;
-			allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
-			can_exec(httpd_$1_script_t, httpdcontent)
-		')
+	tunable_policy(`httpd_enable_cgi && httpd_unified',`
+		allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
+		allow httpd_$1_script_t httpdcontent:file create_file_perms;
+		allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
+		can_exec(httpd_$1_script_t, httpdcontent)
 	')
 
 	tunable_policy(`allow_httpd_$1_script_anon_write',`
@@ -147,6 +141,16 @@ template(`apache_content_template',`
 	')
 
 	tunable_policy(`httpd_enable_cgi',`
+		allow httpd_$1_script_t httpd_$1_script_exec_t:file entrypoint;
+
+		# privileged users run the script:
+		domain_auto_trans(httpd_exec_scripts, httpd_$1_script_exec_t, httpd_$1_script_t)
+		allow httpd_exec_scripts httpd_$1_script_t:fd use;
+		allow httpd_$1_script_t httpd_exec_scripts:fd use;
+		allow httpd_$1_script_t httpd_exec_scripts:fifo_file rw_file_perms;
+		allow httpd_$1_script_t httpd_exec_scripts:process sigchld;
+
+		# apache runs the script:
 		domain_auto_trans(httpd_t, httpd_$1_script_exec_t, httpd_$1_script_t)
 		allow httpd_t httpd_$1_script_t:fd use;
 		allow httpd_$1_script_t httpd_t:fd use;
@@ -215,21 +219,6 @@ template(`apache_content_template',`
 	optional_policy(`nscd.te',`
 		nscd_use_socket(httpd_$1_script_t)
 	')
-
-	ifdef(`TODO',`
-	#
-	# If a user starts a script by hand it gets the proper context
-	#
-	ifdef(`targeted_policy', `', `
-	if (httpd_enable_cgi) {
-	domain_auto_trans(sysadm_t, httpd_$1_script_exec_t, httpd_$1_script_t)
-	}
-	')
-	role sysadm_r types httpd_$1_script_t;
-
-	dontaudit httpd_$1_script_t sysctl_kernel_t:dir search;
-	dontaudit httpd_$1_script_t sysctl_t:dir search;
-	') dnl end TODO
 ')
 
 #######################################
@@ -262,6 +251,7 @@ template(`apache_per_userdomain_template', `
 
 	apache_content_template($1)
 
+	typeattribute httpd_$1_content_t httpd_script_domains;
 #	typeattribute httpd_$1_content_t $1_file_type;
 
 	role $3 types httpd_$1_script_t;
@@ -290,39 +280,23 @@ template(`apache_per_userdomain_template', `
 	allow $2 httpd_$1_script_exec_t:file { create_file_perms relabelto relabelfrom };
 	allow $2 httpd_$1_script_exec_t:lnk_file { create_lnk_perms relabelto relabelfrom };
 
-	ifdef(`targeted_policy',`
-		tunable_policy(`httpd_enable_cgi',`
-			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
-			allow $2 httpd_$1_script_t:fd use;
-			allow httpd_$1_script_t $2:fd use;
-			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-			allow httpd_$1_script_t $2:process sigchld;
-		')
+	tunable_policy(`httpd_enable_cgi',`
+		# If a user starts a script by hand it gets the proper context
+		domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
+		allow $2 httpd_$1_script_t:fd use;
+		allow httpd_$1_script_t $2:fd use;
+		allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+		allow httpd_$1_script_t $2:process sigchld;
+	')
 
-		tunable_policy(`httpd_enable_cgi && httpd_unified',`
-			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
-			allow $2 httpd_$1_script_t:fd use;
-			allow httpd_$1_script_t $2:fd use;
-			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-			allow httpd_$1_script_t $2:process sigchld;
-		')
-	',`
-		tunable_policy(`httpd_enable_cgi',`
-			# If a user starts a script by hand it gets the proper context
-			domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
-			allow $2 httpd_$1_script_t:fd use;
-			allow httpd_$1_script_t $2:fd use;
-			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-			allow httpd_$1_script_t $2:process sigchld;
-		')
+	tunable_policy(`httpd_enable_cgi && httpd_unified',`
+		allow httpd_$1_script_t httpdcontent:file entrypoint;
 
-		tunable_policy(`httpd_enable_cgi && httpd_unified',`
-			domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
-			allow $2 httpd_$1_script_t:fd use;
-			allow httpd_$1_script_t $2:fd use;
-			allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-			allow httpd_$1_script_t $2:process sigchld;
-		')
+		domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
+		allow $2 httpd_$1_script_t:fd use;
+		allow httpd_$1_script_t $2:fd use;
+		allow httpd_$1_script_t $2:fifo_file rw_file_perms;
+		allow httpd_$1_script_t $2:process sigchld;
 	')
 
 	# allow accessing files/dirs below the users home dir
@@ -401,6 +375,40 @@ interface(`apache_use_fd',`
 	')
 
 	allow $1 httpd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write Apache
+##	unix domain stream sockets.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_dontaudit_rw_stream_socket',`
+	gen_require(`
+		type httpd_t;
+	')
+
+	dontaudit $1 httpd_t:unix_stream_socket { read write };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write Apache
+##	TCP sockets.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_dontaudit_rw_tcp_socket',`
+	gen_require(`
+		type httpd_t;
+	')
+
+	dontaudit $1 httpd_t:tcp_socket { read write };
 ')
 
 ########################################
@@ -506,7 +514,7 @@ interface(`apache_dontaudit_append_log',`
 		type httpd_log_t;
 	')
 
-	dontaudit $1 httpd_log_t:file append;
+	dontaudit $1 httpd_log_t:file { getattr append };
 ')
 
 ########################################
@@ -573,4 +581,96 @@ interface(`apache_domtrans_sys_script',`
 		allow httpd_sys_script_t $1:fifo_file rw_file_perms;
 		allow httpd_sys_script_t $1:process sigchld;
 	')
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write Apache
+##	system script unix domain stream sockets.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_dontaudit_rw_sys_script_stream_socket',`
+	gen_require(`
+		type httpd_sys_script_t;
+	')
+
+	dontaudit $1 httpd_sys_script_t:unix_stream_socket { read write };
+')
+
+########################################
+## <summary>
+##	Execute all user scripts in the user
+##	script domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_domtrans_all_scripts',`
+	gen_require(`
+		attribute httpd_exec_scripts;
+	')
+
+	typeattribute $1 httpd_exec_scripts;
+')
+
+########################################
+## <summary>
+##	Execute all user scripts in the user
+##	script domain.  Add user script domains
+##	to the specified role.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="role">
+##	The role to be allowed the script domains.
+## </param>
+#
+# cjp: this is missing the terminal since scripts
+# do not output to the terminal
+interface(`apache_run_all_scripts',`
+	gen_require(`
+		attribute httpd_exec_scripts, httpd_script_domains;
+	')
+
+	role $2 types httpd_script_domains;
+	apache_domtrans_all_scripts($1)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	apache squirrelmail data.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_read_squirrelmail_data',`
+	gen_require(`
+		type httpd_squirrelmail_t;
+	')
+
+	allow $1 httpd_squirrelmail_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to append
+##	apache squirrelmail data.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`apache_append_squirrelmail_data',`
+	gen_require(`
+		type httpd_squirrelmail_t;
+	')
+
+	allow $1 httpd_squirrelmail_t:file { getattr append };
 ')

@@ -22,9 +22,16 @@ policy_module(apache,1.0)
 
 attribute httpdcontent;
 
+# domains that can exec all users scripts
+attribute httpd_exec_scripts;
+
+# user script domains
+attribute httpd_script_domains;
+
 type httpd_t;
 type httpd_exec_t;
 init_daemon_domain(httpd_t,httpd_exec_t)
+role system_r types httpd_t;
 
 # httpd_cache_t is the type given to the /var/cache/httpd
 # directory and the files under that directory
@@ -36,11 +43,10 @@ type httpd_config_t;
 files_type(httpd_config_t)
 
 type httpd_helper_t;
-domain_type(httpd_helper_t)
-role system_r types httpd_helper_t;
-
 type httpd_helper_exec_t;
+domain_type(httpd_helper_t)
 domain_entry_file(httpd_helper_t,httpd_helper_exec_t)
+role system_r types httpd_helper_t;
 
 type httpd_lock_t;
 files_lock_file(httpd_lock_t)
@@ -54,11 +60,10 @@ type httpd_modules_t;
 files_type(httpd_modules_t)
 
 type httpd_php_t;
-domain_type(httpd_php_t)
-role system_r types httpd_php_t;
-
 type httpd_php_exec_t;
+domain_type(httpd_php_t)
 domain_entry_file(httpd_php_t,httpd_php_exec_t)
+role system_r types httpd_php_t;
 
 type httpd_php_tmp_t;
 files_tmp_file(httpd_php_tmp_t)
@@ -68,11 +73,10 @@ files_type(httpd_squirrelmail_t)
 
 # SUEXEC runs user scripts as their own user ID
 type httpd_suexec_t; #, daemon;
-domain_type(httpd_suexec_t)
-role system_r types httpd_suexec_t;
-
 type httpd_suexec_exec_t;
+domain_type(httpd_suexec_t)
 domain_entry_file(httpd_suexec_t,httpd_suexec_exec_t)
+role system_r types httpd_suexec_t;
 
 type httpd_suexec_tmp_t;
 files_tmp_file(httpd_suexec_tmp_t)
@@ -89,11 +93,10 @@ files_tmpfs_file(httpd_tmpfs_t)
 # Unconfined domain for apache scripts.
 # Only to be used as a last resort
 type httpd_unconfined_script_t;
-domain_type(httpd_unconfined_script_t)
-role system_r types httpd_unconfined_script_t;
-
 type httpd_unconfined_script_exec_t; # customizable
-files_type(httpd_unconfined_script_exec_t)
+domain_type(httpd_unconfined_script_t)
+domain_entry_file(httpd_unconfined_script_t,httpd_unconfined_script_exec_t)
+role system_r types httpd_unconfined_script_t;
 
 # for apache2 memory mapped files
 type httpd_var_lib_t;
@@ -178,15 +181,15 @@ allow httpd_t httpd_tmp_t:dir create_dir_perms;
 allow httpd_t httpd_tmp_t:file create_file_perms;
 files_create_tmp_files(httpd_t, httpd_tmp_t, { file dir })
 
-allow httpd_t httpd_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow httpd_t httpd_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow httpd_t httpd_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-allow httpd_t httpd_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow httpd_t httpd_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow httpd_t httpd_tmpfs_t:dir create_dir_perms;
+allow httpd_t httpd_tmpfs_t:file create_file_perms;
+allow httpd_t httpd_tmpfs_t:lnk_file create_lnk_perms;
+allow httpd_t httpd_tmpfs_t:sock_file create_file_perms;
+allow httpd_t httpd_tmpfs_t:fifo_file create_file_perms;
 fs_create_tmpfs_data(httpd_t,httpd_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 allow httpd_t httpd_var_lib_t:file create_file_perms;
-allow httpd_t httpd_var_lib_t:dir create_dir_perms;
+allow httpd_t httpd_var_lib_t:dir rw_dir_perms;
 files_create_var_lib(httpd_t,httpd_var_lib_t)
 
 allow httpd_t httpd_var_run_t:file create_file_perms;
@@ -341,6 +344,14 @@ tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
 	fs_read_cifs_symlinks(httpd_t)
 ')
 
+tunable_policy(`httpd_ssi_exec',`
+	corecmd_shell_domtrans(httpd_t,httpd_sys_script_t)
+	allow httpd_t httpd_sys_script_t:fd use;
+	allow httpd_sys_script_t httpd_t:fd use;
+	allow httpd_sys_script_t httpd_t:fifo_file rw_file_perms;
+	allow httpd_sys_script_t httpd_t:process sigchld;
+')
+
 # When the admin starts the server, the server wants to access
 # the TTY or PTY associated with the session. The httpd appears
 # to run correctly without this permission, so the permission
@@ -391,10 +402,6 @@ optional_policy(`rhgb.te',`
 
 can_tcp_connect(web_client_domain, httpd_t)
 
-allow httpd_t home_root_t:dir getattr;
-dontaudit httpd_t sysadm_home_dir_t:dir getattr;
-allow httpd_sys_script_t var_spool_t:dir getattr;
-
 ifdef(`targeted_policy',`
 	if (httpd_enable_homedirs) {
 		allow httpd_t user_home_dir_t:dir { getattr search };
@@ -405,14 +412,6 @@ ifdef(`targeted_policy',`
 	if (httpd_enable_homedirs) {
 		allow httpd_suexec_t user_home_dir_t:dir { getattr search };
 	}
-')
-
-optional_policy(`mta.te',`
-	# apache should set close-on-exec
-	dontaudit { system_mail_t mta_user_agent } { httpd_t httpd_sys_script_t }:unix_stream_socket { read write };
-	dontaudit system_mail_t httpd_log_t:file { append getattr };
-	allow system_mail_t httpd_squirrelmail_t:file { append read };
-	dontaudit system_mail_t httpd_t:tcp_socket { read write };
 ')
 ') dnl end TODO
 
@@ -433,6 +432,8 @@ allow httpd_helper_t httpd_log_t:file append;
 
 libs_use_ld_so(httpd_helper_t)
 libs_use_shared_libs(httpd_helper_t)
+
+logging_send_syslog_msg(httpd_helper_t)
 
 ########################################
 #
