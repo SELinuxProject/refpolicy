@@ -26,9 +26,9 @@ static int process_seusers(const char *buffer,
 	start = newbuf;
 	while (isspace(*start))
 		start++;
-	if (*start == '#') {
+	if (*start == '#' || *start == 0) {
 		free(newbuf);
-		return -1; /* Comment, skip over */
+		return -1; /* Comment or empty line, skip over */
 	}
 	end = strchr(start, ':');
 	if (!end)
@@ -98,16 +98,8 @@ int getseuserbyname(const char *name, char **r_seuser, char **r_level) {
         char *defaultlevel=NULL;
 
 	cfg = fopen(selinux_usersconf_path(), "r");
-	if (!cfg) {
-		if (require_seusers)
-			return -1;
-		/* Fall back to the Linux username and no level. */
-		*r_seuser = strdup(name);
-		if (!(*r_seuser))
-			return -1;
-		*r_level = NULL;
-		return 0;
-	}
+	if (!cfg)
+		goto nomatch;
 
 	while (getline(&buffer, &size, cfg) > 0) {
 		++lineno;
@@ -138,6 +130,7 @@ int getseuserbyname(const char *name, char **r_seuser, char **r_level) {
 	if (buffer) 
 		free(buffer);
 	fclose(cfg);
+
 	if (seuser) {
 		free(username);
 		free(defaultseuser);
@@ -152,6 +145,15 @@ int getseuserbyname(const char *name, char **r_seuser, char **r_level) {
 		*r_level = defaultlevel;
 		return 0;
 	}
-		
-	return -1;
+
+nomatch:
+	if (require_seusers)
+		return -1;
+
+	/* Fall back to the Linux username and no level. */
+	*r_seuser = strdup(name);
+	if (!(*r_seuser))
+		return -1;
+	*r_level = NULL;
+	return 0;
 }
