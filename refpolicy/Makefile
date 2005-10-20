@@ -52,6 +52,7 @@ NAME = refpolicy
 # run init scripts, instead of requring run_init.
 # This is a build option, as role transitions do
 # not work in conditional policy.
+# This option will be impled as y for redhat policies.
 DIRECT_INITRC=n
 
 # Build monolithic policy.  Putting n here
@@ -141,6 +142,9 @@ endif
 # enable distribution-specific policy
 ifneq ($(DISTRO),)
 	override M4PARAM += -D distro_$(DISTRO)
+ifeq ($(DISTRO),redhat)
+	override DIRECT_INITRC := y
+endif
 endif
 
 ifneq ($(OUTPUT_POLICY),)
