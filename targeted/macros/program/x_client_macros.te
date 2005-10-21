@@ -1,0 +1,96 @@
+#
+# Macros for X client programs 
+#
+
+#
+# Author: Russell Coker <russell@coker.com.au>
+# Based on the work of Stephen Smalley <sds@epoch.ncsc.mil>
+# and Timothy Fraser 
+#
+
+# Allows clients to write to the X server's shm 
+bool allow_write_xshm false;
+
+define(`xsession_domain', `
+
+# Connect to xserver
+can_unix_connect($1_t, $2_xserver_t)
+
+# Read /tmp/.X0-lock
+allow $1_t $2_xserver_tmp_t:file { getattr read };
+
+# Signal Xserver
+allow $1_t $2_xserver_t:process signal;
+
+# Xserver read/write client shm
+allow $2_xserver_t $1_t:fd use;
+allow $2_xserver_t $1_t:shm rw_shm_perms;
+allow $2_xserver_t $1_tmpfs_t:file rw_file_perms;
+
+# Client read xserver shm
+allow $1_t $2_xserver_t:fd use;
+allow $1_t $2_xserver_t:shm r_shm_perms;
+allow $1_t $2_xserver_tmpfs_t:file r_file_perms;
+
+# Client write xserver shm
+if (allow_write_xshm) {
+allow $1_t $2_xserver_t:shm rw_shm_perms;
+allow $1_t $2_xserver_tmpfs_t:file rw_file_perms;
+}
+
+')
+
+#
+# x_client_domain(client, role)
+#
+# Defines common X access rules for the client domain
+#
+define(`x_client_domain',`
+
+# Create socket to communicate with X server
+allow $1_t self:unix_dgram_socket create_socket_perms;
+allow $1_t self:unix_stream_socket { connectto create_stream_socket_perms };
+
+# Read .Xauthority file
+ifdef(`xauth.te',`
+allow $1_t home_root_t:dir { search getattr };
+allow $1_t $2_home_dir_t:dir { search getattr };
+allow $1_t $2_xauth_home_t:file { getattr read };
+')
+
+# for .xsession-errors
+dontaudit $1_t $2_home_t:file write;
+
+# for X over a ssh tunnel
+ifdef(`ssh.te', `
+can_tcp_connect($1_t, sshd_t)
+')
+
+# Use a separate type for tmpfs/shm pseudo files.
+tmpfs_domain($1)
+allow $1_t self:shm create_shm_perms;
+
+# allow X client to read all font files
+read_fonts($1_t, $2)
+
+# Allow connections to X server.
+ifdef(`xserver.te', `
+allow $1_t tmp_t:dir search;
+
+ifdef(`xdm.te', `
+xsession_domain($1, xdm)
+
+# for when /tmp/.X11-unix is created by the system
+can_pipe_xdm($1_t)
+allow $1_t xdm_tmp_t:dir search;
+allow $1_t xdm_tmp_t:sock_file { read write };
+dontaudit $1_t xdm_t:tcp_socket { read write };
+')
+
+ifdef(`startx.te', `
+xsession_domain($1, $2)
+')dnl end startx
+
+')dnl end xserver
+
+')dnl end x_client macro

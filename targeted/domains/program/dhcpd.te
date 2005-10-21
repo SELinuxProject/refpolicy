@@ -1,0 +1,78 @@
+#DESC DHCPD - DHCP server
+#
+# Author: Russell Coker <russell@coker.com.au> 
+# based on the dhcpc_t policy from:
+#          Wayne Salamon (NAI Labs) <wsalamon@tislabs.com>
+# X-Debian-Packages: dhcp dhcp3-server 
+#
+
+#################################
+#
+# Rules for the dhcpd_t domain.
+#
+# dhcpd_t is the domain for the server side of DHCP. dhcpd, the DHCP 
+# server daemon rc scripts, runs in this domain.
+# dhcpd_exec_t is the type of the dhcpdd executable.
+# The dhcpd_t can be used for other DHCPC related files as well.
+#
+daemon_domain(dhcpd, `, nscd_client_domain')
+
+# for UDP port 4011
+allow dhcpd_t pxe_port_t:udp_socket name_bind;
+
+type dhcp_etc_t, file_type, sysadmfile, usercanread;
+
+# Use the network.
+can_network(dhcpd_t)
+allow dhcpd_t port_type:tcp_socket name_connect;
+allow dhcpd_t dhcpd_port_t:{ tcp_socket udp_socket } name_bind;
+can_ypbind(dhcpd_t)
+allow dhcpd_t self:unix_dgram_socket create_socket_perms;
+allow dhcpd_t self:unix_stream_socket create_socket_perms;
+allow dhcpd_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow dhcpd_t var_lib_t:dir search;
+
+allow dhcpd_t devtty_t:chr_file { read write };
+
+# Use capabilities
+allow dhcpd_t self:capability { net_raw net_bind_service };
+dontaudit dhcpd_t self:capability  net_admin;
+
+# Allow access to the dhcpd file types
+type dhcp_state_t, file_type, sysadmfile;
+type dhcpd_state_t, file_type, sysadmfile;
+allow dhcpd_t dhcp_etc_t:file { read getattr };
+allow dhcpd_t dhcp_etc_t:dir search;
+file_type_auto_trans(dhcpd_t, dhcp_state_t, dhcpd_state_t, file)
+
+allow dhcpd_t etc_t:lnk_file read;
+allow dhcpd_t { etc_t etc_runtime_t }:file r_file_perms;
+
+# Allow dhcpd_t programs to execute themselves and bin_t (uname etc)
+can_exec(dhcpd_t, { dhcpd_exec_t bin_t })
+
+# Allow dhcpd_t to use packet sockets
+allow dhcpd_t self:packet_socket create_socket_perms;
+allow dhcpd_t self:rawip_socket create_socket_perms;
+
+# allow to run utilities and scripts
+allow dhcpd_t { bin_t sbin_t }:dir r_dir_perms;
+allow dhcpd_t { bin_t sbin_t }:{ file lnk_file } rx_file_perms;
+allow dhcpd_t self:fifo_file { read write getattr };
+
+# allow reading /proc
+allow dhcpd_t proc_t:{ file lnk_file } r_file_perms;
+tmp_domain(dhcpd)
+
+ifdef(`distro_gentoo', `
+allow dhcpd_t self:capability { chown dac_override setgid setuid sys_chroot };
+allow initrc_t dhcpd_state_t:file setattr;
+')
+r_dir_file(dhcpd_t, usr_t)
+allow dhcpd_t { urandom_device_t random_device_t }:chr_file r_file_perms;
+
+ifdef(`named.te', `
+allow dhcpd_t { named_conf_t named_zone_t }:dir search;
+allow dhcpd_t dnssec_t:file { getattr read };
+')

@@ -1,0 +1,73 @@
+
+# $1 is the source domain (or domains), $2 is the source role (or roles) and $3
+# is the base name for the domain to run.  $1 is normally sysadm_t, and $2 is
+# normally sysadm_r.  $4 is the type of program to run and $5 is the domain to
+# transition to.
+# sample usage:
+# run_program(sysadm_t, sysadm_r, init, etc_t, initrc_t)
+#
+# if you have several users who run the same run_init type program for
+# different purposes (think of a run_db program used by several database
+# administrators to start several databases) then you can list all the source
+# domains in $1, all the source roles in $2, but you may not want to list all
+# types of programs to run in $4 and target domains in $5 (as that may permit
+# entering a domain from the wrong type).  In such a situation just specify
+# one value for each of $4 and $5 and have some rules such as the following:
+# domain_trans(run_whatever_t, whatever_exec_t, whatever_t)
+
+define(`run_program', `
+type run_$3_exec_t, file_type, exec_type, sysadmfile;
+
+# domain for program to run in, needs to change role (priv_system_role), change
+# identity to system_u (privuser), log failures to syslog (privlog) and
+# authenticate users
+type run_$3_t, domain, priv_system_role, privuser, privlog;
+domain_auto_trans($1, run_$3_exec_t, run_$3_t)
+role $2 types run_$3_t;
+
+domain_auto_trans(run_$3_t, chkpwd_exec_t, sysadm_chkpwd_t)
+dontaudit run_$3_t shadow_t:file getattr;
+
+# for utmp
+allow run_$3_t initrc_var_run_t:file rw_file_perms;
+allow run_$3_t admin_tty_type:chr_file rw_file_perms;
+
+dontaudit run_$3_t devpts_t:dir { getattr read };
+dontaudit run_$3_t device_t:dir read;
+
+# for auth_chkpwd
+dontaudit run_$3_t shadow_t:file read;
+allow run_$3_t self:process { fork sigchld };
+allow run_$3_t self:fifo_file rw_file_perms;
+allow run_$3_t self:capability setuid;
+allow run_$3_t self:lnk_file read;
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_$3_t file_type:dir search;
+dontaudit run_$3_t self:capability { dac_override dac_read_search };
+
+allow run_$3_t bin_t:lnk_file read;
+can_exec(run_$3_t, { bin_t shell_exec_t })
+ifdef(`chkpwd.te', `
+can_exec(run_$3_t, chkpwd_exec_t)
+')
+
+domain_trans(run_$3_t, $4, $5)
+can_setexec(run_$3_t)
+
+allow run_$3_t privfd:fd use;
+uses_shlib(run_$3_t)
+allow run_$3_t lib_t:file { getattr read };
+can_getsecurity(run_$3_t)
+r_dir_file(run_$3_t,selinux_config_t)
+r_dir_file(run_$3_t,default_context_t)
+allow run_$3_t self:unix_stream_socket create_socket_perms;
+allow run_$3_t self:unix_dgram_socket create_socket_perms;
+allow run_$3_t etc_t:file { getattr read };
+read_locale(run_$3_t)
+allow run_$3_t fs_t:filesystem getattr;
+allow run_$3_t { bin_t sbin_t }:dir search;
+dontaudit run_$3_t device_t:dir { getattr search };
+')

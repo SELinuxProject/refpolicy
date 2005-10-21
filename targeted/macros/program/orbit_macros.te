@@ -1,0 +1,44 @@
+#
+# ORBit related types 
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+# orbit_domain(prefix, role_prefix) - create ORBit sockets
+# orbit_connect(type1_prefix, type2_prefix) 
+#	- allow communication through ORBit sockets from type1 to type2 
+
+define(`orbit_domain', `
+
+# Protect against double inclusion for speed and correctness
+ifdef(`orbit_domain_$1_$2', `', `
+define(`orbit_domain_$1_$2')
+
+# Relabel directory (startup script)
+allow $1_t $1_orbit_tmp_t:{ dir file } { relabelfrom relabelto };
+
+# Type for ORBit sockets
+type $1_orbit_tmp_t, file_type, $2_file_type, sysadmfile, tmpfile;
+file_type_auto_trans($1_t, $2_orbit_tmp_t, $1_orbit_tmp_t)
+allow $1_t tmp_t:dir { read search getattr };
+
+# Create the sockets
+allow $1_t self:unix_stream_socket create_stream_socket_perms;
+allow $1_t self:unix_dgram_socket create_socket_perms;
+
+# Use random device(s)
+allow $1_t { random_device_t urandom_device_t }:chr_file { read getattr ioctl };
+
+# Why do they do that?
+dontaudit $1_t $2_orbit_tmp_t:dir setattr;
+
+') dnl ifdef orbit_domain_args
+') dnl orbit_domain
+
+##########################
+
+define(`orbit_connect', `
+
+can_unix_connect($1_t, $2_t)
+allow $1_t $2_orbit_tmp_t:sock_file write;
+
+') dnl orbit_connect

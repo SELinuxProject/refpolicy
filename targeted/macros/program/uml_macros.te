@@ -1,0 +1,137 @@
+#
+# Macros for uml domains.
+#
+
+#
+# Author:  Russell Coker <russell@coker.com.au>
+#
+
+#
+# uml_domain(domain_prefix)
+#
+# Define a derived domain for the uml program when executed
+# by a user domain.
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/uml.te. 
+#
+undefine(`uml_domain')
+ifdef(`uml.te', `
+define(`uml_domain',`
+
+# Derived domain based on the calling user domain and the program.
+type $1_uml_t, domain;
+type $1_uml_exec_t, file_type, sysadmfile, $1_file_type;
+type $1_uml_ro_t, file_type, sysadmfile, $1_file_type;
+type $1_uml_rw_t, file_type, sysadmfile, $1_file_type;
+
+# for X
+ifdef(`startx.te', `
+ifelse($1, sysadm, `', `
+ifdef(`xdm.te', `
+allow $1_uml_t xdm_xserver_tmp_t:dir search;
+')dnl end if xdm.te
+allow $1_uml_t $1_xserver_tmp_t:sock_file write;
+can_unix_connect($1_uml_t, $1_xserver_t)
+')dnl end ifelse sysadm
+')dnl end ifdef startx
+
+allow $1_t { $1_uml_ro_t $1_uml_rw_t }:{ file sock_file fifo_file } { relabelfrom relabelto create_file_perms };
+allow $1_t $1_uml_exec_t:file { relabelfrom relabelto create_file_perms };
+allow $1_t { $1_uml_ro_t $1_uml_rw_t }:lnk_file { relabelfrom relabelto create_lnk_perms };
+allow $1_t { $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t }:dir { relabelfrom relabelto create_dir_perms };
+r_dir_file($1_t, uml_ro_t)
+
+# Transition from the user domain to this domain.
+domain_auto_trans($1_t, { uml_exec_t $1_uml_exec_t }, $1_uml_t)
+can_exec($1_uml_t, { uml_exec_t $1_uml_exec_t })
+
+# The user role is authorized for this domain.
+role $1_r types $1_uml_t;
+
+# Inherit and use descriptors from gnome-pty-helper.
+ifdef(`gnome-pty-helper.te', `allow $1_uml_t $1_gph_t:fd use;')
+
+# Inherit and use descriptors from newrole.
+ifdef(`newrole.te', `allow $1_uml_t newrole_t:fd use;')
+
+# allow ps, ptrace, signal
+can_ps($1_t, $1_uml_t)
+can_ptrace($1_t, $1_uml_t)
+allow $1_t $1_uml_t:process signal_perms;
+
+# allow the UML thing to happen
+allow $1_uml_t self:process { fork signal_perms ptrace };
+can_create_pty($1_uml)
+allow $1_uml_t root_t:dir search;
+tmp_domain($1_uml)
+can_exec($1_uml_t, $1_uml_tmp_t)
+tmpfs_domain($1_uml)
+can_exec($1_uml_t, $1_uml_tmpfs_t)
+create_dir_file($1_t, $1_uml_tmp_t)
+allow $1_t $1_uml_tmp_t:sock_file create_file_perms;
+allow $1_uml_t self:fifo_file rw_file_perms;
+allow $1_uml_t fs_t:filesystem getattr;
+
+allow $1_uml_t tun_tap_device_t:chr_file { read write ioctl };
+
+ifdef(`uml_net.te', `
+# for uml_net
+domain_auto_trans($1_uml_t, uml_net_exec_t, uml_net_t)
+allow uml_net_t $1_uml_t:unix_stream_socket { read write };
+allow uml_net_t $1_uml_t:unix_dgram_socket { read write };
+dontaudit uml_net_t privfd:fd use;
+can_access_pty(uml_net_t, $1_uml)
+dontaudit uml_net_t $1_uml_rw_t:dir { getattr search };
+')dnl end ifdef uml_net.te
+
+# for mconsole
+allow { $1_t $1_uml_t } $1_uml_t:unix_dgram_socket sendto;
+allow $1_uml_t $1_t:unix_dgram_socket sendto;
+
+# Use the network.
+can_network($1_uml_t)
+allow $1_uml_t port_type:tcp_socket name_connect;
+can_ypbind($1_uml_t)
+
+# for xterm
+uses_shlib($1_uml_t)
+can_exec($1_uml_t, { bin_t sbin_t lib_t })
+allow $1_uml_t { bin_t sbin_t }:dir search;
+allow $1_uml_t etc_t:file { getattr read };
+dontaudit $1_uml_t etc_runtime_t:file read;
+can_tcp_connect($1_uml_t, sshd_t)
+ifdef(`xauth.te', `
+allow $1_uml_t $1_xauth_home_t:file { getattr read };
+')
+allow $1_uml_t var_run_t:dir search;
+allow $1_uml_t initrc_var_run_t:file { getattr read };
+dontaudit $1_uml_t initrc_var_run_t:file { write lock };
+
+allow $1_uml_t device_t:dir search;
+allow $1_uml_t self:unix_stream_socket create_stream_socket_perms;
+allow $1_uml_t self:unix_dgram_socket create_socket_perms;
+allow $1_uml_t privfd:fd use;
+allow $1_uml_t proc_t:dir search;
+allow $1_uml_t proc_t:file { getattr read };
+
+# for SKAS - need something better
+allow $1_uml_t proc_t:file write;
+
+# Write to the user domain tty.
+access_terminal($1_uml_t, $1)
+
+# access config files
+allow $1_uml_t home_root_t:dir search;
+file_type_auto_trans($1_uml_t, $1_home_dir_t, $1_uml_rw_t)
+r_dir_file($1_uml_t, { $1_uml_ro_t uml_ro_t })
+
+# putting uml data under /var is usual...
+allow $1_uml_t var_t:dir search;
+')dnl end macro definition
+
+', `
+
+define(`uml_domain',`')
+
+')

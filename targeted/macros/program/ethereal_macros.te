@@ -1,0 +1,82 @@
+# DESC - Ethereal  
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+
+#############################################################
+# ethereal_networking(app_prefix) - 
+#	restricted ethereal rules (sysadm only)
+#                               
+
+define(`ethereal_networking', `
+
+# Create various types of sockets
+allow $1_t self:netlink_route_socket create_netlink_socket_perms;
+allow $1_t self:udp_socket create_socket_perms;
+allow $1_t self:packet_socket create_socket_perms;
+allow $1_t self:unix_stream_socket create_stream_socket_perms;
+allow $1_t self:tcp_socket create_socket_perms;
+
+allow $1_t self:capability { dac_override dac_read_search net_raw setgid setuid };
+
+# Resolve names via DNS
+can_resolve($1_t)
+
+') dnl ethereal_networking
+
+########################################################
+# Ethereal (GNOME) 
+#
+
+define(`ethereal_domain', `
+
+# Type for program
+type $1_ethereal_t, domain, nscd_client_domain;
+
+# Transition from sysadm type
+domain_auto_trans($1_t, ethereal_exec_t, $1_ethereal_t)
+role $1_r types $1_ethereal_t;
+
+# Manual transition from userhelper 
+ifdef(`userhelper.te', `
+allow userhelperdomain $1_ethereal_t:process { transition siginh rlimitinh noatsecure };
+allow $1_ethereal_t userhelperdomain:fd use;
+allow $1_ethereal_t userhelperdomain:process sigchld;
+') dnl userhelper
+
+# X, GNOME
+x_client_domain($1_ethereal, $1)
+gnome_application($1_ethereal, $1)
+gnome_file_dialog($1_ethereal, $1)
+
+# Why does it write this?
+ifdef(`snmpd.te', `
+dontaudit sysadm_ethereal_t snmpd_var_lib_t:file write;
+')
+
+# /home/.ethereal
+home_domain($1, ethereal)
+file_type_auto_trans($1_ethereal_t, $1_home_dir_t, $1_ethereal_home_t, dir)
+
+# Enable restricted networking rules for sysadm - this is shared w/ tethereal
+ifelse($1, `sysadm', `
+ethereal_networking($1_ethereal) 
+
+# Ethereal tries to write to user terminal
+dontaudit sysadm_ethereal_t user_tty_type:chr_file { read write };
+dontaudit sysadm_ethereal_t unpriv_userdomain:fd use;
+', `')
+
+# Store temporary files
+tmp_domain($1_ethereal)
+
+# Re-execute itself (why?)
+can_exec($1_ethereal_t, ethereal_exec_t)
+allow $1_ethereal_t sbin_t:dir search;
+
+# Supress .local denials until properly implemented
+dontaudit $1_ethereal_t $1_home_t:dir search;
+
+# FIXME: policy is incomplete
+
+') dnl ethereal_domain 

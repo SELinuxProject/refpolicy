@@ -1,0 +1,75 @@
+#
+# Razor - Razor is a collaborative, networked system to detect and
+#         block spam using identifying digests of messages.
+#
+# Author:  David Hampton <hampton@employees.org>
+#
+
+##########
+# common definitions for razord and all flavors of razor
+##########
+define(`razor_base_domain',`
+
+# Razor is one executable and several symlinks
+allow $1_t razor_exec_t:{ file lnk_file } { getattr read };
+
+# Networking
+can_network_client_tcp($1_t, razor_port_t)
+can_resolve($1_t);
+
+general_proc_read_access($1_t)
+
+# Read system config file
+r_dir_file($1_t, razor_etc_t)
+
+# Update razor common files
+file_type_auto_trans($1_t, var_log_t, razor_log_t, file)
+create_dir_file($1_t, razor_log_t)
+allow $1_t var_lib_t:dir search;
+create_dir_file($1_t, razor_var_lib_t)
+
+allow $1_t bin_t:dir { getattr search };
+allow $1_t bin_t:file getattr;
+allow $1_t lib_t:file { getattr read };
+allow $1_t { var_t var_run_t }:dir search;
+uses_shlib($1_t)
+
+# Razor forks other programs to do part of its work.
+general_domain_access($1_t)
+can_exec($1_t, bin_t)
+
+# mktemp and other randoms
+allow $1_t { random_device_t urandom_device_t }:chr_file r_file_perms;
+
+# Allow access to various files in the /etc/directory including mtab
+# and nsswitch
+allow $1_t { etc_t etc_runtime_t }:file { getattr read };
+read_locale($1_t)
+')
+
+
+#
+# Define a user domain for a razor
+#
+# Note: expects to be called with an argument of user, sysadm
+
+define(`razor_domain',`
+type $1_razor_t, domain, privlog, nscd_client_domain;
+role $1_r types $1_razor_t;
+domain_auto_trans($1_t, razor_exec_t, $1_razor_t)
+
+razor_base_domain($1_razor)
+
+# Per-user config/data files
+home_domain($1, razor)
+file_type_auto_trans($1_razor_t, $1_home_dir_t, $1_razor_home_t, dir)
+
+tmp_domain($1_razor)
+
+allow $1_razor_t self:unix_stream_socket create_stream_socket_perms;
+
+# Allow razor to be run by hand.  Needed by any action other than
+# invocation from a spam filter.
+can_access_pty($1_razor_t, $1)
+allow $1_razor_t sshd_t:fd use;
+')

@@ -1,0 +1,168 @@
+#
+# Macros for ssh domains.
+#
+
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil>
+#           Russell Coker <russell@coker.com.au>
+#           Thomas Bleher <ThomasBleher@gmx.de>
+#
+
+# 
+# ssh_domain(domain_prefix)
+#
+# Define a derived domain for the ssh program when executed
+# by a user domain.
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/ssh.te. 
+#
+undefine(`ssh_domain')
+ifdef(`ssh.te', `
+define(`ssh_domain',`
+# Derived domain based on the calling user domain and the program.
+type $1_ssh_t, domain, privlog, nscd_client_domain;
+type $1_home_ssh_t, file_type, $1_file_type, sysadmfile;
+
+allow $1_ssh_t autofs_t:dir { search getattr };
+if (use_nfs_home_dirs) {
+create_dir_file($1_ssh_t, nfs_t)
+}
+if (use_samba_home_dirs) {
+create_dir_file($1_ssh_t, cifs_t)
+}
+
+# Transition from the user domain to the derived domain.
+domain_auto_trans($1_t, ssh_exec_t, $1_ssh_t)
+
+# The user role is authorized for this domain.
+role $1_r types $1_ssh_t;
+
+# Grant permissions within the domain.
+general_domain_access($1_ssh_t)
+
+# Use descriptors created by sshd
+allow $1_ssh_t privfd:fd use;
+
+uses_shlib($1_ssh_t)
+read_locale($1_ssh_t)
+
+# Get attributes of file systems.
+allow $1_ssh_t fs_type:filesystem getattr;
+
+base_file_read_access($1_ssh_t)
+
+# Read /var.
+r_dir_file($1_ssh_t, var_t)
+
+# Read /var/run, /var/log.
+allow $1_ssh_t var_run_t:dir r_dir_perms;
+allow $1_ssh_t var_run_t:{ file lnk_file } r_file_perms;
+allow $1_ssh_t var_log_t:dir r_dir_perms;
+allow $1_ssh_t var_log_t:{ file lnk_file } r_file_perms;
+
+# Read /etc.
+r_dir_file($1_ssh_t, etc_t)
+allow $1_ssh_t etc_runtime_t:{ file lnk_file } r_file_perms;
+
+# Read /dev directories and any symbolic links.
+allow $1_ssh_t device_t:dir r_dir_perms;
+allow $1_ssh_t device_t:lnk_file r_file_perms;
+
+# Read /dev/urandom.
+allow $1_ssh_t urandom_device_t:chr_file r_file_perms;
+
+# Read and write /dev/null.
+allow $1_ssh_t { null_device_t zero_device_t }:chr_file rw_file_perms;
+
+# Grant permissions needed to create TCP and UDP sockets and
+# to access the network.
+can_network_client_tcp($1_ssh_t)
+allow $1_ssh_t ssh_port_t:tcp_socket name_connect;
+can_resolve($1_ssh_t)
+can_ypbind($1_ssh_t)
+can_kerberos($1_ssh_t)
+
+# for port forwarding
+if (user_tcp_server) {
+allow $1_ssh_t port_t:tcp_socket name_bind;
+}
+
+# Use capabilities.
+allow $1_ssh_t self:capability { setuid setgid dac_override dac_read_search };
+
+# run helper programs - needed eg for x11-ssh-askpass
+can_exec($1_ssh_t, { shell_exec_t bin_t })
+
+# Read the ssh key file.
+allow $1_ssh_t sshd_key_t:file r_file_perms;
+
+# Access the ssh temporary files.
+file_type_auto_trans($1_ssh_t, tmp_t, sshd_tmp_t)
+allow $1_ssh_t $1_tmp_t:dir r_dir_perms;
+
+# for rsync
+allow $1_ssh_t $1_t:unix_stream_socket rw_socket_perms;
+
+# Access the users .ssh directory.
+file_type_auto_trans({ sysadm_ssh_t $1_ssh_t }, $1_home_dir_t, $1_home_ssh_t, dir)
+file_type_auto_trans($1_ssh_t, $1_home_dir_t, $1_home_ssh_t, sock_file)
+allow $1_t $1_home_ssh_t:sock_file create_file_perms;
+allow { sysadm_ssh_t $1_ssh_t } $1_home_ssh_t:file create_file_perms;
+allow { sysadm_ssh_t $1_ssh_t } $1_home_ssh_t:lnk_file { getattr read };
+dontaudit $1_ssh_t $1_home_t:dir { getattr search };
+r_dir_file({ sshd_t sshd_extern_t }, $1_home_ssh_t)
+rw_dir_create_file($1_t, $1_home_ssh_t)
+
+# for /bin/sh used to execute xauth
+dontaudit $1_ssh_t proc_t:dir search;
+dontaudit $1_ssh_t proc_t:{ lnk_file file } { getattr read };
+
+# Inherit and use descriptors from gnome-pty-helper.
+ifdef(`gnome-pty-helper.te', `allow $1_ssh_t $1_gph_t:fd use;')
+
+# Write to the user domain tty.
+access_terminal($1_ssh_t, $1)
+
+# Allow the user shell to signal the ssh program.
+allow $1_t $1_ssh_t:process signal;
+# allow ps to show ssh
+can_ps($1_t, $1_ssh_t)
+
+# Connect to X server
+x_client_domain($1_ssh, $1)
+
+ifdef(`ssh-agent.te', `
+ssh_agent_domain($1)
+')dnl end if ssh_agent.te
+
+#allow ssh to access keys stored on removable media
+# Should we have a boolean around this?
+allow $1_ssh_t mnt_t:dir search;
+r_dir_file($1_ssh_t, removable_t) 
+
+type $1_ssh_keysign_t, domain, nscd_client_domain;
+role $1_r types $1_ssh_keysign_t;
+
+if (allow_ssh_keysign) {
+domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
+allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
+allow $1_ssh_keysign_t self:capability { setgid setuid };
+allow $1_ssh_keysign_t urandom_device_t:chr_file r_file_perms;
+uses_shlib($1_ssh_keysign_t)
+dontaudit $1_ssh_keysign_t selinux_config_t:dir search;
+dontaudit $1_ssh_keysign_t proc_t:dir search;
+dontaudit $1_ssh_keysign_t proc_t:{ lnk_file file } { getattr read };
+allow $1_ssh_keysign_t usr_t:dir search;
+allow $1_ssh_keysign_t etc_t:file { getattr read };
+allow $1_ssh_keysign_t self:dir search;
+allow $1_ssh_keysign_t self:file { getattr read };
+allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
+}
+
+')dnl end macro definition
+', `
+
+define(`ssh_domain',`')
+
+')dnl end if ssh.te

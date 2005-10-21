@@ -1,0 +1,91 @@
+#DESC Unconfined - The unconfined domain
+
+# This is the initial domain, and is used for everything that
+# is not explicitly confined.  It has no restrictions.
+# It needs to be carefully protected from the confined domains.
+
+type unconfined_t, domain, privuser, privhome, privrole, privowner, admin, auth_write, fs_domain, privmem;
+role system_r types unconfined_t;
+role user_r types unconfined_t;
+unconfined_domain(unconfined_t)
+allow domain unconfined_t:fd use;
+allow domain unconfined_t:process sigchld;
+
+# Define some type aliases to help with compatibility with
+# macros and domains from the "strict" policy.
+typealias unconfined_t alias { logrotate_t sendmail_t sshd_t secadm_t sysadm_t rpm_t rpm_script_t xdm_t };
+
+typeattribute tty_device_t admin_tty_type;
+typeattribute devpts_t admin_tty_type;
+
+# User home directory type.
+type user_home_t, file_type, sysadmfile, home_type;
+type user_home_dir_t, file_type, sysadmfile, home_dir_type;
+file_type_auto_trans(unconfined_t, home_root_t, user_home_dir_t, dir)
+allow privhome home_root_t:dir { getattr search };
+file_type_auto_trans(privhome, user_home_dir_t, user_home_t)
+
+define(`user_typealias', `
+ifelse($1,`user',`',`
+typealias user_home_t alias $1_home_t;
+typealias user_home_dir_t alias $1_home_dir_t;
+')
+typealias tty_device_t alias $1_tty_device_t;
+typealias devpts_t alias $1_devpts_t;
+')
+user_typealias(sysadm)
+user_typealias(staff)
+user_typealias(user)
+attribute user_file_type;
+attribute staff_file_type;
+attribute sysadm_file_type;
+
+allow unconfined_t unlabeled_t:filesystem *;
+allow unconfined_t self:system syslog_read;
+allow unlabeled_t self:filesystem associate;
+
+# Support NFS home directories
+bool use_nfs_home_dirs false;
+
+# Allow making anonymous memory executable, e.g. 
+# for runtime-code generation or executable stack.
+bool allow_execmem true;
+
+# Allow making the stack executable via mprotect.
+# Also requires allow_execmem.
+bool allow_execstack true;
+
+# Allow making a modified private file mapping executable (text relocation).
+bool allow_execmod true;
+
+# Support SAMBA home directories
+bool use_samba_home_dirs false;
+
+ifdef(`samba.te', `samba_domain(user)')
+ifdef(`i18n_input.te', `i18n_input_domain(user)')
+
+# Allow system to run with NIS
+bool allow_ypbind false;
+
+# Allow system to run with Kerberos
+bool allow_kerberos false;
+
+# allow reading of default file context
+bool read_default_t true;
+
+if (allow_execmem) {
+allow domain self:process execmem;
+}
+
+#Removing i18n_input from targeted for now, since wants to read users homedirs
+typealias bin_t alias i18n_input_exec_t;
+typealias unconfined_t alias i18n_input_t;
+typealias var_run_t alias i18n_input_var_run_t;
+ifdef(`su.te', `
+typealias unconfined_t alias { sysadm_chkpwd_t };
+typealias tmp_t alias { sysadm_tmp_t sshd_tmp_t };
+su_domain(sysadm)
+typeattribute sysadm_su_t unconfinedtrans;
+role system_r types sysadm_su_t;
+')
+

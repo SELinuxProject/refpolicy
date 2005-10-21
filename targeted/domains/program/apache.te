@@ -1,0 +1,414 @@
+#DESC Apache - Web server
+#
+# X-Debian-Packages: apache2-common apache
+#
+###############################################################################
+#
+# Policy file for running the Apache web server
+#
+# NOTES: 
+#  This policy will work with SUEXEC enabled as part of the Apache
+#  configuration. However, the user CGI scripts will run under the
+#  system_u:system_r:httpd_$1_script_t domain where $1 is the domain of the
+#  of the creating user.
+#
+#  The user CGI scripts must be labeled with the httpd_$1_script_exec_t
+#  type, and the directory containing the scripts should also be labeled
+#  with these types. This policy allows user_r role to perform that 
+#  relabeling. If it is desired that only sysadm_r should be able to relabel
+#  the user CGI scripts, then relabel rule for user_r should be removed.
+#
+###############################################################################
+
+define(`httpd_home_dirs', `
+r_dir_file(httpd_t, $1)
+r_dir_file(httpd_suexec_t, $1)
+can_exec(httpd_suexec_t, $1)
+')
+
+bool httpd_unified false;
+
+# Allow httpd to use built in scripting (usually php)
+bool httpd_builtin_scripting false;
+
+# Allow httpd cgi support
+bool httpd_enable_cgi false;
+
+# Allow httpd to read home directories
+bool httpd_enable_homedirs false;
+
+# Run SSI execs in system CGI script domain.
+bool httpd_ssi_exec false;
+
+# Allow http daemon to communicate with the TTY
+bool httpd_tty_comm false;
+
+# Allow http daemon to tcp connect 
+bool httpd_can_network_connect false;
+
+#########################################################
+# Apache types
+#########################################################
+# httpd_config_t is the type given to the configuration
+# files for apache /etc/httpd/conf
+#
+type httpd_config_t, file_type, sysadmfile;
+
+# httpd_modules_t is the type given to module files (libraries) 
+# that come with Apache /etc/httpd/modules and /usr/lib/apache
+#
+type httpd_modules_t, file_type, sysadmfile;
+
+# httpd_cache_t is the type given to the /var/cache/httpd
+# directory and the files under that directory
+#
+type httpd_cache_t, file_type, sysadmfile;
+
+# httpd_exec_t is the type give to the httpd executable.
+#
+daemon_domain(httpd, `, privmail, nscd_client_domain')
+
+append_logdir_domain(httpd)
+#can read /etc/httpd/logs
+allow httpd_t httpd_log_t:lnk_file read;
+
+# For /etc/init.d/apache2 reload
+can_tcp_connect(httpd_t, httpd_t)
+
+can_tcp_connect(web_client_domain, httpd_t)
+
+can_exec(httpd_t, httpd_exec_t)
+file_type_auto_trans(httpd_t, var_run_t, httpd_var_run_t, sock_file)
+
+general_domain_access(httpd_t)
+
+allow httpd_t { random_device_t urandom_device_t }:chr_file { getattr ioctl read };
+
+read_sysctl(httpd_t)
+
+allow httpd_t crypt_device_t:chr_file rw_file_perms;
+
+# for modules that want to access /etc/mtab and /proc/meminfo
+allow httpd_t { proc_t etc_runtime_t }:file { getattr read };
+
+uses_shlib(httpd_t)
+allow httpd_t { usr_t lib_t }:file { getattr read ioctl };
+allow httpd_t usr_t:lnk_file { getattr read };
+
+# for apache2 memory mapped files
+var_lib_domain(httpd)
+
+# for tomcat
+r_dir_file(httpd_t, var_lib_t)
+
+# execute perl
+allow httpd_t { bin_t sbin_t }:dir r_dir_perms;
+can_exec(httpd_t, { bin_t sbin_t })
+allow httpd_t bin_t:lnk_file read;
+
+########################################
+# Set up networking
+########################################
+
+can_network_server(httpd_t)
+can_kerberos(httpd_t)
+can_resolve(httpd_t)
+nsswitch_domain(httpd_t)
+allow httpd_t { http_port_t http_cache_port_t }:tcp_socket name_bind;
+# allow httpd to connect to mysql/posgresql 
+allow httpd_t { postgresql_port_t mysqld_port_t }:tcp_socket name_connect;
+# allow httpd to work as a relay
+allow httpd_t { gopher_port_t ftp_port_t http_port_t http_cache_port_t }:tcp_socket name_connect;
+
+if (httpd_can_network_connect) {
+can_network_client(httpd_t)
+allow httpd_t port_type:tcp_socket name_connect;
+}
+
+##########################################
+# Legacy: remove when it's fixed         #
+# Allow libphp5.so with text relocations #
+##########################################
+allow httpd_t texrel_shlib_t:file execmod;
+
+#########################################
+# Allow httpd to search users directories
+#########################################
+allow httpd_t home_root_t:dir { getattr search };
+dontaudit httpd_t sysadm_home_dir_t:dir getattr;
+
+############################################################################
+# Allow the httpd_t the capability to bind to a port and various other stuff
+############################################################################
+allow httpd_t self:capability { chown dac_override kill setgid setuid net_bind_service sys_tty_config };
+dontaudit httpd_t self:capability net_admin;
+
+#################################################
+# Allow the httpd_t to read the web servers config files
+###################################################
+r_dir_file(httpd_t, httpd_config_t)
+# allow logrotate to read the config files for restart
+ifdef(`logrotate.te', `
+r_dir_file(logrotate_t, httpd_config_t)
+domain_auto_trans(logrotate_t, httpd_exec_t, httpd_t)
+allow logrotate_t httpd_t:process signull;
+')
+r_dir_file(initrc_t, httpd_config_t)
+##################################################
+
+###############################
+# Allow httpd_t to put files in /var/cache/httpd etc
+##############################
+create_dir_file(httpd_t, httpd_cache_t)
+
+###############################
+# Allow httpd_t to access the tmpfs file system
+##############################
+tmpfs_domain(httpd)
+
+#####################
+# Allow httpd_t to access
+# libraries for its modules
+###############################
+allow httpd_t httpd_modules_t:file rx_file_perms;
+allow httpd_t httpd_modules_t:dir r_dir_perms;
+allow httpd_t httpd_modules_t:lnk_file r_file_perms;
+
+######################################################################
+# Allow initrc_t to access the Apache modules directory.
+######################################################################
+allow initrc_t httpd_modules_t:dir r_dir_perms;
+
+##############################################
+# Allow httpd_t to have access to files
+# such as nisswitch.conf
+# need ioctl for php
+###############################################
+allow httpd_t etc_t:file { read getattr ioctl };
+allow httpd_t etc_t:lnk_file { getattr read };
+
+# setup the system domain for system CGI scripts
+apache_domain(sys)
+dontaudit httpd_sys_script_t httpd_config_t:dir search;
+
+# Run SSI execs in system CGI script domain.
+if (httpd_ssi_exec) {
+domain_auto_trans(httpd_t, shell_exec_t, httpd_sys_script_t)
+}
+allow httpd_sys_script_t httpd_t:tcp_socket { read write };
+
+##################################################
+#
+# PHP Directives
+##################################################
+
+type httpd_php_exec_t, file_type, sysadmfile, exec_type;
+type httpd_php_t, domain;
+
+# Transition from the user domain to this domain.
+domain_auto_trans(httpd_t, httpd_php_exec_t, httpd_php_t)
+
+# The system role is authorized for this domain.
+role system_r types httpd_php_t;
+
+general_domain_access(httpd_php_t)
+uses_shlib(httpd_php_t)
+can_exec(httpd_php_t, lib_t)
+
+# allow php to read and append to apache logfiles
+allow httpd_php_t httpd_log_t:file ra_file_perms;
+
+# access to /tmp
+tmp_domain(httpd)
+tmp_domain(httpd_php)
+
+# Creation of lock files for apache2
+lock_domain(httpd)
+
+# Allow apache to used public_content_t
+anonymous_domain(httpd)
+
+# connect to mysql
+ifdef(`mysqld.te', `
+can_unix_connect(httpd_php_t, mysqld_t)
+can_unix_connect(httpd_t, mysqld_t)
+can_unix_connect(httpd_sys_script_t, mysqld_t)
+allow httpd_php_t mysqld_var_run_t:dir search;
+allow httpd_php_t mysqld_var_run_t:sock_file write;
+allow { httpd_t httpd_sys_script_t } mysqld_db_t:dir search;
+allow { httpd_t httpd_sys_script_t } mysqld_db_t:sock_file rw_file_perms;
+allow { httpd_t httpd_sys_script_t } mysqld_var_run_t:sock_file rw_file_perms;
+')
+allow httpd_t bin_t:dir search;
+allow httpd_t sbin_t:dir search;
+allow httpd_t httpd_log_t:dir remove_name;
+
+read_fonts(httpd_t)
+
+allow httpd_t self:netlink_route_socket { bind create getattr nlmsg_read read write };
+
+allow httpd_t autofs_t:dir { search getattr };
+
+if (use_nfs_home_dirs && httpd_enable_homedirs) {
+httpd_home_dirs(nfs_t)
+}
+if (use_samba_home_dirs && httpd_enable_homedirs) {
+httpd_home_dirs(cifs_t)
+}
+
+#
+# Allow users to mount additional directories as http_source
+#
+allow httpd_t mnt_t:dir r_dir_perms;
+
+ifdef(`targeted_policy', `
+typealias httpd_sys_content_t alias httpd_user_content_t;
+typealias httpd_sys_script_exec_t alias httpd_user_script_exec_t;
+
+if (httpd_enable_homedirs) {
+allow { httpd_t httpd_sys_script_t httpd_suexec_t } user_home_dir_t:dir { getattr search };
+}
+') dnl targeted policy
+
+# We no longer call httpd_domain(sysadm), but need httpd_sysadm_content_t for file context
+typealias httpd_sys_content_t alias httpd_sysadm_content_t;
+
+ifdef(`distro_redhat', `
+#
+# mod_jk2 creates /var/log/httpd/jk2.shm to communicate with tomcat
+# This is a bug but it still exists in FC2
+#
+typealias httpd_log_t  alias httpd_runtime_t;
+allow { httpd_t httpd_sys_script_t } httpd_runtime_t:file { getattr append };
+dontaudit httpd_t httpd_runtime_t:file ioctl;
+') dnl distro_redhat
+#
+# Customer reported the following
+#
+ifdef(`snmpd.te', `
+dontaudit httpd_t snmpd_var_lib_t:dir search;
+dontaudit httpd_t snmpd_var_lib_t:file { getattr write read };
+', `
+dontaudit httpd_t usr_t:dir write;
+')
+
+application_domain(httpd_helper)
+role system_r types httpd_helper_t;
+domain_auto_trans(httpd_t, httpd_helper_exec_t, httpd_helper_t)
+allow httpd_helper_t httpd_config_t:file { getattr read };
+allow httpd_helper_t httpd_log_t:file { append };
+
+########################################
+# When the admin starts the server, the server wants to access
+# the TTY or PTY associated with the session. The httpd appears
+# to run correctly without this permission, so the permission
+# are dontaudited here. 
+##################################################
+
+if (httpd_tty_comm) {
+allow { httpd_t httpd_helper_t } devpts_t:dir search;
+ifdef(`targeted_policy', `
+allow { httpd_helper_t httpd_t } { devtty_t devpts_t }:chr_file rw_file_perms;
+')
+allow { httpd_t httpd_helper_t } admin_tty_type:chr_file rw_file_perms;
+} else {
+dontaudit httpd_t admin_tty_type:chr_file rw_file_perms;
+}
+
+read_sysctl(httpd_sys_script_t)
+allow httpd_sys_script_t var_lib_t:dir search;
+dontaudit httpd_t selinux_config_t:dir search;
+r_dir_file(httpd_t, cert_t)
+
+#
+# unconfined domain for apache scripts.  Only to be used as a last resort
+#
+type httpd_unconfined_script_exec_t, file_type, sysadmfile, customizable;
+type httpd_unconfined_script_t, domain, nscd_client_domain;
+role system_r types httpd_unconfined_script_t;
+unconfined_domain(httpd_unconfined_script_t)
+
+# The following are types for SUEXEC,which runs user scripts as their
+# own user ID
+#
+daemon_sub_domain(httpd_t, httpd_suexec, `, transitionbool')
+allow httpd_t httpd_suexec_exec_t:file { getattr read };
+
+#########################################################
+# Permissions for running child processes and scripts
+##########################################################
+
+allow httpd_suexec_t self:capability { setuid setgid };
+
+dontaudit httpd_suexec_t var_run_t:dir search;
+allow httpd_suexec_t { var_t var_log_t }:dir search;
+allow httpd_suexec_t home_root_t:dir search;
+
+allow httpd_suexec_t httpd_log_t:dir ra_dir_perms;
+allow httpd_suexec_t httpd_log_t:file { create ra_file_perms };
+allow httpd_suexec_t httpd_t:fifo_file getattr;
+allow httpd_suexec_t self:unix_stream_socket create_stream_socket_perms;
+
+allow httpd_suexec_t etc_t:file { getattr read };
+read_locale(httpd_suexec_t)
+read_sysctl(httpd_suexec_t)
+allow httpd_suexec_t urandom_device_t:chr_file { getattr read };
+
+# for shell scripts
+allow httpd_suexec_t bin_t:dir search;
+allow httpd_suexec_t bin_t:lnk_file read;
+can_exec(httpd_suexec_t, { bin_t shell_exec_t })
+
+if (httpd_can_network_connect) {
+can_network(httpd_suexec_t)
+allow httpd_suexec_t port_type:tcp_socket name_connect;
+}
+
+can_ypbind(httpd_suexec_t)
+allow httpd_suexec_t { usr_t lib_t }:file { getattr read ioctl };
+
+allow httpd_suexec_t autofs_t:dir { search getattr };
+tmp_domain(httpd_suexec)
+
+if (httpd_enable_cgi && httpd_unified) {
+domain_auto_trans(httpd_suexec_t, httpdcontent, httpd_sys_script_t)
+ifdef(`targeted_policy', `', `
+domain_auto_trans(sysadm_t, httpdcontent, httpd_sys_script_t)
+')
+}
+if (httpd_enable_cgi && httpd_unified && httpd_builtin_scripting) {
+domain_auto_trans(httpd_t, httpdcontent, httpd_sys_script_t)
+create_dir_file(httpd_t, httpdcontent)
+}
+if (httpd_enable_cgi) {
+domain_auto_trans(httpd_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+domain_auto_trans(httpd_suexec_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+allow httpd_t httpd_unconfined_script_t:process { signal sigkill sigstop };
+allow httpd_t httpd_unconfined_script_exec_t:dir r_dir_perms;
+}
+
+#
+# Types for squirrelmail
+#
+type httpd_squirrelmail_t, file_type, sysadmfile;
+create_dir_file(httpd_t, httpd_squirrelmail_t)
+allow httpd_sys_script_t httpd_squirrelmail_t:file { append read };
+# File Type of squirrelmail attachments
+type squirrelmail_spool_t, file_type, sysadmfile, tmpfile;
+allow { httpd_t httpd_sys_script_t } var_spool_t:dir { getattr search };
+create_dir_file(httpd_t, squirrelmail_spool_t)
+r_dir_file(httpd_sys_script_t, squirrelmail_spool_t)
+
+ifdef(`mta.te', `
+# apache should set close-on-exec
+dontaudit httpd_suexec_t httpd_t:unix_stream_socket { read write };
+dontaudit { system_mail_t mta_user_agent } { httpd_t httpd_sys_script_t }:unix_stream_socket { read write };
+dontaudit system_mail_t httpd_log_t:file { append getattr };
+allow system_mail_t httpd_squirrelmail_t:file { append read };
+dontaudit system_mail_t httpd_t:tcp_socket { read write };
+')
+bool httpd_enable_ftp_server false;
+if (httpd_enable_ftp_server) {
+allow httpd_t ftp_port_t:tcp_socket name_bind;
+}
+

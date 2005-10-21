@@ -1,0 +1,104 @@
+#DESC hald - server for device info
+#
+# Author:  Russell Coker <rcoker@redhat.com>
+# X-Debian-Packages: 
+#
+
+#################################
+#
+# Rules for the hald_t domain.
+#
+# hald_exec_t is the type of the hald executable.
+#
+daemon_domain(hald, `, fs_domain, nscd_client_domain')
+
+can_exec_any(hald_t)
+
+allow hald_t { etc_t etc_runtime_t }:file { getattr read };
+allow hald_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow hald_t self:unix_dgram_socket create_socket_perms;
+
+ifdef(`dbusd.te', `
+allow hald_t system_dbusd_t:dbus { acquire_svc send_msg };
+dbusd_client(system, hald)
+allow hald_t self:dbus send_msg;
+')
+
+allow hald_t self:file { getattr read };
+allow hald_t proc_t:file rw_file_perms;
+
+allow hald_t { bin_t sbin_t }:dir search;
+allow hald_t self:fifo_file rw_file_perms;
+allow hald_t usr_t:file { getattr read };
+allow hald_t bin_t:file getattr;
+
+# For backwards compatibility with older kernels
+allow hald_t self:netlink_socket create_socket_perms;
+
+allow hald_t self:netlink_kobject_uevent_socket create_socket_perms;
+allow hald_t self:netlink_route_socket r_netlink_socket_perms;
+allow hald_t self:capability { net_admin sys_admin dac_override dac_read_search mknod sys_rawio };
+can_network_server(hald_t)
+can_ypbind(hald_t)
+
+allow hald_t device_t:lnk_file read;
+allow hald_t { fixed_disk_device_t removable_device_t }:blk_file { getattr read ioctl };
+allow hald_t removable_device_t:blk_file write;
+allow hald_t event_device_t:chr_file { getattr read ioctl };
+allow hald_t printer_device_t:chr_file rw_file_perms;
+allow hald_t urandom_device_t:chr_file read;
+allow hald_t mouse_device_t:chr_file r_file_perms;
+allow hald_t device_type:chr_file getattr;
+
+can_getsecurity(hald_t)
+
+ifdef(`updfstab.te', `
+domain_auto_trans(hald_t, updfstab_exec_t, updfstab_t)
+allow updfstab_t hald_t:dbus send_msg;
+allow hald_t updfstab_t:dbus send_msg;
+')
+ifdef(`udev.te', `
+domain_auto_trans(hald_t, udev_exec_t, udev_t)
+allow udev_t hald_t:unix_dgram_socket sendto;
+allow hald_t udev_tbl_t:file { getattr read };
+')
+
+ifdef(`hotplug.te', `
+r_dir_file(hald_t, hotplug_etc_t)
+')
+allow hald_t fs_type:dir { search getattr };
+allow hald_t usbfs_t:dir r_dir_perms;
+allow hald_t { usbdevfs_t usbfs_t }:file rw_file_perms;
+allow hald_t bin_t:lnk_file read;
+r_dir_file(hald_t, { selinux_config_t default_context_t } )
+allow hald_t initrc_t:dbus send_msg;
+allow initrc_t hald_t:dbus send_msg;
+allow hald_t etc_runtime_t:file rw_file_perms;
+allow hald_t var_lib_t:dir search;
+allow hald_t device_t:dir create_dir_perms;
+allow hald_t device_t:chr_file create_file_perms;
+tmp_domain(hald)
+allow hald_t mnt_t:dir search;
+r_dir_file(hald_t, proc_net_t)
+
+# For /usr/libexec/hald-addon-acpi - writes to /var/run/acpid.socket
+ifdef(`apmd.te', `
+allow hald_t apmd_var_run_t:sock_file write;
+allow hald_t apmd_t:unix_stream_socket connectto;
+')
+
+# For /usr/libexec/hald-probe-smbios
+domain_auto_trans(hald_t, dmidecode_exec_t, dmidecode_t)
+
+# ??
+ifdef(`lvm.te', `
+allow hald_t lvm_control_t:chr_file r_file_perms;
+')
+ifdef(`targeted_policy', `
+allow unconfined_t hald_t:dbus send_msg;
+allow hald_t unconfined_t:dbus send_msg;
+')
+ifdef(`mount.te', `
+domain_auto_trans(hald_t, mount_exec_t, mount_t)
+')
+r_dir_file(hald_t, hwdata_t)

@@ -1,0 +1,41 @@
+#DESC TFTP - UDP based file server for boot loaders
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: tftpd atftpd
+# Depends: inetd.te
+#
+
+#################################
+#
+# Rules for the tftpd_t domain.
+#
+# tftpd_exec_t is the type of the tftpd executable.
+#
+daemon_domain(tftpd)
+
+# tftpdir_t is the type of files in the /tftpboot directories.
+type tftpdir_t, file_type, sysadmfile;
+r_dir_file(tftpd_t, tftpdir_t)
+
+domain_auto_trans(inetd_t, tftpd_exec_t, tftpd_t)
+
+# Use the network.
+can_network_udp(tftpd_t)
+allow tftpd_t tftp_port_t:udp_socket name_bind;
+ifdef(`inetd.te', `
+allow inetd_t tftp_port_t:udp_socket name_bind;
+')
+allow tftpd_t self:unix_dgram_socket create_socket_perms;
+allow tftpd_t self:unix_stream_socket create_stream_socket_perms;
+
+# allow any domain to connect to the TFTP server
+allow tftpd_t inetd_t:udp_socket rw_socket_perms;
+
+# Use capabilities
+allow tftpd_t self:capability { setgid setuid net_bind_service sys_chroot };
+
+allow tftpd_t etc_t:dir r_dir_perms;
+allow tftpd_t etc_t:file r_file_perms;
+
+allow tftpd_t var_t:dir r_dir_perms;
+allow tftpd_t var_t:{ file lnk_file } r_file_perms;

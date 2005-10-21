@@ -1,0 +1,57 @@
+#
+# GConfd daemon  
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+
+#######################################
+# gconfd_domain(role_prefix)
+#
+
+define(`gconfd_domain', `
+
+# Type for daemon
+type $1_gconfd_t, domain, nscd_client_domain, privlog;
+
+gnome_application($1_gconfd, $1)
+
+# Transition from user type
+domain_auto_trans($1_t, gconfd_exec_t, $1_gconfd_t)
+role $1_r types $1_gconfd_t;
+
+allow $1_gconfd_t self:process { signal getsched };
+
+# Access .gconfd and .gconf
+home_domain($1, gconfd)
+file_type_auto_trans($1_gconfd_t, $1_home_dir_t, $1_gconfd_home_t, dir)
+
+# Access /etc/gconf
+r_dir_file($1_gconfd_t, gconf_etc_t)
+
+# /tmp/gconfd-USER
+tmp_domain($1_gconfd)
+
+can_pipe_xdm($1_gconfd_t)
+ifdef(`xdm.te', `
+allow xdm_t $1_gconfd_t:process signal;
+')
+
+') dnl gconf_domain
+
+#####################################
+# gconf_client(prefix, role_prefix)
+#
+
+define(`gconf_client', `
+
+# Launch the daemon if necessary
+domain_auto_trans($1_t, gconfd_exec_t, $2_gconfd_t)
+
+# Connect over bonobo
+bonobo_connect($1, $2_gconfd)
+
+# Read lock/ior
+allow $1_t $2_gconfd_tmp_t:dir { getattr search };
+allow $1_t $2_gconfd_tmp_t:file { getattr read }; 
+
+') dnl gconf_client 
