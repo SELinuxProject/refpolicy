@@ -1,3 +1,10 @@
+#
+# shiftn(num,list...)
+#
+# shift the list num times
+#
+define(`shiftn',`ifelse($1,0,`shift($*)',`shiftn(decr($1),shift(shift($*)))')')
+
 ########################################
 #
 # Network Interface generated macros 

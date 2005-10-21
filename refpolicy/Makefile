@@ -224,7 +224,7 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
 	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
-		| m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| m4 -D self_contained_policy $(M4PARAM) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
@@ -232,7 +232,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $(M4SUPPORT) $^ \
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################

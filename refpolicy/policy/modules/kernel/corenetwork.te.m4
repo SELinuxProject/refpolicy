@@ -1,3 +1,10 @@
+#
+# shiftn(num,list...)
+#
+# shift the list num times
+#
+define(`shiftn',`ifelse($1,0,`shift($*)',`shiftn(decr($1),shift(shift($*)))')')
+
 define(`declare_netifs',`dnl
 netifcon $2 gen_context(system_u:object_r:$1,$3) gen_context(system_u:object_r:unlabeled_t,$3)
 ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
