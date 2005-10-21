@@ -44,18 +44,22 @@ allow ftpd_t self:unix_stream_socket create_socket_perms;
 allow ftpd_t self:tcp_socket create_stream_socket_perms;
 allow ftpd_t self:udp_socket create_socket_perms;
 
-allow ftpd_t ftpd_etc_t:file { getattr read };
+allow ftpd_t ftpd_etc_t:file r_file_perms;
 
 allow ftpd_t ftpd_tmp_t:dir create_dir_perms;
 allow ftpd_t ftpd_tmp_t:file create_file_perms;
 files_create_tmp_files(ftpd_t, ftpd_tmp_t, { file dir })
 
-allow ftpd_t ftpd_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-allow ftpd_t ftpd_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-allow ftpd_t ftpd_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-allow ftpd_t ftpd_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-allow ftpd_t ftpd_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+allow ftpd_t ftpd_tmpfs_t:fifo_file create_file_perms;
+allow ftpd_t ftpd_tmpfs_t:dir create_dir_perms;
+allow ftpd_t ftpd_tmpfs_t:file create_file_perms;
+allow ftpd_t ftpd_tmpfs_t:lnk_file create_lnk_perms;
+allow ftpd_t ftpd_tmpfs_t:sock_file create_file_perms;
 fs_create_tmpfs_data(ftpd_t,ftpd_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+allow ftpd_t ftpd_var_run_t:file create_file_perms;
+allow ftpd_t ftpd_var_run_t:dir rw_dir_perms;
+files_create_pid(ftpd_t,ftpd_var_run_t)
 
 # Create and modify /var/log/xferlog.
 allow ftpd_t xferlog_t:file create_file_perms;
@@ -86,6 +90,7 @@ corenet_tcp_connect_all_ports(ftpd_t)
 
 term_dontaudit_use_console(ftpd_t)
 
+auth_domtrans_chk_passwd(ftpd_t)
 # Append to /var/log/wtmp.
 auth_append_login_records(ftpd_t)
 #kerberized ftp requires the following
@@ -188,6 +193,10 @@ optional_policy(`inetd.te',`
 
 optional_policy(`mount.te',`
 	mount_send_nfs_client_request(ftpd_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(ftpd_t)
 ')
 
 optional_policy(`selinuxutil.te',`
