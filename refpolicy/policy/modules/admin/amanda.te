@@ -1,0 +1,247 @@
+
+policy_module(amanda,1.0)
+
+#######################################
+#
+# Declarations
+#
+
+type amanda_t;
+type amanda_inetd_exec_t;
+inetd_udp_service_domain(amanda_t,amanda_inetd_exec_t)
+role system_r types amanda_t;
+
+type amanda_exec_t;
+domain_entry_file(amanda_t,amanda_exec_t)
+
+type amanda_log_t;
+logging_log_file(amanda_log_t)
+
+# type for amanda configurations files
+type amanda_config_t;
+files_type(amanda_config_t)
+
+# type for files in /usr/lib/amanda
+type amanda_usr_lib_t;
+files_type(amanda_usr_lib_t)
+
+# type for all files in /var/lib/amanda
+type amanda_var_lib_t;
+files_type(amanda_var_lib_t)
+
+# type for all files in /var/lib/amanda/gnutar-lists/
+type amanda_gnutarlists_t;
+files_type(amanda_gnutarlists_t)
+
+# type for user startable files
+type amanda_user_exec_t;
+files_type(amanda_user_exec_t)
+
+# type for same awk and other scripts
+type amanda_script_exec_t;
+files_type(amanda_script_exec_t)
+
+# type for the shell configuration files 
+type amanda_shellconfig_t;
+files_type(amanda_shellconfig_t)
+
+type amanda_tmp_t;
+files_tmp_file(amanda_tmp_t)
+
+# type for /etc/amandates
+type amanda_amandates_t;
+files_type(amanda_amandates_t)
+
+# type for /etc/dumpdates
+type amanda_dumpdates_t;
+files_type(amanda_dumpdates_t)
+
+# type for amanda data
+type amanda_data_t;
+files_type(amanda_data_t)
+
+# type for amrecover
+type amanda_recover_t;
+type amanda_recover_exec_t;
+domain_type(amanda_recover_t)
+domain_entry_file(amanda_recover_t,amanda_recover_exec_t)
+role system_r types amanda_recover_t;
+
+# type for recover files ( restored data )
+type amanda_recover_dir_t;
+files_type(amanda_recover_dir_t)
+
+########################################
+#
+# Amanda local policy
+#
+
+allow amanda_t self:capability { chown dac_override setuid };
+allow amanda_t self:process { setpgid signal };
+allow amanda_t self:fifo_file { getattr read write ioctl lock };
+allow amanda_t self:unix_stream_socket create_stream_socket_perms;
+allow amanda_t self:unix_dgram_socket create_socket_perms;
+allow amanda_t self:tcp_socket create_stream_socket_perms;
+allow amanda_t self:udp_socket create_socket_perms;
+
+# access to amanda_amandates_t
+allow amanda_t amanda_amandates_t:file { getattr lock read write };
+
+# configuration files -> read only
+allow amanda_t amanda_config_t:file { getattr read };
+
+# access to amandas data structure
+allow amanda_t amanda_data_t:dir { read search write };
+allow amanda_t amanda_data_t:file { read write };
+
+# access to amanda_dumpdates_t
+allow amanda_t amanda_dumpdates_t:file { getattr lock read write };
+
+can_exec(amanda_t,amanda_exec_t)
+
+# access to amanda_gnutarlists_t (/var/lib/amanda/gnutar-lists)
+allow amanda_t amanda_gnutarlists_t:dir rw_dir_perms;
+allow amanda_t amanda_gnutarlists_t:file manage_file_perms;
+allow amanda_t amanda_gnutarlists_t:lnk_file manage_file_perms;
+
+allow amanda_t amanda_log_t:file create_file_perms;
+allow amanda_t amanda_log_t:dir rw_dir_perms;
+logging_create_log(amanda_t,amanda_log_t,{ file dir })
+
+allow amanda_t amanda_tmp_t:dir create_dir_perms;
+allow amanda_t amanda_tmp_t:file create_file_perms;
+files_create_tmp_files(amanda_t, amanda_tmp_t, { file dir })
+
+kernel_read_system_state(amanda_t)
+kernel_read_kernel_sysctl(amanda_t)
+kernel_dontaudit_getattr_unlabeled_file(amanda_t)
+
+corenet_tcp_sendrecv_all_if(amanda_t)
+corenet_udp_sendrecv_all_if(amanda_t)
+corenet_raw_sendrecv_all_if(amanda_t)
+corenet_tcp_sendrecv_all_nodes(amanda_t)
+corenet_udp_sendrecv_all_nodes(amanda_t)
+corenet_raw_sendrecv_all_nodes(amanda_t)
+corenet_tcp_bind_all_nodes(amanda_t)
+corenet_udp_bind_all_nodes(amanda_t)
+corenet_tcp_sendrecv_all_ports(amanda_t)
+corenet_udp_sendrecv_all_ports(amanda_t)
+
+dev_getattr_all_blk_files(amanda_t)
+dev_getattr_all_blk_files(amanda_t)
+
+fs_getattr_xattr_fs(amanda_t)
+fs_list_all(amanda_t)
+
+storage_raw_read_fixed_disk(amanda_t)
+
+files_read_etc_files(amanda_t)
+files_read_etc_runtime_files(amanda_t)
+files_list_all_dirs(amanda_t)
+files_read_all_files(amanda_t)
+files_read_all_symlinks(amanda_t)
+files_read_all_blk_nodes(amanda_t)
+files_read_all_chr_nodes(amanda_t)
+files_getattr_all_pipes(amanda_t)
+files_getattr_all_sockets(amanda_t)
+
+corecmd_exec_shell(amanda_t)
+corecmd_exec_sbin(amanda_t)
+corecmd_exec_bin(amanda_t)
+
+libs_use_ld_so(amanda_t)
+libs_use_shared_libs(amanda_t)
+
+sysnet_read_config(amanda_t)
+
+optional_policy(`authlogin.te',`
+	auth_read_shadow(amanda_t)
+')
+
+optional_policy(`logging.te',`
+	logging_send_syslog_msg(amanda_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(amanda_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(amanda_t)
+')
+
+########################################
+#
+# Amanda recover local policy
+
+allow amanda_recover_t self:capability { fowner fsetid kill setgid setuid chown dac_override net_bind_service };
+allow amanda_recover_t self:process { sigkill sigstop signal };
+allow amanda_recover_t self:fifo_file { getattr ioctl read write };
+allow amanda_recover_t self:unix_stream_socket { connect create read write };
+allow amanda_recover_t self:tcp_socket create_stream_socket_perms;
+allow amanda_recover_t self:udp_socket create_socket_perms;
+
+allow amanda_recover_t amanda_log_t:dir rw_dir_perms;
+allow amanda_recover_t amanda_log_t:file manage_file_perms;
+allow amanda_recover_t amanda_log_t:lnk_file create_lnk_perms;
+
+# access to amanda_recover_dir_t
+allow amanda_recover_t amanda_recover_dir_t:dir create_dir_perms;
+allow amanda_recover_t amanda_recover_dir_t:file create_file_perms;
+allow amanda_recover_t amanda_recover_dir_t:lnk_file create_lnk_perms;
+allow amanda_recover_t amanda_recover_dir_t:sock_file create_file_perms;
+allow amanda_recover_t amanda_recover_dir_t:fifo_file create_file_perms;
+userdom_create_sysadm_home(amanda_recover_t,amanda_recover_dir_t,{ file lnk_file sock_file fifo_file })
+
+allow amanda_recover_t amanda_tmp_t:dir create_dir_perms;
+allow amanda_recover_t amanda_tmp_t:file create_file_perms;
+allow amanda_recover_t amanda_tmp_t:lnk_file create_lnk_perms;
+allow amanda_recover_t amanda_tmp_t:sock_file create_file_perms;
+allow amanda_recover_t amanda_tmp_t:fifo_file create_file_perms;
+files_create_tmp_files(amanda_recover_t,amanda_tmp_t,{ file lnk_file sock_file fifo_file })
+
+kernel_read_system_state(amanda_recover_t)
+kernel_read_kernel_sysctl(amanda_recover_t)
+
+corenet_tcp_sendrecv_all_if(amanda_recover_t)
+corenet_udp_sendrecv_all_if(amanda_recover_t)
+corenet_raw_sendrecv_all_if(amanda_recover_t)
+corenet_tcp_sendrecv_all_nodes(amanda_recover_t)
+corenet_udp_sendrecv_all_nodes(amanda_recover_t)
+corenet_raw_sendrecv_all_nodes(amanda_recover_t)
+corenet_tcp_sendrecv_all_ports(amanda_recover_t)
+corenet_udp_sendrecv_all_ports(amanda_recover_t)
+corenet_tcp_bind_all_nodes(amanda_recover_t)
+corenet_udp_bind_all_nodes(amanda_recover_t)
+corenet_tcp_connect_amanda_port(amanda_recover_t)
+
+corecmd_exec_shell(amanda_recover_t)
+corecmd_exec_bin(amanda_recover_t)
+
+domain_use_wide_inherit_fd(amanda_recover_t)
+
+files_read_etc_files(amanda_recover_t)
+files_read_etc_runtime_files(amanda_recover_t)
+files_search_tmp(amanda_recover_t)
+files_search_pids(amanda_recover_t)
+
+fstools_domtrans(amanda_t)
+
+libs_use_ld_so(amanda_recover_t)
+libs_use_shared_libs(amanda_recover_t)
+
+logging_search_logs(amanda_recover_t)
+
+miscfiles_read_localization(amanda_recover_t)
+
+sysnet_read_config(amanda_recover_t)
+
+userdom_search_sysadm_home_subdirs(amanda_recover_t)
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(amanda_recover_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(amanda_recover_t)
+')
