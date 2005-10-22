@@ -1,0 +1,188 @@
+
+policy_module(networkmanager,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type NetworkManager_t;
+type NetworkManager_exec_t;
+init_daemon_domain(NetworkManager_t,NetworkManager_exec_t)
+
+type NetworkManager_var_run_t;
+files_pid_file(NetworkManager_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow NetworkManager_t self:capability { kill setgid setuid sys_nice dac_override net_admin net_raw net_bind_service ipc_lock};
+dontaudit NetworkManager_t self:capability sys_tty_config;
+allow NetworkManager_t self:process { setcap getsched };
+allow NetworkManager_t self:fifo_file rw_file_perms;
+allow NetworkManager_t self:unix_dgram_socket create_socket_perms;
+allow NetworkManager_t self:unix_stream_socket create_stream_socket_perms;
+allow NetworkManager_t self:netlink_route_socket r_netlink_socket_perms;
+allow NetworkManager_t self:tcp_socket create_stream_socket_perms;
+allow NetworkManager_t self:udp_socket create_socket_perms;
+allow NetworkManager_t self:packet_socket create_socket_perms;
+# allow vpnc connections
+allow NetworkManager_t self:rawip_socket create_socket_perms;
+
+allow NetworkManager_t NetworkManager_var_run_t:file create_file_perms;
+allow NetworkManager_t NetworkManager_var_run_t:dir rw_dir_perms;
+files_create_pid(NetworkManager_t,NetworkManager_var_run_t)
+
+kernel_read_system_state(NetworkManager_t)
+kernel_read_network_state(NetworkManager_t)
+kernel_read_kernel_sysctl(NetworkManager_t)
+kernel_load_module(NetworkManager_t)
+
+corenet_tcp_sendrecv_all_if(NetworkManager_t)
+corenet_udp_sendrecv_all_if(NetworkManager_t)
+corenet_raw_sendrecv_all_if(NetworkManager_t)
+corenet_tcp_sendrecv_all_nodes(NetworkManager_t)
+corenet_udp_sendrecv_all_nodes(NetworkManager_t)
+corenet_raw_sendrecv_all_nodes(NetworkManager_t)
+corenet_tcp_sendrecv_all_ports(NetworkManager_t)
+corenet_udp_sendrecv_all_ports(NetworkManager_t)
+corenet_tcp_bind_all_nodes(NetworkManager_t)
+corenet_udp_bind_all_nodes(NetworkManager_t)
+corenet_tcp_connect_all_ports(NetworkManager_t)
+corenet_udp_bind_isakmp_port(NetworkManager_t)
+corenet_udp_bind_dhcpc_port(NetworkManager_t)
+# vpn connections
+corenet_use_tun_tap_device(NetworkManager_t)
+
+dev_read_sysfs(NetworkManager_t)
+dev_read_rand(NetworkManager_t)
+dev_read_urand(NetworkManager_t)
+
+fs_getattr_all_fs(NetworkManager_t)
+fs_search_auto_mountpoints(NetworkManager_t)
+
+mls_file_read_up(NetworkManager_t)
+
+term_dontaudit_use_console(NetworkManager_t)
+
+corecmd_exec_shell(NetworkManager_t)
+corecmd_exec_bin(NetworkManager_t)
+corecmd_exec_sbin(NetworkManager_t)
+corecmd_exec_ls(NetworkManager_t)
+
+domain_use_wide_inherit_fd(NetworkManager_t)
+domain_read_confined_domains_state(NetworkManager_t)
+
+files_read_etc_files(NetworkManager_t)
+files_read_etc_runtime_files(NetworkManager_t)
+files_read_usr_files(NetworkManager_t)
+
+init_use_fd(NetworkManager_t)
+init_use_script_pty(NetworkManager_t)
+init_read_script_pid(NetworkManager_t)
+init_domtrans_script(NetworkManager_t)
+
+libs_use_ld_so(NetworkManager_t)
+libs_use_shared_libs(NetworkManager_t)
+
+logging_send_syslog_msg(NetworkManager_t)
+
+miscfiles_read_localization(NetworkManager_t)
+
+modutils_domtrans_insmod(NetworkManager_t)
+
+seutil_read_config(NetworkManager_t)
+
+sysnet_domtrans_ifconfig(NetworkManager_t)
+sysnet_domtrans_dhcpc(NetworkManager_t)
+sysnet_signal_dhcpc(NetworkManager_t)
+# in /etc created by NetworkManager will be labelled net_conf_t.
+sysnet_manage_config(NetworkManager_t)
+sysnet_create_config(NetworkManager_t)
+
+userdom_dontaudit_use_unpriv_user_fd(NetworkManager_t)
+userdom_dontaudit_search_sysadm_home_dir(NetworkManager_t)
+
+ifdef(`targeted_policy', `
+	term_dontaudit_use_unallocated_tty(NetworkManager_t)
+	term_dontaudit_use_generic_pty(NetworkManager_t)
+	files_dontaudit_read_root_file(NetworkManager_t)
+')
+
+optional_policy(`consoletype.te',`
+	consoletype_exec(NetworkManager_t)
+')
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(NetworkManager_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(NetworkManager_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(NetworkManager_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(NetworkManager_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(NetworkManager_t)
+')
+
+optional_policy(`vpn.te',`
+	vpn_domtrans(NetworkManager_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(NetworkManager_t)
+')
+') dnl end TODO
+
+###########################################################
+#
+# Partially converted rules.  THESE ARE ONLY TEMPORARY
+#
+
+optional_policy(`dbus.te',`
+	gen_require(`
+		class dbus send_msg;
+	')
+
+	allow NetworkManager_t self:dbus send_msg;
+
+	allow NetworkManager_t userdomain:dbus send_msg;
+	allow userdomain NetworkManager_t:dbus send_msg;
+
+	allow NetworkManager_t initrc_t:dbus send_msg;
+	allow initrc_t NetworkManager_t:dbus send_msg;
+
+	dbus_system_bus_client_template(NetworkManager,NetworkManager_t)
+	dbus_connect_system_bus(NetworkManager_t)
+	dbus_send_system_bus_msg(NetworkManager_t)
+
+	ifdef(`targeted_policy',`
+		allow NetworkManager_t unconfined_t:dbus send_msg;
+		allow unconfined_t NetworkManager_t:dbus send_msg;
+	')
+
+	optional_policy(`hal.te',`
+		allow NetworkManager_t hald_t:dbus send_msg;
+		allow hald_t NetworkManager_t:dbus send_msg;
+	')
+')
+
+allow NetworkManager_t howl_t:process signal;
+
+allow NetworkManager_t dhcp_state_t:dir search;
+allow NetworkManager_t dhcpc_var_run_t:file { getattr read unlink };
+
+allow NetworkManager_t var_lib_t:dir search;
+dontaudit NetworkManager_t user_ttynode:chr_file { read write };
+dontaudit NetworkManager_t security_t:dir search;
