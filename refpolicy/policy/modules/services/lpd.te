@@ -1,0 +1,235 @@
+
+policy_module(lpd,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type checkpc_t;
+type checkpc_exec_t;
+init_system_domain(checkpc_t,checkpc_exec_t)
+role system_r types checkpc_t;
+
+type checkpc_log_t;
+logging_log_file(checkpc_log_t)
+
+type lpd_t;
+type lpd_exec_t;
+init_daemon_domain(lpd_t,lpd_exec_t)
+
+type lpd_tmp_t;
+files_tmp_file(lpd_tmp_t)
+
+type lpd_var_run_t;
+files_pid_file(lpd_var_run_t)
+
+type print_spool_t;
+files_tmp_file(print_spool_t)
+
+type printer_t;
+files_type(printer_t)
+
+type printconf_t;
+files_type(printconf_t)
+
+########################################
+#
+# Checkpc local policy
+#
+
+# Allow checkpc to access the lpd spool so it can check & fix it.
+# This requires that /usr/sbin/checkpc have type checkpc_t.
+
+allow checkpc_t self:capability { setgid setuid dac_override };
+allow checkpc_t self:process { fork signal_perms };
+allow checkpc_t self:unix_stream_socket create_socket_perms;
+
+allow checkpc_t checkpc_log_t:file create_file_perms;
+logging_create_log(checkpc_t,checkpc_log_t)
+
+allow checkpc_t lpd_var_run_t:dir { search getattr };
+files_search_pids(checkpc_t)
+
+allow checkpc_t print_spool_t:file { rw_file_perms unlink };
+allow checkpc_t print_spool_t:dir { read write search add_name remove_name getattr };
+files_search_spool(checkpc_t)
+
+allow checkpc_t printconf_t:file getattr;
+allow checkpc_t printconf_t:dir { getattr search read };
+
+kernel_read_system_state(checkpc_t)
+
+allow checkpc_t self:tcp_socket create_socket_perms;
+allow checkpc_t self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_all_if(checkpc_t)
+corenet_udp_sendrecv_all_if(checkpc_t)
+corenet_raw_sendrecv_all_if(checkpc_t)
+corenet_tcp_sendrecv_all_nodes(checkpc_t)
+corenet_udp_sendrecv_all_nodes(checkpc_t)
+corenet_raw_sendrecv_all_nodes(checkpc_t)
+corenet_tcp_sendrecv_all_ports(checkpc_t)
+corenet_udp_sendrecv_all_ports(checkpc_t)
+corenet_tcp_bind_all_nodes(checkpc_t)
+corenet_udp_bind_all_nodes(checkpc_t)
+corenet_tcp_connect_all_ports(checkpc_t)
+
+dev_append_printer(checkpc_t)
+
+# This is less desirable, but checkpc demands /bin/bash and /bin/chown:
+corecmd_exec_shell(checkpc_t)
+corecmd_exec_bin(checkpc_t)
+
+domain_use_wide_inherit_fd(checkpc_t)
+
+files_read_etc_files(checkpc_t)
+files_read_etc_runtime_files(checkpc_t)
+
+init_use_script_pty(checkpc_t)
+# Allow access to /dev/console through the fd:
+init_use_fd(checkpc_t)
+
+libs_use_ld_so(checkpc_t)
+libs_use_shared_libs(checkpc_t)
+
+sysnet_read_config(checkpc_t)
+
+optional_policy(`cron.te',`
+	cron_system_entry(checkpc_t,checkpc_exec_t)
+')
+
+optional_policy(`logging.te',`
+	logging_send_syslog_msg(checkpc_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(checkpc_t)
+')
+
+########################################
+#
+# Lpd local policy
+#
+
+allow lpd_t self:capability { setgid setuid net_bind_service dac_read_search dac_override chown fowner };
+dontaudit lpd_t self:capability sys_tty_config;
+allow lpd_t self:fifo_file rw_file_perms;
+allow lpd_t self:unix_stream_socket create_stream_socket_perms;
+allow lpd_t self:unix_dgram_socket create_socket_perms;
+
+allow lpd_t lpd_tmp_t:dir create_dir_perms;
+allow lpd_t lpd_tmp_t:file create_file_perms;
+files_create_tmp_files(lpd_t, lpd_tmp_t, { file dir })
+
+allow lpd_t lpd_var_run_t:dir rw_dir_perms;
+allow lpd_t lpd_var_run_t:file create_file_perms;
+allow lpd_t lpd_var_run_t:sock_file create_file_perms;
+files_create_pid(lpd_t,lpd_var_run_t)
+
+# Write to /var/spool/lpd.
+allow lpd_t print_spool_t:dir rw_dir_perms;
+allow lpd_t print_spool_t:file create_file_perms;
+allow lpd_t print_spool_t:file rw_file_perms;
+files_search_spool(lpd_t)
+
+# lpd must be able to execute the filter utilities in /usr/share/printconf.
+allow lpd_t printconf_t:dir { getattr search read };
+can_exec(lpd_t, printconf_t)
+
+# Create and bind to /dev/printer.
+allow lpd_t printer_t:lnk_file create_lnk_perms;
+dev_create_dev_node(lpd_t,printer_t,lnk_file)
+# cjp: I believe these have no effect:
+allow lpd_t printer_t:unix_stream_socket name_bind;
+allow lpd_t printer_t:unix_dgram_socket name_bind;
+
+kernel_read_kernel_sysctl(lpd_t)
+# bash wants access to /proc/meminfo
+kernel_read_system_state(lpd_t)
+
+allow lpd_t self:tcp_socket create_stream_socket_perms;
+allow lpd_t self:udp_socket create_stream_socket_perms;
+corenet_tcp_sendrecv_all_if(lpd_t)
+corenet_udp_sendrecv_all_if(lpd_t)
+corenet_raw_sendrecv_all_if(lpd_t)
+corenet_tcp_sendrecv_all_nodes(lpd_t)
+corenet_udp_sendrecv_all_nodes(lpd_t)
+corenet_raw_sendrecv_all_nodes(lpd_t)
+corenet_tcp_sendrecv_all_ports(lpd_t)
+corenet_udp_sendrecv_all_ports(lpd_t)
+corenet_tcp_bind_all_nodes(lpd_t)
+corenet_udp_bind_all_nodes(lpd_t)
+corenet_tcp_bind_printer_port(lpd_t)
+
+dev_read_sysfs(lpd_t)
+dev_rw_printer(lpd_t)
+
+fs_getattr_all_fs(lpd_t)
+fs_search_auto_mountpoints(lpd_t)
+
+term_dontaudit_use_console(lpd_t)
+
+# Filter scripts may be shell scripts, and may invoke progs like /bin/mktemp
+corecmd_exec_bin(lpd_t)
+corecmd_exec_sbin(lpd_t)
+corecmd_exec_shell(lpd_t)
+
+domain_use_wide_inherit_fd(lpd_t)
+
+files_read_etc_runtime_files(lpd_t)
+files_read_usr_files(lpd_t)
+# for defoma
+files_list_world_readable(lpd_t)
+files_read_world_readable_files(lpd_t)
+files_read_world_readable_symlinks(lpd_t)
+files_list_var_lib(lpd_t)
+files_read_var_lib_files(lpd_t)
+files_read_var_lib_symlinks(lpd_t)
+# config files for lpd are of type etc_t, probably should change this
+files_read_etc_files(lpd_t)
+
+init_use_fd(lpd_t)
+init_use_script_pty(lpd_t)
+
+libs_use_ld_so(lpd_t)
+libs_use_shared_libs(lpd_t)
+
+logging_send_syslog_msg(lpd_t)
+
+miscfiles_read_fonts(lpd_t)
+miscfiles_read_localization(lpd_t)
+
+sysnet_read_config(lpd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(lpd_t)
+userdom_dontaudit_search_sysadm_home_dir(lpd_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(lpd_t)
+	term_dontaudit_use_generic_pty(lpd_t)
+	files_dontaudit_read_root_file(lpd_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(lpd_t)
+	nis_tcp_connect_ypbind(lpd_t)
+')
+
+optional_policy(`portmap.te',`
+	portmap_udp_sendto(lpd_t)
+')
+
+optional_policy(`selinuxutil.te',`
+	seutil_sigchld_newrole(lpd_t)
+')
+
+optional_policy(`udev.te', `
+	udev_read_db(lpd_t)
+')
+
+ifdef(`TODO',`
+optional_policy(`rhgb.te',`
+	rhgb_domain(lpd_t)
+')
+') dnl end TODO
+
