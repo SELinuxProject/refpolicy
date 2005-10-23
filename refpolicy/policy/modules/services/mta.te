@@ -11,6 +11,8 @@ attribute mailserver_delivery;
 attribute mailserver_domain;
 attribute mailserver_sender;
 
+attribute user_mail_domain;
+
 type etc_aliases_t;
 files_type(etc_aliases_t)
 
@@ -152,8 +154,23 @@ optional_policy(`nscd.te',`
 	nscd_use_socket(system_mail_t)
 ')
 
+optional_policy(`postfix.te',`
+	postfix_stub(system_mail_t)
+
+	allow system_mail_t etc_aliases_t:dir create_dir_perms;
+	allow system_mail_t etc_aliases_t:file create_file_perms;
+	allow system_mail_t etc_aliases_t:lnk_file create_lnk_perms;
+	allow system_mail_t etc_aliases_t:sock_file create_file_perms;
+	allow system_mail_t etc_aliases_t:fifo_file create_file_perms;
+	files_create_etc_config(sysadm_mail_t,etc_aliases_t,{ file lnk_file sock_file fifo_file })
+
+	optional_policy(`crond.te',`
+		cron_crw_tcp_socket(system_mail_t)
+	')
+')
+
 optional_policy(`sendmail.te',`
-	sendmail_stub()
+	sendmail_stub(system_mail_t)
 
 	allow system_mail_t etc_mail_t:dir { getattr search };
 

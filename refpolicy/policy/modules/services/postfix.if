@@ -1,0 +1,219 @@
+## <summary>Postfix email server</summary>
+
+########################################
+## <summary>
+##	Postfix stub interface.  No access allowed.
+## </summary>
+## <param name="domain" optional="true">
+##	N/A
+## </param>
+#
+interface(`postfix_stub',`
+	gen_require(`
+		type postfix_master_t;
+	')
+')
+
+template(`postfix_domain_template',`
+	type postfix_$1_t;
+	type postfix_$1_exec_t;
+	domain_type(postfix_$1_t)
+	domain_entry_file(postfix_$1_t,postfix_$1_exec_t)
+	role system_r types postfix_$1_t;
+
+	dontaudit postfix_$1_t self:capability sys_tty_config;
+	allow postfix_$1_t self:process { signal_perms setpgid };
+	allow postfix_$1_t self:unix_dgram_socket create_socket_perms;
+	allow postfix_$1_t self:unix_stream_socket create_stream_socket_perms;
+	allow postfix_$1_t self:unix_stream_socket connectto;
+
+	allow postfix_master_t postfix_$1_t:process signal;
+
+	allow postfix_$1_t postfix_etc_t:dir r_dir_perms;
+	allow postfix_$1_t postfix_etc_t:file r_file_perms;
+
+	can_exec(postfix_$1_t, postfix_$1_exec_t)
+
+	allow postfix_$1_t postfix_exec_t:file rx_file_perms;
+	# cjp: ???
+	allow postfix_$1_t postfix_exec_t:dir r_dir_perms;
+
+	allow postfix_$1_t postfix_master_t:process sigchld;
+
+	allow postfix_$1_t postfix_spool_t:dir r_dir_perms;
+
+	allow postfix_$1_t postfix_var_run_t:file manage_file_perms;
+	files_create_pid(postfix_$1_t,postfix_var_run_t)
+
+	kernel_read_system_state(postfix_$1_t)
+	kernel_read_network_state(postfix_$1_t)
+	kernel_read_all_sysctl(postfix_$1_t)
+
+	dev_read_sysfs(postfix_$1_t)
+	dev_read_rand(postfix_$1_t)
+	dev_read_urand(postfix_$1_t)
+
+	fs_search_auto_mountpoints(postfix_$1_t)
+	fs_getattr_xattr_fs(postfix_$1_t)
+
+	term_dontaudit_use_console(postfix_$1_t)
+
+	corecmd_list_bin(postfix_$1_t)
+	corecmd_list_sbin(postfix_$1_t)
+	corecmd_read_bin_symlink(postfix_$1_t)
+	corecmd_read_sbin_symlink(postfix_$1_t)
+	corecmd_exec_shell(postfix_$1_t)
+
+	files_read_etc_files(postfix_$1_t)
+	files_read_etc_runtime_files(postfix_$1_t)
+	files_search_spool(postfix_$1_t)
+	files_getattr_tmp_dir(postfix_$1_t)
+
+	init_use_fd(postfix_$1_t)
+	init_sigchld(postfix_$1_t)
+
+	libs_use_ld_so(postfix_$1_t)
+	libs_use_shared_libs(postfix_$1_t)
+
+	logging_send_syslog_msg(postfix_$1_t)
+
+	miscfiles_read_localization(postfix_$1_t)
+	miscfiles_read_certs(postfix_$1_t)
+
+	userdom_dontaudit_use_unpriv_user_fd(postfix_$1_t)
+
+	ifdef(`targeted_policy', `
+		term_dontaudit_use_unallocated_tty(postfix_$1_t)
+		term_dontaudit_use_generic_pty(postfix_$1_t)
+		files_dontaudit_read_root_file(postfix_$1_t)
+	')
+
+	optional_policy(`udev.te',`
+		udev_read_db(postfix_$1_t)
+	')
+')
+
+template(`postfix_server_domain_template',`
+	postfix_domain_template($1)
+
+	allow postfix_$1_t self:capability { setuid setgid dac_override };
+	allow postfix_$1_t postfix_master_t:unix_stream_socket { connectto rw_stream_socket_perms };
+	allow postfix_$1_t self:tcp_socket create_socket_perms;
+	allow postfix_$1_t self:udp_socket create_socket_perms;
+
+	domain_auto_trans(postfix_master_t, postfix_$1_exec_t, postfix_$1_t)
+
+	corenet_tcp_sendrecv_all_if(postfix_$1_t)
+	corenet_udp_sendrecv_all_if(postfix_$1_t)
+	corenet_raw_sendrecv_all_if(postfix_$1_t)
+	corenet_tcp_sendrecv_all_nodes(postfix_$1_t)
+	corenet_udp_sendrecv_all_nodes(postfix_$1_t)
+	corenet_raw_sendrecv_all_nodes(postfix_$1_t)
+	corenet_tcp_sendrecv_all_ports(postfix_$1_t)
+	corenet_udp_sendrecv_all_ports(postfix_$1_t)
+	corenet_tcp_bind_all_nodes(postfix_$1_t)
+	corenet_udp_bind_all_nodes(postfix_$1_t)
+	corenet_tcp_connect_all_ports(postfix_$1_t)
+
+	sysnet_read_config(postfix_$1_t)
+
+	optional_policy(`nis.te',`
+		nis_use_ypbind(postfix_$1_t)
+	')
+')
+
+template(`postfix_user_domain_template',`
+	postfix_domain_template($1)
+
+	allow postfix_$1_t self:capability dac_override;
+
+	domain_auto_trans(user_mail_domain, postfix_$1_exec_t, postfix_$1_t)
+
+	# this is replaced by run interfaces
+	role sysadm_r types postfix_$1_t;
+	allow postfix_$1_t userdomain:process sigchld;
+	allow postfix_$1_t userdomain:fifo_file { write getattr };
+	allow postfix_$1_t { userdomain privfd }:fd use;
+
+')
+
+template(`postfix_public_domain_template',`
+	postfix_server_domain_template($1)
+
+	allow postfix_$1_t postfix_public_t:dir search;
+')
+
+########################################
+## <summary>
+##	Read postfix configuration files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postfix_read_config',`
+	gen_require(`
+		type postfix_etc_t;
+	')
+
+	allow $1 postfix_etc_t:dir { getattr read search };
+	allow $1 postfix_etc_t:file { read getattr };
+	allow $1 postfix_etc_t:lnk_file { getattr read };
+	files_search_etc($1)
+')
+
+########################################
+## <summary>
+##	Execute the master postfix program in the
+##	postfix_master domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postfix_domtrans_master',`
+	gen_require(`
+		type postfix_master_t, postfix_master_exec_t;
+	')
+
+	domain_auto_trans($1,postfix_master_exec_t,postfix_master_t)
+
+	allow $1 postfix_master_t:fd use;
+	allow postfix_master_t $1:fd use;
+	allow postfix_master_t $1:fifo_file rw_file_perms;
+	allow postfix_master_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Search postfix mail spool directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postfix_search_spool',`
+	gen_require(`
+		type postfix_spool_t;
+	')
+
+	allow $1 postfix_spool_t:dir search_dir_perms;
+	files_search_spool($1)
+')
+
+########################################
+## <summary>
+##	List postfix mail spool directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postfix_list_spool',`
+	gen_require(`
+		type postfix_spool_t;
+	')
+
+	allow $1 postfix_spool_t:dir list_dir_perms;
+	files_search_spool($1)
+')

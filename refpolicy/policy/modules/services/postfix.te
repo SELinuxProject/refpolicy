@@ -1,0 +1,569 @@
+
+policy_module(postfix,1.0)
+
+########################################
+#
+# Declarations
+#
+
+postfix_public_domain_template(bounce)
+
+type postfix_spool_bounce_t;
+files_type(postfix_spool_bounce_t)
+
+postfix_public_domain_template(cleanup)
+
+type postfix_etc_t;
+files_type(postfix_etc_t)
+
+type postfix_exec_t;
+files_type(postfix_exec_t)
+
+postfix_server_domain_template(local)
+mta_mailserver_delivery(postfix_local_t)
+
+type postfix_local_tmp_t;
+files_tmp_file(postfix_local_tmp_t)
+
+# Program for creating database files
+type postfix_map_t;
+type postfix_map_exec_t;
+domain_type(postfix_map_t)
+domain_entry_file(postfix_map_t,postfix_map_exec_t)
+
+type postfix_map_tmp_t;
+files_tmp_file(postfix_map_tmp_t)
+
+postfix_domain_template(master)
+mta_mailserver(postfix_master_t,postfix_master_exec_t)
+
+postfix_public_domain_template(pickup)
+
+postfix_public_domain_template(pipe)
+
+postfix_user_domain_template(postdrop)
+mta_mailserver_user_agent(postfix_postdrop_t)
+
+postfix_user_domain_template(postqueue)
+
+type postfix_private_t;
+files_type(postfix_private_t)
+
+type postfix_prng_t;
+files_type(postfix_prng_t)
+
+postfix_public_domain_template(qmgr)
+
+postfix_user_domain_template(showq)
+
+postfix_server_domain_template(smtp)
+mta_mailserver_sender(postfix_smtp_t)
+
+postfix_server_domain_template(smtpd)
+
+type postfix_spool_t;
+files_type(postfix_spool_t)
+
+type postfix_spool_maildrop_t;
+files_type(postfix_spool_maildrop_t)
+
+type postfix_spool_flush_t;
+files_type(postfix_spool_flush_t)
+
+type postfix_public_t;
+files_type(postfix_public_t)
+
+type postfix_var_run_t;
+files_pid_file(postfix_var_run_t)
+
+########################################
+#
+# Postfix master process local policy
+#
+
+# chown is to set the correct ownership of queue dirs
+allow postfix_master_t self:capability { chown dac_override kill setgid setuid net_bind_service sys_tty_config };
+allow postfix_master_t self:fifo_file rw_file_perms;
+allow postfix_master_t self:tcp_socket create_stream_socket_perms;
+allow postfix_master_t self:udp_socket create_socket_perms;
+
+can_exec(postfix_master_t,postfix_exec_t)
+
+allow postfix_master_t postfix_map_exec_t:file rx_file_perms;
+
+allow postfix_master_t postfix_postdrop_exec_t:file getattr;
+
+allow postfix_master_t postfix_postqueue_exec_t:file getattr;
+
+allow postfix_master_t postfix_private_t:dir rw_dir_perms;
+allow postfix_master_t postfix_private_t:sock_file create_file_perms;
+allow postfix_master_t postfix_private_t:fifo_file create_file_perms;
+
+allow postfix_master_t postfix_prng_t:file rw_file_perms;
+
+allow postfix_master_t postfix_public_t:fifo_file create_file_perms;
+allow postfix_master_t postfix_public_t:sock_file create_file_perms;
+allow postfix_master_t postfix_public_t:dir rw_dir_perms;
+
+# allow access to deferred queue and allow removing bogus incoming entries
+allow postfix_master_t postfix_spool_t:dir create_dir_perms;
+allow postfix_master_t postfix_spool_t:file create_file_perms;
+
+allow postfix_master_t postfix_spool_flush_t:dir create_dir_perms;
+allow postfix_master_t postfix_spool_flush_t:file create_file_perms;
+allow postfix_master_t postfix_spool_flush_t:lnk_file create_lnk_perms;
+
+allow postfix_master_t postfix_spool_maildrop_t:dir rw_dir_perms;
+allow postfix_master_t postfix_spool_maildrop_t:file { unlink rename getattr };
+
+kernel_read_all_sysctl(postfix_master_t)
+
+corenet_tcp_sendrecv_all_if(postfix_master_t)
+corenet_udp_sendrecv_all_if(postfix_master_t)
+corenet_raw_sendrecv_all_if(postfix_master_t)
+corenet_tcp_sendrecv_all_nodes(postfix_master_t)
+corenet_udp_sendrecv_all_nodes(postfix_master_t)
+corenet_raw_sendrecv_all_nodes(postfix_master_t)
+corenet_tcp_sendrecv_all_ports(postfix_master_t)
+corenet_udp_sendrecv_all_ports(postfix_master_t)
+corenet_tcp_bind_all_nodes(postfix_master_t)
+corenet_udp_bind_all_nodes(postfix_master_t)
+corenet_tcp_bind_amavisd_send_port(postfix_master_t)
+corenet_tcp_bind_smtp_port(postfix_master_t)
+corenet_tcp_connect_all_ports(postfix_master_t)
+
+# for a find command
+selinux_dontaudit_search_fs(postfix_master_t)
+
+corecmd_exec_ls(postfix_master_t)
+corecmd_exec_sbin(postfix_master_t)
+corecmd_exec_shell(postfix_master_t)
+corecmd_exec_bin(postfix_master_t)
+
+domain_use_wide_inherit_fd(postfix_master_t)
+
+files_read_usr_files(postfix_master_t)
+
+init_use_script_pty(postfix_master_t)
+
+miscfiles_dontaudit_search_man_pages(postfix_master_t)
+
+seutil_sigchld_newrole(postfix_master_t)
+# postfix does a "find" on startup for some reason - keep it quiet
+seutil_dontaudit_search_config(postfix_master_t)
+
+sysnet_read_config(postfix_master_t)
+
+mta_rw_aliases(postfix_master_t)
+mta_read_sendmail_bin(postfix_master_t)
+
+optional_policy(`mount.te',`
+	mount_send_nfs_client_request(postfix_master_t)
+')
+
+optional_policy(`nis.te',`
+	nis_use_ypbind(postfix_master_t)
+')
+
+###########################################################
+#
+# Partially converted rules.  THESE ARE ONLY TEMPORARY
+#
+
+ifdef(`distro_redhat',`
+	# for newer main.cf that uses /etc/aliases
+	allow postfix_master_t etc_t:dir rw_dir_perms;
+	allow postfix_master_t etc_aliases_t:dir create_dir_perms;
+	allow postfix_master_t etc_aliases_t:file create_file_perms;
+	allow postfix_master_t etc_aliases_t:lnk_file create_lnk_perms;
+	allow postfix_master_t etc_aliases_t:sock_file create_file_perms;
+	allow postfix_master_t etc_aliases_t:fifo_file create_file_perms;
+	type_transition postfix_master_t etc_t:{ file lnk_file sock_file fifo_file } etc_aliases_t;
+
+	allow postfix_master_t postfix_etc_t:dir rw_dir_perms;
+	allow postfix_master_t etc_aliases_t:dir create_dir_perms;
+	allow postfix_master_t etc_aliases_t:file create_file_perms;
+	allow postfix_master_t etc_aliases_t:lnk_file create_lnk_perms;
+	allow postfix_master_t etc_aliases_t:sock_file create_file_perms;
+	allow postfix_master_t etc_aliases_t:fifo_file create_file_perms;
+	type_transition postfix_master_t postfix_etc_t:{ file lnk_file sock_file fifo_file } etc_aliases_t;
+')
+
+# postfix needs this for newaliases
+allow { system_mail_t sysadm_mail_t } tmp_t:dir getattr;
+
+can_exec({ sysadm_mail_t system_mail_t }, postfix_master_exec_t)
+
+allow sysadm_mail_t etc_aliases_t:dir create_dir_perms;
+allow sysadm_mail_t etc_aliases_t:file create_file_perms;
+allow sysadm_mail_t etc_aliases_t:lnk_file create_lnk_perms;
+allow sysadm_mail_t etc_aliases_t:sock_file create_file_perms;
+allow sysadm_mail_t etc_aliases_t:fifo_file create_file_perms;
+files_create_etc_config(system_mail_t,etc_aliases_t,{ file lnk_file sock_file fifo_file })
+
+
+ifdef(`distro_redhat',`
+	# compatability for old default main.cf
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:dir create_dir_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:file create_file_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:lnk_file create_lnk_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:sock_file create_file_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:fifo_file create_file_perms;
+
+	allow { sysadm_mail_t system_mail_t } postfix_etc_t:dir rw_dir_perms;
+	type_transition { sysadm_mail_t system_mail_t } postfix_etc_t:{ file lnk_file sock_file fifo_file } etc_aliases_t;
+
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:dir create_dir_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:file create_file_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:lnk_file create_lnk_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:sock_file create_file_perms;
+	allow { sysadm_mail_t system_mail_t } etc_aliases_t:fifo_file create_file_perms;
+
+	allow { sysadm_mail_t system_mail_t } postfix_etc_t:dir rw_dir_perms;
+	type_transition { sysadm_mail_t system_mail_t } postfix_etc_t:{ file lnk_file sock_file fifo_file } etc_aliases_t;
+')
+
+# end partially converted rules
+
+########################################
+#
+# Postfix bounce local policy
+#
+
+allow postfix_bounce_t self:capability dac_read_search;
+allow postfix_bounce_t self:tcp_socket create_socket_perms;
+
+allow postfix_bounce_t postfix_public_t:sock_file write;
+
+allow postfix_bounce_t postfix_spool_t:dir create_dir_perms;
+allow postfix_bounce_t postfix_spool_t:file create_file_perms;
+allow postfix_bounce_t postfix_spool_t:lnk_file create_lnk_perms;
+
+allow postfix_bounce_t postfix_spool_bounce_t:dir create_dir_perms;
+allow postfix_bounce_t postfix_spool_bounce_t:file create_file_perms;
+allow postfix_bounce_t postfix_spool_bounce_t:lnk_file create_lnk_perms;
+
+########################################
+#
+# Postfix cleanup local policy
+#
+
+allow postfix_cleanup_t self:process setrlimit;
+
+# connect to master process
+allow postfix_cleanup_t postfix_master_t:unix_stream_socket connectto;
+allow postfix_cleanup_t postfix_private_t:dir search;
+allow postfix_cleanup_t postfix_private_t:sock_file rw_file_perms;
+
+allow postfix_cleanup_t postfix_public_t:fifo_file rw_file_perms;
+allow postfix_cleanup_t postfix_public_t:sock_file { getattr write };
+
+allow postfix_cleanup_t postfix_spool_t:dir create_dir_perms;
+allow postfix_cleanup_t postfix_spool_t:file create_file_perms;
+allow postfix_cleanup_t postfix_spool_t:lnk_file create_lnk_perms;
+
+allow postfix_cleanup_t postfix_spool_bounce_t:dir r_dir_perms;
+
+########################################
+#
+# Postfix local local policy
+#
+
+allow postfix_local_t self:fifo_file rw_file_perms;
+allow postfix_local_t self:process { setsched setrlimit };
+
+allow postfix_local_t postfix_local_tmp_t:dir create_dir_perms;
+allow postfix_local_t postfix_local_tmp_t:file create_file_perms;
+files_create_tmp_files(postfix_local_t, postfix_local_tmp_t, { file dir })
+
+# connect to master process
+allow postfix_local_t postfix_master_t:unix_stream_socket connectto;
+allow postfix_local_t postfix_public_t:dir search;
+allow postfix_local_t postfix_public_t:sock_file write;
+
+# for .forward - maybe we need a new type for it?
+allow postfix_local_t postfix_private_t:dir search;
+allow postfix_local_t postfix_private_t:sock_file rw_file_perms;
+
+allow postfix_local_t postfix_spool_t:file rw_file_perms;
+
+corecmd_exec_shell(postfix_local_t)
+corecmd_exec_bin(postfix_local_t)
+
+mta_read_aliases(postfix_local_t)
+mta_delete_spool(postfix_local_t)
+# For reading spamassasin
+mta_read_config(postfix_local_t)
+
+ifdef(`TODO',`
+optional_policy(`procmail.te', `
+	domain_auto_trans(postfix_local_t, procmail_exec_t, procmail_t)
+	# for a bug in the postfix local program
+	dontaudit procmail_t postfix_local_t:tcp_socket { read write };
+	dontaudit procmail_t postfix_master_t:fd use;
+')
+') dnl end TODO
+
+########################################
+#
+# Postfix map local policy
+#
+
+allow postfix_map_t self:capability setgid;
+allow postfix_map_t self:unix_stream_socket create_stream_socket_perms;
+allow postfix_map_t self:unix_dgram_socket create_socket_perms;
+allow postfix_map_t self:tcp_socket create_stream_socket_perms;
+allow postfix_map_t self:udp_socket create_socket_perms;
+
+allow postfix_map_t postfix_etc_t:dir create_dir_perms;
+allow postfix_map_t postfix_etc_t:file create_file_perms;
+allow postfix_map_t postfix_etc_t:lnk_file create_lnk_perms;
+
+allow postfix_map_t postfix_map_tmp_t:dir create_dir_perms;
+allow postfix_map_t postfix_map_tmp_t:file create_file_perms;
+files_create_tmp_files(postfix_map_t, postfix_map_tmp_t, { file dir })
+
+kernel_read_kernel_sysctl(postfix_map_t)
+
+corenet_tcp_sendrecv_all_if(postfix_map_t)
+corenet_udp_sendrecv_all_if(postfix_map_t)
+corenet_raw_sendrecv_all_if(postfix_map_t)
+corenet_tcp_sendrecv_all_nodes(postfix_map_t)
+corenet_udp_sendrecv_all_nodes(postfix_map_t)
+corenet_raw_sendrecv_all_nodes(postfix_map_t)
+corenet_tcp_bind_all_nodes(postfix_map_t)
+corenet_udp_bind_all_nodes(postfix_map_t)
+corenet_tcp_sendrecv_all_ports(postfix_map_t)
+corenet_udp_sendrecv_all_ports(postfix_map_t)
+corenet_tcp_connect_all_ports(postfix_map_t)
+
+corecmd_list_bin(postfix_map_t)
+corecmd_read_bin_symlink(postfix_map_t)
+corecmd_read_bin_file(postfix_map_t)
+corecmd_read_bin_pipe(postfix_map_t)
+corecmd_read_bin_socket(postfix_map_t)
+corecmd_list_sbin(postfix_map_t)
+corecmd_read_sbin_symlink(postfix_map_t)
+corecmd_read_sbin_file(postfix_map_t)
+corecmd_read_sbin_pipe(postfix_map_t)
+corecmd_read_sbin_socket(postfix_map_t)
+
+files_list_home(postfix_map_t)
+files_read_usr_files(postfix_map_t)
+files_read_etc_files(postfix_map_t)
+files_read_etc_runtime_files(postfix_map_t)
+files_dontaudit_search_var(postfix_map_t)
+
+libs_use_ld_so(postfix_map_t)
+libs_use_shared_libs(postfix_map_t)
+
+miscfiles_read_localization(postfix_map_t)
+
+seutil_read_config(postfix_map_t)
+
+sysnet_read_config(postfix_map_t)
+
+tunable_policy(`read_default_t',`
+	files_list_default(postfix_map_t)
+	files_read_default_files(postfix_map_t)
+	files_read_default_symlinks(postfix_map_t)
+	files_read_default_sockets(postfix_map_t)
+	files_read_default_pipes(postfix_map_t)
+')
+
+optional_policy(`locallogin.te',`
+	locallogin_dontaudit_use_fd(postfix_map_t)
+')
+
+# a "run" interface needs to be
+# added, and have sysadm_t use it
+# in a optional_policy block.
+
+########################################
+#
+# Postfix pickup local policy
+#
+
+allow postfix_pickup_t self:tcp_socket create_socket_perms;
+
+allow postfix_pickup_t postfix_master_t:unix_stream_socket connectto;
+
+allow postfix_pickup_t postfix_private_t:dir search;
+allow postfix_pickup_t postfix_private_t:sock_file write;
+
+allow postfix_pickup_t postfix_public_t:fifo_file rw_file_perms;
+allow postfix_pickup_t postfix_public_t:sock_file rw_file_perms;
+
+allow postfix_pickup_t postfix_spool_maildrop_t:dir rw_dir_perms;
+allow postfix_pickup_t postfix_spool_maildrop_t:file r_file_perms;
+allow postfix_pickup_t postfix_spool_maildrop_t:file unlink;
+
+########################################
+#
+# Postfix pipe local policy
+#
+
+allow postfix_pipe_t self:fifo_file { read write };
+
+allow postfix_pipe_t postfix_private_t:dir search;
+allow postfix_pipe_t postfix_private_t:sock_file write;
+
+allow postfix_pipe_t postfix_spool_t:dir search;
+allow postfix_pipe_t postfix_spool_t:file rw_file_perms;
+
+ifdef(`TODO',`
+optional_policy(`procmail.te', `
+domain_auto_trans(postfix_pipe_t, procmail_exec_t, procmail_t)
+')
+') dnl end TODO
+
+########################################
+#
+# Postfix postdrop local policy
+#
+
+# usually it does not need a UDP socket
+allow postfix_postdrop_t self:capability sys_resource;
+allow postfix_postdrop_t self:tcp_socket create;
+allow postfix_postdrop_t self:udp_socket create_socket_perms;
+
+allow postfix_postdrop_t postfix_public_t:dir search;
+allow postfix_postdrop_t postfix_public_t:fifo_file rw_file_perms;
+
+allow postfix_postdrop_t postfix_spool_maildrop_t:dir rw_dir_perms;
+allow postfix_postdrop_t postfix_spool_maildrop_t:file create_file_perms;
+
+term_dontaudit_use_all_user_ptys(postfix_postdrop_t)
+term_dontaudit_use_all_user_ttys(postfix_postdrop_t)
+
+sysnet_dontaudit_read_config(postfix_postdrop_t)
+
+mta_rw_user_mail_stream_socket(postfix_postdrop_t)
+
+optional_policy(`crond.te',`
+	cron_use_fd(postfix_postdrop_t)
+	cron_rw_pipe(postfix_postdrop_t)
+	cron_use_system_job_fd(postfix_postdrop_t)
+	cron_rw_system_job_pipe(postfix_postdrop_t)
+')
+
+#######################################
+#
+# Postfix postqueue local policy
+#
+
+allow postfix_postqueue_t self:tcp_socket create;
+allow postfix_postqueue_t self:udp_socket { create ioctl };
+
+# wants to write to /var/spool/postfix/public/showq
+allow postfix_postqueue_t postfix_public_t:sock_file rw_file_perms;
+allow postfix_postqueue_t postfix_master_t:unix_stream_socket connectto;
+
+allow postfix_postqueue_t postfix_public_t:dir search;
+# write to /var/spool/postfix/public/qmgr
+allow postfix_postqueue_t postfix_public_t:fifo_file { getattr write };
+
+domain_auto_trans(postfix_master_t, postfix_postqueue_exec_t, postfix_postqueue_t)
+
+# to write the mailq output, it really should not need read access!
+term_use_all_user_ptys(postfix_showq_t)
+term_use_all_user_ttys(postfix_showq_t)
+
+init_sigchld_script(postfix_postqueue_t)
+init_use_script_fd(postfix_postqueue_t)
+
+sysnet_dontaudit_read_config(postfix_postqueue_t)
+
+ifdef(`TODO',`
+optional_policy(`gnome-pty-helper.te', `allow postfix_postqueue_t user_gph_t:fd use;')
+')
+
+########################################
+#
+# Postfix qmgr local policy
+#
+
+allow postfix_qmgr_t postfix_master_t:unix_stream_socket connectto;
+
+allow postfix_qmgr_t postfix_private_t:dir search;
+allow postfix_qmgr_t postfix_private_t:sock_file rw_file_perms;
+
+allow postfix_qmgr_t postfix_public_t:fifo_file rw_file_perms;
+allow postfix_qmgr_t postfix_public_t:sock_file write;
+
+# for /var/spool/postfix/active
+allow postfix_qmgr_t postfix_spool_t:dir create_dir_perms;
+allow postfix_qmgr_t postfix_spool_t:file create_file_perms;
+allow postfix_qmgr_t postfix_spool_t:lnk_file create_lnk_perms;
+
+allow postfix_qmgr_t postfix_spool_bounce_t:dir { getattr read search };
+allow postfix_qmgr_t postfix_spool_bounce_t:file { read getattr };
+allow postfix_qmgr_t postfix_spool_bounce_t:lnk_file { getattr read };
+
+########################################
+#
+# Postfix showq local policy
+#
+
+allow postfix_showq_t self:capability { setuid setgid };
+allow postfix_showq_t self:tcp_socket create_socket_perms;
+
+domain_auto_trans(postfix_postqueue_t, postfix_showq_exec_t, postfix_showq_t)
+# the following auto_trans is usually in postfix server domain
+domain_auto_trans(postfix_master_t, postfix_showq_exec_t, postfix_showq_t)
+
+allow postfix_showq_t postfix_master_t:unix_stream_socket { accept rw_socket_perms };
+
+allow postfix_showq_t postfix_spool_t:file r_file_perms;
+
+allow postfix_showq_t postfix_spool_maildrop_t:dir { getattr read search };
+allow postfix_showq_t postfix_spool_maildrop_t:file { read getattr };
+allow postfix_showq_t postfix_spool_maildrop_t:lnk_file { getattr read };
+
+term_use_all_user_ptys(postfix_showq_t)
+term_use_all_user_ttys(postfix_showq_t)
+
+sysnet_dns_name_resolve(postfix_showq_t)
+
+########################################
+#
+# Postfix smtp delivery local policy
+#
+
+# connect to master process
+allow postfix_smtp_t postfix_master_t:unix_stream_socket connectto;
+allow postfix_smtp_t { postfix_private_t postfix_public_t }:dir search;
+allow postfix_smtp_t { postfix_private_t postfix_public_t }:sock_file write;
+
+allow postfix_smtp_t postfix_spool_t:file rw_file_perms;
+
+kernel_tcp_recvfrom(postfix_smtp_t)
+
+# if you have two different mail servers on the same host let them talk via
+# SMTP, also if one mail server wants to talk to itself then allow it and let
+# the SMTP protocol sort it out (SE Linux is not to prevent mail server
+# misconfiguration)
+mta_tcp_connect_all_mailservers(postfix_smtp_t)
+
+########################################
+#
+# Postfix smtpd local policy
+#
+allow postfix_smtpd_t postfix_master_t:tcp_socket rw_stream_socket_perms;
+
+# connect to master process
+allow postfix_smtpd_t postfix_master_t:unix_stream_socket connectto;
+allow postfix_smtpd_t { postfix_private_t postfix_public_t }:dir search;
+allow postfix_smtpd_t { postfix_private_t postfix_public_t }:sock_file rw_file_perms;
+
+# for prng_exch
+allow postfix_smtpd_t postfix_spool_t:file rw_file_perms;
+allow { postfix_smtp_t postfix_smtpd_t } postfix_prng_t:file rw_file_perms;
+
+# for OpenSSL certificates
+files_read_usr_files(postfix_smtpd_t)
+mta_read_aliases(postfix_smtpd_t)
+
+optional_policy(`sasl.te',`
+	sasl_connect(postfix_smtpd_t)
+')

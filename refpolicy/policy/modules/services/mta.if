@@ -43,11 +43,11 @@ interface(`mta_stub',`
 #
 template(`mta_per_userdomain_template',`
 	gen_require(`
-		attribute mailserver_domain, mta_user_agent;
+		attribute mailserver_domain, mta_user_agent, user_mail_domain;
 		type sendmail_exec_t;
 	')
 
-	type $1_mail_t;
+	type $1_mail_t, user_mail_domain;
 	domain_type($1_mail_t)
 	role $3 types $1_mail_t;
 
@@ -126,6 +126,12 @@ template(`mta_per_userdomain_template',`
 
 	optional_policy(`nscd.te',`
 		nscd_use_socket($1_mail_t)
+	')
+
+	optional_policy(`postfix.te',`
+		allow $1_mail_t self:capability dac_override;
+		postfix_read_config($1_mail_t)
+		postfix_list_spool($1_mail_t)
 	')
 
 	ifdef(`TODO',`
@@ -376,7 +382,7 @@ interface(`mta_rw_aliases',`
 	')
 
 	files_search_etc($1)
-	allow sendmail_t etc_aliases_t:file { rw_file_perms setattr };
+	allow $1 etc_aliases_t:file { rw_file_perms setattr };
 ')
 
 #######################################
@@ -491,6 +497,24 @@ interface(`mta_append_spool',`
 ')
 
 #######################################
+## <summary>
+##	Delete from the mail spool.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mta_delete_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mail_spool_t:dir { list_dir_perms write remove_name };
+	allow $1 mail_spool_t:file unlink;
+')
+
+#######################################
 #
 # mta_manage_spool(domain)
 #
@@ -522,4 +546,38 @@ interface(`mta_manage_queue',`
 	files_search_spool($1)
 	allow $1 mqueue_spool_t:dir rw_dir_perms;
 	allow $1 mqueue_spool_t:file create_file_perms;
+')
+
+#######################################
+## <summary>
+##	Read sendmail binary.
+## </summmary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+# cjp: added for postfix
+interface(`mta_read_sendmail_bin',`
+	gen_require(`
+		type sendmail_exec_t;;
+	')
+
+	allow $1 sendmail_exec_t:file r_file_perms;
+')
+
+#######################################
+## <summary>
+##	Read and write unix domain stream sockets
+##	of user mail domains.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`mta_rw_user_mail_stream_socket',`
+	gen_require(`
+		attribute user_mail_domain;
+	')
+
+	allow $1 user_mail_domain:unix_stream_socket rw_socket_perms;
 ')
