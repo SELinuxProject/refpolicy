@@ -30,7 +30,7 @@
 # strict, targeted,
 # strict-mls, targeted-mls,
 # strict-mcs, targeted-mcs
-TYPE = strict
+TYPE = targeted-mcs
 
 # Policy Name
 # If set, this will be used as the policy
@@ -45,7 +45,7 @@ NAME = refpolicy
 # for the distribution.
 # redhat, gentoo, debian, and suse are current options.
 # Fedora users should enable redhat.
-#DISTRO = redhat
+DISTRO = redhat
 
 # Direct admin init
 # Setting this will allow sysadm to directly
@@ -53,7 +53,7 @@ NAME = refpolicy
 # This is a build option, as role transitions do
 # not work in conditional policy.
 # This option will be impled as y for redhat policies.
-DIRECT_INITRC=n
+DIRECT_INITRC=y
 
 # Build monolithic policy.  Putting n here
 # will build a loadable module policy.
