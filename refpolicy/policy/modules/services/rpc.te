@@ -1,0 +1,143 @@
+
+policy_module(rpc,1.0)
+
+########################################
+#
+# Declarations
+#
+
+type exports_t;
+files_type(exports_t)
+
+rpc_domain_template(gssd)
+
+type gssd_tmp_t;
+files_tmp_file(gssd_tmp_t)
+
+type rpc_var_run_t;
+files_pid_file(rpc_var_run_t)
+
+# rpc_t is the domain of rpc daemons.
+# rpc_exec_t is the type of rpc daemon programs.
+rpc_domain_template(rpc)
+
+rpc_domain_template(nfsd)
+
+type nfsd_rw_t;
+files_type(nfsd_rw_t)
+
+type nfsd_ro_t;
+files_type(nfsd_ro_t)
+
+type var_lib_nfs_t;
+files_type(var_lib_nfs_t)
+
+########################################
+#
+# RPC local policy
+#
+
+allow rpc_t self:fifo_file rw_file_perms;
+allow rpc_t self:file { getattr read };
+
+dontaudit userdomain exports_t:file getattr;
+allow rpc_t rpc_var_run_t:file create_file_perms;
+allow rpc_t rpc_var_run_t:dir create_dir_perms;
+allow rpc_t rpc_var_run_t:dir setattr;
+files_create_pid(rpc_t,rpc_var_run_t)
+
+kernel_search_network_state(rpc_t) 
+# for rpc.rquotad
+kernel_read_sysctl(rpc_t)  
+
+fs_read_rpc_dirs(rpc_t) 
+fs_read_rpc_files(rpc_t) 
+fs_read_rpc_symlinks(rpc_t) 
+fs_read_rpc_sockets(rpc_t) 
+term_use_controlling_term(rpc_t) 
+
+seutil_dontaudit_search_config(rpc_t)
+
+# rpc_t needs to talk to the portmap_t domain
+portmap_udp_sendrecv(rpc_t) 
+
+ifdef(`distro_redhat', `
+	allow rpc_t self:capability { chown dac_override setgid setuid };
+')
+
+########################################
+#
+# NFSD local policy
+#
+
+allow nfsd_t self:capability { sys_admin sys_resource };
+
+allow nfsd_t exports_t:file { getattr read };
+allow nfsd_t { nfsd_rw_t nfsd_ro_t }:dir r_dir_perms;
+
+# for /proc/fs/nfs/exports - should we have a new type?
+kernel_read_system_state(nfsd_t) 
+kernel_read_network_state(nfsd_t) 
+kernel_udp_sendfrom(nfsd_t)	
+kernel_tcp_recvfrom(nfsd_t) 
+				
+fs_mount_nfsd_fs(nfsd_t) 
+fs_search_nfsd_fs(nfsd_t) 
+fs_getattr_all_fs(nfsd_t) 
+fs_rw_nfsd_fs(nfsd_t) 
+
+term_use_controlling_term(nfsd_t) 
+
+# does not really need this, but it is easier to just allow it
+files_search_pids(nfsd_t) 
+# for exportfs and rpc.mountd
+files_getattr_tmp_dir(nfsd_t) 
+
+portmap_tcp_connect(nfsd_t) 
+portmap_udp_sendrecv(nfsd_t)	
+				
+tunable_policy(`nfs_export_all_rw',`
+	auth_read_all_dirs_except_shadow(nfsd_t) 
+	fs_read_noxattr_fs_files(nfsd_t) 
+')
+
+tunable_policy(`nfs_export_all_ro',`
+	auth_read_all_dirs_except_shadow(nfsd_t) 
+	fs_read_noxattr_fs_files(nfsd_t) 
+')
+
+########################################
+#
+# GSSD local policy
+#
+
+allow gssd_t self:capability { dac_override dac_read_search setuid };
+allow gssd_t self:fifo_file { read write };
+
+allow gssd_t gssd_tmp_t:dir create_dir_perms;
+allow gssd_t gssd_tmp_t:file create_file_perms;
+files_create_tmp_files(gssd_t, gssd_tmp_t, { file dir })
+
+kernel_read_network_state(gssd_t)
+kernel_read_network_state_symlinks(gssd_t)	
+
+dev_read_urand(gssd_t)
+
+fs_read_rpc_dirs(gssd_t) 
+fs_read_rpc_sockets(gssd_t) 
+fs_read_rpc_files(gssd_t) 
+
+files_read_tmp(gssd_t) 
+files_read_tmp_files(gssd_t) 
+files_read_tmp_symlinks(gssd_t) 
+
+tunable_policy(`allow_gssd_read_tmp',`
+	userdom_list_unpriv_user_tmp(gssd_t) 
+	userdom_read_unpriv_user_tmp_files(gssd_t) 
+	userdom_read_unpriv_user_tmp_symlinks(gssd_t) 
+')
+
+optional_policy(`kerberos.te',`
+	kerberos_use(gssd_t)
+	kerberos_read_keytab(gssd_t) 
+')

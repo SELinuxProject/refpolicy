@@ -1,0 +1,263 @@
+## <summary>Remote Procedure Call Daemon for managment of network based process communication</summary>
+
+#######################################
+## <summary>
+##	The template to define a rpc domain.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a domain to be used for
+##	a new rpc daemon.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The type of daemon to be used.
+## </param>
+#
+template(`rpc_domain_template', `
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_t;
+	type $1_exec_t;
+	init_daemon_domain($1_t,$1_exec_t)
+	domain_use_wide_inherit_fd($1_t)
+
+	####################################
+	#
+	# Local Policy
+	#
+
+	dontaudit $1_t self:capability { net_admin sys_tty_config };
+	allow $1_t self:capability net_bind_service;
+	allow $1_t self:process signal_perms;
+	allow $1_t self:unix_dgram_socket create_socket_perms;
+	allow $1_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_t self:netlink_route_socket r_netlink_socket_perms;
+	allow $1_t self:tcp_socket create_stream_socket_perms;
+	allow $1_t self:udp_socket create_socket_perms;
+
+	allow $1_t var_lib_nfs_t:dir create_dir_perms;
+	allow $1_t var_lib_nfs_t:file create_file_perms;
+
+	kernel_list_proc($1_t)
+	kernel_read_proc_symlinks($1_t)
+	kernel_read_kernel_sysctl($1_t)
+	# bind to arbitary unused ports
+	kernel_rw_rpc_sysctl($1_t)
+
+	dev_read_sysfs($1_t)
+
+	corenet_tcp_sendrecv_all_if($1_t)
+	corenet_udp_sendrecv_all_if($1_t)
+	corenet_raw_sendrecv_all_if($1_t)
+	corenet_tcp_sendrecv_all_nodes($1_t)
+	corenet_udp_sendrecv_all_nodes($1_t)
+	corenet_raw_sendrecv_all_nodes($1_t)
+	corenet_tcp_sendrecv_all_ports($1_t)
+	corenet_udp_sendrecv_all_ports($1_t)
+	corenet_tcp_bind_all_nodes($1_t)
+	corenet_udp_bind_all_nodes($1_t)
+	corenet_tcp_bind_reserved_port($1_t)
+	corenet_tcp_bind_reserved_port($1_t)
+	corenet_tcp_connect_all_ports($1_t)
+	# do not log when it tries to bind to a port belonging to another domain
+	corenet_dontaudit_tcp_bind_all_reserved_ports($1_t)
+	corenet_dontaudit_udp_bind_all_reserved_ports($1_t)
+	# bind to arbitary unused ports
+	corenet_tcp_bind_generic_port($1_t)
+
+	fs_search_auto_mountpoints($1_t)
+
+	term_dontaudit_use_console($1_t)
+
+	files_read_etc_files($1_t)
+	files_read_etc_runtime_files($1_t)
+	files_search_var($1_t)
+	files_search_var_lib_dir($1_t)
+
+	init_use_fd($1_t)
+	init_use_script_pty($1_t)
+
+	libs_use_ld_so($1_t)
+	libs_use_shared_libs($1_t)
+
+	logging_send_syslog_msg($1_t)
+
+	miscfiles_read_localization($1_t)
+
+	sysnet_read_config($1_t)
+
+	userdom_dontaudit_use_unpriv_user_fd($1_t)
+
+	ifdef(`targeted_policy',`
+		term_dontaudit_use_unallocated_tty($1_t)
+		term_dontaudit_use_generic_pty($1_t)
+		files_dontaudit_read_root_file($1_t)
+	')
+
+	optional_policy(`mount.te',`
+		mount_send_nfs_client_request($1_t)
+	')
+
+	optional_policy(`nis.te',`
+		nis_use_ypbind($1_t)
+	')
+
+	optional_policy(`selinuxutil.te',`
+		seutil_sigchld_newrole($1_t)
+	')
+
+	optional_policy(`udev.te', `
+		udev_read_db($1_t)
+	')
+
+	ifdef(`TODO',`
+		optional_policy(`rhgb.te',`
+			rhgb_domain($1_t)
+		')
+	')
+')
+
+########################################
+## <summary>
+##      Send UDP network traffic to rpc and recieve UDP traffic from rpc.
+## </summary>
+## <param name="domain">
+##      The type of the process performing this action.
+## </param>
+#
+interface(`rpc_udp_sendto',`
+	gen_require(`
+		type rpc_t;
+	')
+
+	allow $1 rpc_t:udp_socket sendto;
+	allow rpc_t $1:udp_socket recvfrom;
+')
+
+########################################
+## <summary>
+##      Allow read access to exports.
+## </summary>
+## <param name="domain">
+##      The type of the process performing this action.
+## </param>
+#
+interface(`rpc_read_exports',`
+	gen_require(`
+		type exports_t;
+	')
+
+	allow $1 exports_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##      Allow write access to exports.
+## </summary>
+## <param name="domain">
+##      The type of the process performing this action.
+## </param>
+#
+interface(`rpc_write_exports',`
+	gen_require(`
+		type exports_t;
+	')
+
+	allow $1 exports_t:file write;
+')
+
+########################################
+## <summary>
+##      Execute domain in nfsd domain.
+## </summary>
+## <param name="domain">
+##      The type of the process performing this action.
+## </param>
+#
+interface(`rpc_domtrans_nfsd',`
+	gen_require(`
+		type nfsd_t, nfsd_exec_t;
+	')
+
+	domain_auto_trans($1,nfsd_exec_t,nfsd_t)
+
+	allow $1 nfsd_t:fd use;
+	allow nfsd_t $1:fd use;
+	allow nfsd_t $1:fifo_file rw_file_perms;
+	allow nfsd_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##      Allow domain to create read and write NFS directories.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`rpc_manage_nfs_rw_content',`
+	gen_require(`
+		type nfsd_rw_t;	
+	')
+
+	allow $1 nfsd_rw_t:dir manage_dir_perms;
+	allow $1 nfsd_rw_t:file manage_file_perms;
+	allow $1 nfsd_rw_t:lnk_file create_lnk_perms;
+')
+
+########################################
+## <summary>
+##      Allow domain to create read and write NFS directories.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`rpc_manage_nfs_ro_content',`
+	gen_require(`
+		type nfsd_ro_t;	
+	')
+
+	allow $1 nfsd_ro_t:dir manage_dir_perms;
+	allow $1 nfsd_ro_t:file manage_file_perms;
+	allow $1 nfsd_ro_t:lnk_file create_lnk_perms;
+')
+
+########################################
+## <summary>
+##      Allow domain to read and write to an NFS UDP socket.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`rpc_udp_rw_nfs_sockets',`
+	gen_require(`
+		type nfsd_t;	
+	')
+
+	allow $1 nfsd_t:udp_socket rw_socket_perms;
+
+')
+
+########################################
+## <summary>
+##      Allow NFS to send UDP network traffic
+##      the specified domain and recieve from it.
+## </summary>
+## <param name="domain">
+##      The type of the receiving domain.
+## </param>
+#
+interface(`rpc_udp_sendto_nfs',`
+	gen_require(`
+		type nfsd_t;
+	')
+
+	allow nfsd_t $1:udp_socket sendto;
+	allow $1 nfsd_t:udp_socket recvfrom;
+')
