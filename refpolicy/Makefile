@@ -159,6 +159,8 @@ ifeq ($(DIRECT_INITRC),y)
 	override M4PARAM += -D direct_sysadm_daemon
 endif
 
+override M4PARAM += -D hide_broken_symptoms
+
 # determine the policy version and current kernel version if possible
 PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
 KV := $(shell cat /selinux/policyvers)
