@@ -21,11 +21,11 @@ gen_require(`
 ')
 init_daemon_domain(cupsd_t,cupsd_exec_t)
 
-type cupsd_etc_t; #, usercanread;
-files_type(cupsd_etc_t)
+type cupsd_etc_t;
+files_config_file(cupsd_etc_t)
 
-type cupsd_rw_etc_t; #, usercanread;
-files_type(cupsd_rw_etc_t)
+type cupsd_rw_etc_t;
+files_config_file(cupsd_rw_etc_t)
 
 type cupsd_log_t;
 logging_log_file(cupsd_log_t)
@@ -51,8 +51,8 @@ type hplip_t;
 type hplip_exec_t;
 init_daemon_domain(hplip_t,hplip_exec_t)
 
-type hplip_etc_t; #, usercanread;
-files_type(hplip_etc_t)
+type hplip_etc_t;
+files_config_file(hplip_etc_t)
 
 type hplip_var_run_t;
 files_pid_file(hplip_var_run_t)
@@ -61,8 +61,8 @@ type ptal_t;
 type ptal_exec_t;
 init_daemon_domain(ptal_t,ptal_exec_t)
 
-type ptal_etc_t; #, usercanread;
-files_type(ptal_etc_t)
+type ptal_etc_t;
+files_config_file(ptal_etc_t)
 
 type ptal_var_run_t;
 files_pid_file(ptal_var_run_t)
@@ -74,8 +74,8 @@ files_pid_file(ptal_var_run_t)
 
 # /usr/lib/cups/backend/serial needs sys_admin(?!)
 allow cupsd_t self:capability { sys_admin dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_tty_config audit_write };
-dontaudit cupsd_t self:capability net_admin;
-allow cupsd_t self:process setsched;
+dontaudit cupsd_t self:capability { sys_tty_config net_admin };
+allow cupsd_t self:process { setsched signal_perms };
 allow cupsd_t self:fifo_file rw_file_perms;
 allow cupsd_t self:unix_stream_socket create_socket_perms;
 allow cupsd_t self:unix_dgram_socket create_socket_perms;
@@ -85,7 +85,7 @@ allow cupsd_t self:tcp_socket { create_stream_socket_perms connectto acceptfrom 
 allow cupsd_t self:udp_socket create_socket_perms;
 
 allow cupsd_t cupsd_etc_t:file { r_file_perms setattr };
-allow cupsd_t cupsd_etc_t:dir { r_dir_perms setattr };
+allow cupsd_t cupsd_etc_t:dir { rw_dir_perms setattr };
 allow cupsd_t cupsd_etc_t:lnk_file { getattr read };
 files_search_etc(cupsd_t)
 
@@ -100,7 +100,7 @@ allow cupsd_t cupsd_exec_t:dir search;
 allow cupsd_t cupsd_exec_t:lnk_file read;
 
 allow cupsd_t cupsd_log_t:file create_file_perms;
-allow cupsd_t cupsd_log_t:dir rw_dir_perms;
+allow cupsd_t cupsd_log_t:dir { setattr rw_dir_perms };
 logging_create_log(cupsd_t,cupsd_log_t,{ file dir })
 
 allow cupsd_t cupsd_tmp_t:dir create_dir_perms;
@@ -232,13 +232,11 @@ allow web_client_domain cupsd_t:tcp_socket { connectto recvfrom };
 allow cupsd_t web_client_domain:tcp_socket { acceptfrom recvfrom };
 allow cupsd_t kernel_t:tcp_socket recvfrom;
 allow web_client_domain kernel_t:tcp_socket recvfrom;
-
-allow cupsd_t usercanread:dir { getattr read search };
-allow cupsd_t usercanread:file { read getattr };
-allow cupsd_t usercanread:lnk_file { getattr read };
 ') dnl end TODO
 
-
+allow cupsd_t usercanread:dir r_dir_perms;
+allow cupsd_t usercanread:file r_file_perms;
+allow cupsd_t usercanread:lnk_file { getattr read };
 
 allow cupsd_t devpts_t:dir search;
 
@@ -279,7 +277,7 @@ allow cupsd_t portmap_t:udp_socket recvfrom;
 #
 allow initrc_t cupsd_log_t:file { getattr read };
 allow cupsd_t var_t:dir { getattr read search };
-allow cupsd_t var_t:file { read getattr };
+allow cupsd_t var_t:file r_file_perms;
 allow cupsd_t var_t:lnk_file { getattr read };
 
 optional_policy(`samba.te', `
@@ -506,6 +504,7 @@ allow hplip_t devpts_t:chr_file { getattr ioctl };
 #
 
 allow cupsd_config_t self:capability { chown sys_tty_config };
+allow cupsd_config_t self:process signal_perms;
 allow cupsd_config_t self:fifo_file rw_file_perms;
 allow cupsd_config_t self:unix_stream_socket create_socket_perms;
 allow cupsd_config_t self:unix_dgram_socket create_socket_perms;
@@ -699,8 +698,8 @@ optional_policy(`kerberos.te',`
 ')
 #end for identd
 
-allow cupsd_lpd_t cupsd_etc_t:dir { getattr read search };
-allow cupsd_lpd_t cupsd_etc_t:file { read getattr };
+allow cupsd_lpd_t cupsd_etc_t:dir list_dir_perms;
+allow cupsd_lpd_t cupsd_etc_t:file r_file_perms;
 allow cupsd_lpd_t cupsd_etc_t:lnk_file { getattr read };
 
 allow cupsd_lpd_t cupsd_lpd_tmp_t:dir create_dir_perms;
@@ -711,7 +710,7 @@ allow cupsd_lpd_t cupsd_lpd_var_run_t:file create_file_perms;
 allow cupsd_lpd_t cupsd_lpd_var_run_t:dir rw_dir_perms;
 files_create_pid(cupsd_lpd_t,cupsd_lpd_var_run_t)
 
-allow cupsd_lpd_t cupsd_rw_etc_t:dir { getattr read search };
+allow cupsd_lpd_t cupsd_rw_etc_t:dir list_dir_perms;
 allow cupsd_lpd_t cupsd_rw_etc_t:file { read getattr };
 allow cupsd_lpd_t cupsd_rw_etc_t:lnk_file { getattr read };
 
