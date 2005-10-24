@@ -1,5 +1,96 @@
 ## <summary>Run shells with substitute user and group</summary>
 
+template(`su_restricted_domain_template', `
+	gen_require(`
+		type su_exec_t;
+	')
+
+	type $1_su_t;
+	domain_entry_file($1_su_t,su_exec_t)
+	domain_type($1_su_t)
+	domain_role_change_exempt($1_su_t)
+	domain_subj_id_change_exempt($1_su_t)
+	domain_obj_id_change_exempt($1_su_t)
+	domain_wide_inherit_fd($1_su_t)
+	role $3 types $1_su_t;
+
+	allow $2 $1_su_t:process signal;
+
+	allow $1_su_t self:capability { audit_control audit_write setuid setgid net_bind_service chown dac_override fowner sys_nice sys_resource };
+	dontaudit $1_su_t self:capability sys_tty_config;
+	allow $1_su_t self:process { setexec setsched setrlimit };
+	allow $1_su_t self:fifo_file rw_file_perms;
+	allow $1_su_t self:netlink_audit_socket { nlmsg_relay create_netlink_socket_perms };
+
+	# Transition from the user domain to this domain.
+	domain_auto_trans($2, su_exec_t, $1_su_t)
+	allow $2 $1_su_t:fd use;
+	allow $1_su_t $2:fd use;
+	allow $1_su_t $2:fifo_file rw_file_perms;
+	allow $1_su_t $2:process sigchld;
+
+	# By default, revert to the calling domain when a shell is executed.
+	corecmd_shell_domtrans($1_su_t,$2)
+	allow $2 $1_su_t:fd use;
+	allow $1_su_t $2:fd use;
+	allow $1_su_t $2:fifo_file rw_file_perms;
+	allow $1_su_t $2:process sigchld;
+
+	kernel_read_system_state($1_su_t)
+	kernel_read_kernel_sysctl($1_su_t)
+
+	# for SSP
+	dev_read_urand($1_su_t)
+
+	selinux_get_fs_mount($1_su_t)
+	selinux_validate_context($1_su_t)
+	selinux_compute_access_vector($1_su_t)
+	selinux_compute_create_context($1_su_t)
+	selinux_compute_relabel_context($1_su_t)
+	selinux_compute_user_contexts($1_su_t)
+
+	auth_domtrans_chk_passwd($1_su_t)
+	auth_dontaudit_read_shadow($1_su_t)
+	auth_use_nsswitch($1_su_t)
+
+	domain_wide_inherit_fd($1_su_t)
+
+	files_read_etc_files($1_su_t)
+
+	# Write to utmp.
+	init_rw_script_pid($1_su_t)
+
+	libs_use_ld_so($1_su_t)
+	libs_use_shared_libs($1_su_t)
+
+	logging_send_syslog_msg($1_su_t)
+
+	miscfiles_read_localization($1_su_t)
+
+	seutil_read_config($1_su_t)
+	seutil_read_default_contexts($1_su_t)
+
+	# Only allow transitions to unprivileged user domains.
+	userdom_spec_domtrans_unpriv_users($1_su_t)
+
+	optional_policy(`crond.te',`
+		cron_read_pipe($1_su_t)
+	')
+
+	optional_policy(`kerberos.te',`
+		kerberos_use($1_su_t)
+	')
+
+	optional_policy(`nscd.te',`
+		nscd_use_socket($1_su_t)
+	')
+
+	ifdef(`TODO',`
+	# Caused by su - init scripts
+	dontaudit $1_su_t initrc_devpts_t:chr_file { getattr ioctl };
+	') dnl end TODO
+')
+
 #######################################
 ## <summary>
 ##	The per user domain template for the su module.
