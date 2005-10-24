@@ -109,6 +109,9 @@ allow postfix_master_t postfix_public_t:dir rw_dir_perms;
 allow postfix_master_t postfix_spool_t:dir create_dir_perms;
 allow postfix_master_t postfix_spool_t:file create_file_perms;
 
+allow postfix_master_t postfix_spool_bounce_t:dir manage_dir_perms;
+allow postfix_master_t postfix_spool_bounce_t:file getattr;
+
 allow postfix_master_t postfix_spool_flush_t:dir create_dir_perms;
 allow postfix_master_t postfix_spool_flush_t:file create_file_perms;
 allow postfix_master_t postfix_spool_flush_t:lnk_file create_lnk_perms;
@@ -357,6 +360,8 @@ files_dontaudit_search_var(postfix_map_t)
 libs_use_ld_so(postfix_map_t)
 libs_use_shared_libs(postfix_map_t)
 
+logging_send_syslog_msg(postfix_map_t)
+
 miscfiles_read_localization(postfix_map_t)
 
 seutil_read_config(postfix_map_t)
@@ -464,10 +469,16 @@ allow postfix_postqueue_t postfix_public_t:dir search;
 allow postfix_postqueue_t postfix_public_t:fifo_file { getattr write };
 
 domain_auto_trans(postfix_master_t, postfix_postqueue_exec_t, postfix_postqueue_t)
+allow postfix_master_t postfix_postqueue_t:fd use;
+allow postfix_postqueue_t postfix_master_t:fd use;
+allow postfix_postqueue_t postfix_master_t:fifo_file rw_file_perms;
+allow postfix_postqueue_t postfix_master_t:process sigchld;
 
-# to write the mailq output, it really should not need read access!
-term_use_all_user_ptys(postfix_showq_t)
-term_use_all_user_ttys(postfix_showq_t)
+domain_auto_trans(postfix_postqueue_t, postfix_showq_exec_t, postfix_showq_t)
+allow postfix_postqueue_t postfix_showq_t:fd use;
+allow postfix_showq_t postfix_postqueue_t:fd use;
+allow postfix_showq_t postfix_postqueue_t:fifo_file rw_file_perms;
+allow postfix_showq_t postfix_postqueue_t:process sigchld;
 
 init_sigchld_script(postfix_postqueue_t)
 init_use_script_fd(postfix_postqueue_t)
@@ -508,9 +519,12 @@ allow postfix_qmgr_t postfix_spool_bounce_t:lnk_file { getattr read };
 allow postfix_showq_t self:capability { setuid setgid };
 allow postfix_showq_t self:tcp_socket create_socket_perms;
 
-domain_auto_trans(postfix_postqueue_t, postfix_showq_exec_t, postfix_showq_t)
 # the following auto_trans is usually in postfix server domain
 domain_auto_trans(postfix_master_t, postfix_showq_exec_t, postfix_showq_t)
+allow postfix_master_t postfix_showq_t:fd use;
+allow postfix_showq_t postfix_master_t:fd use;
+allow postfix_showq_t postfix_master_t:fifo_file rw_file_perms;
+allow postfix_showq_t postfix_master_t:process sigchld;
 
 allow postfix_showq_t postfix_master_t:unix_stream_socket { accept rw_socket_perms };
 
@@ -520,6 +534,7 @@ allow postfix_showq_t postfix_spool_maildrop_t:dir { getattr read search };
 allow postfix_showq_t postfix_spool_maildrop_t:file { read getattr };
 allow postfix_showq_t postfix_spool_maildrop_t:lnk_file { getattr read };
 
+# to write the mailq output, it really should not need read access!
 term_use_all_user_ptys(postfix_showq_t)
 term_use_all_user_ttys(postfix_showq_t)
 
