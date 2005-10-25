@@ -30,11 +30,13 @@ files_pid_file(zebra_var_run_t)
 allow zebra_t self:capability { setgid setuid net_admin net_raw };
 dontaudit zebra_t self:capability sys_tty_config;
 allow zebra_t self:process setcap;
+allow zebra_t self:file { ioctl read write getattr lock append };
 allow zebra_t self:unix_dgram_socket create_socket_perms;
 allow zebra_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow zebra_t self:netlink_route_socket r_netlink_socket_perms;
 allow zebra_t self:tcp_socket create_stream_socket_perms;
 allow zebra_t self:rawip_socket create_socket_perms;
+allow zebra_t self:capability net_bind_service;
 
 allow zebra_t zebra_conf_t:dir r_dir_perms;
 allow zebra_t zebra_conf_t:file r_file_perms;
@@ -50,10 +52,11 @@ allow zebra_t zebra_tmp_t:sock_file create_file_perms;
 files_create_tmp_files(zebra_t,zebra_tmp_t,sock_file)
 
 allow zebra_t zebra_var_run_t:file create_file_perms;
-files_create_pid(zebra_t,zebra_var_run_t)
+files_create_pid(zebra_t,zebra_var_run_t, { file sock_file })
 
 kernel_read_system_state(zebra_t)
 kernel_read_kernel_sysctl(zebra_t)
+kernel_tcp_recvfrom(zebra_t)
 kernel_rw_net_sysctl(zebra_t)
 
 corenet_tcp_sendrecv_all_if(zebra_t)
@@ -67,16 +70,24 @@ corenet_udp_sendrecv_all_ports(zebra_t)
 corenet_tcp_bind_all_nodes(zebra_t)
 corenet_udp_bind_all_nodes(zebra_t)
 corenet_tcp_bind_zebra_port(zebra_t)
+corenet_tcp_bind_all_reserved_ports(zebra_t)
+corenet_tcp_connect_all_reserved_ports(zebra_t)
 
+dev_associate_usbfs(zebra_var_run_t)
+dev_list_all_dev_nodes(zebra_t)
 dev_read_sysfs(zebra_t)
+dev_read_sysfs(zebra_tmp_t)
+dev_rw_zero_dev(zebra_t)
 
 fs_getattr_all_fs(zebra_t)
 fs_search_auto_mountpoints(zebra_t)
 
 term_dontaudit_use_console(zebra_t)
+term_list_ptys(zebra_t)
 
 domain_use_wide_inherit_fd(zebra_t)
 
+files_search_etc(zebra_t)
 files_read_etc_files(zebra_t)
 files_read_etc_runtime_files(zebra_t)
 
@@ -99,10 +110,19 @@ ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(zebra_t)
 	term_dontaudit_use_generic_pty(zebra_t)
 	files_dontaudit_read_root_file(zebra_t)
+	unconfined_sigchld(zebra_t)
+')
+
+optional_policy(`ldap.te',`
+	ldap_use(zebra_t)
 ')
 
 optional_policy(`nis.te',`
 	nis_use_ypbind(zebra_t)
+')
+
+optional_policy(`zebra.te',`
+	rpm_read_pipe(zebra_t)
 ')
 
 optional_policy(`selinuxutil.te',`
