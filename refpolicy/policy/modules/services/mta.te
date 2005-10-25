@@ -28,7 +28,7 @@ files_type(mail_spool_t)
 type sendmail_exec_t;
 files_type(sendmail_exec_t)
 
-type system_mail_t;
+type system_mail_t, user_mail_domain;
 domain_type(system_mail_t)
 domain_entry_file(system_mail_t,sendmail_exec_t)
 role system_r types system_mail_t;
@@ -106,6 +106,16 @@ ifdef(`targeted_policy',`
 	allow system_mail_t mqueue_spool_t:dir create_dir_perms;
 	allow system_mail_t mqueue_spool_t:file create_file_perms;
 	allow system_mail_t mqueue_spool_t:lnk_file create_lnk_perms;
+
+	# for reading .forward - maybe we need a new type for it?
+	# also for delivering mail to maildir
+	# cjp: fix this to generic_user interfaces
+	userdom_manage_user_home_subdirs(user,mailserver_delivery)
+	userdom_manage_user_home_subdir_files(user,mailserver_delivery)
+	userdom_manage_user_home_subdir_symlinks(user,mailserver_delivery)
+	userdom_manage_user_home_subdir_pipes(user,mailserver_delivery)
+	userdom_manage_user_home_subdir_sockets(user,mailserver_delivery)
+	userdom_create_user_home(user,mailserver_delivery,{ dir file lnk_file fifo_file sock_file })
 
 # cjp: another require-in-else to resolve
 #	optional_policy(`postfix.te',`',`
@@ -201,9 +211,6 @@ ifdef(`targeted_policy',`
 	r_dir_file(sysadm_mail_t, user_home_type)
 ')
 
-allow system_mail_t privmail:fd use;
-allow system_mail_t privmail:process sigchld;
-allow system_mail_t privmail:fifo_file { read write };
 
 optional_policy(`qmail.te',`
 	allow system_mail_t qmail_etc_t:dir search;

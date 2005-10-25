@@ -66,6 +66,7 @@ template(`postfix_domain_template',`
 
 	files_read_etc_files(postfix_$1_t)
 	files_read_etc_runtime_files(postfix_$1_t)
+	files_read_usr_symlinks(postfix_$1_t)
 	files_search_spool(postfix_$1_t)
 	files_getattr_tmp_dir(postfix_$1_t)
 
@@ -172,6 +173,52 @@ interface(`postfix_read_config',`
 	allow $1 postfix_etc_t:file { read getattr };
 	allow $1 postfix_etc_t:lnk_file { getattr read };
 	files_search_etc($1)
+')
+
+########################################
+## <summary>
+##	Execute postfix_map in the postfix_map domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`postfix_domtrans_map',`
+	gen_require(`
+		type postfix_map_t, postfix_map_exec_t;
+	')
+
+	domain_auto_trans($1,postfix_map_exec_t,postfix_map_t)
+
+	allow $1 postfix_map_t:fd use;
+	allow postfix_map_t $1:fd use;
+	allow postfix_map_t $1:fifo_file rw_file_perms;
+	allow postfix_map_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute postfix_map in the postfix_map domain, and
+##	allow the specified role the postfix_map domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="role">
+##	The role to be allowed the postfix_map domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the postfix_map domain to use.
+## </param>
+#
+interface(`postfix_run_map',`
+	gen_require(`
+		type postfix_map_t;
+	')
+
+	postfix_domtrans_map($1)
+	role $2 types postfix_map_t;
+	allow postfix_map_t $3:chr_file rw_term_perms;
 ')
 
 ########################################

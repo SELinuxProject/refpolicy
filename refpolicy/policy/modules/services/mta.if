@@ -114,6 +114,17 @@ template(`mta_per_userdomain_template',`
 	userdom_use_user_terminals($1,$1_mail_t)
 	# Write to the user domain tty. cjp: why?
 	userdom_use_user_terminals($1,mta_user_agent)
+	# Create dead.letter in user home directories.
+	userdom_manage_user_home_subdir_files($1,$1_mail_t)
+	userdom_create_user_home($1,$1_mail_t,file)
+	# for reading .forward - maybe we need a new type for it?
+	# also for delivering mail to maildir
+	userdom_manage_user_home_subdirs($1,mailserver_delivery)
+	userdom_manage_user_home_subdir_files($1,mailserver_delivery)
+	userdom_manage_user_home_subdir_symlinks($1,mailserver_delivery)
+	userdom_manage_user_home_subdir_pipes($1,mailserver_delivery)
+	userdom_manage_user_home_subdir_sockets($1,mailserver_delivery)
+	userdom_create_user_home($1,mailserver_delivery,{ dir file lnk_file fifo_file sock_file })
 
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_mail_t)
@@ -153,15 +164,9 @@ template(`mta_per_userdomain_template',`
 	# Inherit and use descriptors from gnome-pty-helper.
 	ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')
 
-	# Create dead.letter in user home directories.
-	file_type_auto_trans($1_mail_t, $1_home_dir_t, $1_home_t, file)
 	# if you do not want to allow dead.letter then use the following instead
 	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
 	#allow $1_mail_t $1_home_t:file r_file_perms;
-
-	# for reading .forward - maybe we need a new type for it?
-	# also for delivering mail to maildir
-	file_type_auto_trans(mailserver_delivery, $1_home_dir_t, $1_home_t)
 
 	ifdef(`qmail.te', `
 		allow $1_mail_t qmail_etc_t:dir search;
@@ -254,9 +259,14 @@ interface(`mta_mailserver_sender',`
 interface(`mta_mailserver_delivery',`
 	gen_require(`
 		attribute mailserver_delivery;
+		type mail_spool_t;
 	')
 
 	typeattribute $1 mailserver_delivery;
+
+	allow $1 mail_spool_t:dir ra_dir_perms;
+	allow $1 mail_spool_t:file { create ioctl read getattr lock append };
+	allow $1 mail_spool_t:lnk_file { create read getattr };
 
 	optional_policy(`dovecot.te',`
 		dovecot_manage_spool($1)
@@ -301,11 +311,8 @@ interface(`mta_mailserver_user_agent',`
 #
 interface(`mta_send_mail',`
 	gen_require(`
+		attribute mta_user_agent;
 		type system_mail_t, sendmail_exec_t;
-		class lnk_file r_file_perms;
-		class process sigchld;
-		class fd use;
-		class fifo_file rw_file_perms;
 	')
 
 	allow $1 sendmail_exec_t:lnk_file r_file_perms;
@@ -316,11 +323,9 @@ interface(`mta_send_mail',`
 	allow system_mail_t $1:fifo_file rw_file_perms;
 	allow system_mail_t $1:process sigchld;
 
-	ifdef(`TODO',`
 	allow mta_user_agent $1:fd use;
 	allow mta_user_agent $1:process sigchld;
 	allow mta_user_agent $1:fifo_file { read write };
-	')
 ')
 
 #######################################
