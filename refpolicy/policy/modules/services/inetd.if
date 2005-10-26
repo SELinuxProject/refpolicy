@@ -32,15 +32,18 @@ interface(`inetd_core_service_domain',`
 
 	role system_r types $1;
 
-	allow inetd_t $1:process sigkill;
-
 	ifdef(`targeted_policy',`
 		# this regex is a hack, since it assumes there is a
 		# _t at the end of the domain type.  If there is no _t
 		# at the end of the type, it returns empty!
 		bool regexp($1, `\(\w+\)_t', `\1_disable_trans') false;
 		if(regexp($1, `\(\w+\)_t', `\1_disable_trans') ) {
-			can_exec(inetd_t,$2)
+#			can_exec(inetd_t,$2)
+			# cjp: this must be wrong
+			gen_require(`
+				type initrc_t, unconfined_t;
+			')
+			can_exec({ unconfined_t initrc_t },$2)
 		} else {
 			domain_auto_trans(inetd_t,$2,$1)
 			allow inetd_t $1:fd use;
@@ -48,6 +51,8 @@ interface(`inetd_core_service_domain',`
 			allow $1 inetd_t:fifo_file rw_file_perms;
 			allow $1 inetd_t:process sigchld;
 			dontaudit inetd_t $1:process { noatsecure siginh rlimitinh };
+
+			allow inetd_t $1:process sigkill;
 
 			# make sediff happy
 			allow $1 $2:file { rx_file_perms entrypoint };
@@ -59,6 +64,8 @@ interface(`inetd_core_service_domain',`
 		allow $1 inetd_t:fifo_file rw_file_perms;
 		allow $1 inetd_t:process sigchld;
 		dontaudit inetd_t $1:process { noatsecure siginh rlimitinh };
+
+		allow inetd_t $1:process sigkill;
 
 		# make sediff happy
 		allow $1 $2:file { rx_file_perms entrypoint };

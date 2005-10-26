@@ -289,6 +289,10 @@ ifdef(`targeted_policy',`
 	term_dontaudit_use_unallocated_tty(httpd_t)
 	term_dontaudit_use_generic_pty(httpd_t)
 	files_dontaudit_read_root_file(httpd_t)
+
+	tunable_policy(`httpd_enable_homedirs',`
+		userdom_search_generic_user_home_dir(httpd_t)
+	')
 ')
 
 tunable_policy(`allow_httpd_anon_write',`
@@ -335,6 +339,9 @@ tunable_policy(`httpd_enable_cgi && httpd_unified && httpd_builtin_scripting',`
 	allow httpd_t httpdcontent:dir create_dir_perms;
 	allow httpd_t httpdcontent:file create_file_perms;
 	allow httpd_t httpdcontent:lnk_file create_lnk_perms;
+
+	# make sediff easier
+	allow httpd_sys_script_t httpdcontent:file { rx_file_perms entrypoint };
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -407,17 +414,6 @@ optional_policy(`rhgb.te',`
 
 can_tcp_connect(web_client_domain, httpd_t)
 
-ifdef(`targeted_policy',`
-	if (httpd_enable_homedirs) {
-		allow httpd_t user_home_dir_t:dir { getattr search };
-	}
-	if (httpd_enable_homedirs) {
-		allow httpd_sys_script_t user_home_dir_t:dir { getattr search };
-	}
-	if (httpd_enable_homedirs) {
-		allow httpd_suexec_t user_home_dir_t:dir { getattr search };
-	}
-')
 ') dnl end TODO
 
 ########################################
@@ -495,12 +491,17 @@ allow httpd_suexec_t self:capability { setuid setgid };
 allow httpd_suexec_t self:process signal_perms;
 allow httpd_suexec_t self:unix_stream_socket create_stream_socket_perms;
 
-# cjp: need transitionbool
-domain_auto_trans(httpd_t, httpd_suexec_exec_t, httpd_suexec_t)
-allow httpd_t httpd_suexec_t:fd use;
-allow httpd_suexec_t httpd_t:fd use;
-allow httpd_suexec_t httpd_t:fifo_file rw_file_perms;
-allow httpd_suexec_t httpd_t:process sigchld;
+ifdef(`targeted_policy',`
+	gen_tunable(httpd_suexec_disable_trans,false)
+
+	tunable_policy(`httpd_suexec_disable_trans',`',`
+		domain_auto_trans(httpd_t, httpd_suexec_exec_t, httpd_suexec_t)
+		allow httpd_t httpd_suexec_t:fd use;
+		allow httpd_suexec_t httpd_t:fd use;
+		allow httpd_suexec_t httpd_t:fifo_file rw_file_perms;
+		allow httpd_suexec_t httpd_t:process sigchld;
+	')
+')
 
 allow httpd_suexec_t httpd_log_t:dir ra_dir_perms;
 allow httpd_suexec_t httpd_log_t:file { create ra_file_perms };
@@ -534,6 +535,12 @@ logging_send_syslog_msg(httpd_suexec_t)
 
 miscfiles_read_localization(httpd_suexec_t)
 
+ifdef(`targeted_policy',`
+	tunable_policy(`httpd_enable_homedirs',`
+		userdom_search_generic_user_home_dir(httpd_suexec_t)
+	')
+')
+
 tunable_policy(`httpd_can_network_connect',`
 	allow httpd_suexec_t self:tcp_socket create_stream_socket_perms;
 	allow httpd_suexec_t self:udp_socket create_socket_perms;
@@ -555,6 +562,13 @@ tunable_policy(`httpd_can_network_connect',`
 
 tunable_policy(`httpd_enable_cgi',`
 	domain_auto_trans(httpd_suexec_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+	allow httpd_suexec_t httpd_unconfined_script_t:fd use;
+	allow httpd_unconfined_script_t httpd_suexec_t:fd use;
+	allow httpd_unconfined_script_t httpd_suexec_t:fifo_file rw_file_perms;
+	allow httpd_unconfined_script_t httpd_suexec_t:process sigchld;
+
+	# make sediff happy
+	allow httpd_unconfined_script_t httpd_unconfined_script_exec_t:file { ioctl read getattr lock execute entrypoint };
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified',`
@@ -617,6 +631,12 @@ files_search_spool(httpd_sys_script_t)
 
 ifdef(`distro_redhat',`
 	allow httpd_sys_script_t httpd_log_t:file { getattr append };
+')
+
+ifdef(`targeted_policy',`
+	tunable_policy(`httpd_enable_homedirs',`
+		userdom_search_generic_user_home_dir(httpd_sys_script_t)
+	')
 ')
 
 optional_policy(`mysql.te',`
