@@ -38,10 +38,12 @@ files_pid_file(getty_var_run_t)
 
 # Use capabilities.
 allow getty_t self:capability { dac_override chown sys_resource sys_tty_config fowner fsetid };
+dontaudit getty_t self:capability sys_tty_config;
 allow getty_t self:process { getpgid getsession signal_perms };
 
 allow getty_t getty_etc_t:dir r_dir_perms;
 allow getty_t getty_etc_t:file r_file_perms;
+allow getty_t getty_etc_t:lnk_file { getattr read };
 files_create_etc_config(getty_t,getty_etc_t,{ file dir })
 
 allow getty_t getty_lock_t:file create_file_perms;
@@ -58,8 +60,12 @@ allow getty_t getty_var_run_t:file create_file_perms;
 allow getty_t getty_var_run_t:dir rw_dir_perms;
 files_create_pid(getty_t,getty_var_run_t)
 
+kernel_list_proc(getty_t)
+kernel_read_proc_symlinks(getty_t)
+
 dev_read_sysfs(getty_t)
 
+fs_search_auto_mountpoints(getty_t)
 # for error condition handling
 fs_getattr_xattr_fs(getty_t)
 
@@ -69,6 +75,7 @@ term_use_unallocated_tty(getty_t)
 term_setattr_all_user_ttys(getty_t)
 term_setattr_unallocated_ttys(getty_t)
 term_setattr_console(getty_t)
+term_dontaudit_use_console(getty_t)
 
 auth_rw_login_records(getty_t)
 
@@ -81,6 +88,7 @@ files_read_etc_files(getty_t)
 
 init_rw_script_pid(getty_t)
 init_use_script_pty(getty_t)
+init_dontaudit_use_script_pty(getty_t)
 
 libs_use_ld_so(getty_t)
 libs_use_shared_libs(getty_t)
@@ -91,10 +99,19 @@ logging_send_syslog_msg(getty_t)
 
 miscfiles_read_localization(getty_t)
 
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(getty_t)
+	term_dontaudit_use_generic_pty(getty_t)
+')
+
 optional_policy(`nscd.te',`
 	nscd_use_socket(getty_t)
 ')
 
 optional_policy(`ppp.te',`
 	ppp_domtrans(getty_t)
+')
+
+optional_policy(`udev.te',`
+	udev_read_db(system_dbusd_t)
 ')

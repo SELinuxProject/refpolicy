@@ -63,6 +63,7 @@ type_transition dhcpc_t dhcp_state_t:file dhcpc_state_t;
 
 # create pid file
 allow dhcpc_t dhcpc_var_run_t:file create_file_perms;
+allow dhcpc_t dhcpc_var_run_t:dir rw_dir_perms;
 files_create_pid(dhcpc_t,dhcpc_var_run_t)
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
@@ -196,6 +197,7 @@ optional_policy(`hotplug.te',`
 # for the dhcp client to run ping to check IP addresses
 optional_policy(`netutils.te',`
 	netutils_domtrans_ping(dhcpc_t)
+	netutils_domtrans(dhcpc_t)
 ',`
 	allow dhcpc_t self:capability setuid;
 	allow dhcpc_t self:rawip_socket create_socket_perms;
@@ -214,7 +216,7 @@ optional_policy(`nscd.te',`
 	nscd_read_pid(dhcpc_t)
 ')
 
-optional_policy(`ntpd.te',`
+optional_policy(`ntp.te',`
 	# dhclient sometimes starts ntpd
 	init_exec_script(dhcpc_t)
 	ntp_domtrans(dhcpc_t)
@@ -319,6 +321,8 @@ logging_send_syslog_msg(ifconfig_t)
 
 miscfiles_read_localization(ifconfig_t)
 
+modutils_domtrans_insmod(ifconfig_t)
+
 seutil_use_runinit_fd(ifconfig_t)
 
 userdom_use_all_user_fd(ifconfig_t)
@@ -331,6 +335,11 @@ ifdef(`hide_broken_symptoms',`
 	optional_policy(`udev.te',`
 		udev_dontaudit_rw_unix_dgram_socket(ifconfig_t)
 	')
+')
+
+ifdef(`targeted_policy',`
+	term_use_generic_pty(ifconfig_t)
+	term_use_unallocated_tty(ifconfig_t)
 ')
 
 optional_policy(`ppp.te',`
