@@ -8,18 +8,12 @@ policy_module(ssh,1.0)
 
 attribute ssh_server;
 
-# Type for the ssh-agent executable.
-type ssh_agent_exec_t;
-files_type(ssh_agent_exec_t)
-
 # ssh client executable.
 type ssh_exec_t;
 files_type(ssh_exec_t)
 
-type ssh_keygen_t;
 type ssh_keygen_exec_t;
-init_system_domain(ssh_keygen_t,ssh_keygen_exec_t)
-role system_r types ssh_keygen_t;
+files_type(ssh_keygen_exec_t)
 
 type ssh_keysign_exec_t;
 files_type(ssh_keysign_exec_t)
@@ -31,27 +25,40 @@ gen_require(`
 ')
 files_type(sshd_exec_t)
 
-ssh_server_template(sshd)
-ssh_server_template(sshd_extern)
-
-# cjp: commenting this out until typeattribute works in a conditional
-#optional_policy(`inetd.te',`
-#	tunable_policy(`run_ssh_inetd',`
-#		inetd_tcp_service_domain(sshd_t,sshd_exec_t)
-#	',`
-#		init_daemon_domain(sshd_t,sshd_exec_t)
-#	')
-#',`
-	# These rules should match the else block
-	# of the run_ssh_inetd tunable directly above
-	init_daemon_domain(sshd_t,sshd_exec_t)
-#')
-
 type sshd_key_t;
 files_type(sshd_key_t)
 
-type sshd_tmp_t;
-files_tmp_file(sshd_tmp_t)
+ifdef(`targeted_policy',`
+	unconfined_alias_domain(sshd_t)
+	init_system_domain(sshd_t,sshd_exec_t)
+',`
+	# Type for the ssh-agent executable.
+	type ssh_agent_exec_t;
+	files_type(ssh_agent_exec_t)
+
+	type ssh_keygen_t;
+	init_system_domain(ssh_keygen_t,ssh_keygen_exec_t)
+	role system_r types ssh_keygen_t;
+
+	ssh_server_template(sshd)
+	ssh_server_template(sshd_extern)
+
+	# cjp: commenting this out until typeattribute works in a conditional
+#	optional_policy(`inetd.te',`
+#		tunable_policy(`run_ssh_inetd',`
+#			inetd_tcp_service_domain(sshd_t,sshd_exec_t)
+#		',`
+#			init_daemon_domain(sshd_t,sshd_exec_t)
+#		')
+#	',`
+		# These rules should match the else block
+		# of the run_ssh_inetd tunable directly above
+		init_daemon_domain(sshd_t,sshd_exec_t)
+#	')
+
+	type sshd_tmp_t;
+	files_tmp_file(sshd_tmp_t)
+')
 
 #################################
 #
@@ -60,67 +67,69 @@ files_tmp_file(sshd_tmp_t)
 # sshd_t is the domain for the sshd program.
 #
 
-# so a tunnel can point to another ssh tunnel
-allow sshd_t self:tcp_socket { acceptfrom connectto recvfrom };
+ifdef(`targeted_policy',`',`
+	# so a tunnel can point to another ssh tunnel
+	allow sshd_t self:tcp_socket { acceptfrom connectto recvfrom };
 
-allow sshd_t sshd_tmp_t:dir create_dir_perms;
-allow sshd_t sshd_tmp_t:file create_file_perms;
-allow sshd_t sshd_tmp_t:sock_file create_file_perms;
-files_create_tmp_files(sshd_t, sshd_tmp_t, { dir file sock_file })
+	allow sshd_t sshd_tmp_t:dir create_dir_perms;
+	allow sshd_t sshd_tmp_t:file create_file_perms;
+	allow sshd_t sshd_tmp_t:sock_file create_file_perms;
+	files_create_tmp_files(sshd_t, sshd_tmp_t, { dir file sock_file })
 
-# for X forwarding
-corenet_tcp_bind_xserver_port(sshd_t)
+	# for X forwarding
+	corenet_tcp_bind_xserver_port(sshd_t)
 
-auth_exec_pam(sshd_t)
+	auth_exec_pam(sshd_t)
 
-seutil_read_config(sshd_t)
+	seutil_read_config(sshd_t)
 
-ifdef(`targeted_policy',`
-	unconfined_domain_template(sshd_t)
-')
-
-tunable_policy(`ssh_sysadm_login',`
-	# Relabel and access ptys created by sshd
-	# ioctl is necessary for logout() processing for utmp entry and for w to
-	# display the tty.
-	# some versions of sshd on the new SE Linux require setattr
-	term_use_all_user_ptys(sshd_t)
-	term_setattr_all_user_ptys(sshd_t)
-	term_relabelto_all_user_ptys(sshd_t)
-
-	userdom_spec_domtrans_all_users(sshd_t)
-	userdom_signal_all_users(sshd_t)
-',`
-	userdom_spec_domtrans_unpriv_users(sshd_t)
-	userdom_signal_unpriv_users(sshd_t)
-')
-
-optional_policy(`rpm.te',`
-	rpm_use_script_fd(sshd_t)
-')
-
-ifdef(`TODO',`
-tunable_policy(`ssh_sysadm_login',`
-	# Relabel and access ptys created by sshd
-	# ioctl is necessary for logout() processing for utmp entry and for w to
-	# display the tty.
-	# some versions of sshd on the new SE Linux require setattr
-	allow sshd_t ptyfile:chr_file relabelto;
-
-	optional_policy(`xauth.te',`
-		domain_trans(sshd_t, xauth_exec_t, userdomain)
+	ifdef(`targeted_policy',`
+		unconfined_domain_template(sshd_t)
 	')
-',`
-	optional_policy(`xauth.te',`
-		domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
+
+	tunable_policy(`ssh_sysadm_login',`
+		# Relabel and access ptys created by sshd
+		# ioctl is necessary for logout() processing for utmp entry and for w to
+		# display the tty.
+		# some versions of sshd on the new SE Linux require setattr
+		term_use_all_user_ptys(sshd_t)
+		term_setattr_all_user_ptys(sshd_t)
+		term_relabelto_all_user_ptys(sshd_t)
+
+		userdom_spec_domtrans_all_users(sshd_t)
+		userdom_signal_all_users(sshd_t)
+	',`
+		userdom_spec_domtrans_unpriv_users(sshd_t)
+		userdom_signal_unpriv_users(sshd_t)
 	')
-	# Relabel and access ptys created by sshd
-	# ioctl is necessary for logout() processing for utmp entry and for w to
-	# display the tty.
-	# some versions of sshd on the new SE Linux require setattr
-	allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
+
+	optional_policy(`rpm.te',`
+		rpm_use_script_fd(sshd_t)
+	')
+
+	ifdef(`TODO',`
+	tunable_policy(`ssh_sysadm_login',`
+		# Relabel and access ptys created by sshd
+		# ioctl is necessary for logout() processing for utmp entry and for w to
+		# display the tty.
+		# some versions of sshd on the new SE Linux require setattr
+		allow sshd_t ptyfile:chr_file relabelto;
+
+		optional_policy(`xauth.te',`
+			domain_trans(sshd_t, xauth_exec_t, userdomain)
+		')
+	',`
+		optional_policy(`xauth.te',`
+			domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
+		')
+		# Relabel and access ptys created by sshd
+		# ioctl is necessary for logout() processing for utmp entry and for w to
+		# display the tty.
+		# some versions of sshd on the new SE Linux require setattr
+		allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
+	')
+	') dnl endif TODO
 ')
-') dnl endif TODO
 
 #################################
 #
@@ -129,115 +138,119 @@ tunable_policy(`ssh_sysadm_login',`
 # sshd_extern_t is the domain for ssh from outside our network
 #
 
-ifdef(`TODO',`
-domain_trans(sshd_extern_t, shell_exec_t, user_mini_domain)
-# Signal the user domains.
-allow sshd_extern_t user_mini_domain:process signal;
+ifdef(`targeted_policy',`',`
+	ifdef(`TODO',`
+	domain_trans(sshd_extern_t, shell_exec_t, user_mini_domain)
+	# Signal the user domains.
+	allow sshd_extern_t user_mini_domain:process signal;
 
-ifdef(`xauth.te', `
-domain_trans(sshd_extern_t, xauth_exec_t, user_mini_domain)
-')
+	ifdef(`xauth.te', `
+	domain_trans(sshd_extern_t, xauth_exec_t, user_mini_domain)
+	')
 
-# Relabel and access ptys created by sshd
-# ioctl is necessary for logout() processing for utmp entry and for w to
-# display the tty.
-# some versions of sshd on the new SE Linux require setattr
-allow sshd_extern_t user_mini_domain:chr_file { relabelto read write getattr ioctl setattr };
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_extern_t user_mini_domain:chr_file { relabelto read write getattr ioctl setattr };
 
-# inheriting stream sockets is needed for "ssh host command" as no pty
-# is allocated
-allow user_mini_domain sshd_extern_t:unix_stream_socket rw_stream_socket_perms;
+	# inheriting stream sockets is needed for "ssh host command" as no pty
+	# is allocated
+	allow user_mini_domain sshd_extern_t:unix_stream_socket rw_stream_socket_perms;
 
-optional_policy(`inetd.te',`
-	tunable_policy(`run_ssh_inetd',`
-		domain_trans(inetd_t, sshd_exec_t, sshd_extern_t)
+	optional_policy(`inetd.te',`
+		tunable_policy(`run_ssh_inetd',`
+			domain_trans(inetd_t, sshd_exec_t, sshd_extern_t)
+		',`
+			domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
+		')
 	',`
+		# These rules should match the else block
+		# of the run_ssh_inetd tunable directly above
 		domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
 	')
-',`
-	# These rules should match the else block
-	# of the run_ssh_inetd tunable directly above
-	domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
-')
 
-ifdef(`direct_sysadm_daemon', `
-# Direct execution by sysadm_r.
-domain_auto_trans(sysadm_t, sshd_exec_t, sshd_t)
-role_transition sysadm_r sshd_exec_t system_r;
-')
+	ifdef(`direct_sysadm_daemon', `
+	# Direct execution by sysadm_r.
+	domain_auto_trans(sysadm_t, sshd_exec_t, sshd_t)
+	role_transition sysadm_r sshd_exec_t system_r;
+	')
 
-# for port forwarding
-allow userdomain sshd_t:tcp_socket { connectto recvfrom };
-allow sshd_t userdomain:tcp_socket { acceptfrom recvfrom };
-allow userdomain kernel_t:tcp_socket recvfrom;
-allow sshd_t kernel_t:tcp_socket recvfrom;
-') dnl endif TODO
+	# for port forwarding
+	allow userdomain sshd_t:tcp_socket { connectto recvfrom };
+	allow sshd_t userdomain:tcp_socket { acceptfrom recvfrom };
+	allow userdomain kernel_t:tcp_socket recvfrom;
+	allow sshd_t kernel_t:tcp_socket recvfrom;
+	') dnl endif TODO
+')
 
 ########################################
 #
 # ssh_keygen local policy
 #
 
-# ssh_keygen_t is the type of the ssh-keygen program when run at install time
-# and by sysadm_t
+ifdef(`targeted_policy',`',`
+	# ssh_keygen_t is the type of the ssh-keygen program when run at install time
+	# and by sysadm_t
 
-dontaudit ssh_keygen_t self:capability sys_tty_config;
-allow ssh_keygen_t self:process { sigchld sigkill sigstop signull signal };
+	dontaudit ssh_keygen_t self:capability sys_tty_config;
+	allow ssh_keygen_t self:process { sigchld sigkill sigstop signull signal };
 
-allow ssh_keygen_t self:unix_stream_socket create_stream_socket_perms;
+	allow ssh_keygen_t self:unix_stream_socket create_stream_socket_perms;
 
-allow ssh_keygen_t sshd_key_t:file create_file_perms;
-files_create_etc_config(ssh_keygen_t,sshd_key_t,file)
+	allow ssh_keygen_t sshd_key_t:file create_file_perms;
+	files_create_etc_config(ssh_keygen_t,sshd_key_t,file)
 
-kernel_read_kernel_sysctl(ssh_keygen_t)
+	kernel_read_kernel_sysctl(ssh_keygen_t)
 
-fs_search_auto_mountpoints(ssh_keygen_t)
+	fs_search_auto_mountpoints(ssh_keygen_t)
 
-dev_read_sysfs(ssh_keygen_t)
-dev_read_urand(ssh_keygen_t)
+	dev_read_sysfs(ssh_keygen_t)
+	dev_read_urand(ssh_keygen_t)
 
-term_dontaudit_use_console(ssh_keygen_t)
+	term_dontaudit_use_console(ssh_keygen_t)
 
-domain_use_wide_inherit_fd(ssh_keygen_t)
+	domain_use_wide_inherit_fd(ssh_keygen_t)
 
-files_read_etc_files(ssh_keygen_t)
+	files_read_etc_files(ssh_keygen_t)
 
-init_use_fd(ssh_keygen_t)
-init_use_script_pty(ssh_keygen_t)
+	init_use_fd(ssh_keygen_t)
+	init_use_script_pty(ssh_keygen_t)
 
-libs_use_ld_so(ssh_keygen_t)
-libs_use_shared_libs(ssh_keygen_t)
+	libs_use_ld_so(ssh_keygen_t)
+	libs_use_shared_libs(ssh_keygen_t)
 
-logging_send_syslog_msg(ssh_keygen_t)
+	logging_send_syslog_msg(ssh_keygen_t)
 
-allow ssh_keygen_t proc_t:dir r_dir_perms;
-allow ssh_keygen_t proc_t:lnk_file read;
+	allow ssh_keygen_t proc_t:dir r_dir_perms;
+	allow ssh_keygen_t proc_t:lnk_file read;
 
-userdom_use_sysadm_tty(ssh_keygen_t)
-userdom_dontaudit_use_unpriv_user_fd(ssh_keygen_t)
+	userdom_use_sysadm_tty(ssh_keygen_t)
+	userdom_dontaudit_use_unpriv_user_fd(ssh_keygen_t)
 
-# cjp: with the old daemon_(base_)domain being broken up into
-# a daemon and system interface, this probably is not needed:
-ifdef(`direct_sysadm_daemon',`
-	userdom_dontaudit_use_sysadm_terms(ssh_keygen_t)
-')
+	# cjp: with the old daemon_(base_)domain being broken up into
+	# a daemon and system interface, this probably is not needed:
+	ifdef(`direct_sysadm_daemon',`
+		userdom_dontaudit_use_sysadm_terms(ssh_keygen_t)
+	')
 
-ifdef(`targeted_policy', `
-	term_dontaudit_use_unallocated_tty(ssh_keygen_t)
-	term_dontaudit_use_generic_pty(ssh_keygen_t)
-	files_dontaudit_read_root_file(ssh_keygen_t)
-')
+	ifdef(`targeted_policy', `
+		term_dontaudit_use_unallocated_tty(ssh_keygen_t)
+		term_dontaudit_use_generic_pty(ssh_keygen_t)
+		files_dontaudit_read_root_file(ssh_keygen_t)
+	')
 
-optional_policy(`selinuxutil.te',`
-	seutil_sigchld_newrole(ssh_keygen_t)
-')
+	optional_policy(`selinuxutil.te',`
+		seutil_sigchld_newrole(ssh_keygen_t)
+	')
 
-optional_policy(`udev.te', `
-	udev_read_db(ssh_keygen_t)
-')
+	optional_policy(`udev.te', `
+		udev_read_db(ssh_keygen_t)
+	')
 
-ifdef(`TODO',`
-optional_policy(`rhgb.te', `
-	rhgb_domain(ssh_keygen_t)
-')
+	ifdef(`TODO',`
+	optional_policy(`rhgb.te', `
+		rhgb_domain(ssh_keygen_t)
+	')
+	')
 ')
