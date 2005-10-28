@@ -270,6 +270,8 @@ dev_manage_generic_symlinks(initrc_t)
 dev_del_generic_symlinks(initrc_t)
 
 fs_register_binary_executable_type(initrc_t)
+# rhgb-console writes to ramfs
+fs_write_ramfs_pipe(initrc_t)
 # cjp: not sure why these are here; should use mount policy
 fs_mount_all_fs(initrc_t)
 fs_unmount_all_fs(initrc_t)
@@ -421,8 +423,12 @@ ifdef(`distro_redhat',`
 
 	fs_use_tmpfs_chr_dev(initrc_t)
 
+	storage_create_fixed_disk(initrc_t)
+
 	files_create_boot_flag(initrc_t)
 	files_getattr_all_file_type_sockets(initrc_t)
+	# wants to read /.fonts directory
+	files_read_default_files(initrc_t)
 
 	# readahead asks for these
 	mta_read_aliases(initrc_t)
@@ -440,6 +446,17 @@ ifdef(`distro_redhat',`
 ifdef(`targeted_policy',`
 	domain_subj_id_change_exempt(initrc_t)
 	unconfined_domain_template(initrc_t)
+',`
+	# cjp: require doesnt work in optionals :\
+	# this also would result in a type transition
+	# conflict if sendmail is enabled
+#	optional_policy(`sendmail.te',`',`
+#		mta_send_mail(initrc_t)
+#	')
+')
+
+optional_policy(`apm.te',`
+	dev_rw_apm_bios(initrc_t)
 ')
 
 optional_policy(`apache.te',`
@@ -465,13 +482,24 @@ optional_policy(`bluetooth.te',`
 	dev_read_usbfs(initrc_t)
 ')
 
-optional_policy(`apm.te',`
-	dev_rw_apm_bios(initrc_t)
-')
-
 optional_policy(`cpucontrol.te',`
 	cpucontrol_stub()
 	dev_getattr_cpu(initrc_t)
+')
+
+optional_policy(`dbus.te',`
+	dbus_connect_system_bus(initrc_t)
+	dbus_send_system_bus_msg(initrc_t)
+
+	# FIXME
+	allow initrc_t system_dbusd_t:dbus { send_msg acquire_svc };
+	allow initrc_t system_dbusd_t:unix_stream_socket connectto;
+	allow initrc_t system_dbusd_var_run_t:sock_file write;
+
+	ifdef(`targeted_policy',`
+		allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
+		allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
+	')
 ')
 
 optional_policy(`ftp.te',`
@@ -537,7 +565,6 @@ optional_policy(`mailman.te',`
 ')
 
 optional_policy(`mta.te',`
-	mta_send_mail(initrc_t)
 	mta_dontaudit_read_spool_symlink(initrc_t)
 ')
 
@@ -634,13 +661,6 @@ ifdef(`TODO',`
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
 
-allow initrc_t system_dbusd_t:dbus { send_msg acquire_svc };
-allow initrc_t system_dbusd_t:unix_stream_socket connectto;
-allow initrc_t system_dbusd_var_run_t:sock_file write;
-
-# rhgb-console writes to ramfs
-allow initrc_t ramfs_t:fifo_file write;
-
 # during boot up initrc needs to do the following
 allow initrc_t default_t:dir write;
 
@@ -648,15 +668,11 @@ ifdef(`distro_redhat', `
 	# readahead asks for these
 	allow initrc_t var_lib_nfs_t:file r_file_perms;
 
-	file_type_auto_trans(initrc_t, device_t, fixed_disk_device_t, blk_file)
 	allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
-	allow initrc_t self:capability sys_admin;
 	allow initrc_t device_t:dir create;
 
 	# wants to delete /poweroff and other files 
 	allow initrc_t root_t:file unlink;
-	# wants to read /.fonts directory
-	allow initrc_t default_t:file { getattr read };
 	ifdef(`xserver.te', `
 	# wants to cleanup xserver log dir
 	allow initrc_t xserver_log_t:dir rw_dir_perms;
@@ -664,14 +680,9 @@ ifdef(`distro_redhat', `
 	')
 
 	optional_policy(`rpm.te',`
-		rpm_stub()
+		rpm_stub(initrc_t)
 		#read ahead wants to read this
 		allow initrc_t system_cron_spool_t:file { getattr read };
 	')
-')
-
-ifdef(`targeted_policy',`
-	allow unconfined_t initrc_t:dbus { acquire_svc send_msg };
-	allow initrc_t unconfined_t:dbus { acquire_svc send_msg };
 ')
 ') dnl end TODO
