@@ -77,11 +77,15 @@ type insmod_t, domain, privlog, sysctl_kernel_writer, privmem, privsysmod ifdef(
 ;
 role system_r types insmod_t;
 role sysadm_r types insmod_t;
+type insmod_exec_t, file_type, exec_type, sysadmfile;
+
+bool secure_mode_insmod false;
+
+can_ypbind(insmod_t)
 
 ifdef(`unlimitedUtils', `
 unconfined_domain(insmod_t) 
 ')
-can_ypbind(insmod_t)
 uses_shlib(insmod_t)
 read_locale(insmod_t)
 
@@ -128,7 +132,7 @@ allow insmod_t self:udp_socket create_socket_perms;
 allow insmod_t self:unix_dgram_socket create_socket_perms;
 allow insmod_t self:unix_stream_socket create_stream_socket_perms;
 allow insmod_t self:rawip_socket create_socket_perms;
-allow insmod_t self:capability { dac_override kill net_raw sys_module sys_tty_config };
+allow insmod_t self:capability { dac_override kill net_raw sys_tty_config };
 allow insmod_t domain:process signal;
 allow insmod_t self:process { fork signal_perms };
 allow insmod_t device_t:dir search;
@@ -161,8 +165,11 @@ allow insmod_t sysctl_hotplug_t:file { getattr read };
 allow insmod_t device_t:dir read;
 allow insmod_t devpts_t:dir { getattr search };
 
-type insmod_exec_t, file_type, exec_type, sysadmfile;
+if (!secure_mode_insmod) {
 domain_auto_trans(privmodule, insmod_exec_t, insmod_t)
+allow insmod_t self:capability sys_module;
+}dnl end if !secure_mode_insmod
+
 can_exec(insmod_t, { insmod_exec_t shell_exec_t bin_t sbin_t etc_t })
 allow insmod_t devtty_t:chr_file rw_file_perms;
 allow insmod_t privmodule:process sigchld;

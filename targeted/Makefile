@@ -27,7 +27,7 @@ CHECKPOLICY = $(BINDIR)/checkpolicy
 GENHOMEDIRCON = $(SBINDIR)/genhomedircon
 SETFILES = $(SBINDIR)/setfiles
 VERS := $(shell $(CHECKPOLICY) $(POLICYCOMPAT) -V |cut -f 1 -d ' ')
-PREVERS := 19
+PREVERS := 20
 KERNVERS := $(shell cat /selinux/policyvers)
 MLSENABLED := $(shell cat /selinux/mls)
 POLICYVER := policy.$(VERS)
@@ -178,11 +178,7 @@ endif
 
 reload tmp/load: $(LOADPATH) 
 	@echo "Loading Policy ..."
-ifeq ($(VERS), $(KERNVERS))
-	$(LOADPOLICY) $(LOADPATH)
-else
-	$(LOADPOLICY) $(POLICYPATH)/policy.$(PREVERS)
-endif
+	$(LOADPOLICY)
 	touch tmp/load
 
 load: tmp/load $(FCPATH) 

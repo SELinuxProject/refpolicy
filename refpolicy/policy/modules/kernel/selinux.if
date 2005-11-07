@@ -127,13 +127,17 @@ interface(`selinux_set_enforce_mode',`
 	gen_require(`
 		type security_t;
 		attribute can_setenforce;
+		bool secure_mode_policyload;
 	')
 
 	allow $1 security_t:dir { read search getattr };
 	allow $1 security_t:file { getattr read write };
-	allow $1 security_t:security setenforce;
-	auditallow $1 security_t:security setenforce;
 	typeattribute $1 can_setenforce;
+
+	if(!secure_mode_policyload) {
+		allow $1 security_t:security setenforce;
+		auditallow $1 security_t:security setenforce;
+	}
 ')
 
 ########################################
@@ -148,13 +152,17 @@ interface(`selinux_load_policy',`
 	gen_require(`
 		type security_t;
 		attribute can_load_policy;
+		bool secure_mode_policyload;
 	')
 
 	allow $1 security_t:dir { read search getattr };
 	allow $1 security_t:file { getattr read write };
-	allow $1 security_t:security load_policy;
-	auditallow $1 security_t:security load_policy;
 	typeattribute $1 can_load_policy;
+
+	if(!secure_mode_policyload) {
+		allow $1 security_t:security load_policy;
+		auditallow $1 security_t:security load_policy;
+	}
 ')
 
 ########################################
@@ -175,26 +183,20 @@ interface(`selinux_load_policy',`
 ## <param name="domain">
 ##	The process type allowed to set the Boolean.
 ## </param>
-## <param name="booltype" optional="true">
-##	The type of Booleans the caller is allowed to set.
-## </param>
 #
 interface(`selinux_set_boolean',`
 	gen_require(`
 		type security_t;
 	')
 
-	ifelse(`$2',`',`
-		allow $1 security_t:dir { getattr search read };
-		allow $1 security_t:file { getattr read write };
-	',`
-		allow $1 $2:dir { getattr search read };
-		allow $1 $2:file { getattr read write };
-	')
-
 	allow $1 security_t:dir search;
-	allow $1 security_t:security setbool;
-	auditallow $1 security_t:security setbool;
+	allow $1 security_t:dir { getattr search read };
+	allow $1 security_t:file { getattr read write };
+
+	if(!secure_mode_policyload) {
+		allow $1 security_t:security setbool;
+		auditallow $1 security_t:security setbool;
+	}
 ')
 
 ########################################
@@ -358,16 +360,19 @@ interface(`selinux_compute_user_contexts',`
 interface(`selinux_unconfined',`
 	gen_require(`
 		attribute can_load_policy, can_setenforce, can_setsecparam;
+		bool secure_mode_policyload;
 		type security_t;
 	')
-
-	# Access the security API.
-	allow $1 security_t:security *;
-	auditallow $1 security_t:security { load_policy setenforce setbool };
 
 	# use SELinuxfs
 	allow $1 security_t:dir { getattr search read };
 	allow $1 security_t:file { getattr read write };
 
 	typeattribute $1 can_load_policy, can_setenforce, can_setsecparam;
+
+	if(!secure_mode_policyload) {
+		# Access the security API.
+		allow $1 security_t:security *;
+		auditallow $1 security_t:security { load_policy setenforce setbool };
+	}
 ')
