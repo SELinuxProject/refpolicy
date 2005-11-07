@@ -367,14 +367,14 @@ bare: clean
 	rm -f $(MOD_CONF)
 	rm -f $(BOOLEANS)
 	rm -fR $(HTMLDIR)
-ifneq ($(GENERATED_TE),)
-	rm -f $(GENERATED_TE)
-endif
-ifneq ($(GENERATED_IF),)
-	rm -f $(GENERATED_IF)
-endif
-ifneq ($(GENERATED_FC),)
-	rm -f $(GENERATED_FC)
-endif
+#ifneq ($(GENERATED_TE),)
+#	rm -f $(GENERATED_TE)
+#endif
+#ifneq ($(GENERATED_IF),)
+#	rm -f $(GENERATED_IF)
+#endif
+#ifneq ($(GENERATED_FC),)
+#	rm -f $(GENERATED_FC)
+#endif
 
 .PHONY: install-src install-appconfig conf html bare
