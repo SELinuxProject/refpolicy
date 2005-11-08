@@ -97,6 +97,7 @@ auth_append_login_records(ftpd_t)
 auth_write_login_records(ftpd_t)
 
 corecmd_exec_bin(ftpd_t)
+corecmd_exec_sbin(ftpd_t)
 # Execute /bin/ls (can comment this out for proftpd)
 # also may need rules to allow tar etc...
 corecmd_exec_ls(ftpd_t)
@@ -130,6 +131,17 @@ ifdef(`targeted_policy',`
 
 	term_dontaudit_use_generic_pty(ftpd_t)
 	term_dontaudit_use_unallocated_tty(ftpd_t)
+
+	optional_policy(`ftp.te',`
+		tunable_policy(`ftpd_is_daemon',`
+			# cjp: fix this to use regular interfaces
+			userdom_manage_user_home_subdir_files(user,ftpd_t)
+			userdom_manage_user_home_subdir_symlinks(user,ftpd_t)
+			userdom_manage_user_home_subdir_sockets(user,ftpd_t)
+			userdom_manage_user_home_subdir_pipes(user,ftpd_t)
+			userdom_create_user_home(user,ftpd_t,{ dir file lnk_file sock_file fifo_file })
+		')
+	')
 ')
 
 tunable_policy(`allow_ftpd_anon_write',`
@@ -212,14 +224,5 @@ optional_policy(`udev.te', `
 ifdef(`TODO',`
 optional_policy(`rhgb.te',`
 	rhgb_domain(ftpd_t)
-')
-
-# cjp: this was in base user macro, but we cannot
-# use typeattribute ftpd_t privhome; interface
-# since typeattribute doesnt work in conditionals
-ifdef(`ftpd.te' , `
-if (ftpd_is_daemon) {
-file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
-}
 ')
 ')

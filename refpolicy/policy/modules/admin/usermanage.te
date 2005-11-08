@@ -68,6 +68,7 @@ allow chfn_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit exe
 allow chfn_t self:process { setrlimit setfscreate };
 allow chfn_t self:fd use;
 allow chfn_t self:fifo_file rw_file_perms;
+allow chfn_t self:sock_file r_file_perms;
 allow chfn_t self:shm create_shm_perms;
 allow chfn_t self:sem create_sem_perms;
 allow chfn_t self:msgq create_msgq_perms;
@@ -102,6 +103,8 @@ auth_dontaudit_read_shadow(chfn_t)
 # can exec /sbin/unix_chkpwd
 corecmd_search_bin(chfn_t)
 corecmd_search_sbin(chfn_t)
+# allow checking if a shell is executable
+corecmd_check_exec_shell(chfn_t)
 
 domain_use_wide_inherit_fd(chfn_t)
 
@@ -134,9 +137,6 @@ optional_policy(`nis.te',`
 
 ifdef(`TODO',`
 ifdef(`gnome-pty-helper.te', `allow chfn_t gphdomain:fd use;')
-
-# allow checking if a shell is executable
-allow chfn_t shell_exec_t:file execute;
 ') dnl endif TODO
 
 ########################################
@@ -310,9 +310,8 @@ term_use_all_user_ptys(passwd_t)
 
 auth_manage_shadow(passwd_t)
 
-# /usr/bin/passwd asks for w access to utmp, but it will operate
-# correctly without it.  Do not audit write denials to utmp.
-init_dontaudit_rw_script_pid(passwd_t)
+# allow checking if a shell is executable
+corecmd_check_exec_shell(passwd_t)
 
 domain_use_wide_inherit_fd(passwd_t)
 
@@ -320,6 +319,10 @@ files_read_etc_runtime_files(passwd_t)
 files_manage_etc_files(passwd_t)
 files_search_var(passwd_t)
 files_dontaudit_search_pids(passwd_t)
+
+# /usr/bin/passwd asks for w access to utmp, but it will operate
+# correctly without it.  Do not audit write denials to utmp.
+init_dontaudit_rw_script_pid(passwd_t)
 
 libs_use_ld_so(passwd_t)
 libs_use_shared_libs(passwd_t)
@@ -346,9 +349,6 @@ allow passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
 # Inherit and use descriptors from login.
 ifdef(`gnome-pty-helper.te', `allow passwd_t gphdomain:fd use;')
 
-# allow checking if a shell is executable
-allow passwd_t shell_exec_t:file execute;
-
 # make sure that getcon succeeds
 allow passwd_t userdomain:dir search;
 allow passwd_t userdomain:file read;
@@ -365,6 +365,7 @@ allow sysadm_passwd_t self:process ~{ ptrace setcurrent setexec setfscreate setr
 allow sysadm_passwd_t self:process { setrlimit setfscreate };
 allow sysadm_passwd_t self:fd use;
 allow sysadm_passwd_t self:fifo_file rw_file_perms;
+allow sysadm_passwd_t self:sock_file r_file_perms;
 allow sysadm_passwd_t self:unix_dgram_socket create_socket_perms;
 allow sysadm_passwd_t self:unix_stream_socket create_stream_socket_perms;
 allow sysadm_passwd_t self:unix_dgram_socket sendto;
@@ -403,6 +404,7 @@ term_use_all_user_ptys(sysadm_passwd_t)
 auth_manage_shadow(sysadm_passwd_t)
 
 # allow vipw to exec the editor
+corecmd_search_sbin(sysadm_passwd_t)
 corecmd_exec_bin(sysadm_passwd_t)
 corecmd_exec_shell(sysadm_passwd_t)
 files_read_usr_files(sysadm_passwd_t)

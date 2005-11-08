@@ -179,6 +179,8 @@ allow httpd_t httpd_squirrelmail_t:dir create_dir_perms;
 allow httpd_t httpd_squirrelmail_t:lnk_file create_lnk_perms;
 allow httpd_t httpd_squirrelmail_t:file create_file_perms;
 
+allow httpd_t httpd_suexec_exec_t:file { getattr read };
+
 allow httpd_t httpd_sys_content_t:dir r_dir_perms;
 allow httpd_t httpd_sys_content_t:file r_file_perms;
 
@@ -393,13 +395,6 @@ optional_policy(`mailman.te',`
 	mailman_read_archive(httpd_t)
 ')
 
-optional_policy(`mta.te',`
-	mta_stub()
-
-	# apache should set close-on-exec
-	dontaudit httpd_suexec_t httpd_t:unix_stream_socket { read write };
-')
-
 optional_policy(`mysql.te',`
 	mysql_stream_connect(httpd_t)
 	mysql_rw_db_socket(httpd_t)
@@ -407,6 +402,11 @@ optional_policy(`mysql.te',`
 
 optional_policy(`nscd.te',`
 	nscd_use_socket(httpd_t)
+')
+
+optional_policy(`postgresql.te',` 
+	# Allow httpd to work with postgresql
+	postgresql_unix_connect(httpd_t)
 ')
 
 optional_policy(`selinuxutil.te',`
@@ -544,6 +544,7 @@ corecmd_exec_shell(httpd_suexec_t)
 files_read_etc_files(httpd_suexec_t)
 files_read_usr_files(httpd_suexec_t)
 files_dontaudit_search_pids(httpd_suexec_t)
+files_search_home(httpd_suexec_t)
 
 libs_use_ld_so(httpd_suexec_t)
 libs_use_shared_libs(httpd_suexec_t)
@@ -617,6 +618,13 @@ optional_policy(`mount.te',`
 	tunable_policy(`httpd_can_network_connect',`
 		mount_send_nfs_client_request(httpd_suexec_t)
 	')
+')
+
+optional_policy(`mta.te',`
+	mta_stub(httpd_suexec_t)
+
+	# apache should set close-on-exec
+	dontaudit httpd_suexec_t httpd_t:unix_stream_socket { read write };
 ')
 
 optional_policy(`nis.te',`
