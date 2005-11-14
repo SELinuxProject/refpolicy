@@ -9,20 +9,22 @@
 ## </param>
 #
 interface(`dmesg_domtrans',`
-	gen_require(`
-		type dmesg_t, dmesg_exec_t;
-		class process sigchld;
-		class fd use;
-		class fifo_file rw_file_perms;
+	ifdef(`targeted_policy',`
+		# $0(): disabled in targeted policy as there
+		# is no dmesg domain.
+	',`
+		gen_require(`
+			type dmesg_t, dmesg_exec_t;
+		')
+
+		corecmd_search_sbin($1)
+		domain_auto_trans($1,dmesg_exec_t,dmesg_t)
+
+		allow $1 dmesg_t:fd use;
+		allow dmesg_t $1:fd use;
+		allow dmesg_t $1:fifo_file rw_file_perms;
+		allow dmesg_t $1:process sigchld;
 	')
-
-	corecmd_search_sbin($1)
-	domain_auto_trans($1,dmesg_exec_t,dmesg_t)
-
-	allow $1 dmesg_t:fd use;
-	allow dmesg_t $1:fd use;
-	allow dmesg_t $1:fifo_file rw_file_perms;
-	allow dmesg_t $1:process sigchld;
 ')
 
 ########################################
@@ -34,11 +36,17 @@ interface(`dmesg_domtrans',`
 ## </param>
 #
 interface(`dmesg_exec',`
-	gen_require(`
-		type dmesg_exec_t;
-	')
+	ifdef(`targeted_policy',`
+		# $0(): the dmesg program is an alias
+		# of generic bin programs.
+		corecmd_exec_bin($1)
+	',`
+		gen_require(`
+			type dmesg_exec_t;
+		')
 
-	corecmd_search_sbin($1)
-	can_exec($1,dmesg_exec_t)
+		corecmd_search_sbin($1)
+		can_exec($1,dmesg_exec_t)
+	')
 ')
 

@@ -9,20 +9,22 @@
 ## </param>
 #
 interface(`loadkeys_domtrans',`
-	gen_require(`
-		type loadkeys_t, loadkeys_exec_t;
-		class process sigchld;
-		class fd use;
-		class fifo_file rw_file_perms;
+	ifdef(`targeted_policy',`
+		# $0(): disabled in targeted policy as there
+		# is no loadkeys domain.
+	',`
+		gen_require(`
+			type loadkeys_t, loadkeys_exec_t;
+		')
+
+		corecmd_search_bin($1)
+		domain_auto_trans($1, loadkeys_exec_t, loadkeys_t)
+
+		allow $1 loadkeys_t:fd use;
+		allow loadkeys_t $1:fd use;
+		allow loadkeys_t $1:fifo_file rw_file_perms;
+		allow loadkeys_t $1:process sigchld;
 	')
-
-	corecmd_search_bin($1)
-	domain_auto_trans($1, loadkeys_exec_t, loadkeys_t)
-
-	allow $1 loadkeys_t:fd use;
-	allow loadkeys_t $1:fd use;
-	allow loadkeys_t $1:fifo_file rw_file_perms;
-	allow loadkeys_t $1:process sigchld;
 ')
 
 ########################################
@@ -40,14 +42,18 @@ interface(`loadkeys_domtrans',`
 ## </param>
 #
 interface(`loadkeys_run',`
-	gen_require(`
-		type loadkeys_t;
-		class chr_file rw_term_perms;
-	')
+	ifdef(`targeted_policy',`
+		# $0(): disabled in targeted policy as there
+		# is no loadkeys domain.
+	',`
+		gen_require(`
+			type loadkeys_t;
+		')
 
-	loadkeys_domtrans($1)
-	role $2 types loadkeys_t;
-	allow loadkeys_t $3:chr_file rw_term_perms;
+		loadkeys_domtrans($1)
+		role $2 types loadkeys_t;
+		allow loadkeys_t $3:chr_file rw_term_perms;
+	')
 ')
 
 ########################################
@@ -59,9 +65,15 @@ interface(`loadkeys_run',`
 ## </param>
 #
 interface(`loadkeys_exec',`
-	gen_require(`
-		type loadkeys_exec_t;
-	')
+	ifdef(`targeted_policy',`
+		# $0(): the loadkeys program is an alias
+		# of generic bin programs.
+		corecmd_exec_bin($1)
+	',`
+		gen_require(`
+			type loadkeys_exec_t;
+		')
 
-	can_exec($1,loadkeys_exec_t)
+		can_exec($1,loadkeys_exec_t)
+	')
 ')
