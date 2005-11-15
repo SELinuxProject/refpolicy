@@ -1,0 +1,105 @@
+
+policy_module(procmail,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+# privhome only works until we define a different type for maildir
+type procmail_t, privhome;
+type procmail_exec_t;
+domain_type(procmail_t)
+domain_entry_file(procmail_t,procmail_exec_t)
+role system_r types procmail_t;
+
+########################################
+#
+# Local policy
+#
+
+allow procmail_t self:capability { sys_nice chown setuid setgid dac_override };
+allow procmail_t self:process { setsched fork sigchld signal };
+allow procmail_t self:fifo_file rw_file_perms;
+allow procmail_t self:unix_stream_socket create_socket_perms;
+allow procmail_t self:unix_dgram_socket create_socket_perms;
+allow procmail_t self:tcp_socket create_stream_socket_perms;
+allow procmail_t self:udp_socket create_socket_perms;
+
+kernel_read_system_state(procmail_t)
+kernel_read_kernel_sysctl(procmail_t)
+
+corenet_tcp_sendrecv_all_if(procmail_t)
+corenet_raw_sendrecv_all_if(procmail_t)
+corenet_udp_sendrecv_all_if(procmail_t)
+corenet_tcp_sendrecv_all_nodes(procmail_t)
+corenet_udp_sendrecv_all_nodes(procmail_t)
+corenet_raw_sendrecv_all_nodes(procmail_t)
+corenet_tcp_sendrecv_all_ports(procmail_t)
+corenet_udp_sendrecv_all_ports(procmail_t)
+corenet_tcp_bind_all_nodes(procmail_t)
+corenet_udp_bind_all_nodes(procmail_t)
+
+dev_read_urand(procmail_t)
+
+fs_getattr_xattr_fs(procmail_t)
+
+auth_use_nsswitch(procmail_t)
+
+corecmd_exec_bin(procmail_t)
+corecmd_exec_shell(procmail_t)
+corecmd_dontaudit_search_sbin(procmail_t)
+
+files_read_etc_files(procmail_t)
+files_read_etc_runtime_files(procmail_t)
+files_search_pids(procmail_t)
+# for spamassasin
+files_read_usr_files(procmail_t)
+
+libs_use_ld_so(procmail_t)
+libs_use_shared_libs(procmail_t)
+
+miscfiles_read_localization(procmail_t)
+
+userdom_priveleged_home_dir_manager(procmail_t)
+# Do not audit attempts to access /root.
+userdom_dontaudit_search_sysadm_home_dir(procmail_t)
+
+mta_manage_spool(procmail_t)
+
+ifdef(`hide_broken_symptoms',`
+	mta_dontaudit_rw_queue(procmail_t)
+')
+
+ifdef(`targeted_policy', `
+	corenet_udp_bind_generic_port(procmail_t)
+	files_getattr_tmp_dir(procmail_t)
+')
+
+optional_policy(`logging.te',`
+	logging_send_syslog_msg(procmail_t)
+')
+
+optional_policy(`nscd.te',`
+	nscd_use_socket(procmail_t)
+')
+
+optional_policy(`postfix.te',`
+	# for a bug in the postfix local program
+	postfix_dontaudit_rw_local_tcp_socket(procmail_t)
+	postfix_dontaudit_use_fd(procmail_t)
+')
+
+optional_policy(`sendmail.te',`
+	mta_read_config(procmail_t)
+	sendmail_rw_tcp_socket(procmail_t)
+')
+
+optional_policy(`spamassassin.te',`
+	corenet_udp_bind_generic_port(procmail_t)
+
+	files_getattr_tmp_dir(procmail_t)
+
+	spamassassin_exec(procmail_t)
+	spamassassin_exec_client(procmail_t)
+')
