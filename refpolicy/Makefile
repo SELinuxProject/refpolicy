@@ -142,9 +142,6 @@ endif
 # enable distribution-specific policy
 ifneq ($(DISTRO),)
 	override M4PARAM += -D distro_$(DISTRO)
-ifeq ($(DISTRO),redhat)
-	override DIRECT_INITRC := y
-endif
 endif
 
 ifneq ($(OUTPUT_POLICY),)
