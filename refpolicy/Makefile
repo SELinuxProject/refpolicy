@@ -23,7 +23,8 @@
 # Policy version
 # By default, checkpolicy will create the highest
 # version policy it supports.  Setting this will
-# override the version.
+# override the version.  This only affects
+# monolithic policies.
 #OUTPUT_POLICY = 18
 
 # Policy Type
@@ -73,6 +74,7 @@ BINDIR := $(PREFIX)/bin
 SBINDIR := $(PREFIX)/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
 CHECKMODULE := $(BINDIR)/checkmodule
+SEMODULE := $(SBINDIR)/semodule
 SEMOD_PKG := $(BINDIR)/semodule_package
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
@@ -119,24 +121,30 @@ INSTALLDIR = $(TOPDIR)/$(NAME)
 SRCPATH = $(INSTALLDIR)/src
 USERPATH = $(INSTALLDIR)/users
 CONTEXTPATH = $(INSTALLDIR)/contexts
+MODPKGDIR = $(DESTDIR)/usr/share/selinux/$(NAME)
 
-# enable MLS if requested.
-ifneq ($(findstring -mls,$(TYPE)),)
-	override M4PARAM += -D enable_mls
-	CHECKPOLICY += -M
-	CHECKMODULE += -M
-endif
-
-# enable MLS if MCS requested.
-ifneq ($(findstring -mcs,$(TYPE)),)
-	override M4PARAM += -D enable_mcs
-	CHECKPOLICY += -M
-	CHECKMODULE += -M
+# compile strict policy if requested.
+ifneq ($(findstring strict,$(TYPE)),)
+	override M4PARAM += -D strict_policy
 endif
 
 # compile targeted policy if requested.
 ifneq ($(findstring targeted,$(TYPE)),)
 	override M4PARAM += -D targeted_policy
+endif
+
+# enable MLS if requested.
+ifneq ($(findstring -mls,$(TYPE)),)
+	override M4PARAM += -D enable_mls
+	override CHECKPOLICY += -M
+	override CHECKMODULE += -M
+endif
+
+# enable MLS if MCS requested.
+ifneq ($(findstring -mcs,$(TYPE)),)
+	override M4PARAM += -D enable_mcs
+	override CHECKPOLICY += -M
+	override CHECKMODULE += -M
 endif
 
 # enable distribution-specific policy
@@ -145,7 +153,7 @@ ifneq ($(DISTRO),)
 endif
 
 ifneq ($(OUTPUT_POLICY),)
-	CHECKPOLICY += -c $(OUTPUT_POLICY)
+	override CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
 
 ifeq ($(NAME),)
@@ -168,14 +176,11 @@ ifeq ($(KV),)
 	KV := $(PV)
 endif
 
-FC := file_contexts
-POLVER := policy.$(PV)
-
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
 APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
-APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
+APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/systemuser $(POLDIR)/users
 
@@ -196,10 +201,8 @@ MODBASE := base
 MODMOD := module
 
 # extract settings from modules.conf
-BASE_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
-MOD_MODS := $(foreach mod,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null),$(subst ./,,$(shell find -iname $(mod).te)))
-
-HOMEDIR_TEMPLATE = tmp/homedir_template
+BASE_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null))
+MOD_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 
 ########################################
 #
@@ -364,14 +367,14 @@ bare: clean
 	rm -f $(MOD_CONF)
 	rm -f $(BOOLEANS)
 	rm -fR $(HTMLDIR)
-#ifneq ($(GENERATED_TE),)
-#	rm -f $(GENERATED_TE)
-#endif
-#ifneq ($(GENERATED_IF),)
-#	rm -f $(GENERATED_IF)
-#endif
-#ifneq ($(GENERATED_FC),)
-#	rm -f $(GENERATED_FC)
-#endif
+ifneq ($(GENERATED_TE),)
+	rm -f $(GENERATED_TE)
+endif
+ifneq ($(GENERATED_IF),)
+	rm -f $(GENERATED_IF)
+endif
+ifneq ($(GENERATED_FC),)
+	rm -f $(GENERATED_FC)
+endif
 
 .PHONY: install-src install-appconfig conf html bare
