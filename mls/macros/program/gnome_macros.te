@@ -1,0 +1,115 @@
+#
+# GNOME related types 
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+# gnome_domain(role_prefix) - create GNOME domain (run for each role)
+# gnome_application(app_prefix, role_prefix) - common stuff for gnome apps
+# gnome_file_dialog(role_prefix) - gnome file dialog rules
+# gnome_private_store(app_prefix, role_prefix) - store private files in .gnome2_private
+
+define(`gnome_domain', `
+
+# Types for .gnome2 and .gnome2_private.
+# For backwards compatibility, allow unrestricted
+# access from ROLE_t. However, content inside
+# *should* be labeled per application eventually.
+# For .gnome2_private, use the private_store macro below. 
+
+type $1_gnome_settings_t, file_type, $1_file_type, sysadmfile;
+create_dir_file($1_t, $1_gnome_settings_t)
+allow $1_t $1_gnome_settings_t:{ dir file } { relabelfrom relabelto };
+
+type $1_gnome_secret_t, file_type, $1_file_type, sysadmfile;
+create_dir_file($1_t, $1_gnome_secret_t)
+allow $1_t $1_gnome_secret_t:{ dir file } { relabelfrom relabelto };
+
+# GConf domain
+gconfd_domain($1)
+gconf_client($1, $1)
+
+# Bonobo-activation-server
+bonobo_domain($1)
+bonobo_client($1, $1)
+
+# GNOME vfs daemon
+gnome_vfs_domain($1)
+gnome_vfs_client($1, $1)
+
+# ICE is necessary for session management
+ice_domain($1, $1)
+
+')
+
+#################################
+
+define(`gnome_application', `
+
+# If launched from a terminal
+access_terminal($1_t, $2)
+
+# Forking is generally okay
+allow $1_t self:process { sigchld sigkill signal setrlimit getsched setsched fork };
+allow $1_t self:fifo_file rw_file_perms;
+
+# Shlib, locale, sysctl, proc
+uses_shlib($1_t)
+read_locale($1_t)
+read_sysctl($1_t)
+
+allow $1_t { self proc_t }:dir { search read getattr };
+allow $1_t { self proc_t }:{ file lnk_file } { read getattr };
+
+# Most gnome apps use bonobo
+bonobo_client($1, $2)
+
+# Within-process bonobo-activation of components
+bonobo_connect($1, $1)
+
+# Session management happens over ICE
+# FIXME: More specific context is needed for gnome-session
+ice_connect($1, $2)
+
+# Most talk to GConf
+gconf_client($1, $2)
+
+# Allow getattr/read/search of .gnome2 and .gnome2_private
+# Reading files should *not* be allowed - instead, more specific
+# types should be created to handle such requests
+allow $1_t { $2_gnome_settings_t $2_gnome_secret_t }:dir r_dir_perms;
+
+# Access /etc/mtab, /etc/nsswitch.conf
+allow $1_t etc_t:file { read getattr };
+allow $1_t etc_runtime_t:file { read getattr };
+
+# Themes, gtkrc
+allow $1_t usr_t:{ file lnk_file } r_file_perms;
+
+') dnl gnome_application
+
+################################
+
+define(`gnome_file_dialog', `
+
+# GNOME Open/Save As dialogs 
+dontaudit_getattr($1_t)
+dontaudit_search_dir($1_t)
+
+# Bonobo connection to gnome_vfs daemon
+bonobo_connect($1, $2_gnome_vfs)
+ 
+') dnl gnome_file_dialog
+
+################################
+
+define(`gnome_private_store', `
+
+# Type for storing secret data
+# (different from home, not directly accessible from ROLE_t)
+type $1_secret_t, file_type, $2_file_type, sysadmfile;
+
+# Put secret files in .gnome2_private
+file_type_auto_trans($1_t, $2_gnome_secret_t, $1_secret_t, file);
+allow $2_t $1_secret_t:file unlink;
+
+') dnl gnome_private_store

@@ -1,0 +1,42 @@
+#DESC sound server - for network audio server programs, nasd, yiff, etc
+#
+# Author:  Russell Coker <russell@coker.com.au>
+#
+
+#################################
+#
+# Rules for the soundd_t domain.
+#
+# soundd_exec_t is the type of the soundd executable.
+#
+daemon_domain(soundd)
+
+allow soundd_t soundd_port_t:tcp_socket name_bind;
+
+type etc_soundd_t, file_type, sysadmfile;
+type soundd_state_t, file_type, sysadmfile;
+
+tmp_domain(soundd)
+rw_dir_create_file(soundd_t, soundd_state_t)
+
+allow soundd_t sound_device_t:chr_file rw_file_perms;
+allow soundd_t device_t:lnk_file read;
+
+# Use the network.
+can_network_server(soundd_t)
+allow soundd_t self:unix_stream_socket create_stream_socket_perms;
+allow soundd_t self:unix_dgram_socket create_socket_perms;
+# allow any domain to connect to the sound server
+can_tcp_connect(userdomain, soundd_t)
+
+allow soundd_t self:process setpgid;
+
+# read config files
+allow soundd_t { etc_t etc_runtime_t }:{ file lnk_file } r_file_perms;
+
+allow soundd_t etc_t:dir r_dir_perms;
+r_dir_file(soundd_t, etc_soundd_t)
+
+# for yiff - probably need some rules for the client support too
+allow soundd_t self:shm create_shm_perms;
+tmpfs_domain(soundd)

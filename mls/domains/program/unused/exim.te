@@ -1,0 +1,309 @@
+#DESC Exim - Mail server
+#
+# Author:  David Hampton <hampton@employees.org>
+# From postfix.te by Russell Coker <russell@coker.com.au>
+# Depends: mta.te
+#
+
+type exim_spool_t, file_type, sysadmfile;
+type exim_spool_db_t, file_type, sysadmfile;
+
+
+##########
+# Exim daemon
+##########
+daemon_domain(exim, `, mta_delivery_agent, mail_server_domain, mail_server_sender, nscd_client_domain, privlog, privhome', nosysadm)
+exim_common(exim);
+etcdir_domain(exim)
+logdir_domain(exim)
+########################################
+########################################
+role sysadm_r types exim_t;
+
+# Server side networking
+can_network_tcp(exim_t);
+allow exim_t { smtp_port_t amavisd_send_port_t }:tcp_socket name_bind;
+# The exim daemon gets to listen to mail coming back from amavisd
+# For identd lookups
+allow exim_t inetd_child_port_t:tcp_socket name_connect;
+allow exim_t self:unix_dgram_socket create_socket_perms;
+
+# Lock file between exim processes. Exim creates a lock file in /tmp
+# that doesn't transition to the exim_tmp_t domain for some reason,
+# thus the allow statement.
+tmp_domain(exim)
+allow exim_t tmp_t:file { getattr read };
+
+# Lock files for the actual mail delivery.  Exim wants to create a
+# 'hitching post' file in the same directory as the delivery file.
+# These are the additiona privileges over and above what's defined for
+# an mta_delivery_agent. Additional privs for maildir mail files
+allow exim_t mail_spool_t:dir remove_name;
+allow exim_t mail_spool_t:file { link setattr unlink write rename };
+
+# For access to users .forward files
+allow exim_t home_dir_type:dir { getattr search };
+
+allow exim_t self:capability { dac_read_search net_bind_service };
+
+# Create exim spool files, update spool database
+create_dir_file(exim_t, exim_spool_t)
+rw_dir_file(exim_t, exim_spool_db_t)
+
+# Start daemon/child processes
+can_exec(exim_t, exim_exec_t)
+
+allow exim_t sbin_t:dir r_dir_perms;
+
+# Read aliases file
+allow exim_t etc_aliases_t:file r_file_perms;
+
+#
+allow exim_t devpts_t:chr_file getattr;
+
+ifdef(`crond.te', `
+system_crond_entry(exim_exec_t, exim_t)
+domain_auto_trans(crond_t, exim_exec_t, exim_t)
+allow exim_t system_crond_tmp_t:file { getattr read append };
+#logwatch
+allow system_crond_t exim_log_t:file read;
+')
+
+# For squirrelmail
+ifdef(`httpd.te', `
+domain_auto_trans(httpd_sys_script_t, exim_exec_t, exim_t)
+allow exim_t httpd_t:fd use;
+allow exim_t httpd_t:process sigchld;
+allow exim_t httpd_log_t:file { append getattr };
+allow exim_t httpd_squirrelmail_t:file { append read };
+allow exim_t httpd_t:fifo_file { read write getattr };
+allow exim_t httpd_t:tcp_socket { read write };
+')
+
+########################################
+########################################
+
+
+##  --------------------------------------------------
+##		 exim_ro, exim_ro_net
+##
+##  Many of the subsequent applications call exim for
+##  the sole purpose of extracting configuration or
+##  other information.  Lock down the permissions on
+##  these instances to be pretty much read-only
+##  everything.
+##
+##  One of the applications calls exim only to
+##  determine whether an address is valid.  It does
+##  this by having exim attempt to deliver an empty
+##  message, without doing the actual deliver.
+##  These function are aplit out here to keep all the
+##  access controls on exim itself in poe part of the
+##  file.
+##  --------------------------------------------------
+
+define(`exim_ro_base', `
+application_domain($1)
+role system_r types $1_t;
+read_sysctl($1_t)
+r_dir_file($1_t, etc_t)		#for nsswitch.conf
+r_dir_file($1_t, var_spool_t)
+r_dir_file($1_t, exim_spool_t)
+allow $1_t devpts_t:chr_file { getattr read write };
+allow $1_t self:capability { dac_override setgid setuid };
+')
+
+exim_ro_base(exim_ro)
+dontaudit exim_ro_t self:unix_stream_socket { connect create };
+
+exim_ro_base(exim_ro_net)
+can_network(exim_ro_net_t)
+general_proc_read_access(exim_ro_net_t)
+read_locale(exim_ro_net_t)
+allow exim_ro_net_t mail_spool_t:dir search;
+allow exim_ro_net_t etc_aliases_t:file r_file_perms;
+allow exim_ro_net_t self:unix_stream_socket { create connect };
+
+
+
+
+##  --------------------------------------------------
+##  exim_helper_base
+##
+##  Define the base attributes for an exim helper
+##  program.
+##  --------------------------------------------------
+define(`exim_helper_base',`
+application_domain($1)
+role system_r types $1_t;
+can_exec_any($1_t)
+
+allow $1_t devpts_t:dir search;
+
+# Needed for perl
+general_domain_access($1_t)
+general_proc_read_access($1_t)
+allow $1_t urandom_device_t:chr_file read;
+allow $1_t { devtty_t devpts_t }:chr_file { read write ioctl };
+read_locale($1_t)
+allow $1_t sbin_t:dir r_dir_perms;
+')
+
+
+
+
+##  --------------------------------------------------
+##  exim_helper_script_base
+##  --------------------------------------------------
+define(`exim_helper_script_base',`
+exim_helper_base($1)
+
+# Needed for bash
+allow $1_t { devtty_t devpts_t }:chr_file { read write getattr };
+allow $1_t devpts_t:dir search;
+allow $1_t fs_t:filesystem getattr;
+rw_dir_create_file($1_t, tmp_t)		# Script uses a "here" document
+dontaudit $1_t etc_runtime_t:file { getattr read };	# mtab
+dontaudit $1_t selinux_config_t:dir { search };
+dontaudit $1_t selinux_config_t:file { getattr read };	# mtab
+allow $1_t var_spool_t:dir search;		# Needed to traverse to get to /var/spool/exim
+
+')
+
+
+##  --------------------------------------------------
+##  exicyclog
+##  --------------------------------------------------
+
+exim_helper_script_base(exicyclog)
+allow exicyclog_t self:capability { dac_override setuid setgid };
+create_dir_file(exicyclog_t, exim_log_t)
+allow exicyclog_t var_t:dir r_dir_perms;
+allow exicyclog_t var_log_t:dir r_dir_perms;
+allow exicyclog_t exim_spool_t:dir r_dir_perms;
+
+
+
+
+##  --------------------------------------------------
+##  exigrep
+##  --------------------------------------------------
+
+exim_helper_base(exigrep)
+allow exigrep_t self:capability dac_override;
+r_dir_file(exigrep_t, var_log_t)
+r_dir_file(exigrep_t, exim_log_t)
+
+
+
+
+##  --------------------------------------------------
+##  exipick
+##  --------------------------------------------------
+
+exim_helper_base(exipick)
+domain_auto_trans(exipick_t, exim_exec_t, exim_ro_t)
+r_dir_file(exipick_t, var_spool_t)
+r_dir_file(exipick_t, exim_spool_t)
+allow exipick_t self:capability dac_override;
+
+
+
+
+##  --------------------------------------------------
+##  exiqgrep
+##  --------------------------------------------------
+
+exim_helper_base(exiqgrep)
+domain_auto_trans(exiqgrep_t, exim_exec_t, exim_ro_t)
+
+
+
+application_domain(exim_lock)
+role system_r types exim_lock_t;
+
+
+##  --------------------------------------------------
+##  exiwhat
+##     1) Runs exim to extract config info
+##     2) Sends a signal to all running exim processes
+##     3) Collects the status files they drop in the spool directory
+##  --------------------------------------------------
+
+exim_helper_script_base(exiwhat)
+domain_auto_trans(exiwhat_t, exim_exec_t, exim_ro_t)
+allow exiwhat_t exim_spool_t:dir { rw_dir_perms };
+allow exiwhat_t exim_spool_t:file { r_file_perms unlink };
+
+# killall
+r_dir_file(exiwhat_t, exim_t)
+r_dir_file(exiwhat_t, selinux_config_t)
+allow exiwhat_t exim_t:process signal;
+allow exiwhat_t self:capability { dac_override kill sys_nice };
+
+dontaudit exiwhat_t file_type:dir search;
+dontaudit exiwhat_t file_type:file { getattr read };
+
+# rm
+allow exiwhat_t devpts_t:chr_file ioctl;
+
+
+
+
+##  --------------------------------------------------
+##  exim_check_access
+##     1) Runs exim to simulate mail receipt
+##     2) Checks on whether the mail address is allowed from the ip address
+##  --------------------------------------------------
+
+exim_helper_script_base(exim_checkaccess)
+domain_auto_trans(exim_checkaccess_t, exim_exec_t, exim_ro_net_t)
+allow exim_checkaccess_t exim_spool_t:dir { r_dir_perms };
+allow exim_checkaccess_t self:capability dac_override;
+
+
+
+
+
+##  --------------------------------------------------
+##  exim_helper
+##  --------------------------------------------------
+application_domain(exim_helper)
+domain_auto_trans(exim_helper_t, exim_exec_t, exim_ro_t)
+can_exec(exim_helper_t, bin_t)
+role system_r types exim_helper_t;
+general_domain_access(exim_helper_t)
+read_locale(exim_helper_t)
+
+allow exim_helper_t { devtty_t devpts_t }:chr_file { read write };
+
+# Have to walk through /var/log to get to /var/log/exim
+allow exim_helper_t var_t:dir r_dir_perms;
+r_dir_file(exim_helper_t, exim_log_t)
+
+
+
+
+
+
+##  --------------------------------------------------
+##  exim database maintenance programs
+##     exim_dump_db, exim_fixdb, exim_tidydb
+##  --------------------------------------------------
+define(`exim_db_base',`
+application_domain($1)
+role system_r types $1_t;
+read_locale($1_t)
+general_proc_read_access($1_t)
+allow $1_t devpts_t:chr_file { getattr read write };
+allow $1_t self:capability { dac_override setgid setuid };
+allow $1_t tmp_t:dir { getattr };
+r_dir_file($1_t, var_spool_t)
+r_dir_file($1_t, exim_spool_t)
+r_dir_file($1_t, exim_spool_db_t)
+dontaudit $1_t etc_runtime_t:file { getattr read };	# mtab
+')
+
+exim_db_base(exim_db_ro)
+exim_db_base(exim_db_rw)
+rw_dir_file(exim_db_rw_t, exim_spool_db_t)

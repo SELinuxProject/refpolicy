@@ -1,0 +1,78 @@
+#DESC Slapd - OpenLDAP server
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: slapd
+#
+
+#################################
+#
+# Rules for the slapd_t domain.
+#
+# slapd_exec_t is the type of the slapd executable.
+#
+daemon_domain(slapd)
+
+allow slapd_t ldap_port_t:tcp_socket name_bind;
+
+etc_domain(slapd)
+type slapd_db_t, file_type, sysadmfile;
+type slapd_replog_t, file_type, sysadmfile;
+
+tmp_domain(slapd)
+
+# Use the network.
+can_network(slapd_t)
+allow slapd_t port_type:tcp_socket name_connect;
+can_ypbind(slapd_t)
+allow slapd_t self:fifo_file rw_file_perms;
+allow slapd_t self:unix_stream_socket create_stream_socket_perms;
+file_type_auto_trans(slapd_t,var_run_t,slapd_var_run_t,sock_file)
+allow slapd_t self:unix_dgram_socket create_socket_perms;
+# allow any domain to connect to the LDAP server
+can_tcp_connect(domain, slapd_t)
+
+# Use capabilities  should not need kill...
+allow slapd_t self:capability { kill setgid setuid net_bind_service net_raw dac_override dac_read_search };
+allow slapd_t self:process setsched;
+
+allow slapd_t proc_t:file r_file_perms;
+
+# Allow access to the slapd databases
+create_dir_file(slapd_t, slapd_db_t)
+allow initrc_t slapd_db_t:dir r_dir_perms;
+allow slapd_t var_lib_t:dir r_dir_perms;
+
+# Allow access to write the replication log (should tighten this)
+create_dir_file(slapd_t, slapd_replog_t)
+
+# read config files
+allow slapd_t etc_t:{ file lnk_file } { getattr read };
+allow slapd_t etc_runtime_t:file { getattr read };
+
+# for startup script
+allow initrc_t slapd_etc_t:file { getattr read };
+
+allow slapd_t etc_t:dir r_dir_perms;
+
+read_sysctl(slapd_t)
+
+allow slapd_t usr_t:{ lnk_file file } { read getattr };
+allow slapd_t urandom_device_t:chr_file { getattr read ioctl };
+allow slapd_t self:netlink_route_socket r_netlink_socket_perms;
+r_dir_file(slapd_t, cert_t)
+
+
+type slapd_cert_t, file_type, sysadmfile;
+allow slapd_t bin_t:dir search;
+can_exec(slapd_t, bin_t)
+r_dir_file(slapd_t, proc_net_t)
+allow slapd_t self:capability { chown sys_nice };
+allow slapd_t self:file { getattr read };
+allow slapd_t self:process { execstack getsched };
+allow slapd_t sysctl_net_t:dir r_dir_perms;
+lock_domain(slapd)
+create_dir_file(slapd_t, slapd_lock_t)
+dontaudit slapd_t devpts_t:dir search;
+rw_dir_create_file(slapd_t, slapd_cert_t)
+allow slapd_t usr_t:dir { add_name write };
+allow slapd_t usr_t:file { create write };

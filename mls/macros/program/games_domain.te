@@ -1,0 +1,89 @@
+#DESC games
+#
+# Macros for games
+#
+#
+# Authors:  Dan Walsh <dwalsh@redhat.com> 
+#
+#
+# games_domain(domain_prefix)
+#
+#
+define(`games_domain', `
+
+type $1_games_t, domain, nscd_client_domain;
+
+# Type transition
+if (! disable_games_trans) {
+domain_auto_trans($1_t, games_exec_t, $1_games_t)
+}
+can_exec($1_games_t, games_exec_t)
+role $1_r types $1_games_t;
+
+can_create_pty($1_games)
+
+# X access, GNOME, /tmp files
+x_client_domain($1_games, $1)
+tmp_domain($1_games, `', { dir notdevfile_class_set })
+gnome_application($1_games, $1)
+gnome_file_dialog($1_games, $1)
+
+# Games seem to need this
+if (allow_execmem) {
+allow $1_games_t self:process execmem;
+}
+
+allow $1_games_t texrel_shlib_t:file execmod;
+allow $1_games_t var_t:dir { search getattr };
+rw_dir_create_file($1_games_t, games_data_t)
+allow $1_games_t sound_device_t:chr_file rw_file_perms;
+can_udp_send($1_games_t, $1_games_t)
+can_tcp_connect($1_games_t, $1_games_t)
+
+# Access /home/user/.gnome2
+# FIXME: Change to use per app types
+create_dir_file($1_games_t, $1_gnome_settings_t)
+
+# FIXME: why is this necessary - ORBit?
+# ORBit works differently now
+create_dir_file($1_games_t, $1_tmp_t)
+allow $1_games_t $1_tmp_t:sock_file create_file_perms;
+can_unix_connect($1_t, $1_games_t)
+can_unix_connect($1_games_t, $1_t)
+
+ifdef(`xdm.te', `
+allow $1_games_t xdm_tmp_t:dir rw_dir_perms;
+allow $1_games_t xdm_tmp_t:sock_file create_file_perms;
+allow $1_games_t xdm_var_lib_t:file { getattr read };
+')dnl end if xdm.te
+
+allow $1_games_t var_lib_t:dir search;
+r_dir_file($1_games_t, man_t)
+allow $1_games_t { proc_t self }:dir search;
+allow $1_games_t { proc_t self }:{ file lnk_file } { read getattr };
+ifdef(`mozilla.te', ` 
+dontaudit $1_games_t $1_mozilla_t:unix_stream_socket connectto;
+')
+allow $1_games_t event_device_t:chr_file getattr;
+allow $1_games_t mouse_device_t:chr_file getattr;
+
+allow $1_games_t self:file { getattr read };
+allow $1_games_t self:sem create_sem_perms;
+
+allow $1_games_t { bin_t sbin_t }:dir { getattr search };
+can_exec($1_games_t, { shell_exec_t bin_t utempter_exec_t })
+allow $1_games_t bin_t:lnk_file read;
+
+dontaudit $1_games_t var_run_t:dir search;
+dontaudit $1_games_t initrc_var_run_t:file { read write };
+dontaudit $1_games_t var_log_t:dir search;
+
+can_network($1_games_t)
+allow $1_games_t port_t:tcp_socket name_bind;
+allow $1_games_t port_t:tcp_socket name_connect;
+
+# Suppress .icons denial until properly implemented
+dontaudit $1_games_t $1_home_t:dir read;
+
+')dnl end macro definition
+

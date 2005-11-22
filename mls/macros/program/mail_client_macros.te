@@ -1,0 +1,68 @@
+#
+# Shared macro for mail clients
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+
+########################################
+# mail_client_domain(client, role_prefix)
+#
+
+define(`mail_client_domain', `
+
+# Allow netstat
+# Startup shellscripts
+allow $1_t bin_t:dir r_dir_perms;
+allow $1_t bin_t:lnk_file r_file_perms;
+can_exec($1_t, bin_t)
+r_dir_file($1_t, proc_net_t)
+allow $1_t sysctl_net_t:dir search;
+
+# Allow DNS
+can_resolve($1_t)
+
+# Allow POP/IMAP/SMTP/NNTP/LDAP/IPP(printing)
+can_ypbind($1_t)
+can_network_client_tcp($1_t, { pop_port_t smtp_port_t innd_port_t ldap_port_t ipp_port_t })
+allow $1_t { pop_port_t smtp_port_t innd_port_t ldap_port_t ipp_port_t }:tcp_socket name_connect;
+
+# Allow printing the mail
+ifdef(`cups.te',`
+allow $1_t cupsd_etc_t:dir r_dir_perms;
+allow $1_t cupsd_rw_etc_t:file r_file_perms;
+')
+ifdef(`lpr.te', `
+domain_auto_trans($1_t, lpr_exec_t, $2_lpr_t)
+')
+
+# Attachments
+read_content($1_t, $2, mail)
+
+# Save mail
+write_untrusted($1_t, $2)
+
+# Encrypt mail
+ifdef(`gpg.te', `
+domain_auto_trans($1_t, gpg_exec_t, $2_gpg_t)
+allow $1_t $2_gpg_t:process signal;
+')
+
+# Start links in web browser
+ifdef(`mozilla.te', `
+can_exec($1_t, shell_exec_t)
+domain_auto_trans($1_t, mozilla_exec_t, $2_mozilla_t)
+') 
+ifdef(`dbusd.te', `
+dbusd_client(system, $1)
+allow $1_t system_dbusd_t:dbus send_msg;
+dbusd_client($2, $1)
+allow $1_t $2_dbusd_t:dbus send_msg;
+ifdef(`cups.te', `
+allow cupsd_t $1_t:dbus send_msg;
+') 
+') 
+# Allow the user domain to signal/ps.
+can_ps($2_t, $1_t)
+allow $2_t $1_t:process signal_perms;
+
+')

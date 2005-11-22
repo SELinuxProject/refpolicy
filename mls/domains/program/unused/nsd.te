@@ -1,0 +1,102 @@
+#DESC Authoritative only name server
+#
+# Author: Russell Coker
+# X-Debian-Packages: nsd
+# 
+#
+
+#################################
+#
+# Rules for the nsd_t domain.
+#
+
+daemon_domain(nsd)
+
+# a type for nsd.db
+type nsd_db_t, file_type, sysadmfile;
+
+# for zone update cron job
+type nsd_crond_t, domain, privlog;
+role system_r types nsd_crond_t;
+uses_shlib(nsd_crond_t)
+can_network_client(nsd_crond_t)
+allow nsd_crond_t port_type:tcp_socket name_connect;
+can_ypbind(nsd_crond_t)
+allow nsd_crond_t self:unix_dgram_socket create_socket_perms;
+allow nsd_crond_t self:process { fork signal_perms };
+system_crond_entry(nsd_exec_t, nsd_crond_t)
+allow nsd_crond_t { proc_t etc_runtime_t }:file { getattr read };
+allow nsd_crond_t proc_t:lnk_file { getattr read };
+allow nsd_crond_t { bin_t sbin_t }:dir search;
+can_exec(nsd_crond_t, { nsd_exec_t bin_t sbin_t shell_exec_t })
+allow nsd_crond_t { bin_t sbin_t shell_exec_t }:file getattr;
+allow nsd_crond_t bin_t:lnk_file read;
+read_locale(nsd_crond_t)
+allow nsd_crond_t self:fifo_file rw_file_perms;
+# kill capability for root cron job and non-root daemon
+allow nsd_crond_t self:capability { dac_override kill };
+allow nsd_crond_t nsd_t:process signal;
+dontaudit nsd_crond_t sysadm_home_dir_t:dir { search getattr };
+dontaudit nsd_crond_t self:capability sys_nice;
+dontaudit nsd_crond_t domain:dir search;
+allow nsd_crond_t self:process setsched;
+can_ps(nsd_crond_t, nsd_t)
+
+file_type_auto_trans(nsd_crond_t, nsd_conf_t, nsd_zone_t, file)
+file_type_auto_trans({ nsd_t nsd_crond_t }, nsd_zone_t, nsd_db_t, file)
+allow nsd_crond_t var_lib_t:dir search;
+
+allow nsd_crond_t nsd_conf_t:file { getattr read ioctl };
+allow nsd_crond_t nsd_zone_t:dir rw_dir_perms;
+allow nsd_crond_t proc_t:dir r_dir_perms;
+allow nsd_crond_t device_t:dir search;
+allow nsd_crond_t devtty_t:chr_file rw_file_perms;
+allow nsd_crond_t etc_t:file { getattr read };
+allow nsd_crond_t etc_t:lnk_file read;
+allow nsd_crond_t { var_t var_run_t }:dir search;
+allow nsd_crond_t nsd_var_run_t:file { getattr read };
+
+# for SSP
+allow nsd_crond_t urandom_device_t:chr_file read;
+
+# A type for configuration files of nsd
+type nsd_conf_t, file_type, sysadmfile;
+# A type for zone files
+type nsd_zone_t, file_type, sysadmfile;
+
+r_dir_file(nsd_t, { nsd_conf_t nsd_zone_t })
+# zone files may be in /var/lib/nsd
+allow nsd_t var_lib_t:dir search;
+r_dir_file(initrc_t, nsd_conf_t)
+allow nsd_t etc_runtime_t:file { getattr read };
+allow nsd_t proc_t:file { getattr read };
+allow nsd_t { sbin_t bin_t }:dir search;
+can_exec(nsd_t, { nsd_exec_t bin_t })
+
+# Use capabilities.  chown is for chowning /var/run/nsd.pid
+allow nsd_t self:capability { dac_override chown setuid setgid net_bind_service };
+
+allow nsd_t etc_t:{ file lnk_file } { getattr read };
+
+# nsd can use network
+can_network_server(nsd_t)
+can_ypbind(nsd_t)
+# allow client access from caching BIND
+ifdef(`named.te', `
+can_udp_send(named_t, nsd_t)
+can_udp_send(nsd_t, named_t)
+can_tcp_connect(named_t, nsd_t)
+')
+
+# if you want to allow all programs to contact the primary name server
+#can_udp_send(domain, nsd_t)
+#can_udp_send(nsd_t, domain)
+#can_tcp_connect(domain, nsd_t)
+
+# Bind to the named port.
+allow nsd_t dns_port_t:udp_socket name_bind;
+allow nsd_t dns_port_t:tcp_socket name_bind;
+
+allow nsd_t self:unix_stream_socket create_stream_socket_perms;
+allow nsd_t self:unix_dgram_socket create_socket_perms;
+

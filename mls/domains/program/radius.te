@@ -1,0 +1,67 @@
+#DESC RADIUS - Radius server
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: radiusd-cistron radiusd-livingston xtradius yardradius radiusd-freeradius
+#
+
+#################################
+#
+# Rules for the radiusd_t domain.
+#
+# radiusd_exec_t is the type of the radiusd executable.
+#
+daemon_domain(radiusd, `, auth_chkpwd')
+
+etcdir_domain(radiusd)
+
+system_crond_entry(radiusd_exec_t, radiusd_t)
+
+allow radiusd_t self:process setsched;
+
+allow radiusd_t proc_t:file { read getattr };
+
+dontaudit radiusd_t sysadm_home_dir_t:dir getattr;
+
+# allow pthreads to read kernel version
+read_sysctl(radiusd_t)
+
+# read config files
+allow radiusd_t etc_t:dir r_dir_perms;
+allow radiusd_t { etc_t etc_runtime_t }:file { read getattr };
+allow radiusd_t etc_t:lnk_file read;
+
+# write log files
+logdir_domain(radiusd)
+allow radiusd_t radiusd_log_t:dir create;
+
+allow radiusd_t usr_t:file r_file_perms;
+
+can_exec(radiusd_t, lib_t)
+can_exec(radiusd_t, { bin_t shell_exec_t })
+allow radiusd_t { bin_t sbin_t }:dir search;
+allow radiusd_t bin_t:lnk_file read;
+
+allow radiusd_t devtty_t:chr_file { read write };
+allow radiusd_t self:fifo_file rw_file_perms;
+# fsetid is for gzip which needs it when run from scripts
+# gzip also needs chown access to preserve GID for radwtmp files
+allow radiusd_t self:capability { chown dac_override fsetid kill setgid setuid sys_resource sys_tty_config };
+
+can_network_server(radiusd_t)
+can_ypbind(radiusd_t)
+allow radiusd_t { radius_port_t radacct_port_t }:udp_socket name_bind;
+
+# for RADIUS proxy port
+allow radiusd_t port_t:udp_socket name_bind;
+
+ifdef(`snmpd.te', `
+can_tcp_connect(radiusd_t, snmpd_t)
+')
+ifdef(`logrotate.te', `
+can_exec(radiusd_t, logrotate_exec_t)
+')
+can_udp_send(sysadm_t, radiusd_t)
+can_udp_send(radiusd_t, sysadm_t)
+
+allow radiusd_t self:unix_stream_socket create_stream_socket_perms;
+allow radiusd_t urandom_device_t:chr_file { getattr read };

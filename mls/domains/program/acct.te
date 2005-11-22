@@ -1,0 +1,66 @@
+#DESC Acct - BSD process accounting
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: acct
+#
+
+#################################
+#
+# Rules for the acct_t domain.
+#
+# acct_exec_t is the type of the acct executable.
+#
+daemon_base_domain(acct)
+ifdef(`crond.te', `
+system_crond_entry(acct_exec_t, acct_t)
+
+# for monthly cron job
+file_type_auto_trans(acct_t, var_log_t, wtmp_t, file)
+')
+
+# for SSP
+allow acct_t urandom_device_t:chr_file read;
+
+type acct_data_t, file_type, logfile, sysadmfile;
+
+# not sure why we need this, the command "last" is reported as using it
+dontaudit acct_t self:capability kill;
+
+# gzip needs chown capability for some reason
+allow acct_t self:capability { chown fsetid sys_pacct };
+
+allow acct_t var_t:dir { getattr search };
+rw_dir_create_file(acct_t, acct_data_t)
+
+can_exec(acct_t, { shell_exec_t bin_t initrc_exec_t acct_exec_t })
+allow acct_t { bin_t sbin_t }:dir search;
+allow acct_t bin_t:lnk_file read;
+
+read_locale(acct_t)
+
+allow acct_t fs_t:filesystem getattr;
+
+allow acct_t self:unix_stream_socket create_socket_perms;
+
+allow acct_t self:fifo_file { read write getattr };
+
+allow acct_t { self proc_t }:file { read getattr };
+
+read_sysctl(acct_t)
+
+dontaudit acct_t sysadm_home_dir_t:dir { getattr search };
+
+# for nscd
+dontaudit acct_t var_run_t:dir search;
+
+
+allow acct_t devtty_t:chr_file { read write };
+
+allow acct_t { etc_t etc_runtime_t }:file { read getattr };
+
+ifdef(`logrotate.te', `
+domain_auto_trans(logrotate_t, acct_exec_t, acct_t)
+rw_dir_create_file(logrotate_t, acct_data_t)
+can_exec(logrotate_t, acct_data_t)
+')
+

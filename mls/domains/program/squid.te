@@ -1,0 +1,84 @@
+#DESC Squid - Web cache
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: squid
+#
+
+#################################
+#
+# Rules for the squid_t domain.
+#
+# squid_t is the domain the squid process runs in
+ifdef(`apache.te',`
+can_tcp_connect(squid_t, httpd_t)
+')
+bool squid_connect_any false;
+daemon_domain(squid, `, web_client_domain, nscd_client_domain')
+type squid_conf_t, file_type, sysadmfile;
+general_domain_access(squid_t)
+allow { squid_t initrc_t } squid_conf_t:file r_file_perms;
+allow squid_t squid_conf_t:dir r_dir_perms;
+allow squid_t squid_conf_t:lnk_file read;
+
+logdir_domain(squid)
+rw_dir_create_file(initrc_t, squid_log_t)
+
+allow squid_t usr_t:file { getattr read };
+
+# type for /var/cache/squid
+type squid_cache_t, file_type, sysadmfile;
+
+allow squid_t self:capability { setgid setuid net_bind_service dac_override };
+allow squid_t { etc_t etc_runtime_t }:file r_file_perms;
+allow squid_t etc_t:lnk_file read;
+allow squid_t self:unix_stream_socket create_socket_perms;
+allow squid_t self:unix_dgram_socket create_socket_perms;
+allow squid_t self:fifo_file rw_file_perms;
+
+read_sysctl(squid_t)
+
+allow squid_t devtty_t:chr_file rw_file_perms;
+
+allow squid_t { self proc_t }:file { read getattr };
+
+# for when we use /var/spool/cache
+allow squid_t var_spool_t:dir search;
+
+# Grant permissions to create, access, and delete cache files.
+# No type transitions required, as the files inherit the parent directory type.
+create_dir_file(squid_t, squid_cache_t)
+ifdef(`logrotate.te',
+`domain_auto_trans(logrotate_t, squid_exec_t, squid_t)')
+ifdef(`crond.te', `domain_auto_trans(system_crond_t, squid_exec_t, squid_t)')
+
+# Use the network
+can_network(squid_t)
+if (squid_connect_any) {
+allow squid_t port_type:tcp_socket name_connect;
+} 
+can_ypbind(squid_t)
+can_tcp_connect(web_client_domain, squid_t)
+
+# tcp port 8080 and udp port 3130 is http_cache_port_t (see net_contexts)
+allow squid_t { gopher_port_t ftp_port_t http_port_t http_cache_port_t }:{ tcp_socket udp_socket } name_bind;
+allow squid_t { gopher_port_t ftp_port_t http_port_t http_cache_port_t }:tcp_socket name_connect;
+
+# to allow running programs from /usr/lib/squid (IE unlinkd)
+# also allow exec()ing itself
+can_exec(squid_t, { lib_t squid_exec_t bin_t sbin_t shell_exec_t } )
+allow squid_t { bin_t sbin_t }:dir search;
+allow squid_t { bin_t sbin_t }:lnk_file read;
+
+dontaudit squid_t { boot_t tmp_t home_root_t security_t devpts_t }:dir getattr;
+ifdef(`targeted_policy', `
+dontaudit squid_t tty_device_t:chr_file { read write };
+')
+allow squid_t urandom_device_t:chr_file { getattr read };
+
+#squid requires the following when run in diskd mode, the recommended setting
+r_dir_file(squid_t, cert_t)
+ifdef(`winbind.te', `
+domain_auto_trans(squid_t, winbind_helper_exec_t, winbind_helper_t)
+allow winbind_helper_t squid_t:tcp_socket rw_socket_perms;
+allow winbind_helper_t squid_log_t:file ra_file_perms;
+')

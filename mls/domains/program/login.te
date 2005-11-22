@@ -1,0 +1,234 @@
+#DESC Login - Local/remote login utilities
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+# Macroised by Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: login
+#
+
+#################################
+# 
+# Rules for the local_login_t domain
+# and the remote_login_t domain.
+#
+
+# $1 is the name of the domain (local or remote)
+define(`login_domain', `
+type $1_login_t, domain, privuser, privrole, privlog, auth_chkpwd, privowner, privfd, nscd_client_domain, mlsfileread, mlsfilewrite, mlsprocsetsl, mlsfileupgrade, mlsfiledowngrade;
+role system_r types $1_login_t;
+
+dontaudit $1_login_t shadow_t:file { getattr read };
+
+general_domain_access($1_login_t);
+
+# Read system information files in /proc.
+r_dir_file($1_login_t, proc_t)
+
+base_file_read_access($1_login_t)
+
+# Read directories and files with the readable_t type.
+# This type is a general type for "world"-readable files.
+allow $1_login_t readable_t:dir r_dir_perms;
+allow $1_login_t readable_t:notdevfile_class_set r_file_perms;
+
+# Read /var, /var/spool
+allow $1_login_t { var_t var_spool_t }:dir search;
+
+# for when /var/mail is a sym-link
+allow $1_login_t var_t:lnk_file read;
+
+# Read /etc.
+r_dir_file($1_login_t, etc_t)
+allow $1_login_t etc_runtime_t:{ file lnk_file } r_file_perms;
+
+read_locale($1_login_t)
+
+# for SSP/ProPolice
+allow $1_login_t urandom_device_t:chr_file { getattr read };
+
+# Read executable types.
+allow $1_login_t exec_type:{ file lnk_file } r_file_perms;
+
+# Read /dev directories and any symbolic links.
+allow $1_login_t device_t:dir r_dir_perms;
+allow $1_login_t device_t:lnk_file r_file_perms;
+
+uses_shlib($1_login_t);
+
+tmp_domain($1_login)
+
+ifdef(`pam.te', `
+can_exec($1_login_t, pam_exec_t)
+')
+
+ifdef(`pamconsole.te', `
+rw_dir_create_file($1_login_t, pam_var_console_t)
+domain_auto_trans($1_login_t, pam_console_exec_t, pam_console_t)
+')
+
+ifdef(`alsa.te', `
+domain_auto_trans($1_login_t, alsa_exec_t, alsa_t)
+')
+
+# Use capabilities
+allow $1_login_t self:capability { dac_override chown fowner fsetid kill setgid setuid net_bind_service sys_nice sys_resource sys_tty_config };
+allow $1_login_t self:process setrlimit;
+dontaudit $1_login_t sysfs_t:dir search;
+
+# Set exec context.
+can_setexec($1_login_t)
+
+allow $1_login_t autofs_t:dir { search read getattr };
+allow $1_login_t mnt_t:dir r_dir_perms;
+
+if (use_nfs_home_dirs) {
+r_dir_file($1_login_t, nfs_t)
+}
+
+if (use_samba_home_dirs) {
+r_dir_file($1_login_t, cifs_t)
+}
+
+# Login can polyinstantiate
+polyinstantiater($1_login_t)
+
+# FIXME: what is this for?
+ifdef(`xdm.te', `
+allow xdm_t $1_login_t:process signull;
+')
+
+ifdef(`crack.te', `
+allow $1_login_t crack_db_t:file r_file_perms;
+')
+
+# Permit login to search the user home directories.
+allow $1_login_t home_root_t:dir search;
+allow $1_login_t home_dir_type:dir search;
+
+# Write to /var/run/utmp.
+allow $1_login_t var_run_t:dir search;
+allow $1_login_t initrc_var_run_t:file rw_file_perms;
+
+# Write to /var/log/wtmp.
+allow $1_login_t var_log_t:dir search;
+allow $1_login_t wtmp_t:file rw_file_perms;
+
+# Write to /var/log/lastlog.
+allow $1_login_t lastlog_t:file rw_file_perms;
+
+# Write to /var/log/btmp
+allow $1_login_t faillog_t:file { lock append read write };
+
+# Search for mail spool file.
+allow $1_login_t mail_spool_t:dir r_dir_perms;
+allow $1_login_t mail_spool_t:file getattr;
+allow $1_login_t mail_spool_t:lnk_file read;
+
+# Get security policy decisions.
+can_getsecurity($1_login_t)
+
+# allow read access to default_contexts in /etc/security
+allow $1_login_t default_context_t:file r_file_perms;
+allow $1_login_t default_context_t:dir search;
+r_dir_file($1_login_t, selinux_config_t)
+
+allow $1_login_t mouse_device_t:chr_file { getattr setattr };
+
+ifdef(`targeted_policy',`
+unconfined_domain($1_login_t)
+domain_auto_trans($1_login_t, shell_exec_t, unconfined_t)
+')
+
+')dnl end login_domain macro
+#################################
+#
+# Rules for the local_login_t domain.
+#
+# local_login_t is the domain of a login process 
+# spawned by getty.
+#
+# remote_login_t is the domain of a login process 
+# spawned by rlogind.
+#
+# login_exec_t is the type of the login program
+#
+type login_exec_t, file_type, sysadmfile, exec_type;
+
+login_domain(local)
+
+# But also permit other user domains to be entered by login.
+login_spawn_domain(local_login, userdomain)
+
+# Do not audit denied attempts to access devices.
+dontaudit local_login_t fixed_disk_device_t:blk_file { getattr setattr };
+dontaudit local_login_t removable_device_t:blk_file { getattr setattr };
+dontaudit local_login_t device_t:{ chr_file blk_file lnk_file } { getattr setattr };
+dontaudit local_login_t misc_device_t:{ chr_file blk_file } { getattr setattr };
+dontaudit local_login_t framebuf_device_t:chr_file { getattr setattr read };
+dontaudit local_login_t apm_bios_t:chr_file { getattr setattr };
+dontaudit local_login_t v4l_device_t:chr_file { getattr setattr read };
+dontaudit local_login_t removable_device_t:chr_file { getattr setattr };
+dontaudit local_login_t scanner_device_t:chr_file { getattr setattr };
+
+# Do not audit denied attempts to access /mnt.
+dontaudit local_login_t mnt_t:dir r_dir_perms;
+
+
+# Create lock file.
+lock_domain(local_login)
+
+# Read and write ttys.
+allow local_login_t tty_device_t:chr_file { setattr rw_file_perms };
+allow local_login_t ttyfile:chr_file { setattr rw_file_perms };
+
+# Relabel ttys.
+allow local_login_t tty_device_t:chr_file { getattr relabelfrom relabelto };
+allow local_login_t ttyfile:chr_file { getattr relabelfrom relabelto };
+
+ifdef(`gpm.te',
+`allow local_login_t gpmctl_t:sock_file { getattr setattr };')
+
+# Allow setting of attributes on sound devices.
+allow local_login_t sound_device_t:chr_file { getattr setattr };
+
+# Allow setting of attributes on power management devices.
+allow local_login_t power_device_t:chr_file { getattr setattr };
+dontaudit local_login_t init_t:fd use;
+
+#################################
+#
+# Rules for the remote_login_t domain.
+#
+
+login_domain(remote)
+
+# Only permit unprivileged user domains to be entered via rlogin,
+# since very weak authentication is used.
+login_spawn_domain(remote_login, unpriv_userdomain)
+
+allow remote_login_t userpty_type:chr_file { setattr write };
+
+# Use the pty created by rlogind.
+ifdef(`rlogind.te', `
+can_access_pty(remote_login_t, rlogind)
+# Relabel ptys created by rlogind.
+allow remote_login_t rlogind_devpts_t:chr_file { setattr relabelfrom relabelto };
+')
+
+# Use the pty created by telnetd.
+ifdef(`telnetd.te', `
+can_access_pty(remote_login_t, telnetd)
+# Relabel ptys created by telnetd.
+allow remote_login_t telnetd_devpts_t:chr_file { setattr relabelfrom relabelto };
+')
+
+allow remote_login_t ptyfile:chr_file { getattr relabelfrom relabelto ioctl };
+allow remote_login_t fs_t:filesystem { getattr };
+
+# Allow remote login to resolve host names (passed in via the -h switch)
+can_resolve(remote_login_t)
+
+ifdef(`use_mcs', `
+ifdef(`getty.te', `
+range_transition getty_t login_exec_t s0 - s0:c0.c127;
+')
+')

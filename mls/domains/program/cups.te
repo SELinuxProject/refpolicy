@@ -1,0 +1,321 @@
+#DESC Cups - Common Unix Printing System
+#
+# Created cups policy from lpd policy: Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: cupsys cupsys-client cupsys-bsd
+# Depends: lpd.te lpr.te
+
+#################################
+#
+# Rules for the cupsd_t domain.
+#
+# cupsd_t is the domain of cupsd.
+# cupsd_exec_t is the type of the cupsd executable.
+#
+daemon_domain(cupsd, `, auth_chkpwd, nscd_client_domain')
+etcdir_domain(cupsd)
+type cupsd_rw_etc_t, file_type, sysadmfile, usercanread;
+
+can_network(cupsd_t)
+allow cupsd_t port_type:tcp_socket name_connect;
+logdir_domain(cupsd)
+
+tmp_domain(cupsd, `', { file dir fifo_file })
+
+allow cupsd_t devpts_t:dir search;
+
+allow cupsd_t device_t:lnk_file read;
+allow cupsd_t printer_device_t:chr_file rw_file_perms;
+allow cupsd_t urandom_device_t:chr_file { getattr read };
+dontaudit cupsd_t random_device_t:chr_file ioctl;
+
+# temporary solution, we need something better
+allow cupsd_t serial_device:chr_file rw_file_perms;
+
+r_dir_file(cupsd_t, usbdevfs_t)
+r_dir_file(cupsd_t, usbfs_t)
+
+ifdef(`logrotate.te', `
+domain_auto_trans(logrotate_t, cupsd_exec_t, cupsd_t)
+')
+
+ifdef(`inetd.te', `
+allow inetd_t printer_port_t:tcp_socket name_bind;
+domain_auto_trans(inetd_t, cupsd_exec_t, cupsd_t)
+')
+
+# write to spool
+allow cupsd_t var_spool_t:dir search;
+
+# this is not ideal, and allowing setattr access to cupsd_etc_t is wrong
+file_type_auto_trans(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t, file)
+file_type_auto_trans(cupsd_t, var_t, cupsd_rw_etc_t, { dir file })
+allow cupsd_t cupsd_rw_etc_t:dir { setattr rw_dir_perms };
+allow cupsd_t cupsd_etc_t:file setattr;
+allow cupsd_t cupsd_etc_t:dir setattr;
+
+allow cupsd_t { etc_t etc_runtime_t }:file { getattr read ioctl };
+can_exec(cupsd_t, initrc_exec_t)
+allow cupsd_t proc_t:file r_file_perms;
+allow cupsd_t proc_t:dir r_dir_perms;
+allow cupsd_t self:file { getattr read };
+read_sysctl(cupsd_t)
+allow cupsd_t sysctl_dev_t:dir search;
+allow cupsd_t sysctl_dev_t:file { getattr read };
+
+# for /etc/printcap
+dontaudit cupsd_t etc_t:file write;
+
+# allow cups to execute its backend scripts
+can_exec(cupsd_t, cupsd_exec_t)
+allow cupsd_t cupsd_exec_t:dir search;
+allow cupsd_t cupsd_exec_t:lnk_file read;
+allow cupsd_t reserved_port_t:tcp_socket name_bind;
+dontaudit cupsd_t reserved_port_type:tcp_socket name_bind;
+
+allow cupsd_t self:unix_stream_socket create_socket_perms;
+allow cupsd_t self:unix_dgram_socket create_socket_perms;
+allow cupsd_t self:fifo_file rw_file_perms;
+
+# Use capabilities.
+allow cupsd_t self:capability { dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_tty_config audit_write };
+dontaudit cupsd_t self:capability net_admin;
+
+#
+# /usr/lib/cups/backend/serial needs sys_admin
+# Need new context to run under???
+allow cupsd_t self:capability sys_admin;
+
+allow cupsd_t self:process setsched;
+
+# for /var/lib/defoma
+allow cupsd_t var_lib_t:dir search;
+r_dir_file(cupsd_t, readable_t)
+
+# Bind to the cups/ipp port (631).
+allow cupsd_t ipp_port_t:{ udp_socket tcp_socket } name_bind;
+
+can_tcp_connect(web_client_domain, cupsd_t)
+can_tcp_connect(cupsd_t, cupsd_t)
+
+# Send to portmap.
+ifdef(`portmap.te', `
+can_udp_send(cupsd_t, portmap_t)
+can_udp_send(portmap_t, cupsd_t)
+')
+
+# Write to /var/spool/cups.
+allow cupsd_t print_spool_t:dir { setattr rw_dir_perms };
+allow cupsd_t print_spool_t:file create_file_perms;
+allow cupsd_t print_spool_t:file rw_file_perms;
+
+# Filter scripts may be shell scripts, and may invoke progs like /bin/mktemp
+allow cupsd_t { bin_t sbin_t }:dir { search getattr };
+allow cupsd_t bin_t:lnk_file read;
+can_exec(cupsd_t, { shell_exec_t bin_t sbin_t })
+
+# They will also invoke ghostscript, which needs to read fonts
+read_fonts(cupsd_t)
+
+# Read /usr/lib/gconv/gconv-modules.* and /usr/lib/python2.2/.*
+allow cupsd_t lib_t:file { read getattr };
+
+# read python modules
+allow cupsd_t usr_t:{ file lnk_file } { read getattr ioctl };
+
+#
+# lots of errors generated requiring the following
+#
+allow cupsd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+allow cupsd_t self:netlink_route_socket { r_netlink_socket_perms };
+
+#
+# Satisfy readahead
+#
+allow initrc_t cupsd_log_t:file { getattr read };
+r_dir_file(cupsd_t, var_t)
+
+r_dir_file(cupsd_t, usercanread)
+ifdef(`samba.te', `
+rw_dir_file(cupsd_t, samba_var_t)
+allow smbd_t cupsd_etc_t:dir search;
+')
+
+ifdef(`pam.te', `
+dontaudit cupsd_t pam_var_run_t:file { getattr read };
+')
+dontaudit cupsd_t { sysadm_home_dir_t staff_home_dir_t }:dir { getattr search };
+# PTAL
+daemon_domain(ptal)
+etcdir_domain(ptal)
+
+file_type_auto_trans(ptal_t, var_run_t, ptal_var_run_t)
+allow ptal_t self:capability { chown sys_rawio };
+allow ptal_t self:{ unix_dgram_socket unix_stream_socket } create_socket_perms;
+allow ptal_t self:unix_stream_socket { listen accept };
+can_network_server_tcp(ptal_t)
+allow ptal_t ptal_port_t:tcp_socket name_bind;
+allow userdomain ptal_t:unix_stream_socket connectto;
+allow userdomain ptal_var_run_t:sock_file write;
+allow userdomain ptal_var_run_t:dir search;
+allow ptal_t self:fifo_file rw_file_perms;
+allow ptal_t device_t:dir read;
+allow ptal_t printer_device_t:chr_file rw_file_perms;
+allow initrc_t printer_device_t:chr_file getattr;
+allow ptal_t { etc_t etc_runtime_t }:file { getattr read };
+r_dir_file(ptal_t, usbdevfs_t)
+rw_dir_file(ptal_t, usbfs_t)
+allow cupsd_t ptal_var_run_t:sock_file { write setattr };
+allow cupsd_t ptal_t:unix_stream_socket connectto;
+allow cupsd_t ptal_var_run_t:dir search;
+dontaudit ptal_t { sysadm_home_dir_t staff_home_dir_t }:dir { getattr search };
+
+allow initrc_t ptal_var_run_t:dir rmdir;
+allow initrc_t ptal_var_run_t:fifo_file unlink;
+
+
+# HPLIP
+daemon_domain(hplip)
+etcdir_domain(hplip)
+allow hplip_t etc_t:file r_file_perms;
+allow hplip_t etc_runtime_t:file { read getattr };
+allow hplip_t printer_device_t:chr_file rw_file_perms;
+allow cupsd_t hplip_var_run_t:file { read getattr };
+allow hplip_t cupsd_etc_t:dir search;
+can_network(hplip_t)
+allow hplip_t { hplip_port_t ipp_port_t }:tcp_socket name_connect;
+allow hplip_t hplip_port_t:tcp_socket name_bind;
+
+# Uses networking to talk to the daemons
+allow hplip_t self:unix_dgram_socket create_socket_perms;
+allow hplip_t self:unix_stream_socket create_socket_perms;
+allow hplip_t self:rawip_socket create_socket_perms;
+
+# for python
+can_exec(hplip_t, bin_t)
+allow hplip_t { sbin_t bin_t }:dir search;
+allow hplip_t self:file { getattr read };
+allow hplip_t proc_t:file r_file_perms;
+allow hplip_t urandom_device_t:chr_file { getattr read };
+allow hplip_t usr_t:{ file lnk_file } r_file_perms;
+allow hplip_t devpts_t:dir search;
+allow hplip_t devpts_t:chr_file { getattr ioctl };
+
+
+dontaudit cupsd_t selinux_config_t:dir search;
+dontaudit cupsd_t selinux_config_t:file { getattr read };
+
+allow cupsd_t printconf_t:file { getattr read };
+
+ifdef(`dbusd.te', `
+dbusd_client(system, cupsd)
+allow cupsd_t system_dbusd_t:dbus send_msg;
+allow cupsd_t userdomain:dbus send_msg;
+')
+
+# CUPS configuration daemon
+daemon_domain(cupsd_config, `, nscd_client_domain')
+
+allow cupsd_config_t devpts_t:dir search;
+allow cupsd_config_t devpts_t:chr_file { getattr ioctl };
+
+ifdef(`distro_redhat', `
+ifdef(`rpm.te', `
+allow cupsd_config_t rpm_var_lib_t:dir { getattr search };
+allow cupsd_config_t rpm_var_lib_t:file { getattr read };
+')
+allow cupsd_config_t initrc_exec_t:file getattr;
+')dnl end distro_redhat
+
+allow cupsd_config_t { etc_t etc_runtime_t net_conf_t }:file { getattr read };
+allow cupsd_config_t self:file { getattr read };
+
+allow cupsd_config_t proc_t:file { getattr read };
+allow cupsd_config_t cupsd_var_run_t:file { getattr read };
+allow cupsd_config_t cupsd_t:process { signal };
+allow cupsd_config_t cupsd_t:{ file lnk_file } { getattr read };
+can_ps(cupsd_config_t, cupsd_t)
+
+allow cupsd_config_t self:capability { chown sys_tty_config };
+
+rw_dir_create_file(cupsd_config_t, cupsd_etc_t)
+rw_dir_create_file(cupsd_config_t, cupsd_rw_etc_t)
+file_type_auto_trans(cupsd_config_t, cupsd_etc_t, cupsd_rw_etc_t, file)
+file_type_auto_trans(cupsd_config_t, var_t, cupsd_rw_etc_t, file)
+allow cupsd_config_t var_t:lnk_file read;
+
+can_network_tcp(cupsd_config_t)
+can_ypbind(cupsd_config_t)
+allow cupsd_config_t port_type:tcp_socket name_connect;
+can_tcp_connect(cupsd_config_t, cupsd_t)
+allow cupsd_config_t self:fifo_file rw_file_perms;
+
+allow cupsd_config_t self:unix_stream_socket create_socket_perms;
+allow cupsd_config_t self:unix_dgram_socket create_socket_perms;
+ifdef(`dbusd.te', `
+dbusd_client(system, cupsd_config)
+allow cupsd_config_t userdomain:dbus send_msg;
+allow cupsd_config_t system_dbusd_t:dbus { send_msg acquire_svc };
+allow userdomain cupsd_config_t:dbus send_msg;
+')dnl end if dbusd.te
+
+ifdef(`hald.te', `
+
+ifdef(`dbusd.te', `
+allow { cupsd_t cupsd_config_t } hald_t:dbus send_msg;
+allow hald_t { cupsd_t cupsd_config_t }:dbus send_msg;
+')dnl end if dbusd.te
+
+allow hald_t cupsd_config_t:process signal;
+domain_auto_trans(hald_t, cupsd_config_exec_t, cupsd_config_t)
+
+') dnl end if hald.te
+
+
+can_exec(cupsd_config_t, { bin_t sbin_t shell_exec_t })
+ifdef(`hostname.te', `
+can_exec(cupsd_t, hostname_exec_t)
+can_exec(cupsd_config_t, hostname_exec_t)
+')
+allow cupsd_config_t { bin_t sbin_t }:dir { search getattr };
+allow cupsd_config_t { bin_t sbin_t }:lnk_file read;
+# killall causes the following
+dontaudit cupsd_config_t domain:dir { getattr search };
+dontaudit cupsd_config_t selinux_config_t:dir search;
+
+can_exec(cupsd_config_t, cupsd_config_exec_t) 
+
+allow cupsd_config_t usr_t:file { getattr read };
+allow cupsd_config_t var_lib_t:dir { getattr search };
+allow cupsd_config_t rpm_var_lib_t:file { getattr read };
+allow cupsd_config_t printconf_t:file { getattr read };
+
+allow cupsd_config_t urandom_device_t:chr_file { getattr read };
+
+ifdef(`logrotate.te', `
+allow cupsd_config_t logrotate_t:fd use;
+')dnl end if logrotate.te
+allow cupsd_config_t system_crond_t:fd use;
+allow cupsd_config_t crond_t:fifo_file r_file_perms;
+allow cupsd_t crond_t:fifo_file read;
+allow cupsd_t crond_t:fd use;
+
+# Alternatives asks for this
+allow cupsd_config_t initrc_exec_t:file getattr;
+ifdef(`targeted_policy', `
+can_unix_connect(cupsd_t, initrc_t)
+allow cupsd_t initrc_t:dbus send_msg;
+allow initrc_t cupsd_t:dbus send_msg;
+allow { cupsd_config_t cupsd_t } unconfined_t:dbus send_msg;
+allow unconfined_t cupsd_config_t:dbus send_msg;
+allow { cupsd_t cupsd_config_t } unconfined_t:fifo_file read;
+')
+typealias printer_port_t alias cupsd_lpd_port_t;
+inetd_child_domain(cupsd_lpd)
+allow inetd_t printer_port_t:tcp_socket name_bind;
+r_dir_file(cupsd_lpd_t, cupsd_etc_t)
+r_dir_file(cupsd_lpd_t, cupsd_rw_etc_t)
+allow cupsd_lpd_t ipp_port_t:tcp_socket name_connect;
+ifdef(`use_mcs', `
+range_transition initrc_t cupsd_exec_t s0 - s0:c0.c255;
+')
+

@@ -1,0 +1,58 @@
+#DESC TINYDNS - Name server for djbdns
+#
+# Authors:  Matthew J. Fanto <mattjf@uncompiled.com>
+# 
+# Based off Named policy file written by
+# 	Yuichi Nakamura <ynakam@ori.hitachi-sk.co.jp>,
+# 	Russell Coker
+# X-Debian-Packages: djbdns-installer djbdns
+# 
+#
+
+#################################
+#
+# Rules for the tinydns_t domain.
+#
+daemon_domain(tinydns)
+
+can_exec(tinydns_t, tinydns_exec_t)
+allow tinydns_t sbin_t:dir search;
+
+allow tinydns_t self:process setsched;
+
+# A type for configuration files of tinydns.
+type tinydns_conf_t, file_type, sysadmfile;
+
+# for primary zone files - the data file
+type tinydns_zone_t, file_type, sysadmfile;
+
+allow tinydns_t etc_t:file { getattr read };
+allow tinydns_t etc_runtime_t:{ file lnk_file } { getattr read };
+
+#tinydns can use network
+can_network_server(tinydns_t)
+allow tinydns_t dns_port_t:{ udp_socket tcp_socket } name_bind;
+# allow UDP transfer to/from any program
+can_udp_send(domain, tinydns_t)
+can_udp_send(tinydns_t, domain)
+# tinydns itself doesn't do zone transfers
+# so we do not need to have it tcp_connect
+
+#read configuration files
+r_dir_file(tinydns_t, tinydns_conf_t)
+
+r_dir_file(tinydns_t, tinydns_zone_t)
+
+# allow tinydns to create datagram sockets (udp)
+# allow tinydns_t self:unix_stream_socket create_stream_socket_perms;
+allow tinydns_t self:unix_dgram_socket create_socket_perms;
+
+# Read /dev/random.
+allow tinydns_t device_t:dir r_dir_perms;
+allow tinydns_t random_device_t:chr_file r_file_perms;
+
+# Set own capabilities.
+allow tinydns_t self:process setcap;
+
+# for chmod in start script
+dontaudit initrc_t tinydns_var_run_t:dir setattr;

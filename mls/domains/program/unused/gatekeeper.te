@@ -1,0 +1,51 @@
+#DESC Gatekeeper - OpenH.323 voice over IP gate-keeper
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: opengate openh323gk
+#
+
+#################################
+#
+# Rules for the gatekeeper_t domain.
+#
+# gatekeeper_exec_t is the type of the gk executable.
+#
+daemon_domain(gatekeeper)
+
+# for SSP
+allow gatekeeper_t urandom_device_t:chr_file read;
+
+etc_domain(gatekeeper)
+allow gatekeeper_t gatekeeper_etc_t:lnk_file { getattr read };
+logdir_domain(gatekeeper)
+
+# Use the network.
+can_network_server(gatekeeper_t)
+can_ypbind(gatekeeper_t)
+allow gatekeeper_t gatekeeper_port_t:{ udp_socket tcp_socket } name_bind;
+allow gatekeeper_t self:unix_stream_socket create_socket_perms;
+
+# for stupid symlinks
+tmp_domain(gatekeeper)
+
+# pthreads wants to know the kernel version
+read_sysctl(gatekeeper_t)
+
+allow gatekeeper_t etc_t:file { getattr read };
+
+allow gatekeeper_t etc_t:dir r_dir_perms;
+allow gatekeeper_t sbin_t:dir r_dir_perms;
+
+allow gatekeeper_t self:process setsched;
+allow gatekeeper_t self:fifo_file rw_file_perms;
+
+allow gatekeeper_t proc_t:file read;
+
+# for local users to run VOIP software
+can_udp_send(userdomain, gatekeeper_t)
+can_udp_send(gatekeeper_t, userdomain)
+can_tcp_connect(gatekeeper_t, userdomain)
+
+# this is crap, gk wants to create symlinks in /etc every time it starts and
+# remove them when it exits.
+#allow gatekeeper_t etc_t:dir rw_dir_perms;

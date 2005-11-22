@@ -1,0 +1,65 @@
+#DESC RSHD - RSH daemon
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+# X-Debian-Packages: rsh-server rsh-redone-server
+# Depends: inetd.te
+#
+
+#################################
+#
+# Rules for the rshd_t domain.
+#
+daemon_sub_domain(inetd_t, rshd, `, auth_chkpwd, privuser, privrole')
+
+ifdef(`tcpd.te', `
+domain_auto_trans(tcpd_t, rshd_exec_t, rshd_t)
+')
+
+# Use sockets inherited from inetd.
+allow rshd_t inetd_t:tcp_socket rw_stream_socket_perms;
+
+# Use capabilities.
+allow rshd_t self:capability { net_bind_service setuid setgid fowner fsetid chown dac_override};
+
+# Use the network.
+can_network_server(rshd_t)
+allow rshd_t rsh_port_t:tcp_socket name_bind;
+
+allow rshd_t etc_t:file { getattr read };
+read_locale(rshd_t)
+allow rshd_t self:unix_dgram_socket create_socket_perms;
+allow rshd_t self:unix_stream_socket create_stream_socket_perms;
+allow rshd_t { home_root_t home_dir_type }:dir { search getattr };
+can_kerberos(rshd_t)
+allow rshd_t { bin_t sbin_t tmp_t}:dir { search };
+allow rshd_t { bin_t sbin_t }:lnk_file r_file_perms;
+ifdef(`rlogind.te', `
+allow rshd_t rlogind_tmp_t:file rw_file_perms;
+')
+allow rshd_t urandom_device_t:chr_file { getattr read };
+
+# Read the user's .rhosts file.
+allow rshd_t home_type:file  r_file_perms ;
+
+# Random reasons
+can_getsecurity(rshd_t)
+can_setexec(rshd_t)
+r_dir_file(rshd_t, selinux_config_t)
+r_dir_file(rshd_t, default_context_t)
+read_sysctl(rshd_t);
+
+if (use_nfs_home_dirs) {
+r_dir_file(rshd_t, nfs_t)
+}
+
+if (use_samba_home_dirs) {
+r_dir_file(rshd_t, cifs_t)
+}
+
+allow rshd_t self:process { fork signal setsched setpgid };
+allow rshd_t self:fifo_file rw_file_perms;
+
+ifdef(`targeted_policy', `
+unconfined_domain(rshd_t)
+domain_auto_trans(rshd_t,shell_exec_t,unconfined_t)
+')

@@ -1,0 +1,284 @@
+#DESC Amanda - Automated backup program
+#
+# This policy file sets the rigths for amanda client started by inetd_t
+# and amrecover 
+#
+# X-Debian-Packages: amanda-common amanda-server
+# Depends: inetd.te
+# Author     :  Carsten Grohmann <carstengrohmann@gmx.de>
+#
+# License    :  GPL
+#
+# last change:  27. August 2002
+#
+# state      :  complete and tested
+#
+# Hints      :
+#  - amanda.fc is the appendant file context file
+#  - If you use amrecover please extract the files and directories to the
+#    directory speficified in amanda.fc as type amanda_recover_dir_t.
+#  - The type amanda_user_exec_t is defined to label the files but not used.
+#    This configuration works only as an client and a amanda client does not need
+#    this programs.
+#
+# Enhancements/Corrections:
+#  - set tighter permissions to /bin/tar instead bin_t 
+
+##############################################################################
+# AMANDA CLIENT DECLARATIONS
+##############################################################################
+
+# General declarations
+######################
+
+type amanda_t, domain, privlog, auth, fs_domain, nscd_client_domain;
+role system_r types amanda_t;
+
+# type for the amanda executables
+type amanda_exec_t, file_type, sysadmfile, exec_type;
+
+# type for the amanda executables started by inetd
+type amanda_inetd_exec_t, file_type, sysadmfile, exec_type;
+
+# type for amanda configurations files
+type amanda_config_t, file_type, sysadmfile;
+
+# type for files in /usr/lib/amanda
+type amanda_usr_lib_t, file_type, sysadmfile;
+
+# type for all files in /var/lib/amanda
+type amanda_var_lib_t, file_type, sysadmfile;
+
+# type for all files in /var/lib/amanda/gnutar-lists/
+type amanda_gnutarlists_t, file_type, sysadmfile;
+
+# type for user startable files
+type amanda_user_exec_t, file_type, sysadmfile, exec_type;
+
+# type for same awk and other scripts
+type amanda_script_exec_t, file_type, sysadmfile, exec_type;
+
+# type for the shell configuration files 
+type amanda_shellconfig_t, file_type, sysadmfile;
+
+tmp_domain(amanda)
+ 
+# type for /etc/amandates
+type amanda_amandates_t, file_type, sysadmfile;
+
+# type for /etc/dumpdates
+type amanda_dumpdates_t, file_type, sysadmfile;
+
+# type for amanda data
+type amanda_data_t, file_type, sysadmfile;
+
+# Domain transitions
+####################
+
+domain_auto_trans(inetd_t, amanda_inetd_exec_t, amanda_t)
+
+
+##################
+# File permissions
+##################
+
+# configuration files -> read only
+allow amanda_t amanda_config_t:file { getattr read };
+
+# access to amanda_amandates_t
+allow amanda_t amanda_amandates_t:file { getattr lock read write };
+
+# access to amanda_dumpdates_t
+allow amanda_t amanda_dumpdates_t:file { getattr lock read write };
+
+# access to amandas data structure
+allow amanda_t amanda_data_t:dir { read search write };
+allow amanda_t amanda_data_t:file { read write };
+
+# access to proc_t
+allow amanda_t proc_t:file { getattr read };
+
+# access to etc_t and similar
+allow amanda_t etc_t:file { getattr read };
+allow amanda_t etc_runtime_t:file { getattr read };
+
+# access to amanda_gnutarlists_t (/var/lib/amanda/gnutar-lists)
+rw_dir_create_file(amanda_t, amanda_gnutarlists_t)
+
+# access to device_t and similar
+allow amanda_t devtty_t:chr_file { read write };
+
+# access to fs_t
+allow amanda_t fs_t:filesystem getattr;
+
+# access to sysctl_kernel_t ( proc/sys/kernel/* )
+read_sysctl(amanda_t)
+
+#####################
+# process permissions
+#####################
+
+# Allow to use shared libs
+uses_shlib(amanda_t)
+
+# Allow to execute a amanda executable file
+allow amanda_t amanda_exec_t:file { execute execute_no_trans getattr read };	
+
+# Allow to run a shell
+allow amanda_t shell_exec_t:file { execute execute_no_trans getattr read };
+
+# access to bin_t (tar)
+allow amanda_t bin_t:file { execute execute_no_trans };
+
+allow amanda_t self:capability { chown dac_override setuid };
+allow amanda_t self:process { fork sigchld setpgid signal };
+allow amanda_t self:dir search;
+allow amanda_t self:file { getattr read };
+
+
+###################################
+# Network and process communication
+###################################
+
+can_network_server(amanda_t);
+can_ypbind(amanda_t);
+can_exec(amanda_t, sbin_t);
+	
+allow amanda_t self:fifo_file { getattr read write ioctl lock };
+allow amanda_t self:unix_stream_socket create_stream_socket_perms;
+allow amanda_t self:unix_dgram_socket create_socket_perms;
+
+
+##########################
+# Communication with inetd
+##########################
+
+allow amanda_t inetd_t:udp_socket { read write };
+
+
+###################
+# inetd permissions
+###################
+
+allow inetd_t amanda_usr_lib_t:dir search;
+
+
+########################
+# Access to to save data
+########################
+
+# access to user_home_t
+allow amanda_t user_home_type:file { getattr read };
+
+##############################################################################
+# AMANDA RECOVER DECLARATIONS
+##############################################################################
+
+
+# General declarations
+######################
+
+# type for amrecover
+type amanda_recover_t, domain;
+role sysadm_r types amanda_recover_t;
+role system_r types amanda_recover_t;
+
+# exec types for amrecover 
+type amanda_recover_exec_t, file_type, sysadmfile, exec_type;
+
+# type for recover files ( restored data )
+type amanda_recover_dir_t, file_type, sysadmfile;
+file_type_auto_trans(amanda_recover_t, sysadm_home_dir_t, amanda_recover_dir_t)
+
+# domain transsition
+domain_auto_trans(sysadm_t, amanda_recover_exec_t, amanda_recover_t)
+
+# file type auto trans to write debug messages
+file_type_auto_trans(amanda_recover_t, tmp_t, amanda_tmp_t)
+
+
+# amanda recover process permissions
+####################################
+
+uses_shlib(amanda_recover_t)
+allow amanda_recover_t self:process { fork sigkill sigstop sigchld signal };
+allow amanda_recover_t self:capability { fowner fsetid kill setgid setuid chown dac_override net_bind_service };
+can_exec(amanda_recover_t, shell_exec_t)
+allow amanda_recover_t privfd:fd use;
+
+
+# amrecover network and process communication
+#############################################
+
+can_network(amanda_recover_t);
+allow amanda_recover_t amanda_port_t:tcp_socket name_connect;
+can_ypbind(amanda_recover_t);
+read_locale(amanda_recover_t);
+
+allow amanda_recover_t self:fifo_file { getattr ioctl read write };
+allow amanda_recover_t self:unix_stream_socket { connect create read write };
+allow amanda_recover_t var_log_t:dir search;
+rw_dir_create_file(amanda_recover_t, amanda_log_t)
+
+# amrecover file permissions
+############################
+
+# access to etc_t and similar
+allow amanda_recover_t etc_t:dir search;
+allow amanda_recover_t etc_t:file { getattr read };
+allow amanda_recover_t etc_runtime_t:file { getattr read };
+
+# access to amanda_recover_dir_t
+allow amanda_recover_t amanda_recover_dir_t:dir { add_name remove_name search write };
+allow amanda_recover_t amanda_recover_dir_t:file { append create getattr setattr unlink };
+
+# access to var_t and var_run_t
+allow amanda_recover_t var_t:dir search;
+allow amanda_recover_t var_run_t:dir search;
+
+# access to proc_t
+allow amanda_recover_t proc_t:dir search;
+allow amanda_recover_t proc_t:file { getattr read };
+
+# access to sysctl_kernel_t
+read_sysctl(amanda_recover_t)
+
+# access to dev_t and similar
+allow amanda_recover_t device_t:dir search;
+allow amanda_recover_t devtty_t:chr_file { read write };
+allow amanda_recover_t null_device_t:chr_file { getattr write };
+
+# access to bin_t
+allow amanda_recover_t bin_t:file { execute execute_no_trans };
+
+# access to sysadm_home_t and sysadm_home_dir_t to start amrecover 
+# in the sysadm home directory
+allow amanda_recover_t { sysadm_home_dir_t sysadm_home_t }:dir { search getattr };
+
+# access to use sysadm_tty_device_t (/dev/tty?)
+allow amanda_recover_t sysadm_tty_device_t:chr_file { getattr ioctl read write };
+
+# access to amanda_tmp_t and tmp_t
+allow amanda_recover_t amanda_tmp_t:dir { add_name remove_name search write };
+allow amanda_recover_t amanda_tmp_t:file { append create getattr setattr unlink };
+allow amanda_recover_t tmp_t:dir search;
+
+#
+#  Rules to allow amanda to be run as a service in xinetd
+#
+allow inetd_t amanda_port_t:{ tcp_socket udp_socket } name_bind;
+
+#amanda needs to look at fs_type directories to decide whether it should backup
+allow amanda_t { fs_type file_type }:dir {getattr read search };
+allow amanda_t file_type:{ lnk_file file chr_file blk_file } {getattr read };
+allow amanda_t device_type:{ blk_file chr_file } getattr;
+allow amanda_t fixed_disk_device_t:blk_file read;
+domain_auto_trans(amanda_t, fsadm_exec_t, fsadm_t)
+
+allow amanda_t file_type:sock_file getattr;
+logdir_domain(amanda)
+
+dontaudit amanda_t proc_t:lnk_file read;
+dontaudit amanda_t unlabeled_t:file getattr;
+#amanda wants to check attributes on fifo_files
+allow amanda_t file_type:fifo_file getattr;

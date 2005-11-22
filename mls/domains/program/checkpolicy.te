@@ -1,0 +1,64 @@
+#DESC Checkpolicy - SELinux policy compliler
+#
+# Authors:  Frank Mayer, mayerf@tresys.com
+# X-Debian-Packages: checkpolicy
+#
+
+###########################
+# 
+# checkpolicy_t is the domain type for checkpolicy
+# checkpolicy_exec_t if file type for the executable
+
+type checkpolicy_t, domain;
+role sysadm_r types checkpolicy_t;
+role system_r types checkpolicy_t;
+role secadm_r types checkpolicy_t;
+
+type checkpolicy_exec_t, file_type, exec_type, sysadmfile;
+
+##########################
+# 
+# Rules
+
+domain_auto_trans(secadmin, checkpolicy_exec_t, checkpolicy_t)
+
+# able to create and modify binary policy files
+allow checkpolicy_t policy_config_t:dir rw_dir_perms;
+allow checkpolicy_t policy_config_t:file create_file_perms;
+
+###########################
+# constrain what checkpolicy can use as source files
+#
+
+# only allow read of policy source files
+allow checkpolicy_t policy_src_t:dir r_dir_perms;
+allow checkpolicy_t policy_src_t:{ file lnk_file } r_file_perms;
+
+# allow test policies to be created in src directories
+file_type_auto_trans(checkpolicy_t, policy_src_t, policy_config_t, file)
+
+# directory search permissions for path to source and binary policy files
+allow checkpolicy_t root_t:dir search;
+allow checkpolicy_t etc_t:dir search;
+
+# Read the devpts root directory.  
+allow checkpolicy_t devpts_t:dir r_dir_perms;
+ifdef(`sshd.te',
+`allow checkpolicy_t sshd_devpts_t:dir r_dir_perms;')
+
+# Other access
+allow checkpolicy_t { initrc_devpts_t admin_tty_type devtty_t }:chr_file { read write ioctl getattr };
+uses_shlib(checkpolicy_t)
+allow checkpolicy_t self:capability dac_override;
+
+##########################
+# Allow users to execute checkpolicy without a domain transition
+# so it can be used without privilege to write real binary policy file
+can_exec(unpriv_userdomain, checkpolicy_exec_t)
+
+allow checkpolicy_t { userdomain privfd }:fd use;
+
+allow checkpolicy_t fs_t:filesystem getattr;
+allow checkpolicy_t console_device_t:chr_file { read write };
+allow checkpolicy_t init_t:fd use;
+allow checkpolicy_t selinux_config_t:dir search;

@@ -1,0 +1,64 @@
+#DESC usernetctl - User network interface configuration helper 
+#
+# Author: Colin Walters <walters@redhat.com>
+
+type usernetctl_exec_t, file_type, sysadmfile, exec_type;
+
+type usernetctl_t, domain, privfd;
+
+if (user_net_control) {
+domain_auto_trans(userdomain, usernetctl_exec_t, usernetctl_t)
+} else {
+can_exec(userdomain, usernetctl_exec_t)
+}
+in_user_role(usernetctl_t)
+role sysadm_r types usernetctl_t;
+
+define(`usernetctl_transition',`
+domain_auto_trans(usernetctl_t, $1_exec_t, $1_t)
+in_user_role($1_t)
+allow $1_t userpty_type:chr_file { getattr read write };
+')
+
+ifdef(`ifconfig.te',`
+usernetctl_transition(ifconfig)
+')
+ifdef(`iptables.te',`
+usernetctl_transition(iptables)
+')
+ifdef(`dhcpc.te',`
+usernetctl_transition(dhcpc)
+allow usernetctl_t dhcp_etc_t:file ra_file_perms;
+')
+ifdef(`modutil.te',`
+usernetctl_transition(insmod)
+')
+ifdef(`consoletype.te',`
+usernetctl_transition(consoletype)
+')
+ifdef(`hostname.te',`
+usernetctl_transition(hostname)
+')
+
+allow usernetctl_t self:capability { setuid setgid dac_override };
+
+base_file_read_access(usernetctl_t)
+base_pty_perms(usernetctl)
+allow usernetctl_t devtty_t:chr_file rw_file_perms;
+uses_shlib(usernetctl_t)
+read_locale(usernetctl_t)
+general_domain_access(usernetctl_t)
+
+r_dir_file(usernetctl_t, proc_t)
+dontaudit usernetctl_t { domain - usernetctl_t }:dir search;
+
+allow usernetctl_t userpty_type:chr_file rw_file_perms;
+
+can_exec(usernetctl_t, { bin_t sbin_t shell_exec_t usernetctl_exec_t})
+can_exec(usernetctl_t, etc_t)
+
+r_dir_file(usernetctl_t, etc_t)
+allow usernetctl_t { var_t var_run_t }:dir { getattr read search };
+allow usernetctl_t etc_runtime_t:file r_file_perms;
+allow usernetctl_t net_conf_t:file r_file_perms;
+

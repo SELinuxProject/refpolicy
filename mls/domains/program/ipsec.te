@@ -1,0 +1,229 @@
+#DESC ipsec - TCP/IP encryption
+#
+# Authors: Mark Westerman mark.westerman@westcam.com
+# massively butchered by paul krumviede <pwk@acm.org>
+# further massaged by Chris Vance <cvance@tislabs.com>
+# X-Debian-Packages: freeswan
+#
+########################################
+#
+# Rules for the ipsec_t domain.
+#
+# a domain for things that need access to the PF_KEY socket
+daemon_base_domain(ipsec, `, privlog')
+
+# type for ipsec configuration file(s) - not for keys
+type ipsec_conf_file_t, file_type, sysadmfile;
+
+# type for file(s) containing ipsec keys - RSA or preshared
+type ipsec_key_file_t, file_type, sysadmfile;
+
+# type for runtime files, including pluto.ctl
+# lots of strange stuff for the ipsec_var_run_t - need to check it
+var_run_domain(ipsec)
+
+type ipsec_mgmt_t, domain, privlog, admin, privmodule, nscd_client_domain;
+type ipsec_mgmt_exec_t, file_type, sysadmfile, exec_type;
+domain_auto_trans(ipsec_mgmt_t, ipsec_exec_t, ipsec_t)
+file_type_auto_trans(ipsec_mgmt_t, var_run_t, ipsec_var_run_t, sock_file)
+file_type_auto_trans(ipsec_t, var_run_t, ipsec_var_run_t, sock_file)
+file_type_auto_trans(ipsec_mgmt_t, etc_t, ipsec_key_file_t, file)
+
+allow ipsec_mgmt_t modules_object_t:dir search;
+allow ipsec_mgmt_t modules_object_t:file getattr;
+
+allow ipsec_t self:capability { net_admin net_bind_service };
+allow ipsec_t self:process signal;
+allow ipsec_t etc_t:lnk_file read;
+
+domain_auto_trans(ipsec_mgmt_t, ifconfig_exec_t, ifconfig_t)
+
+# Inherit and use descriptors from init.
+# allow access (for, e.g., klipsdebug) to console
+allow { ipsec_t ipsec_mgmt_t } console_device_t:chr_file rw_file_perms;
+allow { ipsec_t ipsec_mgmt_t } { init_t initrc_t privfd }:fd use;
+
+# I do not know where this pesky pipe is...
+allow ipsec_t initrc_t:fifo_file write;
+
+r_dir_file(ipsec_t, ipsec_conf_file_t)
+r_dir_file(ipsec_t, ipsec_key_file_t)
+allow ipsec_mgmt_t ipsec_conf_file_t:file { getattr read ioctl };
+rw_dir_create_file(ipsec_mgmt_t, ipsec_key_file_t)
+
+allow ipsec_t self:key_socket { create write read setopt };
+
+# for lsof
+allow sysadm_t ipsec_t:key_socket getattr;
+
+# the ipsec wrapper wants to run /usr/bin/logger (should we put
+# it in its own domain?)
+can_exec(ipsec_mgmt_t, bin_t)
+# logger, running in ipsec_mgmt_t needs to use sockets
+allow ipsec_mgmt_t self:unix_dgram_socket create_socket_perms;
+allow ipsec_mgmt_t ipsec_t:unix_dgram_socket create_socket_perms;
+
+# also need to run things like whack and shell scripts
+can_exec(ipsec_mgmt_t, ipsec_exec_t)
+can_exec(ipsec_mgmt_t, ipsec_mgmt_exec_t)
+allow ipsec_mgmt_t ipsec_mgmt_exec_t:lnk_file read;
+can_exec(ipsec_mgmt_t, shell_exec_t)
+can_exec(ipsec_t, shell_exec_t)
+can_exec(ipsec_t, bin_t)
+can_exec(ipsec_t, ipsec_mgmt_exec_t)
+# now for a icky part...
+# pluto runs an updown script (by calling popen()!); as this is by default
+# a shell script, we need to find a way to make things work without
+# letting all sorts of stuff possibly be run...
+# so try flipping back into the ipsec_mgmt_t domain
+domain_auto_trans(ipsec_t, shell_exec_t, ipsec_mgmt_t)
+allow ipsec_mgmt_t ipsec_t:fd use;
+
+# the default updown script wants to run route
+can_exec(ipsec_mgmt_t, sbin_t)
+allow ipsec_mgmt_t sbin_t:lnk_file read;
+allow ipsec_mgmt_t self:capability { net_admin dac_override };
+
+# need access to /proc/sys/net/ipsec/icmp
+allow ipsec_mgmt_t sysctl_t:file write;
+allow ipsec_mgmt_t sysctl_net_t:dir search;
+allow ipsec_mgmt_t sysctl_net_t:file { write setattr };
+
+# whack needs to be able to read/write pluto.ctl
+allow ipsec_mgmt_t ipsec_var_run_t:sock_file { read write };
+# and it wants to connect to a socket...
+allow ipsec_mgmt_t self:unix_stream_socket create_stream_socket_perms;
+allow ipsec_mgmt_t ipsec_t:unix_stream_socket { connectto read write };
+
+# allow system administrator to use the ipsec script to look
+# at things (e.g., ipsec auto --status)
+# probably should create an ipsec_admin role for this kind of thing
+can_exec(sysadm_t, ipsec_mgmt_exec_t)
+allow sysadm_t ipsec_t:unix_stream_socket connectto;
+
+# _realsetup needs to be able to cat /var/run/pluto.pid,
+# run ps on that pid, and delete the file
+allow ipsec_mgmt_t ipsec_t:{ file lnk_file } r_file_perms;
+
+allow ipsec_mgmt_t boot_t:dir search;
+allow ipsec_mgmt_t system_map_t:file { read getattr };
+
+# denials when ps tries to search /proc. Do not audit these denials.
+dontaudit ipsec_mgmt_t domain:dir r_dir_perms;
+
+# suppress audit messages about unnecessary socket access
+dontaudit ipsec_mgmt_t domain:key_socket { read write };
+dontaudit ipsec_mgmt_t domain:udp_socket { read write };
+
+# from rbac
+role system_r types { ipsec_t ipsec_mgmt_t };
+
+# from initrc.te
+domain_auto_trans(initrc_t, ipsec_mgmt_exec_t, ipsec_mgmt_t)
+domain_auto_trans(initrc_t, ipsec_exec_t, ipsec_t)
+
+
+########## The following rules were added by cvance@tislabs.com ##########
+
+# allow pluto and startup scripts to access /dev/urandom
+allow { ipsec_t ipsec_mgmt_t } { urandom_device_t random_device_t }:chr_file r_file_perms;
+
+# allow pluto to access /proc/net/ipsec_eroute;
+general_proc_read_access(ipsec_t)
+general_proc_read_access(ipsec_mgmt_t)
+
+# allow pluto to search the root directory (not sure why, but mostly harmless)
+# Are these all really necessary?
+allow ipsec_t var_t:dir search;
+allow ipsec_t bin_t:dir search;
+allow ipsec_t device_t:dir { getattr search };
+allow ipsec_mgmt_t device_t:dir { getattr search read };
+dontaudit ipsec_mgmt_t tty_device_t:chr_file getattr;
+dontaudit ipsec_mgmt_t devpts_t:dir getattr;
+allow ipsec_mgmt_t etc_t:lnk_file read;
+allow ipsec_mgmt_t var_t:dir search;
+allow ipsec_mgmt_t sbin_t:dir search;
+allow ipsec_mgmt_t bin_t:dir search;
+allow ipsec_mgmt_t ipsec_var_run_t:file { getattr read };
+
+# Startup scripts
+# use libraries
+uses_shlib({ ipsec_t ipsec_mgmt_t })
+# Read and write /dev/tty
+allow ipsec_mgmt_t devtty_t:chr_file rw_file_perms;
+# fork
+allow ipsec_mgmt_t self:process fork;
+# startup script runs /bin/gawk with a pipe
+allow ipsec_mgmt_t self:fifo_file rw_file_perms;
+# read /etc/mtab Why?
+allow ipsec_mgmt_t etc_runtime_t:file { read getattr };
+# read link for /bin/sh 
+allow { ipsec_t ipsec_mgmt_t } bin_t:lnk_file read;
+
+#
+allow ipsec_mgmt_t self:process { sigchld signal setrlimit };
+
+# Allow read/write access to /var/run/pluto.ctl
+allow ipsec_t self:unix_stream_socket {create setopt bind listen accept read write };
+
+# Pluto needs network access
+can_network_server(ipsec_t)
+can_ypbind(ipsec_t)
+allow ipsec_t self:unix_dgram_socket create_socket_perms;
+
+# for sleep
+allow ipsec_mgmt_t fs_t:filesystem getattr;
+
+# for the start script
+can_exec(ipsec_mgmt_t, etc_t)
+
+# allow access to /etc/localtime
+allow ipsec_mgmt_t etc_t:file { read getattr };
+allow ipsec_t etc_t:file { read getattr };
+
+# allow access to /dev/null
+allow ipsec_mgmt_t null_device_t:chr_file rw_file_perms;
+allow ipsec_t null_device_t:chr_file rw_file_perms;
+
+# Allow scripts to use /var/lock/subsys/ipsec
+lock_domain(ipsec_mgmt)
+
+# allow tncfg to create sockets
+allow ipsec_mgmt_t self:udp_socket { create ioctl };
+
+#When running ipsec auto --up <conname>
+allow ipsec_t self:process { fork sigchld };
+allow ipsec_t self:fifo_file { read getattr };
+
+# ideally it would not need this.  It wants to write to /root/.rnd
+file_type_auto_trans(ipsec_mgmt_t, sysadm_home_dir_t, sysadm_home_t, file)
+
+allow ipsec_mgmt_t { initrc_devpts_t admin_tty_type }:chr_file { getattr read write ioctl };
+allow ipsec_t initrc_devpts_t:chr_file { getattr read write };
+allow ipsec_mgmt_t self:lnk_file read;
+
+allow ipsec_mgmt_t self:capability { sys_tty_config dac_read_search };
+read_locale(ipsec_mgmt_t)
+var_run_domain(ipsec_mgmt)
+dontaudit ipsec_mgmt_t default_t:dir getattr;
+dontaudit ipsec_mgmt_t default_t:file getattr;
+allow ipsec_mgmt_t tmpfs_t:dir { getattr read };
+allow ipsec_mgmt_t self:key_socket { create setopt };
+can_exec(ipsec_mgmt_t, initrc_exec_t)
+allow ipsec_t self:netlink_xfrm_socket create_socket_perms;
+allow ipsec_t self:netlink_route_socket r_netlink_socket_perms;
+read_locale(ipsec_t)
+ifdef(`consoletype.te', `
+can_exec(ipsec_mgmt_t, consoletype_exec_t )
+')
+dontaudit ipsec_mgmt_t selinux_config_t:dir search;
+dontaudit ipsec_t ttyfile:chr_file { read write };
+allow ipsec_t self:capability { dac_override dac_read_search };
+allow ipsec_t { isakmp_port_t reserved_port_t }:udp_socket name_bind;
+allow ipsec_mgmt_t dev_fs:file_class_set getattr;
+dontaudit ipsec_mgmt_t device_t:lnk_file read;
+allow ipsec_mgmt_t self:{ tcp_socket udp_socket } create_socket_perms;
+allow ipsec_mgmt_t sysctl_net_t:file { getattr read };
+rw_dir_create_file(ipsec_mgmt_t, ipsec_var_run_t)
+rw_dir_create_file(initrc_t, ipsec_var_run_t)
+allow initrc_t ipsec_conf_file_t:file { getattr read ioctl };

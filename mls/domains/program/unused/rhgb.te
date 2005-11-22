@@ -1,0 +1,100 @@
+#DESC rhgb - Red Hat Graphical Boot
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# Depends: xdm.te gnome-pty-helper.te xserver.te
+
+daemon_base_domain(rhgb)
+
+allow rhgb_t { bin_t sbin_t }:dir search;
+allow rhgb_t bin_t:lnk_file read;
+
+domain_auto_trans(rhgb_t, shell_exec_t, initrc_t)
+domain_auto_trans(rhgb_t, xserver_exec_t, xdm_xserver_t)
+can_exec(rhgb_t, { bin_t sbin_t gph_exec_t })
+
+allow rhgb_t self:unix_stream_socket create_stream_socket_perms;
+allow rhgb_t self:fifo_file rw_file_perms;
+
+# for gnome-pty-helper
+gph_domain(rhgb, system)
+allow initrc_t rhgb_gph_t:fd use;
+
+allow rhgb_t proc_t:file { getattr read };
+
+allow rhgb_t devtty_t:chr_file { read write };
+allow rhgb_t tty_device_t:chr_file rw_file_perms;
+
+read_locale(rhgb_t)
+allow rhgb_t { etc_t etc_runtime_t }:file { getattr read };
+
+# for ramfs file systems
+allow rhgb_t ramfs_t:dir { setattr rw_dir_perms };
+allow rhgb_t ramfs_t:sock_file create_file_perms;
+allow rhgb_t ramfs_t:{ file fifo_file } create_file_perms;
+allow insmod_t ramfs_t:file write;
+allow insmod_t rhgb_t:fd use;
+
+allow rhgb_t ramfs_t:filesystem { mount unmount };
+allow rhgb_t mnt_t:dir { search mounton };
+allow rhgb_t self:capability { sys_admin sys_tty_config };
+dontaudit rhgb_t var_run_t:dir search;
+
+can_network_client(rhgb_t)
+allow rhgb_t port_type:tcp_socket name_connect;
+can_ypbind(rhgb_t)
+
+allow rhgb_t usr_t:{ file lnk_file } { getattr read };
+
+# for running setxkbmap
+r_dir_file(rhgb_t, xkb_var_lib_t)
+
+# for localization
+allow rhgb_t lib_t:file { getattr read };
+
+allow rhgb_t initctl_t:fifo_file write;
+
+ifdef(`hide_broken_symptoms', `
+# it should not do this
+dontaudit rhgb_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+')dnl end hide_broken_symptoms
+
+can_create_pty(rhgb)
+
+allow rhgb_t self:shm create_shm_perms;
+allow xdm_xserver_t rhgb_t:shm rw_shm_perms;
+
+can_unix_connect(initrc_t, rhgb_t)
+tmpfs_domain(rhgb)
+allow xdm_xserver_t rhgb_tmpfs_t:file { read write };
+
+read_fonts(rhgb_t)
+
+# for nscd
+dontaudit rhgb_t var_t:dir search;
+
+ifdef(`hide_broken_symptoms', `
+# for a bug in the X server
+dontaudit insmod_t xdm_xserver_t:tcp_socket { read write };
+dontaudit insmod_t serial_device:chr_file { read write };
+dontaudit mount_t rhgb_gph_t:fd use;
+dontaudit mount_t rhgb_t:unix_stream_socket { read write };
+dontaudit mount_t ptmx_t:chr_file { read write };
+')dnl end hide_broken_symptoms
+
+ifdef(`firstboot.te', `
+allow rhgb_t firstboot_rw_t:file r_file_perms;
+')
+allow rhgb_t tmp_t:dir search;
+allow rhgb_t xdm_xserver_t:process sigkill;
+allow domain rhgb_devpts_t:chr_file { read write };
+ifdef(`fsadm.te', `
+dontaudit fsadm_t ramfs_t:fifo_file write;
+')
+allow rhgb_t xdm_xserver_tmp_t:file { getattr read };
+dontaudit rhgb_t default_t:file read;
+
+allow initrc_t ramfs_t:dir search;
+allow initrc_t ramfs_t:sock_file write;
+allow initrc_t rhgb_t:unix_stream_socket { read write };
+
+allow rhgb_t default_t:file { getattr read };

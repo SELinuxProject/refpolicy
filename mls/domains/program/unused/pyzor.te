@@ -1,0 +1,57 @@
+#
+# Pyzor - Pyzor is a collaborative, networked system to detect and
+#         block spam using identifying digests of messages.
+#
+# Author:  David Hampton <hampton@employees.org>
+#
+
+# NOTE: This policy is based upon the FC3 pyzor rpm from ATrpms.
+# Pyzor normally dumps everything into $HOME/.pyzor.  By putting the
+# following line to the spamassassin config file:
+#
+#	pyzor_options --homedir /etc/pyzor
+#
+# the various files will be put into appropriate directories.
+# (I.E. The log file into /var/log, etc.)  This policy will work
+# either way.
+
+##########
+# pyzor daemon
+##########
+daemon_domain(pyzord, `, privlog, nscd_client_domain')
+pyzor_base_domain(pyzord)
+allow pyzord_t pyzor_port_t:udp_socket name_bind;
+home_domain_access(pyzord_t, sysadm, pyzor)
+log_domain(pyzord)
+
+# Read shared daemon/client config file
+r_dir_file(pyzord_t, pyzor_etc_t)
+
+# Write shared daemon/client data dir
+allow pyzord_t var_lib_t:dir search;
+create_dir_file(pyzord_t, pyzor_var_lib_t)
+
+##########
+# Pyzor query application - from system_r applictions
+##########
+type pyzor_t, domain, privlog, daemon;
+type pyzor_exec_t, file_type, sysadmfile, exec_type;
+role system_r types pyzor_t;
+
+pyzor_base_domain(pyzor)
+
+# System config/data files
+etcdir_domain(pyzor)
+var_lib_domain(pyzor)
+
+##########
+##########
+
+#
+# Some spam filters executes the pyzor code directly.  Allow them access here.
+#
+ifdef(`spamd.te',`
+domain_auto_trans(spamd_t, pyzor_exec_t, pyzor_t);
+# pyzor needs access to the email spamassassin is checking
+allow pyzor_t spamd_tmp_t:file r_file_perms;
+')

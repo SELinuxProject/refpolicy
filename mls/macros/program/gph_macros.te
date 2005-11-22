@@ -1,0 +1,85 @@
+#
+# Macros for gnome-pty-helper domains.
+#
+
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser 
+#
+
+#
+# gph_domain(domain_prefix, role_prefix)
+#
+# Define a derived domain for the gnome-pty-helper program when
+# executed by a user domain.
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/gnome-pty-helper.te. 
+#
+# The *_gph_t domains are for the gnome_pty_helper program.
+# This program is executed by gnome-terminal to handle
+# updates to utmp and wtmp.  In this regard, it is similar
+# to utempter.  However, unlike utempter, gnome-pty-helper
+# also creates the pty file for the terminal program.
+# There is one *_gph_t domain for each user domain.  
+#
+undefine(`gph_domain')
+define(`gph_domain',`
+# Derived domain based on the calling user domain and the program.
+type $1_gph_t, domain, gphdomain, nscd_client_domain;
+
+# Transition from the user domain to the derived domain.
+domain_auto_trans($1_t, gph_exec_t, $1_gph_t)
+
+# The user role is authorized for this domain.
+role $2_r types $1_gph_t;
+
+# This domain is granted permissions common to most domains.
+uses_shlib($1_gph_t)
+
+# Use capabilities.
+allow $1_gph_t self:capability { chown fsetid setgid setuid };
+
+# Update /var/run/utmp and /var/log/wtmp.
+allow $1_gph_t { var_t var_run_t }:dir search;
+allow $1_gph_t initrc_var_run_t:file rw_file_perms;
+allow $1_gph_t wtmp_t:file rw_file_perms;
+
+# Allow gph to rw to stream sockets of appropriate user type.
+# (Need this so gnome-pty-helper can pass pty fd to parent 
+#  gnome-terminal which is running in a user domain.)
+allow $1_gph_t $1_t:unix_stream_socket rw_stream_socket_perms;
+
+allow $1_gph_t self:unix_stream_socket create_stream_socket_perms;
+
+# Allow user domain to use pty fd from gnome-pty-helper.
+allow $1_t $1_gph_t:fd use;
+
+# Use the network, e.g. for NIS lookups.
+can_resolve($1_gph_t)
+can_ypbind($1_gph_t)
+
+allow $1_gph_t etc_t:file { getattr read };
+
+# Added by David A. Wheeler:
+# Allow gnome-pty-helper to update /var/log/lastlog
+# (the gnome-pty-helper in Red Hat Linux 7.1 does this):
+allow $1_gph_t lastlog_t:file rw_file_perms;
+allow $1_gph_t var_log_t:dir search;
+allow $1_t $1_gph_t:process signal;
+
+ifelse($2, `system', `
+# Create ptys for the system
+can_create_other_pty($1_gph, initrc)
+', `
+# Create ptys for the user domain.
+can_create_other_pty($1_gph, $1)
+
+# Read and write the users tty.
+allow $1_gph_t $1_tty_device_t:chr_file rw_file_perms;
+
+# Allow gnome-pty-helper to write the .xsession-errors file.
+allow $1_gph_t home_root_t:dir search;
+allow $1_gph_t $1_home_t:dir { search add_name };
+allow $1_gph_t $1_home_t:file { create write };
+')dnl end ifelse system
+')dnl end macro

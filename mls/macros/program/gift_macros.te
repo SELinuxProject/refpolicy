@@ -1,0 +1,104 @@
+#
+# Macros for giFT
+#
+# Author: Ivan Gyurdiev <ivg2@cornell.edu>
+#
+# gift_domains(domain_prefix)
+# declares a domain for giftui and giftd
+
+#########################
+#  gift_domain(user)    #
+#########################
+
+define(`gift_domain', `
+
+# Type transition
+type $1_gift_t, domain, nscd_client_domain;
+domain_auto_trans($1_t, gift_exec_t, $1_gift_t)
+role $1_r types $1_gift_t;
+
+# X access, Home files, GNOME, /tmp
+x_client_domain($1_gift, $1)
+gnome_application($1_gift, $1)
+home_domain($1, gift)
+file_type_auto_trans($1_gift_t, $1_home_dir_t, $1_gift_home_t, dir)
+
+# Allow the user domain to signal/ps.
+can_ps($1_t, $1_gift_t)
+allow $1_t $1_gift_t:process signal_perms;
+
+# Launch gift daemon
+allow $1_gift_t bin_t:dir search;
+domain_auto_trans($1_gift_t, giftd_exec_t, $1_giftd_t)
+
+# Connect to gift daemon
+can_network_client_tcp($1_gift_t, giftd_port_t)
+allow $1_gift_t giftd_port_t:tcp_socket name_connect;
+
+# Read /proc/meminfo
+allow $1_gift_t proc_t:dir search;
+allow $1_gift_t proc_t:file { getattr read };
+
+# giftui looks in .icons, .themes.
+dontaudit $1_gift_t $1_home_t:dir { getattr read search };
+dontaudit $1_gift_t $1_home_t:file { getattr read };
+
+') dnl gift_domain
+
+##########################
+#  giftd_domain(user)    #
+##########################
+
+define(`giftd_domain', `
+
+type $1_giftd_t, domain;
+
+# Transition from user type
+domain_auto_trans($1_t, giftd_exec_t, $1_giftd_t)
+role $1_r types $1_giftd_t;
+
+# Self permissions, allow fork
+allow $1_giftd_t self:process { fork signal sigchld setsched };
+allow $1_giftd_t self:unix_stream_socket create_socket_perms;
+
+read_sysctl($1_giftd_t)
+read_locale($1_giftd_t)
+uses_shlib($1_giftd_t)
+access_terminal($1_giftd_t, $1)
+
+# Read /proc/meminfo
+allow $1_giftd_t proc_t:dir search;
+allow $1_giftd_t proc_t:file { getattr read };
+
+# Read /etc/mtab
+allow $1_giftd_t etc_runtime_t:file { getattr read };
+
+# Access home domain
+home_domain_access($1_giftd_t, $1, gift)
+file_type_auto_trans($1_gift_t, $1_home_dir_t, $1_gift_home_t, dir)
+
+# Serve content on various p2p networks. Ports can be random.
+can_network_server($1_giftd_t)
+allow $1_giftd_t self:udp_socket listen;
+allow $1_giftd_t port_type:{ tcp_socket udp_socket } name_bind;
+
+# Connect to various p2p networks. Ports can be random.
+can_network_client($1_giftd_t)
+allow $1_giftd_t port_type:tcp_socket name_connect;
+
+# Plugins
+r_dir_file($1_giftd_t, usr_t)
+
+# Connect to xdm
+can_pipe_xdm($1_giftd_t)
+
+') dnl giftd_domain
+
+##########################
+#  gift_domains(user)    #
+##########################
+
+define(`gift_domains', `
+gift_domain($1)
+giftd_domain($1)
+') dnl gift_domains

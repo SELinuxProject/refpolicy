@@ -1,0 +1,85 @@
+#DESC SNMPD - Simple Network Management Protocol daemon
+#
+# Author:  Russell Coker <russell@coker.com.au>
+# X-Debian-Packages: snmpd
+#
+
+#################################
+#
+# Rules for the snmpd_t domain.
+#
+daemon_domain(snmpd, `, nscd_client_domain')
+
+#temp
+allow snmpd_t var_t:dir getattr;
+
+can_network_server(snmpd_t)
+can_ypbind(snmpd_t)
+
+allow snmpd_t snmp_port_t:{ udp_socket tcp_socket } name_bind;
+
+etc_domain(snmpd)
+
+# for the .index file
+var_lib_domain(snmpd)
+file_type_auto_trans(snmpd_t, var_t, snmpd_var_lib_t, { dir sock_file })
+file_type_auto_trans(snmpd_t, { usr_t var_t }, snmpd_var_lib_t, file)
+allow snmpd_t snmpd_var_lib_t:sock_file create_file_perms;
+
+log_domain(snmpd)
+# for /usr/share/snmp/mibs
+allow snmpd_t usr_t:file { getattr read };
+
+can_udp_send(sysadm_t, snmpd_t)
+can_udp_send(snmpd_t, sysadm_t)
+
+allow snmpd_t self:unix_dgram_socket create_socket_perms;
+allow snmpd_t self:unix_stream_socket create_stream_socket_perms;
+allow snmpd_t etc_t:lnk_file read;
+allow snmpd_t { etc_t etc_runtime_t }:file r_file_perms;
+allow snmpd_t { random_device_t urandom_device_t }:chr_file { getattr read };
+allow snmpd_t self:capability { dac_override kill net_bind_service net_admin sys_nice sys_tty_config };
+
+allow snmpd_t proc_t:dir search;
+allow snmpd_t proc_t:file r_file_perms;
+allow snmpd_t self:file { getattr read };
+allow snmpd_t self:fifo_file rw_file_perms;
+allow snmpd_t { bin_t sbin_t }:dir search;
+can_exec(snmpd_t, { bin_t sbin_t shell_exec_t })
+
+ifdef(`distro_redhat', `
+ifdef(`rpm.te', `
+r_dir_file(snmpd_t, rpm_var_lib_t)
+dontaudit snmpd_t rpm_var_lib_t:dir write;
+dontaudit snmpd_t rpm_var_lib_t:file write;
+')
+')
+
+allow snmpd_t home_root_t:dir search;
+allow snmpd_t initrc_var_run_t:file r_file_perms;
+dontaudit snmpd_t initrc_var_run_t:file write;
+dontaudit snmpd_t rpc_pipefs_t:dir getattr;
+allow snmpd_t rpc_pipefs_t:dir getattr;
+read_sysctl(snmpd_t)
+allow snmpd_t sysctl_net_t:dir search;
+allow snmpd_t sysctl_net_t:file { getattr read };
+
+dontaudit snmpd_t { removable_device_t fixed_disk_device_t }:blk_file { getattr ioctl read };
+allow snmpd_t sysfs_t:dir { getattr read search };
+ifdef(`amanda.te', `
+dontaudit snmpd_t amanda_dumpdates_t:file { getattr read };
+')
+ifdef(`cupsd.te', `
+allow snmpd_t cupsd_rw_etc_t:file { getattr read };
+')
+allow snmpd_t var_lib_nfs_t:dir search;
+
+# needed in order to retrieve net traffic data
+allow snmpd_t proc_net_t:dir search;
+allow snmpd_t proc_net_t:file r_file_perms;
+
+allow snmpd_t domain:dir { getattr search };
+allow snmpd_t domain:file { getattr read };
+allow snmpd_t domain:process signull;
+
+dontaudit snmpd_t selinux_config_t:dir search;

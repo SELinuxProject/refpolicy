@@ -1,0 +1,326 @@
+#
+# Macros for all user login domains.
+#
+
+# role_tty_type_change(starting_role, ending_role)
+#
+# change from role $1_r to $2_r and relabel tty appropriately
+#
+
+undefine(`role_tty_type_change')
+define(`role_tty_type_change', `
+allow $1_r $2_r;
+type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
+type_change $2_t $1_tty_device_t:chr_file $2_tty_device_t;
+# avoid annoying messages on terminal hangup
+dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
+')
+
+#
+# reach_sysadm(user)
+#
+# Reach sysadm_t via programs like userhelper/sudo/su
+#
+
+undefine(`reach_sysadm')
+define(`reach_sysadm', `
+ifdef(`userhelper.te', `userhelper_domain($1)')
+ifdef(`sudo.te', `sudo_domain($1)')
+ifdef(`su.te', `
+su_domain($1)
+# When an ordinary user domain runs su, su may try to
+# update the /root/.Xauthority file, and the user shell may
+# try to update the shell history. This is not allowed, but 
+# we dont need to audit it.
+dontaudit $1_su_t { sysadm_home_dir_t staff_home_dir_t }:dir search;
+dontaudit $1_su_t { sysadm_home_t staff_home_t }:dir rw_dir_perms;
+dontaudit $1_su_t { sysadm_home_t staff_home_t }:file create_file_perms;
+') dnl ifdef su.te
+ifdef(`xauth.te', `
+file_type_auto_trans($1_xauth_t, sysadm_home_dir_t, sysadm_xauth_home_t,file)
+ifdef(`userhelper.te', `
+file_type_auto_trans($1_userhelper_t, sysadm_home_dir_t, sysadm_xauth_home_t,file)
+') dnl userhelper.te 
+') dnl xauth.te 
+') dnl reach_sysadm
+
+#
+# priv_user(user)
+#
+# Privileged user domain
+#
+
+undefine(`priv_user')
+define(`priv_user', `
+# Reach sysadm_t
+reach_sysadm($1)
+
+# Read file_contexts for rpm and get security decisions. 
+r_dir_file($1_t, file_context_t)
+can_getsecurity($1_t)
+
+# Signal and see information about unprivileged user domains.
+allow $1_t unpriv_userdomain:process signal_perms;
+can_ps($1_t, unpriv_userdomain)
+allow $1_t { ttyfile ptyfile tty_device_t }:chr_file getattr;
+
+# Read /root files if boolean is enabled.
+if (staff_read_sysadm_file) {
+allow $1_t sysadm_home_dir_t:dir { getattr search };
+allow $1_t sysadm_home_t:file { getattr read };
+}
+
+') dnl priv_user
+
+#
+# user_domain(domain_prefix)
+#
+# Define derived types and rules for an ordinary user domain.
+#
+# The type declaration and role authorization for the domain must be
+# provided separately.  Likewise, domain transitions into this domain
+# must be specified separately.  
+#
+
+# user_domain() is also called by the admin_domain() macro
+undefine(`user_domain')
+define(`user_domain', `
+# Use capabilities
+
+# Type for home directory.
+type $1_home_dir_t, file_type, sysadmfile, home_dir_type, home_type, user_home_dir_type, polydir;
+type $1_home_t, file_type, sysadmfile, home_type, user_home_type, $1_file_type, polymember;
+
+# Transition manually for { lnk sock fifo }. The rest is in content macros.
+tmp_domain_notrans($1, `, user_tmpfile, $1_file_type')
+file_type_auto_trans($1_t, tmp_t, $1_tmp_t, { lnk_file sock_file fifo_file })
+allow $1_t $1_tmp_t:{ dir file } { relabelto relabelfrom };
+
+ifdef(`support_polyinstantiation', `
+type_member $1_t tmp_t:dir $1_tmp_t;
+type_member $1_t $1_home_dir_t:dir $1_home_t;
+')
+
+base_user_domain($1)
+ifdef(`mls_policy', `', `
+access_removable_media($1_t)
+')
+
+# do not allow privhome access to sysadm_home_dir_t
+file_type_auto_trans(privhome, $1_home_dir_t, $1_home_t)
+
+allow $1_t boot_t:dir { getattr search };
+dontaudit $1_t boot_t:lnk_file read;
+dontaudit $1_t boot_t:file read;
+allow $1_t system_map_t:file { getattr read };
+
+# Instantiate derived domains for a number of programs.
+# These derived domains encode both information about the calling
+# user domain and the program, and allow us to maintain separation
+# between different instances of the program being run by different
+# user domains.
+ifelse($1, sysadm, `',`
+ifdef(`apache.te', `apache_user_domain($1)')
+ifdef(`i18n_input.te', `i18n_input_domain($1)')
+ifdef(`spamd.te', `home_domain_ro_access(spamd_t, $1)')
+')
+ifdef(`slocate.te', `locate_domain($1)')
+ifdef(`lockdev.te', `lockdev_domain($1)')
+
+can_kerberos($1_t)
+# allow port_t name binding for UDP because it is not very usable otherwise
+allow $1_t port_t:udp_socket name_bind;
+
+#
+# Need the following rule to allow users to run vpnc
+#
+ifdef(`xserver.te', `
+allow $1_t xserver_port_t:tcp_socket name_bind;
+')
+
+# Allow users to run TCP servers (bind to ports and accept connection from
+# the same domain and outside users)  disabling this forces FTP passive mode
+# and may change other protocols
+if (user_tcp_server) {
+allow $1_t port_t:tcp_socket name_bind;
+}
+# port access is audited even if dac would not have allowed it, so dontaudit it here
+dontaudit $1_t { reserved_port_type reserved_port_t }:tcp_socket name_bind;
+
+# Allow system log read
+if (user_dmesg) {
+allow $1_t kernel_t:system syslog_read;
+} else {
+# else do not log it
+dontaudit $1_t kernel_t:system syslog_read;
+}
+
+# Allow read access to utmp.
+allow $1_t initrc_var_run_t:file { getattr read lock };
+# The library functions always try to open read-write first,
+# then fall back to read-only if it fails. 
+# Do not audit write denials to utmp to avoid the noise.
+dontaudit $1_t initrc_var_run_t:file write;
+
+
+# do not audit read on disk devices
+dontaudit $1_t { removable_device_t fixed_disk_device_t }:blk_file read;
+
+ifdef(`xdm.te', `
+allow xdm_t $1_home_t:lnk_file read;
+allow xdm_t $1_home_t:dir search;
+#
+# Changing this to dontaudit should cause the .xsession-errors file to be written to /tmp
+# 
+dontaudit xdm_t $1_home_t:file rw_file_perms;
+')dnl end ifdef xdm.te
+
+ifdef(`ftpd.te', `
+if (ftp_home_dir) {
+file_type_auto_trans(ftpd_t, $1_home_dir_t, $1_home_t)
+}
+')dnl end ifdef ftpd
+
+
+')dnl end user_domain macro
+
+
+###########################################################################
+#
+# Domains for ordinary users.
+#
+undefine(`limited_user_role')
+define(`limited_user_role', `
+# user_t/$1_t is an unprivileged users domain.
+type $1_t, domain, userdomain, unpriv_userdomain, nscd_client_domain, privfd;
+
+#Type for tty devices.
+type $1_tty_device_t, sysadmfile, ttyfile, user_tty_type, dev_fs;
+# Type and access for pty devices.
+can_create_pty($1, `, userpty_type, user_tty_type')
+
+# Access ttys.
+allow $1_t privfd:fd use;
+allow $1_t $1_tty_device_t:chr_file { setattr rw_file_perms };
+
+# Grant read/search permissions to some of /proc.
+r_dir_file($1_t, proc_t)
+# netstat needs to access proc_net_t; if you want to hide this info use dontaudit here instead
+r_dir_file($1_t, proc_net_t)
+
+base_file_read_access($1_t)
+
+# Execute from the system shared libraries.
+uses_shlib($1_t)
+
+# Read /etc.
+r_dir_file($1_t, etc_t)
+allow $1_t etc_runtime_t:file r_file_perms;
+allow $1_t etc_runtime_t:lnk_file { getattr read };
+
+allow $1_t self:process { fork sigchld setpgid signal_perms };
+
+# read localization information
+read_locale($1_t)
+
+read_sysctl($1_t)
+can_exec($1_t, { bin_t sbin_t shell_exec_t ls_exec_t })
+
+allow $1_t self:dir search;
+allow $1_t self:file { getattr read };
+allow $1_t self:fifo_file rw_file_perms;
+
+allow $1_t self:lnk_file read;
+allow $1_t self:unix_stream_socket create_socket_perms;
+allow $1_t urandom_device_t:chr_file { getattr read };
+dontaudit $1_t { var_spool_t var_log_t }:dir search;
+
+# Read /dev directories and any symbolic links.
+allow $1_t device_t:dir r_dir_perms;
+allow $1_t device_t:lnk_file { getattr read };
+allow $1_t devtty_t:chr_file { read write };
+
+')
+
+undefine(`full_user_role')
+define(`full_user_role', `
+
+limited_user_role($1)
+
+typeattribute  $1_t web_client_domain;
+
+attribute $1_file_type;
+
+ifdef(`useradd.te', `
+# Useradd relabels /etc/skel files so needs these privs 
+allow useradd_t $1_file_type:dir create_dir_perms;
+allow useradd_t $1_file_type:notdevfile_class_set create_file_perms;
+')
+
+can_exec($1_t, usr_t)
+
+# Read directories and files with the readable_t type.
+# This type is a general type for "world"-readable files.
+allow $1_t readable_t:dir r_dir_perms;
+allow $1_t readable_t:notdevfile_class_set r_file_perms;
+
+# Stat lost+found.
+allow $1_t lost_found_t:dir getattr;
+
+# Read /var, /var/spool, /var/run.
+r_dir_file($1_t, var_t)
+# what about pipes and sockets under /var/spool?
+r_dir_file($1_t, var_spool_t)
+r_dir_file($1_t, var_run_t)
+allow $1_t var_lib_t:dir r_dir_perms;
+allow $1_t var_lib_t:file { getattr read };
+
+# for running depmod as part of the kernel packaging process
+allow $1_t modules_conf_t:file { getattr read };
+
+# Read man directories and files.
+r_dir_file($1_t, man_t)
+
+# Allow users to rw usb devices
+if (user_rw_usb) {
+rw_dir_create_file($1_t,usbdevfs_t)
+} else {
+r_dir_file($1_t,usbdevfs_t)
+}
+
+r_dir_file($1_t,sysfs_t)
+
+# Do not audit write denials to /etc/ld.so.cache.
+dontaudit $1_t ld_so_cache_t:file write;
+
+# $1_t is also granted permissions specific to user domains.
+user_domain($1)
+
+dontaudit $1_t sysadm_home_t:file { read append };
+
+ifdef(`syslogd.te', `
+# Some programs that are left in $1_t will try to connect
+# to syslogd, but we do not want to let them generate log messages.
+# Do not audit.
+dontaudit $1_t devlog_t:sock_file { read write };
+dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
+')
+
+# Stop warnings about access to /dev/console
+dontaudit $1_t init_t:fd use;
+dontaudit $1_t initrc_t:fd use;
+allow $1_t initrc_t:fifo_file write;
+
+#
+# Rules used to associate a homedir as a mountpoint
+#
+allow $1_home_t self:filesystem associate;
+allow $1_file_type $1_home_t:filesystem associate;
+')
+
+undefine(`in_user_role')
+define(`in_user_role', `
+role user_r types $1;
+role staff_r types $1;
+')
+

@@ -1,0 +1,191 @@
+#################################
+#
+# can_network(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`base_can_network',`
+#
+# Allow the domain to create and use $2 sockets.
+# Other kinds of sockets must be separately authorized for use.
+allow $1 self:$2_socket connected_socket_perms;
+
+#
+# Allow the domain to send or receive using any network interface.
+# netif_type is a type attribute for all network interface types.
+#
+allow $1 netif_t:netif { $2_recv $2_send rawip_send rawip_recv };
+
+#
+# Allow the domain to send to or receive from any node.
+# node_type is a type attribute for all node types.
+#
+allow $1 node_type:node { $2_send rawip_send };
+allow $1 node_type:node { $2_recv rawip_recv };
+
+#
+# Allow the domain to send to or receive from any port.
+# port_type is a type attribute for all port types.
+#
+ifelse($3, `', `
+allow $1 port_type:$2_socket { send_msg recv_msg };
+', `
+allow $1 $3:$2_socket { send_msg recv_msg };
+')
+
+# XXX Allow binding to any node type.  Remove once
+# individual rules have been added to all domains that 
+# bind sockets. 
+allow $1 node_type:$2_socket node_bind;
+#
+# Allow access to network files including /etc/resolv.conf
+#
+allow $1 net_conf_t:file r_file_perms;
+')dnl end can_network definition
+
+#################################
+#
+# can_network_server_tcp(domain)
+#
+# Permissions for accessing a tcp network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_server_tcp',`
+base_can_network($1, tcp, `$2')
+allow $1 self:tcp_socket { listen accept };
+')
+
+#################################
+#
+# can_network_client_tcp(domain)
+#
+# Permissions for accessing a tcp network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_client_tcp',`
+base_can_network($1, tcp, `$2')
+allow $1 self:tcp_socket { connect };
+')
+
+#################################
+#
+# can_network_tcp(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_tcp',`
+
+can_network_server_tcp($1, `$2')
+can_network_client_tcp($1, `$2')
+
+')
+
+#################################
+#
+# can_network_udp(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_udp',`
+base_can_network($1, udp, `$2')
+allow $1 self:udp_socket { connect };
+')
+
+#################################
+#
+# can_network_server(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_server',`
+
+can_network_server_tcp($1, `$2')
+can_network_udp($1, `$2')
+
+')dnl end can_network_server definition
+
+
+#################################
+#
+# can_network_client(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network_client',`
+
+can_network_client_tcp($1, `$2')
+can_network_udp($1, `$2')
+
+')dnl end can_network_client definition
+
+#################################
+#
+# can_network(domain)
+#
+# Permissions for accessing the network.
+# See types/network.te for the network types.
+# See net_contexts for security contexts for network entities.
+#
+define(`can_network',`
+
+can_network_tcp($1, `$2')
+can_network_udp($1, `$2')
+
+ifdef(`mount.te', `
+#
+# Allow the domain to send NFS client requests via the socket
+# created by mount.
+#
+allow $1 mount_t:udp_socket rw_socket_perms;
+')
+
+')dnl end can_network definition
+
+define(`can_resolve',`
+can_network_client($1, `dns_port_t')
+allow $1 dns_port_t:tcp_socket name_connect;
+')
+
+define(`can_portmap',`
+can_network_client($1, `portmap_port_t')
+allow $1 portmap_port_t:tcp_socket name_connect;
+')
+
+define(`can_ldap',`
+can_network_client_tcp($1, `ldap_port_t')
+allow $1 ldap_port_t:tcp_socket name_connect;
+')
+
+define(`can_winbind',`
+ifdef(`winbind.te', `
+allow $1 winbind_var_run_t:dir { getattr search };
+allow $1 winbind_t:unix_stream_socket connectto;
+allow $1 winbind_var_run_t:sock_file { getattr read write };
+')
+')
+
+
+#################################
+#
+# nsswitch_domain(domain)
+#
+# Permissions for looking up uid/username mapping via nsswitch
+#
+define(`nsswitch_domain', `
+can_resolve($1)
+can_ypbind($1)
+can_ldap($1)
+can_winbind($1)
+')

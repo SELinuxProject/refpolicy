@@ -1,0 +1,142 @@
+#DESC Userhelper - SELinux utility to run a shell with a new role
+#
+# Authors:  Dan Walsh (Red Hat)
+# Maintained by Dan Walsh <dwalsh@redhat.com>
+#
+
+#
+# userhelper_domain(domain_prefix)
+#
+# Define a derived domain for the userhelper/userhelper program when executed by
+# a user domain.  
+#
+# The type declaration for the executable type for this program is
+# provided separately in domains/program/userhelper.te. 
+#
+define(`userhelper_domain',`
+type $1_userhelper_t, domain, userhelperdomain, privlog, privrole, privowner, auth_chkpwd, privfd, privuser, nscd_client_domain;
+
+in_user_role($1_userhelper_t)
+role sysadm_r types $1_userhelper_t;
+
+ifelse($1, sysadm, `
+typealias sysadm_userhelper_t alias userhelper_t;
+domain_auto_trans(initrc_t, userhelper_exec_t, sysadm_userhelper_t)
+')
+
+general_domain_access($1_userhelper_t);
+
+uses_shlib($1_userhelper_t)
+read_locale($1_userhelper_t)
+read_sysctl($1_userhelper_t)
+
+# for when the user types "exec userhelper" at the command line
+allow $1_userhelper_t privfd:process sigchld;
+
+domain_auto_trans($1_t, userhelper_exec_t, $1_userhelper_t)
+
+# Inherit descriptors from the current session.
+allow $1_userhelper_t { init_t privfd }:fd use;
+
+can_exec($1_userhelper_t, { bin_t sbin_t userhelper_exec_t })
+
+# Execute shells
+allow $1_userhelper_t { sbin_t bin_t }:dir r_dir_perms;
+allow $1_userhelper_t { sbin_t bin_t }:lnk_file read;
+allow $1_userhelper_t shell_exec_t:file r_file_perms;
+
+# By default, revert to the calling domain when a program is executed.
+domain_auto_trans($1_userhelper_t, { bin_t sbin_t }, $1_t)
+
+# Allow $1_userhelper_t to transition to user domains.
+domain_trans($1_userhelper_t, { bin_t sbin_t exec_type }, unpriv_userdomain)
+if (!secure_mode) {
+	# if we are not in secure mode then we can transition to sysadm_t
+	domain_trans($1_userhelper_t, { bin_t sbin_t exec_type }, sysadm_t)
+}
+can_setexec($1_userhelper_t)
+
+ifdef(`distro_redhat', `
+ifdef(`rpm.te', `
+# Allow transitioning to rpm_t, for up2date
+allow $1_userhelper_t rpm_t:process { transition siginh rlimitinh noatsecure };
+')
+')
+
+# Use capabilities.
+allow $1_userhelper_t self:capability { setuid setgid net_bind_service dac_override chown sys_tty_config };
+
+# Write to utmp.
+file_type_auto_trans($1_userhelper_t, var_run_t, initrc_var_run_t, file)
+
+# Read the devpts root directory.
+allow $1_userhelper_t devpts_t:dir r_dir_perms;
+
+# Read the /etc/security/default_type file
+allow $1_userhelper_t etc_t:file r_file_perms;
+
+# Read /var.
+r_dir_file($1_userhelper_t, var_t)
+
+# Read /dev directories and any symbolic links.
+allow $1_userhelper_t device_t:dir r_dir_perms;
+
+# Relabel terminals.
+allow $1_userhelper_t { ttyfile ptyfile }:chr_file { relabelfrom relabelto };
+
+# Access terminals.
+allow $1_userhelper_t { ttyfile ptyfile devtty_t }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow $1_userhelper_t gphdomain:fd use;')
+
+#
+# Allow $1_userhelper to obtain contexts to relabel TTYs
+#
+can_getsecurity($1_userhelper_t)
+
+allow $1_userhelper_t fs_t:filesystem getattr;
+
+# for some PAM modules and for cwd
+allow $1_userhelper_t { home_root_t $1_home_dir_t }:dir search;
+
+allow $1_userhelper_t proc_t:dir search;
+allow $1_userhelper_t proc_t:file { getattr read };
+
+# for when the network connection is killed
+dontaudit unpriv_userdomain $1_userhelper_t:process signal;
+
+allow $1_userhelper_t userhelper_conf_t:file rw_file_perms;
+allow $1_userhelper_t userhelper_conf_t:dir rw_dir_perms;
+
+ifdef(`pam.te', `
+allow $1_userhelper_t pam_var_run_t:dir create_dir_perms;
+allow $1_userhelper_t pam_var_run_t:file create_file_perms;
+')
+
+allow $1_userhelper_t urandom_device_t:chr_file { getattr read };
+
+allow $1_userhelper_t autofs_t:dir search;
+role system_r types $1_userhelper_t;
+r_dir_file($1_userhelper_t, nfs_t)
+
+ifdef(`xdm.te', `
+can_pipe_xdm($1_userhelper_t)
+allow $1_userhelper_t xdm_var_run_t:dir search;
+')
+
+r_dir_file($1_userhelper_t, selinux_config_t)
+r_dir_file($1_userhelper_t, default_context_t)
+
+ifdef(`xauth.te', `
+domain_auto_trans($1_userhelper_t, xauth_exec_t, $1_xauth_t)
+allow $1_userhelper_t $1_xauth_home_t:file { getattr read };
+')
+
+ifdef(`pamconsole.te', `
+allow $1_userhelper_t pam_var_console_t:dir { search };
+')
+
+ifdef(`mozilla.te', `
+domain_auto_trans($1_mozilla_t, userhelper_exec_t, $1_userhelper_t)
+')
+
+')dnl end userhelper macro

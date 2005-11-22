@@ -1,0 +1,243 @@
+#DESC Modutil - Dynamic module utilities
+#
+# Authors:  Stephen Smalley <sds@epoch.ncsc.mil> and Timothy Fraser  
+# X-Debian-Packages: modutils
+#
+
+#################################
+#
+# Rules for the module utility domains.
+#
+type modules_dep_t, file_type, sysadmfile;
+type modules_conf_t, file_type, sysadmfile;
+type modules_object_t, file_type, sysadmfile;
+
+
+ifdef(`IS_INITRD', `', `
+#################################
+#
+# Rules for the depmod_t domain.
+#
+type depmod_t, domain;
+role system_r types depmod_t;
+role sysadm_r types depmod_t;
+
+uses_shlib(depmod_t)
+
+r_dir_file(depmod_t, src_t)
+
+type depmod_exec_t, file_type, exec_type, sysadmfile;
+domain_auto_trans(initrc_t, depmod_exec_t, depmod_t)
+allow depmod_t { bin_t sbin_t }:dir search;
+can_exec(depmod_t, depmod_exec_t)
+ifdef(`targeted_policy', `', `
+domain_auto_trans(sysadm_t, depmod_exec_t, depmod_t)
+')
+
+# Inherit and use descriptors from init and login programs.
+allow depmod_t { init_t privfd }:fd use;
+
+allow depmod_t { etc_t etc_runtime_t }:file { getattr read };
+allow depmod_t { device_t proc_t }:dir search;
+allow depmod_t proc_t:file { getattr read };
+allow depmod_t fs_t:filesystem getattr;
+
+# read system.map
+allow depmod_t boot_t:dir search;
+allow depmod_t boot_t:file { getattr read };
+allow depmod_t system_map_t:file { getattr read };
+
+# Read conf.modules.
+allow depmod_t modules_conf_t:file r_file_perms;
+
+# Create modules.dep.
+file_type_auto_trans(depmod_t, modules_object_t, modules_dep_t, file)
+
+# Read module objects.
+allow depmod_t modules_object_t:dir r_dir_perms;
+allow depmod_t modules_object_t:{ file lnk_file } r_file_perms;
+allow depmod_t modules_object_t:file unlink;
+
+# Access terminals.
+can_access_pty(depmod_t, initrc)
+allow depmod_t { console_device_t admin_tty_type }:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow depmod_t sysadm_gph_t:fd use;')
+
+# Read System.map from home directories.
+allow depmod_t { home_root_t staff_home_dir_t sysadm_home_dir_t }:dir r_dir_perms;
+r_dir_file(depmod_t, { staff_home_t sysadm_home_t })
+')dnl end IS_INITRD
+
+#################################
+#
+# Rules for the insmod_t domain.
+#
+
+type insmod_t, domain, privlog, sysctl_kernel_writer, privmem, privsysmod ifdef(`unlimitedUtils', `, admin, etc_writer, fs_domain, auth_write, privowner, privmodule' ), mlsfilewrite, nscd_client_domain
+;
+role system_r types insmod_t;
+role sysadm_r types insmod_t;
+type insmod_exec_t, file_type, exec_type, sysadmfile;
+
+bool secure_mode_insmod false;
+
+can_ypbind(insmod_t)
+
+ifdef(`unlimitedUtils', `
+unconfined_domain(insmod_t) 
+')
+uses_shlib(insmod_t)
+read_locale(insmod_t)
+
+# for SSP
+allow insmod_t urandom_device_t:chr_file read;
+allow insmod_t lib_t:file { getattr read };
+
+allow insmod_t { bin_t sbin_t }:dir search;
+allow insmod_t { bin_t sbin_t }:lnk_file read;
+
+allow insmod_t self:dir search;
+allow insmod_t self:lnk_file read;
+
+allow insmod_t usr_t:file { getattr read };
+
+allow insmod_t privfd:fd use;
+can_access_pty(insmod_t, initrc)
+allow insmod_t admin_tty_type:chr_file rw_file_perms;
+ifdef(`gnome-pty-helper.te', `allow insmod_t sysadm_gph_t:fd use;')
+
+allow insmod_t { agp_device_t apm_bios_t }:chr_file { read write };
+
+allow insmod_t sound_device_t:chr_file { read ioctl write };
+allow insmod_t zero_device_t:chr_file read;
+allow insmod_t memory_device_t:chr_file rw_file_perms;
+
+# Read module config and dependency information
+allow insmod_t { modules_conf_t modules_dep_t }:file { getattr read };
+
+# Read module objects.
+r_dir_file(insmod_t, modules_object_t)
+# for locking
+allow insmod_t modules_object_t:file write;
+
+allow insmod_t { var_t var_log_t }:dir search;
+ifdef(`xserver.te', `
+allow insmod_t xserver_log_t:file getattr;
+allow insmod_t xserver_misc_device_t:chr_file { read write };
+')
+rw_dir_create_file(insmod_t, var_log_ksyms_t)
+allow insmod_t { etc_t etc_runtime_t }:file { getattr read };
+
+allow insmod_t self:udp_socket create_socket_perms;
+allow insmod_t self:unix_dgram_socket create_socket_perms;
+allow insmod_t self:unix_stream_socket create_stream_socket_perms;
+allow insmod_t self:rawip_socket create_socket_perms;
+allow insmod_t self:capability { dac_override kill net_raw sys_tty_config };
+allow insmod_t domain:process signal;
+allow insmod_t self:process { fork signal_perms };
+allow insmod_t device_t:dir search;
+allow insmod_t etc_runtime_t:file { getattr read };
+
+# for loading modules at boot time
+allow insmod_t { init_t initrc_t }:fd use;
+allow insmod_t initrc_t:fifo_file { getattr read write };
+
+allow insmod_t fs_t:filesystem getattr;
+allow insmod_t sysfs_t:dir search;
+allow insmod_t { usbfs_t usbdevfs_t }:dir search;
+allow insmod_t { usbfs_t usbdevfs_t debugfs_t }:filesystem mount;
+r_dir_file(insmod_t, debugfs_t)
+
+# Rules for /proc/sys/kernel/tainted
+read_sysctl(insmod_t)
+allow insmod_t proc_t:dir search;
+allow insmod_t sysctl_kernel_t:file { setattr rw_file_perms };
+
+allow insmod_t proc_t:file rw_file_perms;
+allow insmod_t proc_t:lnk_file read;
+
+# Write to /proc/mtrr.
+allow insmod_t mtrr_device_t:file write;
+
+# Read /proc/sys/kernel/hotplug.
+allow insmod_t sysctl_hotplug_t:file { getattr read };
+
+allow insmod_t device_t:dir read;
+allow insmod_t devpts_t:dir { getattr search };
+
+if (!secure_mode_insmod) {
+domain_auto_trans(privmodule, insmod_exec_t, insmod_t)
+allow insmod_t self:capability sys_module;
+}dnl end if !secure_mode_insmod
+
+can_exec(insmod_t, { insmod_exec_t shell_exec_t bin_t sbin_t etc_t })
+allow insmod_t devtty_t:chr_file rw_file_perms;
+allow insmod_t privmodule:process sigchld;
+dontaudit sysadm_t self:capability sys_module;
+
+ifdef(`mount.te', `
+# Run mount in the mount_t domain.
+domain_auto_trans(insmod_t, mount_exec_t, mount_t)
+')
+# for when /var is not mounted early in the boot
+dontaudit insmod_t file_t:dir search;
+
+# for nscd
+dontaudit insmod_t var_run_t:dir search;
+
+ifdef(`crond.te', `
+rw_dir_create_file(system_crond_t, var_log_ksyms_t)
+')
+
+ifdef(`IS_INITRD', `', `
+#################################
+#
+# Rules for the update_modules_t domain.
+#
+type update_modules_t, domain, privlog;
+type update_modules_exec_t, file_type, exec_type, sysadmfile;
+
+role system_r types update_modules_t;
+role sysadm_r types update_modules_t;
+
+domain_auto_trans({ initrc_t sysadm_t }, update_modules_exec_t, update_modules_t)
+allow update_modules_t privfd:fd use;
+allow update_modules_t init_t:fd use;
+
+allow update_modules_t device_t:dir { getattr search };
+allow update_modules_t { console_device_t devtty_t }:chr_file rw_file_perms;
+can_access_pty(update_modules_t, initrc)
+allow update_modules_t admin_tty_type:chr_file rw_file_perms;
+
+can_exec(update_modules_t, insmod_exec_t)
+allow update_modules_t urandom_device_t:chr_file { getattr read };
+
+dontaudit update_modules_t sysadm_home_dir_t:dir search;
+
+uses_shlib(update_modules_t)
+read_locale(update_modules_t)
+allow update_modules_t lib_t:file { getattr read };
+allow update_modules_t self:process { fork sigchld };
+allow update_modules_t self:fifo_file rw_file_perms;
+allow update_modules_t self:file { getattr read };
+allow update_modules_t modules_dep_t:file rw_file_perms;
+file_type_auto_trans(update_modules_t, modules_object_t, modules_conf_t, file)
+domain_auto_trans(update_modules_t, depmod_exec_t, depmod_t)
+can_exec(update_modules_t, { shell_exec_t bin_t sbin_t update_modules_exec_t etc_t })
+allow update_modules_t { sbin_t bin_t }:lnk_file read;
+allow update_modules_t { sbin_t bin_t }:dir search;
+allow update_modules_t { etc_t etc_runtime_t }:file r_file_perms;
+allow update_modules_t etc_t:lnk_file read;
+allow update_modules_t fs_t:filesystem getattr;
+
+allow update_modules_t proc_t:dir search;
+allow update_modules_t proc_t:file r_file_perms;
+allow update_modules_t { self proc_t }:lnk_file read;
+read_sysctl(update_modules_t)
+allow update_modules_t self:dir search;
+allow update_modules_t self:unix_stream_socket create_socket_perms;
+
+file_type_auto_trans(update_modules_t, etc_t, modules_conf_t, file)
+
+tmp_domain(update_modules)
+')dnl end IS_INITRD
