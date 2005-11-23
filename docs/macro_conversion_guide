@@ -263,24 +263,38 @@ domain_type($1_t)
 domain_entry_file($1_t,$1_exec_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
+logging_send_syslog_msg($1_t)
 # a "run" interface needs to be
 # added, and have sysadm_t use it
 # in a optional_policy block.
+# and have unconfined_t use it
+# in a optional_policy block inside
+# the targeted_policy ifdef
+
+#
+# base_can_network($1,$2):
+#
+allow $1 self:$2_socket connected_socket_perms;
+corenet_$2_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_$2_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_$2_sendrecv_all_ports($1)
+corenet_$2_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
 # base_can_network($1,$2,$3):
 #
+# remove _port_t from $3:
 allow $1 self:$2_socket connected_socket_perms;
-corenet_$2_sendrecv_all_if($1)
-corenet_raw_sendrecv_all_if($1)
+corenet_$2_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
 corenet_$2_sendrecv_all_nodes($1)
 corenet_raw_sendrecv_all_nodes($1)
+corenet_$2_sendrecv_$3_port($1)
 corenet_$2_bind_all_nodes($1)
 sysnet_read_config($1)
-# if $3 is specified (remove _port_t from $3):
-corenet_$2_sendrecv_$3_port($1)
-# else:
-corenet_$2_sendrecv_all_ports($1)
 
 #
 # base_file_read_access(): complete
@@ -392,9 +406,9 @@ selinux_load_policy($1)
 #
 allow $1 self:tcp_socket create_stream_socket_perms;
 allow $1 self:udp_socket create_socket_perms;
-corenet_tcp_sendrecv_all_if($1)
-corenet_udp_sendrecv_all_if($1)
-corenet_raw_sendrecv_all_if($1)
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
 corenet_tcp_sendrecv_all_nodes($1)
 corenet_udp_sendrecv_all_nodes($1)
 corenet_raw_sendrecv_all_nodes($1)
@@ -410,24 +424,67 @@ optional_policy(`mount.te',`
 #
 # can_network($1,$2):
 #
-can_network_tcp($1, `$2')
-can_network_udp($1, `$2')
+allow $1 self:tcp_socket create_stream_socket_perms;
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_udp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
+# (remove _port_t from $2):
+corenet_tcp_sendrecv_$2_port($1)
+corenet_udp_sendrecv_$2_port($1)
 optional_policy(`mount.te',`
 	mount_send_nfs_client_request($1)
 ')
 
 #
-# can_network_client():
+# can_network_client($1):
 #
-can_network_client_tcp($1, `$2')
-can_network_udp($1, `$2')
+allow $1 self:tcp_socket create_socket_perms;
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_udp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
+
+#
+# can_network_client($1,$2): complete
+#
+# remove _port_t from $2
+allow $1 self:tcp_socket create_socket_perms;
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_$2_port($1)
+corenet_udp_sendrecv_$2_port($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
 # can_network_client_tcp($1): complete
 #
 allow $1 self:tcp_socket create_socket_perms;
-corenet_tcp_sendrecv_all_if($1)
-corenet_raw_sendrecv_all_if($1)
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
 corenet_tcp_sendrecv_all_nodes($1)
 corenet_raw_sendrecv_all_nodes($1)
 corenet_tcp_sendrecv_all_ports($1)
@@ -435,12 +492,12 @@ corenet_tcp_bind_all_nodes($1)
 sysnet_read_config($1)
 
 #
-# can_network_client_tcp($1,$2):
+# can_network_client_tcp($1,$2): complete
 #
 # remove _port_t from $2
 allow $1 self:tcp_socket create_socket_perms;
-corenet_tcp_sendrecv_all_if($1)
-corenet_raw_sendrecv_all_if($1)
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
 corenet_tcp_sendrecv_all_nodes($1)
 corenet_raw_sendrecv_all_nodes($1)
 corenet_tcp_sendrecv_$2_port($1)
@@ -448,30 +505,114 @@ corenet_tcp_bind_all_nodes($1)
 sysnet_read_config($1)
 
 #
-# can_network_server():
+# can_network_server($1): complete
 #
 allow $1 self:tcp_socket create_stream_socket_perms;
-allow $1 self:udp_socket { connect };
-base_can_network($1, tcp, `$2')
-base_can_network($1, udp, `$2')
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_udp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
-# can_network_server_tcp():
+# can_network_server($1,$2): complete
+#
+# remove _port_t from $2
+allow $1 self:tcp_socket create_stream_socket_perms;
+allow $1 self:udp_socket create_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_$2_port($1)
+corenet_udp_sendrecv_$2_port($1)
+corenet_tcp_bind_all_nodes($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
+
+#
+# can_network_server_tcp($1): complete
 #
 allow $1 self:tcp_socket create_stream_socket_perms;
-base_can_network($1, tcp, `$2')
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
-# can_network_tcp():
+# can_network_server_tcp($1,$2): complete
 #
-can_network_server_tcp($1, `$2')
-can_network_client_tcp($1, `$2')
+# remove _port_t from $2:
+allow $1 self:tcp_socket create_stream_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_$2_port($1)
+corenet_tcp_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
-# can_network_udp(): complete
+# can_network_tcp($1): complete
 #
-base_can_network($1, udp, `$2')
-allow $1 self:udp_socket { connect };
+allow $1 self:tcp_socket create_stream_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_all_ports($1)
+corenet_tcp_bind_all_nodes($1)
+sysnet_read_config($1)
+
+#
+# can_network_tcp($1,$2): complete
+#
+# remove _port_t from $2:
+allow $1 self:tcp_socket create_stream_socket_perms;
+corenet_tcp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_tcp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_tcp_sendrecv_$2_port($1)
+corenet_tcp_bind_all_nodes($1)
+sysnet_read_config($1)
+
+#
+# can_network_udp($1): complete
+#
+allow $1 self:udp_socket create_socket_perms;
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_all_ports($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
+
+#
+# can_network_udp($1,$2): complete
+#
+# remove _port_t from $2
+allow $1 self:udp_socket create_socket_perms;
+corenet_udp_sendrecv_generic_if($1)
+corenet_raw_sendrecv_generic_if($1)
+corenet_udp_sendrecv_all_nodes($1)
+corenet_raw_sendrecv_all_nodes($1)
+corenet_udp_sendrecv_$2_port($1)
+corenet_udp_bind_all_nodes($1)
+sysnet_read_config($1)
 
 #
 # can_ps():
@@ -557,8 +698,8 @@ kernel_rw_all_sysctl($1)
 #
 allow $1 $2:tcp_socket { connectto recvfrom };
 allow $2 $1:tcp_socket { acceptfrom recvfrom };
-allow $2 kernel_t:tcp_socket recvfrom;
-allow $1 kernel_t:tcp_socket recvfrom;
+kernel_tcp_recvfrom($1)
+kernel_tcp_recvfrom($2)
 
 #
 # can_udp_send():
@@ -577,12 +718,10 @@ allow $1 $2:unix_stream_socket connectto;
 allow $1 $2:unix_dgram_socket sendto;
 
 #
-# can_winbind():
+# can_winbind(): complete
 #
-ifdef(`winbind.te', `
-allow $1 winbind_var_run_t:dir { getattr search };
-allow $1 winbind_t:unix_stream_socket connectto;
-allow $1 winbind_var_run_t:sock_file { getattr read write };
+optional_policy(`samba.te',`
+	samba_connect_winbind($1)
 ')
 
 #
@@ -659,6 +798,7 @@ init_daemon_domain($1_t,$1_exec_t)
 type $1_var_run_t;
 files_pid_file($1_var_run_t)
 dontaudit $1_t self:capability sys_tty_config;
+allow $1_t self:process signal_perms;
 allow $1_t $1_var_run_t:file create_file_perms;
 allow $1_t $1_var_run_t:dir rw_dir_perms;
 files_create_pid($1_t,$1_var_run_t)
@@ -715,16 +855,16 @@ kernel_read_proc_symlinks($1_t)
 #
 # etc_domain(): complete
 #
-type $1_etc_t; #, usercanread;
-files_type($1_etc_t)
+type $1_etc_t;
+files_config_file($1_etc_t)
 allow $1_t $1_etc_t:file { getattr read };
 files_search_etc($1_t)
 
 #
 # etcdir_domain(): complete
 #
-type $1_etc_t; #, usercanread;
-files_type($1_etc_t)
+type $1_etc_t;
+files_config_file($1_etc_t)
 allow $1_t $1_etc_t:file r_file_perms;
 allow $1_t $1_etc_t:dir r_dir_perms;
 allow $1_t $1_etc_t:lnk_file { getattr read };
@@ -841,9 +981,9 @@ files_create_pid($1_t,$1_var_run_t)
 kernel_read_kernel_sysctl($1_t)
 kernel_read_system_state($1_t)
 kernel_read_network_state($1_t)
-corenet_tcp_sendrecv_all_if($1_t)
-corenet_udp_sendrecv_all_if($1_t)
-corenet_raw_sendrecv_all_if($1_t)
+corenet_tcp_sendrecv_generic_if($1_t)
+corenet_udp_sendrecv_generic_if($1_t)
+corenet_raw_sendrecv_generic_if($1_t)
 corenet_tcp_sendrecv_all_nodes($1_t)
 corenet_udp_sendrecv_all_nodes($1_t)
 corenet_raw_sendrecv_all_nodes($1_t)
@@ -940,8 +1080,8 @@ allow $1_t $1_devpts_t:chr_file { setattr rw_file_perms };
 #
 # r_dir_file(): complete
 #
-allow $1 $2:dir { getattr read search };
-allow $1 $2:file { read getattr };
+allow $1 $2:dir r_dir_perms;
+allow $1 $2:file r_file_perms;
 allow $1 $2:lnk_file { getattr read };
 
 #
@@ -1048,20 +1188,6 @@ fs_create_tmpfs($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 unconfined_domain_template($1)
 
 #
-# user_application_domain(): complete
-#
-type $1_t $2;
-domain_type($1_t)
-type $1_exec_t;
-domain_entry_file($1_t,$1_exec_t)
-libs_use_ld_so($1_t)
-libs_use_shared_libs($1_t)
-logging_send_syslog_msg($1_t)
-# a "run" interface needs to be
-# added, and use it in the base user domain
-# template, in a optional_policy block.
-
-#
 # uses_authbind():
 #
 domain_auto_trans($1, authbind_exec_t, authbind_t)
@@ -1081,7 +1207,7 @@ libs_use_shared_libs($1)
 type $1_var_lib_t;
 files_type($1_var_lib_t)
 allow $1_t $1_var_lib_t:file create_file_perms;
-allow $1_t $1_var_lib_t:dir create_dir_perms;
+allow $1_t $1_var_lib_t:dir rw_dir_perms;
 files_create_var_lib($1_t,$1_var_lib_t)
 
 #
@@ -1090,7 +1216,7 @@ files_create_var_lib($1_t,$1_var_lib_t)
 type $1_var_run_t;
 files_pid_file($1_var_run_t)
 allow $1_t $1_var_run_t:file create_file_perms;
-allow $1_t $1_var_run_t:dir create_dir_perms;
+allow $1_t $1_var_run_t:dir rw_dir_perms;
 files_create_pid($1_t,$1_var_run_t)
 
 #
