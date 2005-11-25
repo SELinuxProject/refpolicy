@@ -1,0 +1,92 @@
+
+policy_module(xfs,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type xfs_t;
+type xfs_exec_t;
+init_daemon_domain(xfs_t,xfs_exec_t)
+
+type xfs_tmp_t;
+files_tmp_file(xfs_tmp_t)
+
+type xfs_var_run_t;
+files_pid_file(xfs_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow xfs_t self:capability { setgid setuid };
+dontaudit xfs_t self:capability sys_tty_config;
+allow xfs_t self:process { signal_perms setpgid };
+allow xfs_t self:unix_stream_socket create_stream_socket_perms;
+allow xfs_t self:unix_dgram_socket create_socket_perms;
+
+allow xfs_t xfs_tmp_t:dir create_dir_perms;
+allow xfs_t xfs_tmp_t:sock_file create_file_perms;
+files_create_tmp_files(xfs_t, xfs_tmp_t, { sock_file dir })
+
+allow xfs_t xfs_var_run_t:file create_file_perms;
+allow xfs_t xfs_var_run_t:dir rw_dir_perms;
+files_create_pid(xfs_t,xfs_var_run_t)
+
+# Bind to /tmp/.font-unix/fs-1.
+# cjp: I do not believe this has an effect.
+allow xfs_t xfs_tmp_t:unix_stream_socket name_bind;
+
+kernel_read_kernel_sysctl(xfs_t)
+kernel_read_system_state(xfs_t)
+
+dev_read_sysfs(xfs_t)
+
+fs_getattr_all_fs(xfs_t)
+fs_search_auto_mountpoints(xfs_t)
+
+term_dontaudit_use_console(xfs_t)
+
+domain_use_wide_inherit_fd(xfs_t)
+
+files_read_etc_files(xfs_t)
+files_read_etc_runtime_files(xfs_t)
+
+init_use_fd(xfs_t)
+init_use_script_pty(xfs_t)
+
+libs_use_ld_so(xfs_t)
+libs_use_shared_libs(xfs_t)
+
+logging_send_syslog_msg(xfs_t)
+
+miscfiles_read_localization(xfs_t)
+miscfiles_read_fonts(xfs_t)
+
+userdom_dontaudit_use_unpriv_user_fd(xfs_t)
+userdom_dontaudit_search_sysadm_home_dir(xfs_t)
+
+ifdef(`distro_debian',`
+	# for /tmp/.font-unix/fs7100
+	init_create_script_tmp(xfs_t,xfs_tmp_t,sock_file)
+')
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(xfs_t)
+	term_dontaudit_use_generic_pty(xfs_t)
+	files_dontaudit_read_root_file(xfs_t)
+')
+
+optional_policy(`nis',`
+	nis_use_ypbind(xfs_t)
+')
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(xfs_t)
+')
+
+optional_policy(`udev',`
+	udev_read_db(xfs_t)
+')
