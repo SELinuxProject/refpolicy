@@ -1,5 +1,5 @@
 
-policy_module(usermanage,1.0)
+policy_module(usermanage,1.0.1)
 
 ########################################
 #
@@ -136,10 +136,6 @@ optional_policy(`nis',`
 	nis_use_ypbind(chfn_t)
 ')
 
-ifdef(`TODO',`
-ifdef(`gnome-pty-helper.te', `allow chfn_t gphdomain:fd use;')
-') dnl endif TODO
-
 ########################################
 #
 # Crack local policy
@@ -224,6 +220,7 @@ init_dontaudit_write_script_pid(groupadd_t)
 domain_use_wide_inherit_fd(groupadd_t)
 
 files_manage_etc_files(groupadd_t)
+files_relabel_etc_files(groupadd_t)
 
 libs_use_ld_so(groupadd_t)
 libs_use_shared_libs(groupadd_t)
@@ -237,6 +234,7 @@ logging_send_syslog_msg(groupadd_t)
 miscfiles_read_localization(groupadd_t)
 
 auth_manage_shadow(groupadd_t)
+auth_relabel_shadow(groupadd_t)
 auth_rw_lastlog(groupadd_t)
 auth_use_nsswitch(groupadd_t)
 
@@ -258,14 +256,6 @@ optional_policy(`rpm',`
 	rpm_use_fd(groupadd_t)
 	rpm_rw_pipe(groupadd_t)
 ')
-
-ifdef(`TODO',`
-# Update /etc/shadow and /etc/passwd
-allow groupadd_t { etc_t shadow_t }:file { relabelfrom relabelto };
-
-# Access terminals.
-ifdef(`gnome-pty-helper.te', `allow groupadd_t gphdomain:fd use;')
-') dnl end TODO
 
 ########################################
 #
@@ -310,6 +300,7 @@ term_use_all_user_ttys(passwd_t)
 term_use_all_user_ptys(passwd_t)
 
 auth_manage_shadow(passwd_t)
+auth_relabel_shadow(passwd_t)
 
 # allow checking if a shell is executable
 corecmd_check_exec_shell(passwd_t)
@@ -320,6 +311,7 @@ files_read_etc_runtime_files(passwd_t)
 files_manage_etc_files(passwd_t)
 files_search_var(passwd_t)
 files_dontaudit_search_pids(passwd_t)
+files_relabel_etc_files(passwd_t)
 
 # /usr/bin/passwd asks for w access to utmp, but it will operate
 # correctly without it.  Do not audit write denials to utmp.
@@ -335,6 +327,9 @@ miscfiles_read_localization(passwd_t)
 seutil_dontaudit_search_config(passwd_t)
 
 userdom_use_unpriv_users_fd(passwd_t)
+# make sure that getcon succeeds
+userdom_getattr_all_userdomains(passwd_t)
+userdom_read_all_userdomains_state(passwd_t)
 # user generally runs this from their home directory, so do not audit a search
 # on user home dir
 userdom_dontaudit_search_all_users_home(passwd_t)
@@ -342,19 +337,6 @@ userdom_dontaudit_search_all_users_home(passwd_t)
 optional_policy(`nis',`
 	nis_use_ypbind(passwd_t)
 ')
-
-ifdef(`TODO',`
-# Update /etc/shadow and /etc/passwd
-allow passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
-
-# Inherit and use descriptors from login.
-ifdef(`gnome-pty-helper.te', `allow passwd_t gphdomain:fd use;')
-
-# make sure that getcon succeeds
-allow passwd_t userdomain:dir search;
-allow passwd_t userdomain:file read;
-allow passwd_t userdomain:process getattr;
-') dnl endif TODO
 
 ########################################
 #
@@ -403,7 +385,10 @@ term_use_all_user_ttys(sysadm_passwd_t)
 term_use_all_user_ptys(sysadm_passwd_t)
 
 auth_manage_shadow(sysadm_passwd_t)
+auth_relabel_shadow(sysadm_passwd_t)
 
+# allow checking if a shell is executable
+corecmd_check_exec_shell(sysadm_passwd_t)
 # allow vipw to exec the editor
 corecmd_search_sbin(sysadm_passwd_t)
 corecmd_exec_bin(sysadm_passwd_t)
@@ -413,6 +398,7 @@ files_read_usr_files(sysadm_passwd_t)
 domain_use_wide_inherit_fd(sysadm_passwd_t)
 
 files_manage_etc_files(sysadm_passwd_t)
+files_relabel_etc_files(sysadm_passwd_t)
 files_read_etc_runtime_files(sysadm_passwd_t)
 # for nscd lookups
 files_dontaudit_search_pids(sysadm_passwd_t)
@@ -438,24 +424,6 @@ userdom_dontaudit_search_all_users_home(sysadm_passwd_t)
 optional_policy(`nis',`
 	nis_use_ypbind(sysadm_passwd_t)
 ')
-
-ifdef(`TODO',`
-role sysadm_r types sysadm_passwd_t;
-domain_auto_trans(sysadm_t, admin_passwd_exec_t, sysadm_passwd_t)
-
-# Inherit and use descriptors from login.
-ifdef(`gnome-pty-helper.te', `allow sysadm_passwd_t gphdomain:fd use;')
-
-# allow checking if a shell is executable
-allow sysadm_passwd_t shell_exec_t:file execute;
-
-# Update /etc/shadow and /etc/passwd
-allow sysadm_passwd_t { etc_t shadow_t }:file { relabelfrom relabelto };
-
-ifdef(`targeted_policy', `
-role system_r types sysadm_passwd_t;
-')
-') dnl endif TODO
 
 ########################################
 #
@@ -494,6 +462,7 @@ term_use_all_user_ttys(useradd_t)
 term_use_all_user_ptys(useradd_t)
 
 auth_manage_shadow(useradd_t)
+auth_relabel_shadow(useradd_t)
 auth_rw_lastlog(useradd_t)
 auth_use_nsswitch(useradd_t)
 
@@ -506,6 +475,7 @@ domain_use_wide_inherit_fd(useradd_t)
 
 files_manage_etc_files(useradd_t)
 files_search_var_lib(useradd_t)
+files_relabel_etc_files(useradd_t)
 
 init_use_fd(useradd_t)
 init_rw_script_pid(useradd_t)
@@ -542,14 +512,3 @@ optional_policy(`rpm',`
 	rpm_use_fd(useradd_t)
 	rpm_rw_pipe(useradd_t)
 ')
-
-ifdef(`TODO',`
-# Update /etc/shadow and /etc/passwd
-allow useradd_t { etc_t shadow_t }:file { relabelfrom relabelto };
-
-# Access terminals.
-ifdef(`gnome-pty-helper.te', `allow useradd_t gphdomain:fd use;')
-
-# /var/mail is a link to /var/spool/mail
-allow useradd_t mail_spool_t:lnk_file read;
-') dnl end TODO
