@@ -97,8 +97,6 @@ ifdef(`targeted_policy',`
 
 		files_exec_etc_files(system_mail_t)
 
-		libs_use_ld_so(system_mail_t)
-		libs_use_shared_libs(system_mail_t)
 		libs_exec_ld_so(system_mail_t)
 		libs_exec_lib_files(system_mail_t)
 #	')
@@ -116,12 +114,15 @@ optional_policy(`apache',`
 ')
 
 optional_policy(`arpwatch',`
-	arpwatch_rw_tmp_files(system_mail_t)
+	arpwatch_manage_tmp_files(system_mail_t)
+
+	ifdef(`hide_broken_symptoms', `
+		arpwatch_dontaudit_rw_packet_socket(system_mail_t)
+	')
 ')
 
 optional_policy(`cron',`
 	cron_read_system_job_tmp_files(system_mail_t)
-	cron_read_system_job_tmp_files(mta_user_agent)
 ')
 
 optional_policy(`cvs',`
@@ -133,8 +134,6 @@ optional_policy(`logrotate',`
 ')
 
 optional_policy(`postfix',`
-	postfix_stub(system_mail_t)
-
 	allow system_mail_t etc_aliases_t:dir create_dir_perms;
 	allow system_mail_t etc_aliases_t:file create_file_perms;
 	allow system_mail_t etc_aliases_t:lnk_file create_lnk_perms;
@@ -144,40 +143,39 @@ optional_policy(`postfix',`
 
 	domain_use_wide_inherit_fd(system_mail_t)
 
-	optional_policy(`crond',`
+	# postfix needs this for newaliases
+	files_getattr_tmp_dir(system_mail_t)
+
+	postfix_exec_master(system_mail_t)
+
+	ifdef(`distro_redhat',`
+		# compatability for old default main.cf
+		postfix_create_config(system_mail_t,etc_aliases_t,{ dir file lnk_file sock_file fifo_file })
+	')
+
+	optional_policy(`cron',`
 		cron_crw_tcp_socket(system_mail_t)
 	')
-
-	allow mta_user_agent sysadm_t:fifo_file { read write };
-	type_transition postfix_master_t postfix_etc_t:dir etc_aliases_t;
-
-	# postfix needs this for newaliases
-	allow { system_mail_t sysadm_mail_t } tmp_t:dir getattr;
 ')
 
-ifdef(`TODO',`
 optional_policy(`sendmail',`
-	dontaudit system_mail_t userpty_type:chr_file { getattr read write };
+	userdom_dontaudit_use_unpriv_user_pty(system_mail_t)
 
-	optional_policy(`crond',`
-		dontaudit system_mail_t system_crond_tmp_t:file append;
+	optional_policy(`cron',`
+		cron_dontaudit_append_system_job_tmp_files(system_mail_t)
 	')
 ')
 
-ifdef(`strict_policy',`
-	# allow the sysadmin to do "mail someone < /home/user/whatever"
-	allow sysadm_mail_t user_home_dir_type:dir search;
-	r_dir_file(sysadm_mail_t, user_home_type)
-')
-') dnl end TODO
+# should break this up among sections:
 
 optional_policy(`arpwatch',`
 	# why is mail delivered to a directory of type arpwatch_data_t?
 	arpwatch_search_data(mailserver_delivery)
-	arpwatch_manage_tmp_files(system_mail_t)
 	arpwatch_manage_tmp_files(mta_user_agent)
 	ifdef(`hide_broken_symptoms', `
-		arpwatch_dontaudit_rw_packet_socket(system_mail_t)
 		arpwatch_dontaudit_rw_packet_socket(mta_user_agent)
+	')
+	optional_policy(`cron',`
+		cron_read_system_job_tmp_files(mta_user_agent)
 	')
 ')

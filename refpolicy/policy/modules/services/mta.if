@@ -26,8 +26,7 @@ interface(`mta_stub',`
 ##	</p>
 ##	<p>
 ##	This is the basic types and rules, common
-##	to the system agent and user agents, and
-##	is not useful by itself.
+##	to the system agent and user agents.
 ##	</p>
 ## </desc>
 ## <param name="domain_prefix">
@@ -236,6 +235,52 @@ template(`mta_per_userdomain_template',`
 	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
 	#allow $1_mail_t $1_home_t:file r_file_perms;
 	') dnl end TODO
+')
+
+########################################
+## <summary>
+##	Provide extra permissions for admin users
+##	mail domain.
+## </summary>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+#
+template(`mta_admin_template',`
+	ifdef(`strict_policy',`
+		# allow the sysadmin to do "mail someone < /home/user/whatever"
+		userdom_read_unpriv_user_home_files($1_mail_t)
+	')
+
+	optional_policy(`postfix',`
+		gen_require(`
+			attribute mta_user_agent;
+			type etc_aliases_t;
+		')
+
+		allow mta_user_agent $2:fifo_file { read write };
+
+		allow $1_mail_t etc_aliases_t:dir create_dir_perms;
+		allow $1_mail_t etc_aliases_t:file create_file_perms;
+		allow $1_mail_t etc_aliases_t:lnk_file create_lnk_perms;
+		allow $1_mail_t etc_aliases_t:sock_file create_file_perms;
+		allow $1_mail_t etc_aliases_t:fifo_file create_file_perms;
+		files_create_etc_config($1_mail_t,etc_aliases_t,{ file lnk_file sock_file fifo_file })
+
+		# postfix needs this for newaliases
+		files_getattr_tmp_dir($1_mail_t)
+
+		postfix_exec_master($1_mail_t)
+
+		ifdef(`distro_redhat',`
+			# compatability for old default main.cf
+			postfix_create_config($1_mail_t,etc_aliases_t,{ dir file lnk_file sock_file fifo_file })
+		')
+	')
 ')
 
 #######################################
