@@ -1,5 +1,5 @@
 
-policy_module(nis,1.0.1)
+policy_module(nis,1.0.2)
 
 ########################################
 #
@@ -18,6 +18,14 @@ files_tmp_file(ypbind_tmp_t)
 
 type ypbind_var_run_t;
 files_pid_file(ypbind_var_run_t)
+
+type yppasswdd_t;
+type yppasswdd_exec_t;
+init_daemon_domain(yppasswdd_t,yppasswdd_exec_t)
+domain_obj_id_change_exempt(yppasswdd_t)
+
+type yppasswdd_var_run_t;
+files_pid_file(yppasswdd_var_run_t)
 
 type ypserv_t;
 type ypserv_exec_t;
@@ -106,6 +114,8 @@ sysnet_read_config(ypbind_t)
 userdom_dontaudit_use_unpriv_user_fd(ypbind_t)
 userdom_dontaudit_search_sysadm_home_dir(ypbind_t)
 
+portmap_udp_sendto(ypbind_t)
+
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(ypbind_t)
 	term_dontaudit_use_generic_pty(ypbind_t)
@@ -116,16 +126,112 @@ optional_policy(`mount',`
 	mount_send_nfs_client_request(ypbind_t)
 ')
 
-optional_policy(`portmap',`
-	portmap_udp_sendto(ypbind_t)
-')
-
 optional_policy(`selinuxutil',`
 	seutil_sigchld_newrole(ypbind_t)
 ')
 
 optional_policy(`udev',`
 	udev_read_db(ypbind_t)
+')
+
+########################################
+#
+# yppasswdd local policy
+#
+
+dontaudit yppasswdd_t self:capability sys_tty_config;
+allow yppasswdd_t self:fifo_file rw_file_perms;
+allow yppasswdd_t self:process { setfscreate signal_perms };
+allow yppasswdd_t self:unix_dgram_socket create_socket_perms;
+allow yppasswdd_t self:unix_stream_socket create_stream_socket_perms;
+allow yppasswdd_t self:netlink_route_socket r_netlink_socket_perms;
+allow yppasswdd_t self:tcp_socket create_stream_socket_perms;
+allow yppasswdd_t self:udp_socket create_socket_perms;
+
+allow yppasswdd_t yppasswdd_var_run_t:file create_file_perms;
+allow yppasswdd_t yppasswdd_var_run_t:dir rw_dir_perms;
+files_create_pid(yppasswdd_t,yppasswdd_var_run_t)
+
+allow yppasswdd_t var_yp_t:dir rw_dir_perms;
+allow yppasswdd_t var_yp_t:file create_file_perms;
+allow yppasswdd_t var_yp_t:lnk_file create_lnk_perms;
+
+kernel_list_proc(yppasswdd_t)
+kernel_read_proc_symlinks(yppasswdd_t)
+kernel_getattr_proc_files(yppasswdd_t)
+kernel_read_kernel_sysctl(yppasswdd_t)
+
+corenet_tcp_sendrecv_generic_if(yppasswdd_t)
+corenet_udp_sendrecv_generic_if(yppasswdd_t)
+corenet_raw_sendrecv_generic_if(yppasswdd_t)
+corenet_tcp_sendrecv_all_nodes(yppasswdd_t)
+corenet_udp_sendrecv_all_nodes(yppasswdd_t)
+corenet_raw_sendrecv_all_nodes(yppasswdd_t)
+corenet_tcp_sendrecv_all_ports(yppasswdd_t)
+corenet_udp_sendrecv_all_ports(yppasswdd_t)
+corenet_tcp_bind_all_nodes(yppasswdd_t)
+corenet_udp_bind_all_nodes(yppasswdd_t)
+corenet_tcp_bind_reserved_port(yppasswdd_t)
+corenet_udp_bind_reserved_port(yppasswdd_t)
+corenet_dontaudit_tcp_bind_all_reserved_ports(yppasswdd_t)
+corenet_dontaudit_udp_bind_all_reserved_ports(yppasswdd_t)
+
+dev_read_sysfs(yppasswdd_t)
+
+fs_getattr_all_fs(yppasswdd_t)
+fs_search_auto_mountpoints(yppasswdd_t)
+
+selinux_get_fs_mount(yppasswdd_t)
+
+term_dontaudit_use_console(yppasswdd_t)
+
+auth_manage_shadow(yppasswdd_t)
+auth_relabel_shadow(yppasswdd_t)
+
+corecmd_exec_bin(yppasswdd_t)
+corecmd_exec_shell(yppasswdd_t)
+corecmd_search_sbin(yppasswdd_t)
+
+domain_use_wide_inherit_fd(yppasswdd_t)
+
+files_read_etc_files(yppasswdd_t)
+files_read_etc_runtime_files(yppasswdd_t)
+files_relabel_etc_files(yppasswdd_t)
+
+init_use_fd(yppasswdd_t)
+init_use_script_pty(yppasswdd_t)
+init_udp_sendto_script(yppasswdd_t)
+
+libs_use_ld_so(yppasswdd_t)
+libs_use_shared_libs(yppasswdd_t)
+
+logging_send_syslog_msg(yppasswdd_t)
+
+miscfiles_read_localization(yppasswdd_t)
+
+sysnet_read_config(yppasswdd_t)
+
+userdom_dontaudit_use_unpriv_user_fd(yppasswdd_t)
+userdom_dontaudit_search_sysadm_home_dir(yppasswdd_t)
+
+portmap_udp_sendto(yppasswdd_t)
+
+ifdef(`targeted_policy',`
+        term_dontaudit_use_unallocated_tty(yppasswdd_t)
+        term_dontaudit_use_generic_pty(yppasswdd_t)
+        files_dontaudit_read_root_file(yppasswdd_t)
+')
+
+optional_policy(`hostname',`
+	hostname_exec(yppasswdd_t)
+')
+
+optional_policy(`selinuxutil',`
+        seutil_sigchld_newrole(yppasswdd_t)
+')
+
+optional_policy(`udev',`
+        udev_read_db(yppasswdd_t)
 ')
 
 ########################################
@@ -202,27 +308,18 @@ sysnet_read_config(ypserv_t)
 userdom_dontaudit_use_unpriv_user_fd(ypserv_t)
 userdom_dontaudit_search_sysadm_home_dir(ypserv_t)
 
-ifdef(`targeted_policy', `
+portmap_udp_sendto(ypserv_t)
+
+ifdef(`targeted_policy',`
 	term_dontaudit_use_unallocated_tty(ypserv_t)
 	term_dontaudit_use_generic_pty(ypserv_t)
 	files_dontaudit_read_root_file(ypserv_t)
-')
-
-optional_policy(`portmap',`
-	portmap_udp_sendto(ypserv_t)
 ')
 
 optional_policy(`selinuxutil',`
 	seutil_sigchld_newrole(ypserv_t)
 ')
 
-optional_policy(`udev', `
+optional_policy(`udev',`
 	udev_read_db(ypserv_t)
 ')
-
-ifdef(`TODO',`
-# Read and write /var/yp.
-ifdef(`rpcd.te', `
-allow rpcd_t ypserv_conf_t:file { getattr read };
-')
-') dnl end TODO
