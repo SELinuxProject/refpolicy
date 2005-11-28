@@ -1,0 +1,99 @@
+
+policy_module(timidity,1.0.0)
+
+# Note: You only need this policy if you want to run timidity as a server
+
+########################################
+#
+# Declarations
+#
+
+type timidity_t;
+type timidity_exec_t;
+init_daemon_domain(timidity_t,timidity_exec_t)
+
+type timidity_tmpfs_t;
+files_tmpfs_file(timidity_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow timidity_t self:capability { dac_override dac_read_search };
+dontaudit timidity_t self:capability sys_tty_config;
+allow timidity_t self:process { signal_perms getsched };
+allow timidity_t self:shm create_shm_perms;
+allow timidity_t self:unix_stream_socket create_stream_socket_perms;
+allow timidity_t self:tcp_socket create_stream_socket_perms;
+allow timidity_t self:udp_socket create_socket_perms;
+
+allow timidity_t timidity_tmpfs_t:dir create_dir_perms;
+allow timidity_t timidity_tmpfs_t:file create_file_perms;
+allow timidity_t timidity_tmpfs_t:lnk_file create_lnk_perms;
+allow timidity_t timidity_tmpfs_t:sock_file create_file_perms;
+allow timidity_t timidity_tmpfs_t:fifo_file create_file_perms;
+fs_create_tmpfs_data(timidity_t,timidity_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+kernel_read_kernel_sysctl(timidity_t)
+# read /proc/cpuinfo
+kernel_read_system_state(timidity_t)
+
+corenet_tcp_sendrecv_generic_if(timidity_t)
+corenet_udp_sendrecv_generic_if(timidity_t)
+corenet_raw_sendrecv_generic_if(timidity_t)
+corenet_tcp_sendrecv_all_nodes(timidity_t)
+corenet_udp_sendrecv_all_nodes(timidity_t)
+corenet_raw_sendrecv_all_nodes(timidity_t)
+corenet_tcp_sendrecv_all_ports(timidity_t)
+corenet_udp_sendrecv_all_ports(timidity_t)
+corenet_tcp_bind_all_nodes(timidity_t)
+corenet_udp_bind_all_nodes(timidity_t)
+
+dev_read_sysfs(timidity_t)
+dev_read_snd_dev(timidity_t)
+dev_write_snd_dev(timidity_t)
+
+fs_search_auto_mountpoints(timidity_t)
+
+term_dontaudit_use_console(timidity_t)
+
+domain_use_wide_inherit_fd(timidity_t)
+
+files_search_tmp(timidity_t)
+# read /usr/share/alsa/alsa.conf
+files_read_usr_files(timidity_t)
+# read /etc/esd.conf
+files_read_etc_files(timidity_t)
+
+init_use_fd(timidity_t)
+init_use_script_pty(timidity_t)
+
+libs_use_ld_so(timidity_t)
+libs_use_shared_libs(timidity_t)
+# read libartscbackend.la
+libs_read_lib(timidity_t)
+
+logging_send_syslog_msg(timidity_t)
+
+sysnet_read_config(timidity_t)
+
+userdom_dontaudit_use_unpriv_user_fd(timidity_t)
+# stupid timidity won't start if it can't search its current directory.
+# allow this so /etc/init.d/alsasound start works from /root
+# cjp: this should be fixed if possible so this rule can be removed.
+userdom_search_sysadm_home_dir(timidity_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(timidity_t)
+	term_dontaudit_use_generic_pty(timidity_t)
+	files_dontaudit_read_root_file(timidity_t)
+')
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(timidity_t)
+')
+
+optional_policy(`udev',`
+	udev_read_db(timidity_t)
+')
