@@ -1,5 +1,5 @@
 
-policy_module(mta,1.0.1)
+policy_module(mta,1.0.2)
 
 ########################################
 #
@@ -28,17 +28,12 @@ files_type(mail_spool_t)
 type sendmail_exec_t;
 files_type(sendmail_exec_t)
 
-type system_mail_t, user_mail_domain;
-domain_type(system_mail_t)
-domain_entry_file(system_mail_t,sendmail_exec_t)
+mta_base_mail_template(system)
 role system_r types system_mail_t;
-
-type system_mail_tmp_t;
-files_tmp_file(system_mail_tmp_t)
 
 # cjp: need to resolve this, but require{}
 # does not work in the else part of the optional
-#ifdef(`targeted_policy',`',`
+#ifdef(`strict_policy',`
 #	optional_policy(`sendmail',`',`
 #		init_system_domain(system_mail_t,sendmail_exec_t)
 #	')
@@ -49,59 +44,16 @@ files_tmp_file(system_mail_tmp_t)
 # System mail local policy
 #
 
-allow system_mail_t self:capability { setuid setgid chown };
-allow system_mail_t self:process { signal_perms setrlimit };
-allow system_mail_t self:tcp_socket create_socket_perms;
-
 allow system_mail_t etc_mail_t:dir { getattr search };
 allow system_mail_t etc_mail_t:file r_file_perms;
 
-# re-exec itself
-can_exec(system_mail_t, sendmail_exec_t)
-allow system_mail_t sendmail_exec_t:lnk_file r_file_perms;
-
-allow system_mail_t system_mail_tmp_t:dir create_dir_perms;
-allow system_mail_t system_mail_tmp_t:file create_file_perms;
-files_create_tmp_files(system_mail_t, system_mail_tmp_t, { file dir })
-
-kernel_read_kernel_sysctl(system_mail_t)
 kernel_read_system_state(system_mail_t)
 kernel_read_network_state(system_mail_t)
-
-corenet_tcp_sendrecv_all_if(system_mail_t)
-corenet_raw_sendrecv_all_if(system_mail_t)
-corenet_tcp_sendrecv_all_nodes(system_mail_t)
-corenet_raw_sendrecv_all_nodes(system_mail_t)
-corenet_tcp_sendrecv_all_ports(system_mail_t)
-corenet_tcp_bind_all_nodes(system_mail_t)
-corenet_tcp_connect_smtp_port(system_mail_t)
-corenet_tcp_connect_all_ports(system_mail_t)
 
 dev_read_rand(system_mail_t)
 dev_read_urand(system_mail_t)
 
-fs_getattr_xattr_fs(system_mail_t)
-
 init_use_script_pty(system_mail_t)
-
-files_read_etc_files(system_mail_t)
-files_read_etc_runtime_files(system_mail_t)
-files_search_spool(system_mail_t)
-# It wants to check for nscd
-files_dontaudit_search_pids(system_mail_t)
-
-corecmd_exec_bin(system_mail_t)
-corecmd_search_sbin(system_mail_t)
-
-libs_use_ld_so(system_mail_t)
-libs_use_shared_libs(system_mail_t)
-
-logging_send_syslog_msg(system_mail_t)
-
-miscfiles_read_localization(system_mail_t)
-
-sysnet_read_config(system_mail_t)
-sysnet_dns_name_resolve(system_mail_t)
 
 userdom_use_sysadm_terms(system_mail_t)
 
@@ -169,6 +121,7 @@ optional_policy(`arpwatch',`
 
 optional_policy(`cron',`
 	cron_read_system_job_tmp_files(system_mail_t)
+	cron_read_system_job_tmp_files(mta_user_agent)
 ')
 
 optional_policy(`cvs',`
@@ -177,14 +130,6 @@ optional_policy(`cvs',`
 
 optional_policy(`logrotate',`
 	logrotate_read_tmp_files(system_mail_t)
-')
-
-optional_policy(`nis',`
-	nis_use_ypbind(system_mail_t)
-')
-
-optional_policy(`nscd',`
-	nscd_use_socket(system_mail_t)
 ')
 
 optional_policy(`postfix',`
@@ -205,29 +150,13 @@ optional_policy(`postfix',`
 
 	allow mta_user_agent sysadm_t:fifo_file { read write };
 	type_transition postfix_master_t postfix_etc_t:dir etc_aliases_t;
-')
 
-optional_policy(`procmail',`
-	procmail_exec(system_mail_t)
-')
-
-optional_policy(`sendmail',`
-	sendmail_stub(system_mail_t)
-
-	allow system_mail_t etc_mail_t:dir { getattr search };
-
-	# sendmail -q 
-	allow system_mail_t mqueue_spool_t:dir rw_dir_perms;
-	allow system_mail_t mqueue_spool_t:file create_file_perms;
-
-	# FIXME:
-	allow system_mail_t sendmail_log_t:file manage_file_perms;
-	logging_create_log(system_mail_t,sendmail_log_t)
+	# postfix needs this for newaliases
+	allow { system_mail_t sysadm_mail_t } tmp_t:dir getattr;
 ')
 
 ifdef(`TODO',`
 optional_policy(`sendmail',`
-	allow system_mail_t { var_t var_spool_t }:dir getattr;
 	dontaudit system_mail_t userpty_type:chr_file { getattr read write };
 
 	optional_policy(`crond',`
@@ -235,22 +164,12 @@ optional_policy(`sendmail',`
 	')
 ')
 
-ifdef(`targeted_policy',`
-	allow system_mail_t { var_t var_spool_t }:dir getattr;
-',`
+ifdef(`strict_policy',`
 	# allow the sysadmin to do "mail someone < /home/user/whatever"
 	allow sysadm_mail_t user_home_dir_type:dir search;
 	r_dir_file(sysadm_mail_t, user_home_type)
 ')
-
-
-optional_policy(`qmail',`
-	allow system_mail_t qmail_etc_t:dir search;
-	allow system_mail_t qmail_etc_t:{ file lnk_file } read;
-')
 ') dnl end TODO
-
-allow mta_user_agent system_crond_tmp_t:file { read getattr };
 
 optional_policy(`arpwatch',`
 	# why is mail delivered to a directory of type arpwatch_data_t?

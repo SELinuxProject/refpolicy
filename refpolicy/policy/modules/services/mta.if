@@ -16,6 +16,130 @@ interface(`mta_stub',`
 
 #######################################
 ## <summary>
+##	Basic mail transfer agent domain template.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is
+##	a email transfer agent, which sends mail on
+##	behalf of the user.
+##	</p>
+##	<p>
+##	This is the basic types and rules, common
+##	to the system agent and user agents, and
+##	is not useful by itself.
+##	</p>
+## </desc>
+## <param name="domain_prefix">
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+#
+template(`mta_base_mail_template',`
+
+	##############################
+	#
+	# $1_mail_t declarations
+	#
+
+	type $1_mail_t, user_mail_domain;
+	domain_type($1_mail_t)
+	domain_entry_file($1_mail_t,sendmail_exec_t)
+
+	optional_policy(`sendmail',`
+		type $1_mail_tmp_t;
+		files_tmp_file($1_mail_tmp_t)
+
+		sendmail_stub($1_mail_t)
+	')
+
+	##############################
+	#
+	# $1_mail_t local policy
+	#
+
+	allow $1_mail_t self:capability { setuid setgid chown };
+	allow $1_mail_t self:process { signal_perms setrlimit };
+	allow $1_mail_t self:tcp_socket create_socket_perms;
+
+	# re-exec itself
+	can_exec($1_mail_t, sendmail_exec_t)
+	allow $1_mail_t sendmail_exec_t:lnk_file r_file_perms;
+
+	kernel_read_kernel_sysctl($1_mail_t)
+
+	corenet_tcp_sendrecv_all_if($1_mail_t)
+	corenet_raw_sendrecv_all_if($1_mail_t)
+	corenet_tcp_sendrecv_all_nodes($1_mail_t)
+	corenet_raw_sendrecv_all_nodes($1_mail_t)
+	corenet_tcp_sendrecv_all_ports($1_mail_t)
+	corenet_tcp_bind_all_nodes($1_mail_t)
+	corenet_tcp_connect_all_ports($1_mail_t)
+	corenet_tcp_connect_smtp_port($1_mail_t)
+
+	corecmd_exec_bin($1_mail_t)
+	corecmd_search_sbin($1_mail_t)
+
+	files_read_etc_files($1_mail_t)
+	files_search_spool($1_mail_t)
+	# It wants to check for nscd
+	files_dontaudit_search_pids($1_mail_t)
+
+	libs_use_ld_so($1_mail_t)
+	libs_use_shared_libs($1_mail_t)
+
+	logging_send_syslog_msg($1_mail_t)
+
+	miscfiles_read_localization($1_mail_t)
+
+	sysnet_read_config($1_mail_t)
+	sysnet_dns_name_resolve($1_mail_t)
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_mail_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_use_socket($1_mail_t)
+	')
+
+	optional_policy(`procmail',`
+		procmail_exec($1_mail_t)
+	')
+
+	optional_policy(`sendmail',`
+		allow $1_mail_t $1_mail_tmp_t:dir create_dir_perms;
+		allow $1_mail_t $1_mail_tmp_t:file create_file_perms;
+		files_create_tmp_files($1_mail_t, $1_mail_tmp_t, { file dir })
+
+		allow $1_mail_t etc_mail_t:dir { getattr search };
+
+		# Write to /var/spool/mail and /var/spool/mqueue.
+		allow $1_mail_t mail_spool_t:dir rw_dir_perms;
+		allow $1_mail_t mail_spool_t:file create_file_perms;
+		allow $1_mail_t mqueue_spool_t:dir rw_dir_perms;
+		allow $1_mail_t mqueue_spool_t:file create_file_perms;
+
+		# Check available space.
+		fs_getattr_xattr_fs($1_mail_t)
+
+		files_read_etc_runtime_files($1_mail_t)
+
+		# Write to /var/log/sendmail.st
+		sendmail_manage_log($1_mail_t)
+		sendmail_create_log($1_mail_t)
+	')
+
+	ifdef(`TODO',`
+	ifdef(`qmail.te', `
+		allow $1_mail_t qmail_etc_t:dir search;
+		allow $1_mail_t qmail_etc_t:{ file lnk_file } read;
+	')
+	') dnl end TODO
+')
+
+#######################################
+## <summary>
 ##	The per user domain template for the mta module.
 ## </summary>
 ## <desc>
@@ -47,25 +171,13 @@ template(`mta_per_userdomain_template',`
 		type sendmail_exec_t;
 	')
 
-	type $1_mail_t, user_mail_domain;
-	domain_type($1_mail_t)
+	mta_base_mail_template($1)
 	role $3 types $1_mail_t;
-
-	type $1_mail_tmp_t;
-	files_tmp_file($1_mail_tmp_t)
 
 	##############################
 	#
 	# $1_mail_t local policy
 	#
-
-	allow $1_mail_t self:capability { setuid setgid chown };
-	allow $1_mail_t self:process { signal_perms setrlimit };
-	allow $1_mail_t self:tcp_socket create_socket_perms;
-
-	# re-exec itself
-	can_exec($1_mail_t, sendmail_exec_t)
-	allow $1_mail_t sendmail_exec_t:lnk_file r_file_perms;
 
 	# Transition from the user domain to the derived domain.
 	domain_auto_trans($2, sendmail_exec_t, $1_mail_t)
@@ -81,35 +193,7 @@ template(`mta_per_userdomain_template',`
 	allow $2 mailserver_domain:tcp_socket { connectto recvfrom };
 	allow mailserver_domain $2:tcp_socket { acceptfrom recvfrom };
 
-	kernel_read_kernel_sysctl($1_mail_t)
-
-	corenet_tcp_sendrecv_all_if($1_mail_t)
-	corenet_raw_sendrecv_all_if($1_mail_t)
-	corenet_tcp_sendrecv_all_nodes($1_mail_t)
-	corenet_raw_sendrecv_all_nodes($1_mail_t)
-	corenet_tcp_sendrecv_all_ports($1_mail_t)
-	corenet_tcp_bind_all_nodes($1_mail_t)
-	corenet_tcp_connect_all_ports($1_mail_t)
-
 	domain_use_wide_inherit_fd($1_mail_t)
-
-	libs_use_ld_so($1_mail_t)
-	libs_use_shared_libs($1_mail_t)
-
-	corecmd_exec_bin($1_mail_t)
-	corecmd_search_sbin($1_mail_t)
-
-	files_read_etc_files($1_mail_t)
-	files_search_spool($1_mail_t)
-	# It wants to check for nscd
-	files_dontaudit_search_pids($1_mail_t)
-
-	logging_send_syslog_msg($1_mail_t)
-
-	miscfiles_read_localization($1_mail_t)
-
-	sysnet_read_config($1_mail_t)
-	sysnet_dns_name_resolve($1_mail_t)
 
 	userdom_use_user_terminals($1,$1_mail_t)
 	# Write to the user domain tty. cjp: why?
@@ -131,22 +215,10 @@ template(`mta_per_userdomain_template',`
 		fs_manage_cifs_symlinks($1_mail_t)
 	')
 
-	optional_policy(`nis',`
-		nis_use_ypbind($1_mail_t)
-	')
-
-	optional_policy(`nscd',`
-		nscd_use_socket($1_mail_t)
-	')
-
 	optional_policy(`postfix',`
 		allow $1_mail_t self:capability dac_override;
 		postfix_read_config($1_mail_t)
 		postfix_list_spool($1_mail_t)
-	')
-
-	optional_policy(`procmail',`
-		procmail_exec($1_mail_t)
 	')
 
 	ifdef(`TODO',`
@@ -158,21 +230,11 @@ template(`mta_per_userdomain_template',`
 		allow $1_mail_t $1_tmp_t:file write;
 	')
 
-	# cjp: why?
 	allow mta_user_agent $1_tmp_t:file r_file_perms;
-
-	# Inherit and use descriptors from gnome-pty-helper.
-	ifdef(`gnome-pty-helper.te', `allow $1_mail_t $1_gph_t:fd use;')
 
 	# if you do not want to allow dead.letter then use the following instead
 	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
 	#allow $1_mail_t $1_home_t:file r_file_perms;
-
-	ifdef(`qmail.te', `
-		allow $1_mail_t qmail_etc_t:dir search;
-		allow $1_mail_t qmail_etc_t:{ file lnk_file } read;
-	')
-
 	') dnl end TODO
 ')
 
