@@ -53,7 +53,6 @@ DISTRO = redhat
 # run init scripts, instead of requring run_init.
 # This is a build option, as role transitions do
 # not work in conditional policy.
-# This option will be impled as y for redhat policies.
 DIRECT_INITRC=y
 
 # Build monolithic policy.  Putting n here
