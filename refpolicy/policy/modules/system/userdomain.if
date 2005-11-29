@@ -142,7 +142,13 @@ template(`base_user_template',`
 	per_userdomain_templates($1,$1_t,$1_r)
 
 	kernel_read_kernel_sysctl($1_t)
-	selinux_get_fs_mount($1_t)
+	kernel_dontaudit_list_unlabeled($1_t)
+	kernel_dontaudit_getattr_unlabeled_file($1_t)
+	kernel_dontaudit_getattr_unlabeled_symlinks($1_t)
+	kernel_dontaudit_getattr_unlabeled_pipes($1_t)
+	kernel_dontaudit_getattr_unlabeled_sockets($1_t)
+	kernel_dontaudit_getattr_unlabeled_blk_dev($1_t)
+	kernel_dontaudit_getattr_unlabeled_chr_dev($1_t)
 	# Very permissive allowing every domain to see every type:
 	kernel_get_sysvipc_info($1_t)
 	# Find CDROM devices:
@@ -180,6 +186,7 @@ template(`base_user_template',`
 
 	fs_get_all_fs_quotas($1_t)
 	fs_getattr_all_fs($1_t)
+	fs_getattr_all_dirs($1_t)
 	fs_search_auto_mountpoints($1_t)
 
 	# cjp: some of this probably can be removed
@@ -195,6 +202,7 @@ template(`base_user_template',`
 
 	auth_read_login_records($1_t)
 	auth_dontaudit_write_login_records($1_t)
+	auth_search_pam_console_data($1_t)
 	auth_run_pam($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 	auth_run_utempter($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 
@@ -207,6 +215,7 @@ template(`base_user_template',`
 	# When the user domain runs ps, there will be a number of access
 	# denials when ps tries to search /proc.  Do not audit these denials.
 	domain_dontaudit_read_all_domains_state($1_t)
+	domain_dontaudit_getattr_all_domains($1_t)
 	domain_dontaudit_getsession_all_domains($1_t)
 
 	files_exec_etc_files($1_t)
@@ -304,12 +313,21 @@ template(`base_user_template',`
 		term_getattr_all_user_ttys($1_t)
 	')
 
+	optional_policy(`apm',`
+		# Allow graphical boot to check battery lifespan
+		apm_stream_connect($1_t)
+	')
+
 	optional_policy(`canna',`
 		canna_stream_connect($1_t)
 	')
 
 	optional_policy(`dbus',`
 		dbus_system_bus_client_template($1,$1_t)
+
+		optional_policy(`hal',`
+			hal_dbus_chat($1_t)
+		')
 
 		optional_policy(`networkmanager',`
 			networkmanager_dbus_chat($1_t)
@@ -332,6 +350,9 @@ template(`base_user_template',`
 
 	optional_policy(`inetd',`
 		inetd_tcp_connect($1_t)
+		inetd_udp_sendto($1_t)
+		inetd_use_fd($1_t)
+		inetd_rw_tcp_socket($1_t)
 	')
 
 	optional_policy(`inn',`
@@ -345,7 +366,7 @@ template(`base_user_template',`
 	')
 
 	optional_policy(`mysql',`
-		ifdef(`targeted_policy',`',`
+		ifdef(`strict_policy',`
 			tunable_policy(`allow_user_mysql_connect',`
 				mysql_stream_connect($1_t)
 			')
@@ -361,17 +382,26 @@ template(`base_user_template',`
 		pcmcia_read_pid($1_t)
 	')
 
+	optional_policy(`portmap',`
+		portmap_tcp_connect($1_t)
+	')
+
 	optional_policy(`quota',`
 		quota_dontaudit_getattr_db($1_t)
 	')
 
 	optional_policy(`rpc',`
 		rpc_dontaudit_getattr_exports($1_t)
+		rpc_manage_nfs_rw_content($1_t)
 	')
 
 	optional_policy(`rpm',`
 		files_getattr_var_lib_dir($1_t)
 		files_search_var_lib($1_t)
+	')
+
+	optional_policy(`samba',`
+		samba_connect_winbind($1_t)
 	')
 
 	optional_policy(`squid',`
@@ -384,9 +414,6 @@ template(`base_user_template',`
 	')
 
 	ifdef(`TODO',`
-
-	can_winbind($1_t)
-
 	#
 	# Cups daemon running as user tries to write /etc/printcap
 	#
@@ -394,13 +421,6 @@ template(`base_user_template',`
 
 	# Check to see if cdrom is mounted
 	allow $1_t mnt_t:dir { getattr search };
-
-	#
-	# Added to allow reading of cdrom
-	#
-	allow $1_t rpc_pipefs_t:dir getattr;
-	allow $1_t nfsd_fs_t:dir getattr;
-	allow $1_t binfmt_misc_fs_t:dir getattr;
 
 	# /initrd is left mounted, various programs try to look at it
 	dontaudit $1_t ramfs_t:dir getattr;
@@ -412,12 +432,7 @@ template(`base_user_template',`
 
 	r_dir_file($1_t, usercanread)
 
-	allow $1_t fs_type:dir getattr;
-
 	# old browser_domain():
-	dontaudit $1 unlabeled_t:dir_file_class_set getattr;
-	dontaudit $1 unlabeled_t:dir search;
-	dontaudit $1 unlabeled_t:dir read;
 	dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir_file_class_set getattr;
 	dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir search;
 	dontaudit $1 { fs_type proc_fs dev_fs sysctl_type }:dir read;
@@ -425,32 +440,6 @@ template(`base_user_template',`
 	allow $1_t usbtty_device_t:chr_file read;
 
 	can_resmgrd_connect($1_t)
-
-	# Grant permissions to access the system DBus
-	ifdef(`dbusd.te', `
-		ifdef(`hald.te', `
-			allow $1_t hald_t:dbus send_msg;
-			allow hald_t $1_t:dbus send_msg;
-		')
-	')
-
-	# Gnome pannel binds to the following
-	ifdef(`cups.te', `
-		allow $1_t { cupsd_etc_t cupsd_rw_etc_t }:file r_file_perms;
-	')
-
-	ifdef(`inetd.te', `
-		# Connect to inetd.
-		inetd_tcp_connect($1_t)
-		can_udp_send($1_t, inetd_t)
-		can_udp_send(inetd_t, $1_t)
-		# Inherit and use sockets from inetd
-		inetd_use_fd($1_t)
-		allow $1_t inetd_t:tcp_socket rw_stream_socket_perms;
-	')
-
-	# Connect to portmap.
-	ifdef(`portmap.te', `can_tcp_connect($1_t, portmap_t)')
 
 	# Use X
 	x_client_domain($1, $1)
@@ -472,10 +461,7 @@ template(`base_user_template',`
 	')
 
 	# start read_fonts()
-
-	# cjp: this macro is unconditional, though
-	# its in a conditional file.
-
+	# cjp: these types come in from fontconfig
 	# Manipulate the global font cache
 	create_dir_file($1, $1_fonts_cache_t)
 
@@ -488,23 +474,6 @@ template(`base_user_template',`
 	allow $1 $2_gnome_settings_t:dir { getattr search };
 	')
 	# end read_fonts()
-
-	ifdef(`rpcd.te', `
-		create_dir_file($1_t, nfsd_rw_t)
-	')
-
-	#
-	# Allow graphical boot to check battery lifespan
-	#
-	ifdef(`apmd.te', `
-		allow $1_t apmd_t:unix_stream_socket connectto;
-		allow $1_t apmd_var_run_t:sock_file write;
-	')
-
-	ifdef(`pamconsole.te', `
-		allow $1_t pam_var_console_t:dir search;
-	')
-
 	') dnl endif TODO
 
 ')
