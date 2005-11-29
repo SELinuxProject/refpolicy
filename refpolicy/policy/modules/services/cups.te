@@ -1,5 +1,5 @@
 
-policy_module(cups,1.0)
+policy_module(cups,1.0.1)
 
 ########################################
 #
@@ -149,6 +149,7 @@ fs_search_auto_mountpoints(cupsd_t)
 term_dontaudit_use_console(cupsd_t)
 
 auth_domtrans_chk_passwd(cupsd_t)
+auth_dontaudit_read_pam_pid(cupsd_t)
 
 # Filter scripts may be shell scripts, and may invoke progs like /bin/mktemp
 corecmd_exec_shell(cupsd_t)
@@ -187,7 +188,7 @@ seutil_dontaudit_read_config(cupsd_t)
 sysnet_read_config(cupsd_t)
 
 userdom_dontaudit_use_unpriv_user_fd(cupsd_t)
-userdom_dontaudit_search_sysadm_home_dir(cupsd_t)
+userdom_dontaudit_search_all_users_home(cupsd_t)
 
 # Write to /var/spool/cups.
 lpd_manage_spool(cupsd_t)
@@ -198,15 +199,28 @@ ifdef(`targeted_policy',`
 	files_dontaudit_read_root_file(cupsd_t)
 ')
 
+optional_policy(`cron',`
+	cron_use_fd(cupsd_t)
+	cron_read_pipe(cupsd_t)
+')
+
 optional_policy(`dbus',`
 	dbus_system_bus_client_template(cupsd,cupsd_t)
 	dbus_send_system_bus_msg(cupsd_t)
 
-	allow cupsd_t userdomain:dbus send_msg;
+	userdom_dbus_send_all_users(cupsd_t)
+
+	optional_policy(`hal',`
+		hal_dbus_chat(cupsd_t)
+	')
 ')
 
 optional_policy(`hostname',`
 	hostname_exec(cupsd_t)
+')
+
+optional_policy(`inetd',`
+	inetd_core_service_domain(cupsd_t,cupsd_exec_t,cupsd_t)
 ')
 
 optional_policy(`mount',`
@@ -215,6 +229,15 @@ optional_policy(`mount',`
 
 optional_policy(`nscd',`
 	nscd_use_socket(cupsd_t)
+')
+
+optional_policy(`portmap',`
+	portmap_udp_sendrecv(cupsd_t)
+')
+
+optional_policy(`samba',`
+	samba_rw_var_files(cupsd_t)
+	# cjp: rw_dir_perms was here, but doesnt make sense
 ')
 
 optional_policy(`selinuxutil',`
@@ -241,55 +264,17 @@ allow cupsd_t devpts_t:dir search;
 dontaudit cupsd_t random_device_t:chr_file ioctl;
 
 # temporary solution, we need something better
-allow cupsd_t serial_device:chr_file rw_file_perms;
-
-optional_policy(`logrotate',`
-	domain_auto_trans(logrotate_t, cupsd_exec_t, cupsd_t)
-')
-
-optional_policy(`inetd',`
-domain_auto_trans(inetd_t, cupsd_exec_t, cupsd_t)
-')
+#allow cupsd_t serial_device:chr_file rw_file_perms;
 
 # for /etc/printcap
 dontaudit cupsd_t etc_t:file write;
 
-
-
-
-
-# Send to portmap.
-optional_policy(`portmap', `
-allow cupsd_t portmap_t:udp_socket sendto;
-allow portmap_t cupsd_t:udp_socket recvfrom;
-allow portmap_t cupsd_t:udp_socket sendto;
-allow cupsd_t portmap_t:udp_socket recvfrom;
-')
-
-
-
-
-
 #
 # Satisfy readahead
 #
-allow initrc_t cupsd_log_t:file { getattr read };
 allow cupsd_t var_t:dir { getattr read search };
 allow cupsd_t var_t:file r_file_perms;
 allow cupsd_t var_t:lnk_file { getattr read };
-
-optional_policy(`samba',`
-# cjp: rw_dir_perms here doesnt make sense
-allow cupsd_t samba_var_t:dir rw_dir_perms;
-allow cupsd_t samba_var_t:file rw_file_perms;
-allow cupsd_t samba_var_t:lnk_file { getattr read };
-allow smbd_t cupsd_etc_t:dir search;
-')
-
-optional_policy(`authlogin',`
-dontaudit cupsd_t pam_var_run_t:file { getattr read };
-')
-dontaudit cupsd_t { sysadm_home_dir_t staff_home_dir_t }:dir { getattr search };
 
 ########################################
 #
@@ -358,7 +343,7 @@ miscfiles_read_localization(ptal_t)
 sysnet_read_config(ptal_t)
 
 userdom_dontaudit_use_unpriv_user_fd(ptal_t)
-userdom_dontaudit_search_sysadm_home_dir(ptal_t)
+userdom_dontaudit_search_all_users_home(ptal_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(ptal_t)
@@ -374,13 +359,7 @@ optional_policy(`udev',`
 	udev_read_db(ptal_t)
 ')
 
-allow userdomain ptal_t:unix_stream_socket connectto;
-allow userdomain ptal_var_run_t:sock_file write;
-allow userdomain ptal_var_run_t:dir search;
-
 allow initrc_t printer_device_t:chr_file getattr;
-
-dontaudit ptal_t { sysadm_home_dir_t staff_home_dir_t }:dir { getattr search };
 
 allow initrc_t ptal_var_run_t:dir rmdir;
 allow initrc_t ptal_var_run_t:fifo_file unlink;
@@ -555,6 +534,8 @@ corecmd_exec_sbin(cupsd_config_t)
 corecmd_exec_shell(cupsd_config_t)
 
 domain_use_wide_inherit_fd(cupsd_config_t)
+# killall causes the following
+domain_dontaudit_search_all_domains_state(cupsd_config_t)
 
 files_read_usr_files(cupsd_config_t)
 files_read_etc_files(cupsd_config_t)
@@ -577,10 +558,33 @@ sysnet_read_config(cupsd_config_t)
 userdom_dontaudit_use_unpriv_user_fd(cupsd_config_t)
 userdom_dontaudit_search_sysadm_home_dir(cupsd_config_t)
 
+ifdef(`distro_redhat',`
+	init_getattr_script_entry_file(cupsd_config_t)
+
+	optional_policy(`rpm',`
+		rpm_read_db(cupsd_config_t)
+	')
+')
+
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(cupsd_config_t)
 	term_dontaudit_use_generic_pty(cupsd_config_t)
 	files_dontaudit_read_root_file(cupsd_config_t)
+')
+
+optional_policy(`cron',`
+	cron_use_system_job_fd(cupsd_config_t)
+	cron_read_pipe(cupsd_config_t)
+')
+
+optional_policy(`dbus',`
+	dbus_system_bus_client_template(cupsd_config,cupsd_config_t)
+	dbus_connect_system_bus(cupsd_config_t)
+	dbus_send_system_bus_msg(cupsd_config_t)
+
+	optional_policy(`hal',`
+		hal_dbus_chat(cupsd_config_t)
+	')
 ')
 
 optional_policy(`hal',`
@@ -603,6 +607,10 @@ optional_policy(`nscd',`
 	nscd_use_socket(cupsd_config_t)
 ')
 
+optional_policy(`rpm',`
+	rpm_read_db(cupsd_config_t)
+')
+
 optional_policy(`selinuxutil',`
 	seutil_sigchld_newrole(cupsd_config_t)
 ')
@@ -611,48 +619,9 @@ optional_policy(`udev',`
 	udev_read_db(cupsd_config_t)
 ')
 
-allow cupsd_config_t devpts_t:dir search;
-allow cupsd_config_t devpts_t:chr_file { getattr ioctl };
-
-ifdef(`distro_redhat', `
-	optional_policy(`rpm',`
-		allow cupsd_config_t rpm_var_lib_t:dir { getattr search };
-		allow cupsd_config_t rpm_var_lib_t:file { getattr read };
-	')
-	allow cupsd_config_t initrc_exec_t:file getattr;
-')
-
 allow cupsd_config_t var_t:lnk_file read;
 
-optional_policy(`dbus',`
-	dbus_system_bus_client_template(cupsd_config,cupsd_config_t)
-	dbus_connect_system_bus(cupsd_config_t)
-	dbus_send_system_bus_msg(cupsd_config_t)
-
-	allow cupsd_config_t userdomain:dbus send_msg;
-	allow userdomain cupsd_config_t:dbus send_msg;
-')
-
-optional_policy(`hal', `
-	optional_policy(`dbus',`
-		allow { cupsd_t cupsd_config_t } hald_t:dbus send_msg;
-		allow hald_t { cupsd_t cupsd_config_t }:dbus send_msg;
-	')
-
-	allow hald_t cupsd_config_t:process signal;
-')
-
-# killall causes the following
-dontaudit cupsd_config_t domain:dir { getattr search };
-
-allow cupsd_config_t var_lib_t:dir { getattr search };
-allow cupsd_config_t rpm_var_lib_t:file { getattr read };
 allow cupsd_config_t printconf_t:file { getattr read };
-
-allow cupsd_config_t system_crond_t:fd use;
-allow cupsd_config_t crond_t:fifo_file r_file_perms;
-allow cupsd_t crond_t:fifo_file read;
-allow cupsd_t crond_t:fd use;
 
 # Alternatives asks for this
 allow cupsd_config_t initrc_exec_t:file getattr;
@@ -664,6 +633,7 @@ ifdef(`targeted_policy', `
 	allow { cupsd_config_t cupsd_t } unconfined_t:dbus send_msg;
 	allow unconfined_t cupsd_config_t:dbus send_msg;
 	allow { cupsd_t cupsd_config_t } unconfined_t:fifo_file read;
+	term_use_generic_pty(cupsd_config_t)
 ')
 
 ########################################
