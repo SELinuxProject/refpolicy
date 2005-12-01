@@ -69,7 +69,14 @@ template(`base_user_template',`
 
 	##############################
 	#
-	# Local policy
+	# User home directory file rules
+	#
+
+	allow $1_file_type $1_home_t:filesystem associate;
+
+	##############################
+	#
+	# User domain Local policy
 	#
 
 	allow $1_t self:capability { setgid chown fowner };
@@ -965,6 +972,39 @@ template(`admin_user_template',`
 
 ########################################
 ## <summary>
+##	Make the specified type usable in a
+##	user home directory.
+## </summary>
+## <desc>
+##	<p>
+##	Make the specified type usable in a
+##	user home directory.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="type">
+##	Type to be used as a file in the
+##	user home directory.
+## </param>
+#
+template(`userdom_home_file',`
+	gen_require(`
+		type $1_file_type;
+	')
+
+	typeattribute $2 $1_file_type;
+	files_type($2)
+')
+
+########################################
+## <summary>
 ##	Search user home directories.
 ## </summary>
 ## <desc>
@@ -1251,6 +1291,11 @@ template(`userdom_manage_user_home_subdir_sockets',`
 ##	The class of the object to be created.  If not
 ##	specified, file is used.
 ## </param>
+## <param name="private_type" optional="true">
+##	The type of the object to create.  If this is
+##	not specified, the regular home directory
+##	type is used.
+## </param>
 #
 template(`userdom_create_user_home',`
 	gen_require(`
@@ -1261,10 +1306,18 @@ template(`userdom_create_user_home',`
 
 	allow $2 $1_home_dir_t:dir rw_dir_perms;
 
-	ifelse(`$3',`',`
-		type_transition $2 $1_home_dir_t:file $1_home_t;
+	ifelse(`$4',`',`
+		ifelse(`$3',`',`
+			type_transition $2 $1_home_dir_t:file $1_home_t;
+		',`
+			type_transition $2 $1_home_dir_t:$3 $1_home_t;
+		')
 	',`
-		type_transition $2 $1_home_dir_t:$3 $1_home_t;
+		ifelse(`$3',`',`
+			type_transition $2 $1_home_dir_t:file $4;
+		',`
+			type_transition $2 $1_home_dir_t:$3 $4;
+		')
 	')
 ')
 
@@ -2370,11 +2423,32 @@ interface(`userdom_setattr_unpriv_user_pty',`
 
 ########################################
 ## <summary>
+##	Read and write unprivileged user ptys.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_use_unpriv_user_pty',`
+	ifdef(`targeted_policy',`
+		term_use_generic_pty($1)
+	',`
+		gen_require(`
+			attribute user_ptynode;
+		')
+
+		term_search_ptys($1)
+		allow $1 user_ptynode:chr_file rw_file_perms;
+	')
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to use unprivileged
 ##	user ptys.
 ## </summary>
 ## <param name="domain">
-##	Domain allowed access.
+##	Domain to not audit.
 ## </param>
 #
 interface(`userdom_dontaudit_use_unpriv_user_pty',`
