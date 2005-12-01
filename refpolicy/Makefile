@@ -14,58 +14,16 @@
 #
 # The default target is 'policy'.
 #
-
-########################################
 #
-# Configurable portions of the Makefile
+# Please see build.conf for policy build options.
 #
-
-# Policy version
-# By default, checkpolicy will create the highest
-# version policy it supports.  Setting this will
-# override the version.  This only affects
-# monolithic policies.
-#OUTPUT_POLICY = 18
-
-# Policy Type
-# strict, targeted,
-# strict-mls, targeted-mls,
-# strict-mcs, targeted-mcs
-TYPE = targeted-mcs
-
-# Policy Name
-# If set, this will be used as the policy
-# name.  Otherwise the policy type will be
-# used for the name.
-NAME = refpolicy
-
-# Distribution
-# Some distributions have portions of policy
-# for programs or configurations specific to the
-# distribution.  Setting this will enable options
-# for the distribution.
-# redhat, gentoo, debian, and suse are current options.
-# Fedora users should enable redhat.
-DISTRO = redhat
-
-# Direct admin init
-# Setting this will allow sysadm to directly
-# run init scripts, instead of requring run_init.
-# This is a build option, as role transitions do
-# not work in conditional policy.
-DIRECT_INITRC=y
-
-# Build monolithic policy.  Putting n here
-# will build a loadable module policy.
-MONOLITHIC=y
-
-# Uncomment this to disable command echoing
-#QUIET:=@
 
 ########################################
 #
 # NO OPTIONS BELOW HERE
 #
+
+include build.conf
 
 # executable paths
 PREFIX := /usr
