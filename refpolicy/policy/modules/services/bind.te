@@ -1,5 +1,5 @@
 
-policy_module(bind,0.9)
+policy_module(bind,1.0.0)
 
 ########################################
 #
@@ -150,15 +150,37 @@ ifdef(`targeted_policy',`
 	files_dontaudit_read_root_file(named_t)
 ')
 
-optional_policy(`dbus',`
-	gen_require(`
-		class dbus send_msg;
-	')
+tunable_policy(`named_write_master_zones',`
+	allow named_t named_zone_t:dir create_dir_perms;
+	allow named_t named_zone_t:file create_file_perms;
+	allow named_t named_zone_t:lnk_file create_lnk_perms;
+')
 
-	allow named_t self:dbus send_msg;
+optional_policy(`dbus',`
+	init_dbus_chat_script(named_t)
+
+	sysnet_dbus_chat_dhcpc(named_t)
+
 	dbus_system_bus_client_template(named,named_t)
 	dbus_connect_system_bus(named_t)
 	dbus_send_system_bus_msg(named_t)
+
+	optional_policy(`networkmanager',`
+		networkmanager_dbus_chat(named_t)
+	')
+')
+
+optional_policy(`mount',`
+	mount_send_nfs_client_request(named_t)
+')
+
+optional_policy(`networkmanager',`
+	# this seems like fds that arent being
+	# closed.  these should probably be
+	# dontaudits instead.
+	networkmanager_rw_udp_socket(named_t)
+	networkmanager_rw_packet_socket(named_t)
+	networkmanager_rw_routing_socket(named_t)
 ')
 
 optional_policy(`nis',`
@@ -250,16 +272,6 @@ ifdef(`targeted_policy',`
 	term_use_generic_pty(ndc_t)
 ')
 
-tunable_policy(`named_write_master_zones',`
-	allow named_t named_zone_t:dir create_dir_perms;
-	allow named_t named_zone_t:file create_file_perms;
-	allow named_t named_zone_t:lnk_file create_lnk_perms;
-')
-
-optional_policy(`mount',`
-	mount_send_nfs_client_request(named_t)
-')
-
 optional_policy(`nis',`
 	nis_use_ypbind(ndc_t)
 ')
@@ -268,46 +280,6 @@ optional_policy(`nscd',`
 	nscd_use_socket(ndc_t)
 ')
 
-optional_policy(`bind',`
+optional_policy(`ppp',`
 	ppp_dontaudit_use_fd(ndc_t)
-')
-
-###########################################################
-#
-# Partially converted rules.  THESE ARE ONLY TEMPORARY
-#
-
-allow named_t initrc_t:dbus send_msg;
-allow initrc_t named_t:dbus send_msg;
-allow named_t dhcpc_t:dbus send_msg;
-allow dhcpc_t named_t:dbus send_msg;
-
-# cjp: this whole block was originally in networkmanager
-optional_policy(`networkmanager',`
-	gen_require(`
-		type NetworkManager_t;
-	')
-
-#	optional_policy(`dbus',`
-		gen_require(`
-			class dbus send_msg;
-		')
-
-		allow NetworkManager_t named_t:dbus send_msg;
-		allow named_t NetworkManager_t:dbus send_msg;
-#	')
-
-	bind_domtrans(NetworkManager_t)
-
-	allow NetworkManager_t named_zone_t:dir search;
-
-	allow NetworkManager_t named_cache_t:dir rw_dir_perms;
-	allow NetworkManager_t named_cache_t:file create_file_perms;
-	allow NetworkManager_t named_cache_t:lnk_file create_lnk_perms;
-
-	allow named_t NetworkManager_t:udp_socket { read write };
-	allow named_t NetworkManager_t:netlink_route_socket { read write };
-
-	allow NetworkManager_t named_t:process signal;
-	allow named_t NetworkManager_t:packet_socket { read write };
 ')

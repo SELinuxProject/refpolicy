@@ -1,5 +1,5 @@
 
-policy_module(cups,1.0.1)
+policy_module(cups,1.0.2)
 
 ########################################
 #
@@ -627,13 +627,23 @@ allow cupsd_config_t printconf_t:file { getattr read };
 allow cupsd_config_t initrc_exec_t:file getattr;
 
 ifdef(`targeted_policy', `
-	allow cupsd_t initrc_t:unix_stream_socket connectto;
-	allow cupsd_t initrc_t:dbus send_msg;
-	allow initrc_t cupsd_t:dbus send_msg;
-	allow { cupsd_config_t cupsd_t } unconfined_t:dbus send_msg;
-	allow unconfined_t cupsd_config_t:dbus send_msg;
-	allow { cupsd_t cupsd_config_t } unconfined_t:fifo_file r_file_perms;
+	init_unix_connect_script(cupsd_t)
+
+	unconfined_read_pipe(cupsd_t)
+
+	optional_policy(`dbus',`
+		init_dbus_chat_script(cupsd_t)
+
+		unconfined_dbus_send(cupsd_t)
+
+		dbus_stub(cupsd_t)
+	')
+')
+
+ifdef(`targeted_policy',`
 	term_use_generic_pty(cupsd_config_t)
+
+	unconfined_read_pipe(cupsd_config_t)
 ')
 
 ########################################
