@@ -139,7 +139,7 @@ APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
-USER_FILES := $(POLDIR)/systemuser $(POLDIR)/users
+USER_FILES := $(POLDIR)/users
 
 ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 
