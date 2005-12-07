@@ -13,6 +13,7 @@ do_test() {
 		[ ! -z "$1" ] && OPTS="$OPTS DISTRO=$1"
 		make bare || exit 1
 		echo "**** Options: $OPTS ****"
+		echo -ne "\33]0;$i $1\007"
 		make $OPTS conf || exit 1
 		make $OPTS || exit 1
 		make $OPTS file_contexts || exit 1
