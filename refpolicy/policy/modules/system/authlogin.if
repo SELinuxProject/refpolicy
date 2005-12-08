@@ -2,6 +2,79 @@
 
 #######################################
 ## <summary>
+##	Common template to create a domain for authentication.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is allowed
+##	to authenticate users by using PAM unix_chkpwd support.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+#
+template(`authlogin_common_auth_domain_template',`
+	gen_require(`
+		attribute can_read_shadow_passwords;
+		type chkpwd_exec_t, shadow_t;
+	')
+
+	type $1_chkpwd_t, can_read_shadow_passwords;
+	domain_type($1_chkpwd_t)
+	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
+
+	allow $1_chkpwd_t self:capability { audit_write audit_control setuid };
+	allow $1_chkpwd_t self:process getattr;
+
+	files_list_etc($1_chkpwd_t)
+	allow $1_chkpwd_t shadow_t:file { getattr read };
+
+	# is_selinux_enabled
+	kernel_read_system_state($1_chkpwd_t)
+
+	dev_read_rand($1_chkpwd_t)
+	dev_read_urand($1_chkpwd_t)
+
+	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
+
+	libs_use_ld_so($1_chkpwd_t)
+	libs_use_shared_libs($1_chkpwd_t)
+
+	files_read_etc_files($1_chkpwd_t)
+	# for nscd
+	files_dontaudit_search_var($1_chkpwd_t)
+
+	logging_send_syslog_msg($1_chkpwd_t)
+
+	miscfiles_read_certs($1_chkpwd_t)
+	miscfiles_read_localization($1_chkpwd_t)
+
+	seutil_read_config($1_chkpwd_t)
+
+	sysnet_dns_name_resolve($1_chkpwd_t)
+	sysnet_use_ldap($1_chkpwd_t)
+
+	optional_policy(`kerberos',`
+		kerberos_use($1_chkpwd_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_chkpwd_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_use_socket($1_chkpwd_t)
+	')
+
+	optional_policy(`samba',`
+		samba_connect_winbind($1_chkpwd_t)
+	')
+')
+
+#######################################
+## <summary>
 ##	The per user domain template for the authlogin module.
 ## </summary>
 ## <desc>
@@ -29,87 +102,33 @@
 ## </param>
 #
 template(`authlogin_per_userdomain_template',`
+
 	gen_require(`
-		attribute can_read_shadow_passwords;
-		type chkpwd_exec_t, system_chkpwd_t, shadow_t;
+		type system_chkpwd_t, shadow_t;
 	')
 
-	type $1_chkpwd_t, can_read_shadow_passwords;
-	domain_type($1_chkpwd_t)
-	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
+	authlogin_common_auth_domain_template($1)
+
 	role $3 types $1_chkpwd_t;
 	role $3 types system_chkpwd_t;
 
-	allow $1_chkpwd_t self:capability { audit_write audit_control setuid };
-	allow $1_chkpwd_t self:process getattr;
-
-	files_list_etc($1_chkpwd_t)
-	allow $1_chkpwd_t shadow_t:file { getattr read };
-
 	allow $2 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
+	dontaudit $2 shadow_t:file { getattr read };
 
 	# Transition from the user domain to this domain.
 	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
-
 	allow $1_chkpwd_t $2:fd use;
 	allow $2 $1_chkpwd_t:fd use;
 	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
 	allow $1_chkpwd_t $2:process sigchld;
 
-	dontaudit $2 shadow_t:file { getattr read };
-
-	# is_selinux_enabled
-	kernel_read_system_state($1_chkpwd_t)
-
-	dev_read_rand($1_chkpwd_t)
-	dev_read_urand($1_chkpwd_t)
-
-	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
-
 	domain_use_wide_inherit_fd($1_chkpwd_t)
 
-	libs_use_ld_so($1_chkpwd_t)
-	libs_use_shared_libs($1_chkpwd_t)
-
-	files_read_etc_files($1_chkpwd_t)
-	# for nscd
-	files_dontaudit_search_var($1_chkpwd_t)
-
-	logging_send_syslog_msg($1_chkpwd_t)
-
-	miscfiles_read_certs($1_chkpwd_t)
-	miscfiles_read_localization($1_chkpwd_t)
-
-	seutil_read_config($1_chkpwd_t)
-
-	sysnet_dns_name_resolve($1_chkpwd_t)
-	sysnet_use_ldap($1_chkpwd_t)
+	seutil_use_newrole_fd($1_chkpwd_t)
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_chkpwd_t)
-
-	# Inherit and use descriptors from gnome-pty-helper.
-	#ifdef(`gnome-pty-helper.te',`allow $1_chkpwd_t $1_gph_t:fd use;')
-
-	optional_policy(`kerberos',`
-		kerberos_use($1_chkpwd_t)
-	')
-
-	optional_policy(`nis',`
-		nis_use_ypbind($1_chkpwd_t)
-	')
-
-	optional_policy(`nscd',`
-		nscd_use_socket($1_chkpwd_t)
-	')
-
-	optional_policy(`samba',`
-		samba_connect_winbind($1_chkpwd_t)
-	')
-
-	optional_policy(`selinuxutil',`
-		seutil_use_newrole_fd($1_chkpwd_t)
-	')
 ')
 
 ########################################
