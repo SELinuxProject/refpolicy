@@ -1,5 +1,5 @@
 
-policy_module(samba,1.1.0)
+policy_module(samba,1.1.1)
 
 #################################
 #
@@ -53,6 +53,17 @@ domain_type(smbmount_t)
 
 type smbmount_exec_t;
 domain_entry_file(smbmount_t,smbmount_exec_t)
+
+type swat_t;
+type swat_exec_t;
+inetd_service_domain(swat_t,swat_exec_t)
+role system_r types swat_t;
+
+type swat_tmp_t;
+files_tmp_file(swat_tmp_t)
+
+type swat_var_run_t;
+files_pid_file(swat_var_run_t)
 
 type winbind_t;
 type winbind_exec_t;
@@ -516,6 +527,70 @@ ifdef(`TODO',`
 ifdef(`cups.te', `
 	allow smbd_t cupsd_rw_etc_t:file { getattr read };
 ')
+')
+
+########################################
+#
+# SWAT Local policy
+#
+
+allow swat_t self:capability { setuid setgid };
+allow swat_t self:process signal_perms;
+allow swat_t self:fifo_file rw_file_perms;
+allow swat_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
+allow swat_t self:tcp_socket connected_stream_socket_perms;
+allow swat_t self:udp_socket create_socket_perms;
+
+allow swat_t swat_tmp_t:dir create_dir_perms;
+allow swat_t swat_tmp_t:file create_file_perms;
+files_create_tmp_files(swat_t, swat_tmp_t, { file dir })
+
+allow swat_t swat_var_run_t:file create_file_perms;
+allow swat_t swat_var_run_t:dir rw_dir_perms;
+files_create_pid(swat_t,swat_var_run_t)
+
+kernel_read_kernel_sysctl(swat_t)
+kernel_read_system_state(swat_t)
+kernel_read_network_state(swat_t)
+
+corenet_non_ipsec_sendrecv(swat_t)
+corenet_tcp_sendrecv_generic_if(swat_t)
+corenet_udp_sendrecv_generic_if(swat_t)
+corenet_raw_sendrecv_generic_if(swat_t)
+corenet_tcp_sendrecv_all_nodes(swat_t)
+corenet_udp_sendrecv_all_nodes(swat_t)
+corenet_raw_sendrecv_all_nodes(swat_t)
+corenet_tcp_sendrecv_all_ports(swat_t)
+corenet_udp_sendrecv_all_ports(swat_t)
+corenet_tcp_bind_all_nodes(swat_t)
+corenet_udp_bind_all_nodes(swat_t)
+
+dev_read_urand(swat_t)
+
+files_read_etc_files(swat_t)
+files_search_home(swat_t)
+
+fs_getattr_xattr_fs(swat_t)
+
+libs_use_ld_so(swat_t)
+libs_use_shared_libs(swat_t)
+
+logging_send_syslog_msg(swat_t)
+
+miscfiles_read_localization(swat_t)
+
+sysnet_read_config(swat_t)
+
+optional_policy(`kerberos',`
+	kerberos_use(swat_t)
+')
+
+optional_policy(`nis',`
+	nis_use_ypbind(swat_t)
+')
+
+optional_policy(`nscd',`
+	nscd_use_socket(swat_t)
 ')
 
 ########################################
