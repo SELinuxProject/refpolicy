@@ -1,5 +1,5 @@
 
-policy_module(hal,1.0.4)
+policy_module(hal,1.1.1)
 
 ########################################
 #
@@ -23,11 +23,13 @@ files_pid_file(hald_var_run_t)
 
 allow hald_t self:capability { net_admin sys_admin dac_override dac_read_search mknod sys_rawio };
 dontaudit hald_t self:capability sys_tty_config;
-allow hald_t self:process signal_perms;
+# vbetool requires execmem
+allow hald_t self:process { execmem signal_perms };
 allow hald_t self:fifo_file rw_file_perms;
 allow hald_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow hald_t self:unix_dgram_socket create_socket_perms;
 allow hald_t self:netlink_route_socket r_netlink_socket_perms;
+allow hald_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow hald_t self:netlink_kobject_uevent_socket create_socket_perms;
 allow hald_t self:tcp_socket create_stream_socket_perms;
 allow hald_t self:udp_socket create_socket_perms;
@@ -47,6 +49,9 @@ kernel_read_network_state(hald_t)
 kernel_read_kernel_sysctl(hald_t)
 kernel_write_proc_file(hald_t)
 
+corecmd_exec_bin(hald_t)
+corecmd_exec_sbin(hald_t)
+
 corenet_tcp_sendrecv_all_if(hald_t)
 corenet_udp_sendrecv_all_if(hald_t)
 corenet_raw_sendrecv_all_if(hald_t)
@@ -59,7 +64,6 @@ corenet_non_ipsec_sendrecv(hald_t)
 corenet_tcp_bind_all_nodes(hald_t)
 corenet_udp_bind_all_nodes(hald_t)
 
-dev_read_sysfs(hald_t)
 dev_rw_usbfs(hald_t)
 dev_read_urand(hald_t)
 dev_read_input(hald_t)
@@ -68,6 +72,20 @@ dev_rw_printer(hald_t)
 dev_read_lvm_control(hald_t)
 dev_getattr_all_chr_files(hald_t)
 dev_manage_generic_chr_file(hald_t)
+# hal is now execing pm-suspend
+dev_rw_sysfs(hald_t)
+
+domain_use_wide_inherit_fd(hald_t)
+domain_exec_all_entry_files(hald_t)
+
+files_exec_etc_files(hald_t)
+files_read_etc_files(hald_t)
+files_rw_etc_runtime_files(hald_t)
+files_search_mnt(hald_t)
+files_search_var_lib(hald_t)
+files_read_usr_files(hald_t)
+# hal is now execing pm-suspend
+files_create_boot_flag(hald_t)
 
 fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
@@ -86,19 +104,6 @@ storage_raw_read_fixed_disk(hald_t)
 storage_raw_write_fixed_disk(hald_t)
 
 term_dontaudit_use_console(hald_t)
-
-corecmd_exec_bin(hald_t)
-corecmd_exec_sbin(hald_t)
-
-domain_use_wide_inherit_fd(hald_t)
-domain_exec_all_entry_files(hald_t)
-
-files_exec_etc_files(hald_t)
-files_read_etc_files(hald_t)
-files_rw_etc_runtime_files(hald_t)
-files_search_mnt(hald_t)
-files_search_var_lib(hald_t)
-files_read_usr_files(hald_t)
 
 init_use_fd(hald_t)
 init_use_script_pty(hald_t)
@@ -169,6 +174,10 @@ optional_policy(`nis',`
 
 optional_policy(`nscd',`
 	nscd_use_socket(hald_t)
+')
+
+optional_policy(`ntp',`
+	ntp_domtrans(hald_t)
 ')
 
 optional_policy(`pcmcia',`

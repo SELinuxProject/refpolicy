@@ -137,7 +137,7 @@ M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt)
 
 APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
-APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts) $(CONTEXTPATH)/files/media
+APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
 USER_FILES := $(POLDIR)/users
 
@@ -273,11 +273,6 @@ $(APPDIR)/default_contexts: $(APPCONF)/default_contexts
 $(APPDIR)/removable_context: $(APPCONF)/removable_context
 	@mkdir -p $(APPDIR)
 	$(QUIET) install -m 644 $< $@
-
-$(APPDIR)/customizable_types: policy.conf
-	@mkdir -p $(APPDIR)
-	$(QUIET) grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
-	$(QUIET) install -m 644 tmp/customizable_types $@ 
 
 $(APPDIR)/default_type: $(APPCONF)/default_type
 	@mkdir -p $(APPDIR)
