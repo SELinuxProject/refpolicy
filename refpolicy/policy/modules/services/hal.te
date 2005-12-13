@@ -1,5 +1,5 @@
 
-policy_module(hal,1.1.1)
+policy_module(hal,1.1.2)
 
 ########################################
 #
@@ -21,10 +21,10 @@ files_pid_file(hald_var_run_t)
 # Local policy
 #
 
-allow hald_t self:capability { net_admin sys_admin dac_override dac_read_search mknod sys_rawio };
+# execute openvt which needs setuid
+allow hald_t self:capability { setuid kill net_admin sys_admin sys_nice dac_override dac_read_search mknod sys_rawio };
 dontaudit hald_t self:capability sys_tty_config;
-# vbetool requires execmem
-allow hald_t self:process { execmem signal_perms };
+allow hald_t self:process signal_perms;
 allow hald_t self:fifo_file rw_file_perms;
 allow hald_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow hald_t self:unix_dgram_socket create_socket_perms;
@@ -104,9 +104,11 @@ storage_raw_read_fixed_disk(hald_t)
 storage_raw_write_fixed_disk(hald_t)
 
 term_dontaudit_use_console(hald_t)
+term_dontaudit_ioctl_unallocated_ttys(hald_t)
 
 init_use_fd(hald_t)
 init_use_script_pty(hald_t)
+init_domtrans_script(hald_t)
 
 libs_use_ld_so(hald_t)
 libs_use_shared_libs(hald_t)
@@ -136,6 +138,10 @@ optional_policy(`apm',`
 	# For /usr/libexec/hald-addon-acpi
 	# writes to /var/run/acpid.socket
 	apm_stream_connect(hald_t)
+')
+
+optional_policy(`clock',`
+	clock_domtrans(hald_t)
 ')
 
 optional_policy(`cups',`
@@ -196,6 +202,10 @@ optional_policy(`udev', `
 
 optional_policy(`updfstab',`
 	updfstab_domtrans(hald_t)
+')
+
+optional_policy(`vbetool',`
+	vbetool_domtrans(hald_t)
 ')
 
 ifdef(`TODO',`
