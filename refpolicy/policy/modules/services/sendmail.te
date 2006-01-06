@@ -1,5 +1,5 @@
 
-policy_module(sendmail,1.1.0)
+policy_module(sendmail,1.1.1)
 
 ########################################
 #
@@ -15,15 +15,10 @@ files_tmp_file(sendmail_tmp_t)
 type sendmail_var_run_t;
 files_pid_file(sendmail_var_run_t)
 
-ifdef(`targeted_policy',`
-	unconfined_alias_domain(sendmail_t)
-	mta_sendmail_mailserver(sendmail_t)
-',`
-	type sendmail_t;
-	mta_sendmail_mailserver(sendmail_t)
-	mta_mailserver_delivery(sendmail_t)
-	mta_mailserver_sender(sendmail_t)
-')
+type sendmail_t;
+mta_sendmail_mailserver(sendmail_t)
+mta_mailserver_delivery(sendmail_t)
+mta_mailserver_sender(sendmail_t)
 
 ########################################
 #
@@ -31,9 +26,11 @@ ifdef(`targeted_policy',`
 #
 
 allow sendmail_t self:capability { setuid setgid net_bind_service sys_nice chown sys_tty_config };
+allow sendmail_t self:process signal;
 allow sendmail_t self:fifo_file rw_file_perms;
 allow sendmail_t self:unix_stream_socket create_stream_socket_perms;
 allow sendmail_t self:unix_dgram_socket create_socket_perms;
+allow sendmail_t self:tcp_socket create_stream_socket_perms;
 
 allow sendmail_t sendmail_log_t:file create_file_perms;
 allow sendmail_t sendmail_log_t:dir { rw_dir_perms setattr };
@@ -111,7 +108,7 @@ ifdef(`targeted_policy',`
 	allow sendmail_t sendmail_tmp_t:file create_file_perms;
 	files_create_tmp_files(sendmail_t, sendmail_tmp_t, { file dir })
 
-	allow sendmail_t sendmail_var_run_t:file { getattr create read write append setattr unlink };
+	allow sendmail_t sendmail_var_run_t:file { getattr create read write append setattr unlink lock };
 	files_create_pid(sendmail_t,sendmail_var_run_t)
 ')
 
@@ -126,6 +123,10 @@ optional_policy(`nscd',`
 optional_policy(`postfix',`
 	postfix_read_config(sendmail_t)
 	postfix_search_spool(sendmail_t)
+')
+
+optional_policy(`procmail',`
+	procmail_domtrans(sendmail_t)
 ')
 
 optional_policy(`selinuxutil',`
@@ -151,13 +152,6 @@ allow user_mail_domain etc_mail_t:file rw_file_perms;
 
 # Silently deny attempts to access /root.
 dontaudit system_mail_t { staff_home_dir_t sysadm_home_dir_t}:dir { getattr search };
-
-# Run procmail in its own domain, if defined.
-ifdef(`procmail.te',`
-corecmd_search_bin(sendmail_t)
-procmail_domtrans(sendmail_t)
-domain_auto_trans(system_mail_t, procmail_exec_t, procmail_t)
-')
 
 dontaudit sendmail_t admin_tty_type:chr_file { getattr ioctl };
 ') dnl end TODO

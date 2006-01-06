@@ -1,0 +1,123 @@
+.TH  "httpd_selinux"  "8"  "17 Jan 2005" "dwalsh@redhat.com" "httpd Selinux Policy documentation"
+.SH "NAME"
+httpd_selinux \- Security Enhanced Linux Policy for the httpd daemon
+.SH "DESCRIPTION"
+
+Security-Enhanced Linux secures the httpd server via flexible mandatory access
+control.  
+.SH FILE_CONTEXTS
+SELinux requires files to have an extended attribute to define the file type. 
+Policy governs the access daemons have to these files. 
+SELinux httpd policy is very flexible allowing users to setup their web services in as secure a method as possible.
+.TP 
+The following file contexts types are defined for httpd:
+.br
+
+httpd_sys_content_t 
+.br 
+- Set files with httpd_sys_content_t for content which is available from all httpd scripts and the daemon.
+.br
+
+httpd_sys_script_exec_t  
+.br 
+- Set cgi scripts with httpd_sys_script_exec_t to allow them to run with access to all sys types.
+.br
+
+httpd_sys_script_ro_t 
+.br
+- Set files with httpd_sys_script_ro_t if you want httpd_sys_script_exec_t scripts to read the data, and disallow other sys scripts from access.
+.br
+
+httpd_sys_script_rw_t 
+.br
+- Set files with httpd_sys_script_rw_t if you want httpd_sys_script_exec_t scripts to read/write the data, and disallow other non sys scripts from access.
+.br
+
+httpd_sys_script_ra_t 
+.br
+- Set files with httpd_sys_script_ra_t if you want httpd_sys_script_exec_t scripts to read/append to the file, and disallow other non sys scripts from access.
+
+httpd_unconfined_script_exec_t  
+.br 
+- Set cgi scripts with httpd_unconfined_script_exec_t to allow them to run without any SELinux protection. This should only be used for a very complex httpd scripts, after exhausting all other options.  It is better to use this script rather than turning off SELinux protection for httpd.
+.br
+
+.SH NOTE
+With certain policies you can define addional file contexts based on roles like user or staff.  httpd_user_script_exec_t can be defined where it would only have access to "user" contexts.
+
+.SH SHARING FILES
+If you want to share files with multiple domains (Apache, FTP, rsync, Samba), you can set a file context of public_content_t and public_content_rw_t.  These context allow any of the above domains to read the content.  If you want a particular domain to write to the public_content_rw_t domain, you must set the appropriate boolean.  allow_DOMAIN_anon_write.  So for httpd you would execute:
+
+setsebool -P allow_httpd_anon_write=1
+
+or 
+
+setsebool -P allow_httpd_sys_script_anon_write=1
+
+.SH BOOLEANS
+SELinux policy is customizable based on least access required.  So by 
+default SElinux prevents certain http scripts from working.  httpd policy is extremely flexible and has several booleans that allow you to manipulate the policy and run httpd with the tightest access possible.
+.TP
+httpd can be setup to allow cgi scripts to be executed, set httpd_enable_cgi to allow this
+.br
+
+setsebool -P httpd_enable_cgi 1
+
+.TP
+httpd by default is not allowed to access users home directories.  If you want to allow access to users home directories you need to set the httpd_enable_homedirs boolean and change the context of the files that you want people to access off the home dir.
+.br
+
+setsebool -P httpd_enable_homedirs 1
+.br
+chcon -R -t httpd_sys_content_t ~user/public_html
+
+.TP
+httpd by default is not allowed access to the controling terminal.  In most cases this is prefered, because an intruder might be able to use the access to the terminal to gain privileges. But in certain situations httpd needs to prompt for a password to open a certificate file, in these cases, terminal access is required.  Set the httpd_tty_comm boolean to allow terminal access.
+.br
+
+setsebool -P httpd_tty_comm 1
+
+.TP
+httpd can be configured to not differentiate file controls based on context, i.e. all files labeled as httpd context can be read/write/execute.  Setting this boolean to false allows you to setup the security policy such that one httpd service can not interfere with another.
+.br
+
+setsebool -P httpd_unified 0
+
+.TP
+httpd can be configured to turn off internal scripting (PHP).  PHP and other
+loadable modules run under the same context as httpd. Therefore several policy rules allow httpd greater access to the system then is needed if you only use external cgi scripts.
+.br
+
+setsebool -P httpd_builtin_scripting 0
+
+.TP
+httpd scripts by default are not allowed to connect out to the network.
+This would prevent a hacker from breaking into you httpd server and attacking 
+other machines.  If you need scripts to be able to connect you can set the httpd_can_network_connect boolean on.
+.br
+
+setsebool -P httpd_can_network_connect 1
+
+.TP
+You can disable suexec transition, set httpd_suexec_disable_trans deny this
+.br
+
+setsebool -P httpd_suexec_disable_trans 1
+
+.TP
+You can disable SELinux protection for the httpd daemon by executing:
+.br
+
+setsebool -P httpd_disable_trans 1
+.br
+service httpd restart
+
+.TP
+system-config-securitylevel is a GUI tool available to customize SELinux policy settings.
+.SH AUTHOR	
+This manual page was written by Dan Walsh <dwalsh@redhat.com>.
+
+.SH "SEE ALSO"
+selinux(8), httpd(8), chcon(1), setsebool(8)
+
+

@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.0.0)
+policy_module(selinuxutil,1.0.1)
 
 gen_require(`
 	bool secure_mode;
@@ -182,6 +182,7 @@ domain_use_wide_inherit_fd(load_policy_t)
 
 # for mcs.conf
 files_read_etc_files(load_policy_t)
+files_read_etc_runtime_files(load_policy_t)
 
 libs_use_ld_so(load_policy_t)
 libs_use_shared_libs(load_policy_t)
@@ -190,15 +191,18 @@ miscfiles_read_localization(load_policy_t)
 
 userdom_use_all_user_fd(load_policy_t)
 
-ifdef(`targeted_policy', `
+ifdef(`hide_broken_symptoms',`
+	# cjp: cover up stray file descriptors.
+	dontaudit load_policy_t selinux_config_t:file write;
+	optional_policy(`unconfined',`
+		unconfined_dontaudit_read_pipe(load_policy_t)
+	')
+')
+
+ifdef(`targeted_policy',`
 	term_use_unallocated_tty(load_policy_t)
 	term_use_generic_pty(load_policy_t)
 ')
-
-# cjp: temporary hack to cover
-# up stray file descriptors.
-dontaudit load_policy_t selinux_config_t:file write;
-unconfined_dontaudit_read_pipe(load_policy_t)
 
 ########################################
 #
@@ -217,7 +221,8 @@ allow newrole_t self:msgq create_msgq_perms;
 allow newrole_t self:msg { send receive };
 allow newrole_t self:unix_dgram_socket sendto;
 allow newrole_t self:unix_stream_socket { create_stream_socket_perms connectto };
-allow newrole_t self:netlink_audit_socket { create bind write nlmsg_read read };
+allow newrole_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
 
 allow newrole_t { selinux_config_t default_context_t }:dir r_dir_perms;
 allow newrole_t { selinux_config_t default_context_t }:file r_file_perms;
@@ -407,8 +412,8 @@ selinux_compute_user_contexts(run_init_t)
 ifdef(`targeted_policy',`',`
 	allow run_init_t self:process setexec;
 	allow run_init_t self:capability setuid;
-
 	allow run_init_t self:fifo_file rw_file_perms;
+	allow run_init_t self:netlink_audit_socket { create bind write nlmsg_read read };
 
 	# often the administrator runs such programs from a directory that is owned
 	# by a different user or has restrictive SE permissions, do not want to audit

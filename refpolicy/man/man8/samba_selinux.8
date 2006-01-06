@@ -1,0 +1,60 @@
+.TH  "samba_selinux"  "8"  "17 Jan 2005" "dwalsh@redhat.com" "Samba Selinux Policy documentation"
+.SH "NAME"
+samba_selinux \- Security Enhanced Linux Policy for Samba
+.SH "DESCRIPTION"
+
+Security-Enhanced Linux secures the Samba server via flexible mandatory access
+control.  
+.SH FILE_CONTEXTS
+SELinux requires files to have an extended attribute to define the file type. 
+Policy governs the access daemons have to these files. 
+If you want to share files other than home directories, those files must be 
+labeled samba_share_t.  So if you created a special directory /var/eng, you 
+would need to label the directory with the chcon tool.
+.TP
+chcon -t samba_share_t /var/eng
+.TP
+If you want to make this permanant, i.e. survive a relabel, you must add an entry to the file_contexts.local file.
+.TP
+/etc/selinux/POLICYTYPE/contexts/files/file_contexts.local
+.br
+/var/eng(/.*)? system_u:object_r:samba_share_t
+
+.SH SHARING FILES
+If you want to share files with multiple domains (Apache, FTP, rsync, Samba), you can set a file context of public_content_t and public_content_rw_t.  These context allow any of the above domains to read the content.  If you want a particular domain to write to the public_content_rw_t domain, you must set the appropriate boolean.  allow_DOMAIN_anon_write.  So for samba you would execute:
+
+setsebool -P allow_smb_anon_write=1
+
+.SH BOOLEANS
+.br 
+SELinux policy is customizable based on least access required.  So by 
+default SElinux policy turns off SELinux sharing of home directories and 
+the use of Samba shares from a remote machine as a home directory.
+.TP
+If you are setting up this machine as a Samba server and wish to share the home directories, you need to set the samba_enable_home_dirs boolean. 
+.br
+
+setsebool -P samba_enable_home_dirs 1
+.TP
+If you want to use a remote Samba server for the home directories on this machine, you must set the use_samba_home_dirs boolean.
+.br 
+
+setsebool -P use_samba_home_dirs 1
+.TP
+You can disable SELinux protection for the samba daemon by executing:
+.br 
+
+setsebool -P smbd_disable_trans 1
+.br
+service smb restart
+.TP
+system-config-securitylevel is a GUI tool available to customize SELinux policy settings.
+
+
+
+
+.SH AUTHOR	
+This manual page was written by Dan Walsh <dwalsh@redhat.com>.
+
+.SH "SEE ALSO"
+selinux(8), samba(7), chcon(1), setsebool(8)

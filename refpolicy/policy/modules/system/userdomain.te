@@ -1,8 +1,8 @@
 
-policy_module(userdomain,1.1.1)
+policy_module(userdomain,1.1.2)
 
 gen_require(`
-	role sysadm_r, staff_r, user_r;
+	role sysadm_r, staff_r, user_r, secadm_r;
 ')
 
 ########################################
@@ -96,11 +96,19 @@ ifdef(`targeted_policy',`
 	type_transition privhome user_home_dir_t:{ dir file lnk_file fifo_file sock_file } user_home_t;
 	files_search_home(privhome)
 
+	ifdef(`enable_mls',`
+		allow secadm_r system_r;
+		allow secadm_r user_r;
+		allow user_r secadm_r;
+		allow staff_r secadm_r;
+	')
+
 	optional_policy(`samba',`
 		samba_per_userdomain_template(user)
 	')
 ',`
 	admin_user_template(sysadm)
+	admin_user_template(secadm)
 	unpriv_user_template(staff)
 	unpriv_user_template(user)
 
@@ -111,6 +119,7 @@ ifdef(`targeted_policy',`
 
 	# only staff_r can change to sysadm_r
 	role_change(staff, sysadm)
+	role_change(staff, secadm)
 
 	# this should be tunable_policy, but
 	# currently type_change and RBAC allow
@@ -132,6 +141,10 @@ ifdef(`targeted_policy',`
 	# Add/remove user home directories
 	allow sysadm_t user_home_dir_t:dir create_dir_perms;
 	files_create_home_dirs(sysadm_t,user_home_dir_t)
+
+	mls_process_read_up(sysadm_t)
+
+	logging_read_audit_log(sysadm_t)
 
 	ifdef(`direct_sysadm_daemon',`
 		optional_policy(`init',`
