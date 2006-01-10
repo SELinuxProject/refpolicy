@@ -3045,6 +3045,23 @@ interface(`files_read_all_pids',`
 ')
 
 ########################################
+## <summary>
+##	Mount filesystems on all polyinstantiation
+##	member directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_mounton_all_poly_members',`
+	gen_require(`
+		attribute polymember;
+	')
+
+	allow $1 polymember:dir mounton;
+')
+
+########################################
 #
 # files_delete_all_pids(domain)
 #
@@ -3151,6 +3168,47 @@ interface(`files_manage_generic_spools',`
 	allow $1 var_t:dir search;
 	allow $1 var_spool_t:dir rw_dir_perms;
 	allow $1 var_spool_t:file create_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow access to manage all polyinstantiated
+##	directories on the system.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_polyinstantiate_all',`
+	gen_require(`
+		attribute polydir, polymember, polyparent;
+		type poly_t;
+	')
+
+	# Need to give access to /selinux/member
+	selinux_compute_member($1)
+
+	# Need sys_admin capability for mounting
+	allow $1 self:capability sys_admin;
+
+	# Need to give access to the directories to be polyinstantiated
+	allow $1 polydir:dir { create getattr search write add_name setattr mounton };
+
+	# Need to give access to the polyinstantiated subdirectories
+	allow $1 polymember:dir search_dir_perms;
+
+	# Need to give access to parent directories where original
+	# is remounted for polyinstantiation aware programs (like gdm)
+	allow $1 polyparent:dir { getattr mounton };
+
+	# Need to give permission to create directories where applicable
+	allow $1 self:process setfscreate;
+	allow $1 polymember: dir { create setattr };
+	allow $1 polydir: dir { write add_name };
+	allow $1 polyparent:dir { write add_name };
+
+	# Default type for mountpoints
+	allow $1 poly_t:dir { create mounton };
 ')
 
 ########################################

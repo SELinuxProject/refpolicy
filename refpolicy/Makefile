@@ -109,6 +109,11 @@ ifneq ($(DISTRO),)
 	override M4PARAM += -D distro_$(DISTRO)
 endif
 
+# enable polyinstantiation
+ifeq ($(POLY),y)
+	override M4PARAM += -D enable_polyinstantiation
+endif
+
 ifneq ($(OUTPUT_POLICY),)
 	override CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
