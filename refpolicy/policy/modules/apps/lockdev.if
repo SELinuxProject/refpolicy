@@ -1,0 +1,81 @@
+## <summary>device locking policy for lockdev</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the lockdev module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates derived domains which are used
+##	for lockdev. A derived type is also created to protect
+##	the user's device locks.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
+template(`lockdev_per_userdomain_template',`
+	gen_require(`
+		type lockdev_exec_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_lockdev_t;
+	domain_type($1_lockdev_t)
+	domain_entry_file($1_lockdev_t,lockdev_exec_t)
+	role $3 types $1_lockdev_t;
+
+	type $1_lockdev_lock_t;
+	files_lock_file($1_lockdev_lock_t)
+
+	########################################
+	#
+	# Local policy
+	#
+
+	# Use capabilities.
+	allow $1_lockdev_t self:capability setgid;
+	allow $1_lockdev_t $2:process signull;
+
+	# Transition from the user domain to the derived domain.
+	domain_auto_trans($2, lockdev_exec_t, $1_lockdev_t)
+	allow $2 $1_lockdev_t:fd use;
+	allow $1_lockdev_t $2:fd use;
+	allow $1_lockdev_t $2:fifo_file rw_file_perms;
+	allow $1_lockdev_t $2:process sigchld;
+
+	allow $1_lockdev_t $1_lockdev_lock_t:file create_file_perms;
+	files_create_lock($1_lockdev_t,$1_lockdev_lock_t)
+
+	files_read_all_locks($1_lockdev_t)
+
+	fs_getattr_xattr_fs($1_lockdev_t)
+	
+	libs_use_ld_so($1_lockdev_t)
+	libs_use_shared_libs($1_lockdev_t)
+
+	logging_send_syslog_msg($1_lockdev_t)
+
+	userdom_use_user_terminals($1, $1_lockdev_t)
+	
+	optional_policy(`logging',`
+		logging_send_syslog_msg($1_t)
+	')
+')
