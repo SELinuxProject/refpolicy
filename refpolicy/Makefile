@@ -335,3 +335,5 @@ ifneq ($(GENERATED_FC),)
 endif
 
 .PHONY: install-src install-appconfig conf html bare
+.SUFFIXES:
+.SUFFIXES: .c
