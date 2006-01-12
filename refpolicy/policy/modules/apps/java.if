@@ -1,0 +1,178 @@
+## <summary>Java virtual machine</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the java module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for java plugins that are executed by a browser.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
+template(`java_per_userdomain_template',`
+	gen_require(`
+		type java_exec_t;
+	')
+	
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_javaplugin_t;
+	domain_type($1_javaplugin_t)
+	role $3 types $1_javaplugin_t;
+	
+	type $1_javaplugin_tmp_t;
+	files_tmp_file($1_javaplugin_tmp_t)
+	
+	########################################
+	#
+	# Local policy
+	#
+
+	allow $1_javaplugin_t self:process { signal_perms getsched setsched };
+	allow $1_javaplugin_t self:fifo_file rw_file_perms;
+	allow $1_javaplugin_t self:tcp_socket create_socket_perms;
+	allow $1_javaplugin_t self:udp_socket create_socket_perms;
+	
+	allow $1_javaplugin_t $2:unix_stream_socket connectto;
+	allow $1_javaplugin_t $2:unix_stream_socket { read write };
+	userdom_write_user_tmp_sockets($1,$1_javaplugin_t)
+
+	allow $1_javaplugin_t $1_javaplugin_tmp_t:dir create_dir_perms;
+	allow $1_javaplugin_t $1_javaplugin_tmp_t:file create_file_perms;
+	files_create_tmp_files($1_javaplugin_t,$1_javaplugin_tmp_t,{ file dir })
+
+	# cjp: rw_dir_perms here doesnt make sense
+	allow $1_javaplugin_t $1_home_t:dir rw_dir_perms;
+	allow $1_javaplugin_t $1_home_t:file rw_file_perms;
+	allow $1_javaplugin_t $1_home_t:lnk_file { getattr read };
+
+	can_exec($1_javaplugin_t, java_exec_t)
+	
+	# The user role is authorized for this domain.
+	domain_auto_trans($1_t, java_exec_t, $1_javaplugin_t)
+	allow $1_javaplugin_t $2:fd use;
+	# Unrestricted inheritance from the caller.
+	allow $2 $1_javaplugin_t:process { noatsecure siginh rlimitinh };
+	allow $1_javaplugin_t $2:process signull;
+	
+	kernel_read_all_sysctl($1_javaplugin_t)
+	kernel_search_vm_sysctl($1_javaplugin_t)
+	kernel_read_network_state($1_javaplugin_t)
+	kernel_read_system_state($1_javaplugin_t)
+
+	# Search bin directory under javaplugin for javaplugin executable
+	corecmd_search_bin($1_javaplugin_t)
+
+	corenet_non_ipsec_sendrecv($1_javaplugin_t)
+	corenet_tcp_sendrecv_generic_if($1_javaplugin_t)
+	corenet_udp_sendrecv_generic_if($1_javaplugin_t)
+	corenet_raw_sendrecv_generic_if($1_javaplugin_t)
+	corenet_tcp_sendrecv_all_nodes($1_javaplugin_t)
+	corenet_udp_sendrecv_all_nodes($1_javaplugin_t)
+	corenet_raw_sendrecv_all_nodes($1_javaplugin_t)
+	corenet_tcp_sendrecv_all_ports($1_javaplugin_t)
+	corenet_udp_sendrecv_all_ports($1_javaplugin_t)
+	corenet_tcp_bind_all_nodes($1_javaplugin_t)
+	corenet_udp_bind_all_nodes($1_javaplugin_t)
+	corenet_tcp_connect_all_ports($1_javaplugin_t)
+
+	dev_read_snd_dev($1_javaplugin_t)
+	dev_write_snd_dev($1_javaplugin_t)
+	dev_read_urand($1_javaplugin_t)
+	dev_read_rand($1_javaplugin_t)
+
+	files_read_etc_files($1_javaplugin_t)
+	files_read_usr_files($1_javaplugin_t)
+	files_search_home($1_javaplugin_t)
+	files_search_var_lib($1_javaplugin_t)
+	files_read_etc_runtime_files($1_javaplugin_t)
+	# Read global fonts and font config
+	files_read_etc_files($1_javaplugin_t)
+
+	fs_getattr_xattr_fs($1_javaplugin_t)
+	fs_dontaudit_rw_tmpfs_files($1_javaplugin_t)
+
+	libs_use_ld_so($1_javaplugin_t)
+	libs_use_shared_libs($1_javaplugin_t)
+
+	logging_send_syslog_msg($1_javaplugin_t)
+
+	miscfiles_read_localization($1_javaplugin_t)
+	# Read global fonts and font config
+	miscfiles_read_fonts($1_javaplugin_t)
+
+	sysnet_read_config($1_javaplugin_t)
+
+	userdom_dontaudit_use_user_terminals($1,$1_javaplugin_t)
+	userdom_dontauit_setattr_user_home_files($1,$1_javaplugin_t)
+	userdom_dontauit_exec_user_home_files($1,$1_javaplugin_t)
+	userdom_create_user_home($1,$1_javaplugin_t,{ file lnk_file sock_file fifo_file },$1_home_t)
+	userdom_manage_user_home_subdirs($1,$1_javaplugin_t)
+	userdom_manage_user_home_subdir_files($1,$1_javaplugin_t)
+	userdom_manage_user_home_subdir_symlinks($1,$1_javaplugin_t)
+	userdom_manage_user_home_subdir_pipes($1,$1_javaplugin_t)
+	userdom_manage_user_home_subdir_sockets($1,$1_javaplugin_t)
+
+	# libdeploy.so legacy
+	tunable_policy(`allow_execmem',`
+		allow $1_javaplugin_t self:process execmem;
+	')
+	
+	tunable_policy(`allow_java_execstack',`
+		allow $1_javaplugin_t self:process { execmem execstack };
+
+		allow $1_javaplugin_t $1_javaplugin_tmp_t:file execute;
+
+		libs_legacy_use_shared_libs($1_javaplugin_t)
+		libs_legacy_use_ld_so($1_javaplugin_t)
+		libs_use_lib($1_javaplugin_t)
+
+		miscfiles_legacy_read_localization($1_javaplugin_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_javaplugin_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_use_socket($1_javaplugin_t)
+	')
+
+	ifdef(`TODO',`
+	# Manipulate the global font cache
+	create_dir_file($1, $2_fonts_cache_t)
+	
+	# Read per user fonts and font config
+	r_dir_file($1, $2_fonts_t)
+	r_dir_file($1, $2_fonts_config_t)
+	
+	# There are some fonts in .gnome2
+	ifdef(`gnome.te', `
+		allow $1 $2_gnome_settings_t:dir { getattr search };
+	')
+	
+	allow $1_javaplugin_t $1_xauth_home_t:file { getattr read };
+	# Connect to X server
+	x_client_domain($1_javaplugin, $2) 
+	') dnl end TODO
+')
