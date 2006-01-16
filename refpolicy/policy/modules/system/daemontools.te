@@ -1,0 +1,120 @@
+
+policy_module(daemontools,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type svc_conf_t;
+files_type(svc_conf_t)
+
+type svc_log_t;
+files_type(svc_log_t)
+
+type svc_multilog_t;
+type svc_multilog_exec_t;
+domain_type(svc_multilog_t)
+domain_entry_file(svc_multilog_t,svc_multilog_exec_t)
+role system_r types svc_multilog_t;
+
+type svc_run_t;
+type svc_run_exec_t;
+domain_type(svc_run_t)
+domain_entry_file(svc_run_t,svc_run_exec_t)
+role system_r types svc_run_t;
+
+type svc_start_t;
+type svc_start_exec_t;
+init_domain(svc_start_t,svc_start_exec_t)
+init_system_domain(svc_start_t,svc_start_exec_t)
+role system_r types svc_start_t;
+
+type svc_svc_t;
+files_type(svc_svc_t)
+
+########################################
+#
+# multilog local policy
+#
+
+# multilog creates /service/*/log/status
+allow svc_multilog_t svc_svc_t:dir rw_dir_perms;
+allow svc_multilog_t svc_svc_t:file create_file_perms;
+
+init_use_fd(svc_multilog_t)
+
+libs_use_ld_so(svc_multilog_t)
+libs_use_shared_libs(svc_multilog_t)
+
+# writes to /var/log/*/*
+logging_manage_generic_logs(svc_multilog_t)
+
+daemontools_ipc_domain(svc_multilog_t)
+
+########################################
+#
+# local policy for binaries that impose 
+# a given environment to supervised daemons
+# ie. softlimit, setuidgid, envuidgid, envdir, fghack ..
+#
+
+allow svc_run_t self:capability { setgid setuid chown fsetid };
+allow svc_run_t self:process setrlimit;
+allow svc_run_t self:fifo_file rw_file_perms;
+allow svc_run_t self:unix_stream_socket create_stream_socket_perms;
+
+allow svc_run_t svc_conf_t:dir r_dir_perms;
+allow svc_run_t svc_conf_t:file r_file_perms;
+
+can_exec(svc_run_t svc_run_exec_t)
+
+kernel_read_system_state(svc_run_t)
+
+corecmd_exec_bin(svc_run_t)
+corecmd_exec_sbin(svc_run_t)
+corecmd_exec_shell(svc_run_t)
+corecmd_exec_ls(svc_run_t)
+
+files_read_etc_files(svc_run_t)
+files_read_etc_runtime_files(svc_run_t)
+files_search_pids(svc_run_t)
+files_search_var_lib(svc_run_t)
+
+init_use_script_fd(svc_run_t)
+init_use_fd(svc_run_t)
+
+libs_use_ld_so(svc_run_t)
+libs_use_shared_libs(svc_run_t)
+
+daemontools_domtrans_multilog(svc_run_t)
+daemontools_read_svc(svc_run_t)
+
+########################################
+#
+# local policy for service monitoring programs
+# ie svc, svscan, supervise ...
+#
+
+allow svc_start_t svc_run_t:process signal;
+
+allow svc_start_t self:fifo_file rw_file_perms;
+allow svc_start_t self:capability kill;
+allow svc_start_t self:unix_stream_socket create_socket_perms;
+
+can_exec(svc_start_t svc_start_exec_t)
+
+corecmd_read_sbin_symlink(svc_start_t)
+corecmd_exec_bin(svc_start_t)
+corecmd_exec_shell(svc_start_t)
+
+files_read_etc_files(svc_start_t)
+files_read_etc_runtime_files(svc_start_t)
+files_search_var(svc_start_t)
+files_search_pids(svc_start_t)
+
+libs_use_ld_so(svc_start_t)
+libs_use_shared_libs(svc_start_t)
+
+daemontools_domtrans_run(svc_start_t)
+daemontools_manage_svc(svc_start_t)

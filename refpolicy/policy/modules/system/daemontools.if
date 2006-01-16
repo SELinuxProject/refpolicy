@@ -1,0 +1,147 @@
+## <summary>Collection of tools for managing UNIX services</summary>
+## <desc>
+##	<p>
+##		Policy for DJB's daemontools
+##	</p>
+## </desc>
+
+########################################
+## <summary>
+##	An ipc channel between the supervised domain and svc_start_t
+## </summary>
+## <param name="domain">
+##	Domain allowed access to svc_start_t.
+## </param>
+#
+interface(`daemontools_ipc_domain',`
+	gen_require(`
+		type svc_start_t;
+	')
+
+	allow $1 svc_start_t:process sigchld;
+	allow $1 svc_start_t:fd use;
+	allow $1 svc_start_t:fifo_file { read write getattr };
+	allow svc_start_t $1:process signal;
+')
+
+########################################
+## <summary>
+##      Define a specified domain as a supervised service.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+## <param name="entrypoint">
+##      The type associated with the process program.
+## </param>
+#
+interface(`daemontools_service_domain',`
+	gen_require(`
+		type svc_run_t;
+	')
+
+	domain_auto_trans(svc_run_t, $2, $1)
+	daemontools_ipc_domain($1)
+
+	allow svc_run_t $1:process signal;
+	allow $1 svc_run_t:fd use;
+')
+
+########################################
+## <summary>
+##      Execute in the svc_start_t domain.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`daemontools_domtrans_start',`
+	gen_require(`
+		type svc_start_t, svc_start_exec_t;
+	')
+
+	domain_auto_trans($1, svc_start_exec_t, svc_start_t)
+
+	allow $1 svc_start_t:fd use;
+	allow svc_start_t $1:fd use;
+	allow svc_start_t $1:fifo_file rw_file_perms;
+	allow svc_start_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##      Execute in the svc_run_t domain.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`daemontools_domtrans_run',`
+	gen_require(`
+		type svc_run_t, svc_run_exec_t;
+	')
+
+	domain_auto_trans($1, svc_run_exec_t, svc_run_t)
+
+	allow $1 svc_run_t:fd use;
+	allow svc_run_t $1:fd use;
+	allow svc_run_t $1:fifo_file rw_file_perms;
+	allow svc_run_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##      Execute in the svc_multilog_t domain.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`daemontools_domtrans_multilog',`
+	gen_require(`
+		type svc_multilog_t, svc_multilog_exec_t;
+	')
+
+	domain_auto_trans($1, svc_multilog_exec_t, svc_multilog_t)
+
+	allow $1 svc_multilog_t:fd use;
+	allow svc_multilog_t $1:fd use;
+	allow svc_multilog_t $1:fifo_file rw_file_perms;
+	allow svc_multilog_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##      Allow a domain to read svc_svc_t files.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`daemontools_read_svc',`
+	gen_require(`
+		type svc_svc_t;
+	')
+
+	allow $1 svc_svc_t:dir r_dir_perms;
+	allow $1 svc_svc_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##      Allow a domain to create svc_svc_t files.
+## </summary>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+#
+interface(`daemontools_manage_svc',`
+	gen_require(`
+		type svc_svc_t;
+	')
+
+	allow $1 svc_svc_t:dir create_dir_perms;
+	allow $1 svc_svc_t:fifo_file create_file_perms;
+	allow $1 svc_svc_t:file create_file_perms;
+	allow $1 svc_svc_t:lnk_file { read create };
+')
