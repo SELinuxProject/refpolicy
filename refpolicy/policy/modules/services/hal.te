@@ -1,5 +1,5 @@
 
-policy_module(hal,1.1.3)
+policy_module(hal,1.2.0)
 
 ########################################
 #
@@ -38,16 +38,19 @@ allow hald_t self:netlink_socket create_socket_perms;
 
 allow hald_t hald_tmp_t:dir create_dir_perms;
 allow hald_t hald_tmp_t:file create_file_perms;
-files_create_tmp_files(hald_t, hald_tmp_t, { file dir })
+files_filetrans_tmp(hald_t, hald_tmp_t, { file dir })
 
 allow hald_t hald_var_run_t:file create_file_perms;
 allow hald_t hald_var_run_t:dir rw_dir_perms;
-files_create_pid(hald_t,hald_var_run_t)
+files_filetrans_pid(hald_t,hald_var_run_t)
 
 kernel_read_system_state(hald_t)
 kernel_read_network_state(hald_t)
 kernel_read_kernel_sysctl(hald_t)
+kernel_read_fs_sysctl(hald_t)
 kernel_write_proc_file(hald_t)
+
+bootloader_getattr_boot_dir(hald_t)
 
 corecmd_exec_bin(hald_t)
 corecmd_exec_sbin(hald_t)
@@ -81,7 +84,8 @@ domain_exec_all_entry_files(hald_t)
 files_exec_etc_files(hald_t)
 files_read_etc_files(hald_t)
 files_rw_etc_runtime_files(hald_t)
-files_search_mnt(hald_t)
+files_manage_mnt_dirs(hald_t)
+files_manage_mnt_files(hald_t)
 files_search_var_lib(hald_t)
 files_read_usr_files(hald_t)
 # hal is now execing pm-suspend
@@ -90,6 +94,8 @@ files_create_boot_flag(hald_t)
 fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
 fs_search_auto_mountpoints(hald_t)
+
+mls_file_read_up(hald_t)
 
 selinux_get_fs_mount(hald_t)
 selinux_validate_context(hald_t)
@@ -105,6 +111,7 @@ storage_raw_write_fixed_disk(hald_t)
 
 term_dontaudit_use_console(hald_t)
 term_dontaudit_ioctl_unallocated_ttys(hald_t)
+term_dontaudit_use_unallocated_tty(hald_t)
 
 init_use_fd(hald_t)
 init_use_script_pty(hald_t)
@@ -140,6 +147,10 @@ optional_policy(`apm',`
 	apm_stream_connect(hald_t)
 ')
 
+optional_policy(`bind',`
+	bind_search_cache(hald_t)
+')
+
 optional_policy(`clock',`
 	clock_domtrans(hald_t)
 ')
@@ -153,6 +164,7 @@ optional_policy(`dbus',`
 	dbus_system_bus_client_template(hald,hald_t)
 	dbus_send_system_bus_msg(hald_t)
 	dbus_connect_system_bus(hald_t)
+	allow hald_t self:dbus send_msg;
 
 	init_dbus_chat_script(hald_t)
 
@@ -187,6 +199,10 @@ optional_policy(`pcmcia',`
 	pcmcia_manage_runtime_chr(hald_t)
 ')
 
+optional_policy(`rpc',`
+	rpc_search_nfs_state_data(hald_t)
+')
+
 optional_policy(`selinuxutil',`
 	seutil_sigchld_newrole(hald_t)
 ')
@@ -203,7 +219,3 @@ optional_policy(`updfstab',`
 optional_policy(`vbetool',`
 	vbetool_domtrans(hald_t)
 ')
-
-ifdef(`TODO',`
-allow hald_t device_t:dir create_dir_perms;
-') dnl end TODO

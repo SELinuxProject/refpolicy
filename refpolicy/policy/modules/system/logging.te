@@ -1,5 +1,5 @@
 
-policy_module(logging,1.1.0)
+policy_module(logging,1.2.0)
 
 ########################################
 #
@@ -20,7 +20,11 @@ type auditd_log_t;
 files_security_file(auditd_log_t)
 
 type auditd_t;
-type auditd_exec_t;
+# real declaration moved to mls until
+# range_transition works in loadable modules
+gen_require(`
+	type auditd_exec_t;
+')
 init_daemon_domain(auditd_t,auditd_exec_t)
 
 type auditd_var_run_t;
@@ -74,6 +78,8 @@ kernel_read_proc_symlinks(auditctl_t)
 domain_read_all_domains_state(auditctl_t)
 domain_use_wide_inherit_fd(auditctl_t)
 
+mls_file_read_up(auditctl_t)
+
 init_use_script_pty(auditctl_t)
 init_dontaudit_use_fd(auditctl_t)
 
@@ -121,7 +127,7 @@ allow auditd_t var_log_t:dir search;
 
 allow auditd_t auditd_var_run_t:file create_file_perms;
 allow auditd_t auditd_var_run_t:dir rw_dir_perms;
-files_create_pid(auditd_t,auditd_var_run_t)
+files_filetrans_pid(auditd_t,auditd_var_run_t)
 
 kernel_read_kernel_sysctl(auditd_t)
 kernel_list_proc(auditd_t)
@@ -155,6 +161,7 @@ libs_use_shared_libs(auditd_t)
 miscfiles_read_localization(auditd_t)
 
 mls_file_read_up(auditd_t)
+mls_rangetrans_target(auditd_t)
 
 seutil_dontaudit_read_config(auditd_t)
 
@@ -188,11 +195,11 @@ allow klogd_t self:process signal_perms;
 
 allow klogd_t klogd_tmp_t:file create_file_perms;
 allow klogd_t klogd_tmp_t:dir create_dir_perms;
-files_create_tmp_files(klogd_t,klogd_tmp_t,{ file dir })
+files_filetrans_tmp(klogd_t,klogd_tmp_t,{ file dir })
 
 allow klogd_t klogd_var_run_t:file create_file_perms;
 allow klogd_t klogd_var_run_t:dir rw_dir_perms;
-files_create_pid(klogd_t,klogd_var_run_t)
+files_filetrans_pid(klogd_t,klogd_var_run_t)
 
 kernel_read_system_state(klogd_t)
 kernel_read_messages(klogd_t)
@@ -226,6 +233,8 @@ libs_use_shared_libs(klogd_t)
 logging_send_syslog_msg(klogd_t)
 
 miscfiles_read_localization(klogd_t)
+
+mls_file_read_up(klogd_t)
 
 userdom_dontaudit_search_sysadm_home_dir(klogd_t)
 
@@ -262,7 +271,7 @@ allow syslogd_t self:udp_socket { connected_socket_perms connect };
 
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file create_file_perms;
-files_create_pid(syslogd_t,devlog_t,sock_file)
+files_filetrans_pid(syslogd_t,devlog_t,sock_file)
 # cjp: I belive these are not needed:
 allow syslogd_t devlog_t:unix_stream_socket name_bind;
 allow syslogd_t devlog_t:unix_dgram_socket name_bind;
@@ -276,15 +285,15 @@ allow syslogd_t var_log_t:dir { create setattr };
 # manage temporary files
 allow syslogd_t syslogd_tmp_t:file create_file_perms;
 allow syslogd_t syslogd_tmp_t:dir create_dir_perms;
-files_create_tmp_files(syslogd_t,syslogd_tmp_t,{ dir file })
+files_filetrans_tmp(syslogd_t,syslogd_tmp_t,{ dir file })
 
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
-files_create_pid(syslogd_t,syslogd_var_run_t,file)
+files_filetrans_pid(syslogd_t,syslogd_var_run_t,file)
 
 # manage pid file
 allow syslogd_t syslogd_var_run_t:file create_file_perms;
 allow syslogd_t syslogd_var_run_t:dir rw_dir_perms;
-files_create_pid(syslogd_t,syslogd_var_run_t)
+files_filetrans_pid(syslogd_t,syslogd_var_run_t)
 
 kernel_read_kernel_sysctl(syslogd_t)
 kernel_read_proc_symlinks(syslogd_t)
@@ -294,7 +303,7 @@ kernel_read_messages(syslogd_t)
 kernel_clear_ring_buffer(syslogd_t)
 kernel_change_ring_buffer_level(syslogd_t)
 
-dev_create_dev_node(syslogd_t,devlog_t,sock_file)
+dev_filetrans_dev_node(syslogd_t,devlog_t,sock_file)
 dev_read_sysfs(syslogd_t)
 
 fs_search_auto_mountpoints(syslogd_t)
@@ -346,7 +355,7 @@ userdom_dontaudit_search_sysadm_home_dir(syslogd_t)
 
 ifdef(`distro_suse',`
 	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
-	files_create_var_lib(syslogd_t,devlog_t,sock_file)
+	files_filetrans_var_lib(syslogd_t,devlog_t,sock_file)
 ')
 
 ifdef(`targeted_policy',`

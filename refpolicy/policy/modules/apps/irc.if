@@ -1,0 +1,166 @@
+## <summary>IRC client policy</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the irc module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for an irc client sessions.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
+template(`irc_per_userdomain_template',`
+	gen_require(`
+		type irc_exec_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_irc_t;
+	domain_type($1_irc_t)
+	domain_entry_file($1_irc_t,irc_exec_t)
+	role $3 types $1_irc_t;
+
+	type $1_irc_exec_t;
+	userdom_home_file($1,$1_irc_exec_t)
+	domain_entry_file($1_irc_t,$1_irc_exec_t)
+
+	type $1_irc_home_t;
+	userdom_home_file($1,$1_irc_home_t)
+	
+	########################################
+	#
+	# Local policy
+	#
+
+	allow $1_irc_t self:dir search;
+	allow $1_irc_t self:lnk_file read;
+	allow $1_irc_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_irc_t self:tcp_socket create_socket_perms;
+	allow $1_irc_t self:udp_socket create_socket_perms;
+
+	allow $1_irc_t $1_irc_home_t:dir create_dir_perms;
+	allow $1_irc_t $1_irc_home_t:file create_file_perms;
+	allow $1_irc_t $1_irc_home_t:lnk_file create_lnk_perms;
+	userdom_create_user_home($1,$1_irc_t,{ dir file lnk_file },$1_irc_home_t)
+
+	# access files under /tmp
+	allow $1_irc_t $1_tmp_t:dir create_dir_perms;
+	allow $1_irc_t $1_tmp_t:file create_file_perms;
+	allow $1_irc_t $1_tmp_t:lnk_file create_lnk_perms;
+	allow $1_irc_t $1_tmp_t:sock_file create_file_perms;
+	allow $1_irc_t $1_tmp_t:fifo_file create_file_perms;
+	files_filetrans_tmp($1_irc_t,$1_tmp_t,{ file dir lnk_file sock_file fifo_file })
+
+	# Transition from the user domain to the derived domain.
+	domain_auto_trans($2,irc_exec_t,$1_irc_t)
+	allow $2 $1_irc_t:fd use;
+	allow $1_irc_t $2:fd use;
+	allow $1_irc_t $2:fifo_file rw_file_perms;
+	allow $1_irc_t $2:process sigchld;
+	
+	allow $2 $1_irc_t:process signal;
+
+	allow $2 $1_irc_exec_t:file { relabelfrom relabelto create_file_perms };
+
+	# allow ps to show irc
+	allow $2 $1_irc_t:dir { search getattr read };
+	allow $2 $1_irc_t:{ file lnk_file } { read getattr };
+	allow $2 $1_irc_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_irc_t:process ptrace;
+	
+	kernel_read_proc_symlinks($1_irc_t)
+
+	corenet_non_ipsec_sendrecv($1_irc_t)
+	corenet_tcp_sendrecv_generic_if($1_irc_t)
+	corenet_udp_sendrecv_generic_if($1_irc_t)
+	corenet_raw_sendrecv_generic_if($1_irc_t)
+	corenet_tcp_sendrecv_all_nodes($1_irc_t)
+	corenet_udp_sendrecv_all_nodes($1_irc_t)
+	corenet_raw_sendrecv_all_nodes($1_irc_t)
+	corenet_tcp_sendrecv_all_ports($1_irc_t)
+	corenet_udp_sendrecv_all_ports($1_irc_t)
+	corenet_tcp_bind_all_nodes($1_irc_t)
+	corenet_udp_bind_all_nodes($1_irc_t)
+	# cjp: this seems excessive:
+	corenet_tcp_connect_all_ports($1_irc_t)
+
+	domain_use_wide_inherit_fd($1_irc_t)
+
+	files_dontaudit_search_pids($1_irc_t)
+	files_search_var($1_irc_t)
+	files_read_etc_files($1_irc_t)
+	files_read_usr_files($1_irc_t)
+
+	fs_getattr_xattr_fs($1_irc_t)
+	fs_search_auto_mountpoints($1_irc_t)
+
+	term_use_controlling_term($1_irc_t)
+	term_list_ptys($1_irc_t)
+
+	# allow utmp access
+	init_read_script_pid($1_irc_t)
+	init_dontaudit_lock_pid($1_irc_t)
+
+	libs_use_ld_so($1_irc_t)
+	libs_use_shared_libs($1_irc_t)
+
+	miscfiles_read_localization($1_irc_t)
+
+	# Inherit and use descriptors from newrole.
+	seutil_use_newrole_fd($1_irc_t)
+
+	sysnet_read_config($1_irc_t)
+
+	# Write to the user domain tty.
+	userdom_use_user_terminals($1,$1_irc_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_irc_t)
+		fs_manage_nfs_files($1_irc_t)
+		fs_manage_nfs_symlinks($1_irc_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_irc_t)
+		fs_manage_cifs_files($1_irc_t)
+		fs_manage_cifs_symlinks($1_irc_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_irc_t)
+	')
+	
+	ifdef(`TODO',`
+		optional_policy(`ircd.te', `
+			allow $1_irc_t ircd_t:tcp_socket { connectto recvfrom };
+			allow ircd_t $1_irc_t:tcp_socket { acceptfrom recvfrom };
+			kernel_tcp_recvfrom($1_irc_t)
+			kernel_tcp_recvfrom(ircd_t)
+		')
+	')
+')

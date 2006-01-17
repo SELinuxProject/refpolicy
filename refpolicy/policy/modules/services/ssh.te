@@ -1,5 +1,5 @@
 
-policy_module(ssh,1.1.0)
+policy_module(ssh,1.2.0)
 
 ########################################
 #
@@ -82,18 +82,20 @@ ifdef(`targeted_policy',`',`
 	allow sshd_t sshd_tmp_t:dir create_dir_perms;
 	allow sshd_t sshd_tmp_t:file create_file_perms;
 	allow sshd_t sshd_tmp_t:sock_file create_file_perms;
-	files_create_tmp_files(sshd_t, sshd_tmp_t, { dir file sock_file })
+	files_filetrans_tmp(sshd_t, sshd_tmp_t, { dir file sock_file })
 
 	# for X forwarding
 	corenet_tcp_bind_xserver_port(sshd_t)
 
+	mls_file_read_up(sshd_t)
+	mls_file_write_down(sshd_t)
+	mls_file_upgrade(sshd_t)
+	mls_file_downgrade(sshd_t)
+	mls_process_set_level(sshd_t)
+
 	auth_exec_pam(sshd_t)
 
 	seutil_read_config(sshd_t)
-
-	ifdef(`targeted_policy',`
-		unconfined_domain_template(sshd_t)
-	')
 
 	tunable_policy(`ssh_sysadm_login',`
 		# Relabel and access ptys created by sshd
@@ -109,6 +111,10 @@ ifdef(`targeted_policy',`',`
 	',`
 		userdom_spec_domtrans_unpriv_users(sshd_t)
 		userdom_signal_unpriv_users(sshd_t)
+	')
+
+	optional_policy(`daemontools',`
+		daemontools_service_domain(sshd_t, sshd_exec_t)
 	')
 
 	optional_policy(`rpm',`
@@ -207,7 +213,7 @@ ifdef(`targeted_policy',`',`
 	allow ssh_keygen_t self:unix_stream_socket create_stream_socket_perms;
 
 	allow ssh_keygen_t sshd_key_t:file create_file_perms;
-	files_create_etc_config(ssh_keygen_t,sshd_key_t,file)
+	files_filetrans_etc(ssh_keygen_t,sshd_key_t,file)
 
 	kernel_read_kernel_sysctl(ssh_keygen_t)
 

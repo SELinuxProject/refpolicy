@@ -1,5 +1,5 @@
 
-policy_module(mta,1.1.2)
+policy_module(mta,1.2.0)
 
 ########################################
 #
@@ -52,6 +52,8 @@ kernel_read_network_state(system_mail_t)
 
 dev_read_rand(system_mail_t)
 dev_read_urand(system_mail_t)
+
+fs_read_eventpollfs(system_mail_t)
 
 init_use_script_pty(system_mail_t)
 
@@ -114,6 +116,7 @@ optional_policy(`arpwatch',`
 
 optional_policy(`cron',`
 	cron_read_system_job_tmp_files(system_mail_t)
+	cron_dontaudit_write_pipe(system_mail_t)
 ')
 
 optional_policy(`cvs',`
@@ -124,13 +127,17 @@ optional_policy(`logrotate',`
 	logrotate_read_tmp_files(system_mail_t)
 ')
 
+optional_policy(`logwatch',`
+	logwatch_read_tmp_files(system_mail_t)
+')
+
 optional_policy(`postfix',`
 	allow system_mail_t etc_aliases_t:dir create_dir_perms;
 	allow system_mail_t etc_aliases_t:file create_file_perms;
 	allow system_mail_t etc_aliases_t:lnk_file create_lnk_perms;
 	allow system_mail_t etc_aliases_t:sock_file create_file_perms;
 	allow system_mail_t etc_aliases_t:fifo_file create_file_perms;
-	files_create_etc_config(system_mail_t,etc_aliases_t,{ file lnk_file sock_file fifo_file })
+	files_filetrans_etc(system_mail_t,etc_aliases_t,{ file lnk_file sock_file fifo_file })
 
 	domain_use_wide_inherit_fd(system_mail_t)
 
@@ -141,7 +148,7 @@ optional_policy(`postfix',`
 
 	ifdef(`distro_redhat',`
 		# compatability for old default main.cf
-		postfix_create_config(system_mail_t,etc_aliases_t,{ dir file lnk_file sock_file fifo_file })
+		postfix_filetrans_config(system_mail_t,etc_aliases_t,{ dir file lnk_file sock_file fifo_file })
 	')
 
 	optional_policy(`cron',`
@@ -173,4 +180,10 @@ optional_policy(`arpwatch',`
 	optional_policy(`cron',`
 		cron_read_system_job_tmp_files(mta_user_agent)
 	')
+')
+
+ifdef(`TODO',`
+# for the start script to run make -C /etc/mail
+allow initrc_t etc_mail_t:dir rw_dir_perms;
+allow initrc_t etc_mail_t:file create_file_perms;
 ')

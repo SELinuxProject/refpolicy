@@ -19,12 +19,17 @@ type $1_netif_t alias netif_$1_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
 
+define(`declare_nodes',`dnl
+nodecon $3 $4 gen_context(system_u:object_r:$1,$2)
+ifelse(`$5',`',`',`declare_nodes($1,shiftn(4,$*))')dnl
+')
+
 #
-# network_node(node_name,mls_sensitivity,address,netmask)
+# network_node(node_name,mls_sensitivity,address,netmask[, mls_sensitivity,address,netmask, [...]])
 #
 define(`network_node',`
 type $1_node_t alias node_$1_t, node_type;
-nodecon $3 $4 gen_context(system_u:object_r:$1_node_t,$2)
+declare_nodes($1_node_t,shift($*))
 ')
 
 # These next three macros have formatting, and should not me indented

@@ -109,6 +109,11 @@ ifneq ($(DISTRO),)
 	override M4PARAM += -D distro_$(DISTRO)
 endif
 
+# enable polyinstantiation
+ifeq ($(POLY),y)
+	override M4PARAM += -D enable_polyinstantiation
+endif
+
 ifneq ($(OUTPUT_POLICY),)
 	override CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
@@ -154,12 +159,16 @@ DETECTED_MODS := $(sort $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(G
 # modules.conf setting for base module
 MODBASE := base
 
-# modules.conf setting for module
+# modules.conf setting for loadable module
 MODMOD := module
+
+# modules.conf setting for unused module
+MODUNUSED := off
 
 # extract settings from modules.conf
 BASE_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 MOD_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null))
+OFF_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 
 ########################################
 #
@@ -330,3 +339,5 @@ ifneq ($(GENERATED_FC),)
 endif
 
 .PHONY: install-src install-appconfig conf html bare
+.SUFFIXES:
+.SUFFIXES: .c

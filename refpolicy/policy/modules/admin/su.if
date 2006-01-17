@@ -193,7 +193,9 @@ template(`su_per_userdomain_template',`
 	domain_use_wide_inherit_fd($1_su_t)
 
 	files_read_etc_files($1_su_t)
+	files_read_etc_runtime_files($1_su_t)
 	files_search_var_lib($1_su_t)
+	files_dontaudit_getattr_tmp_dir($1_su_t)
 
 	init_dontaudit_use_fd($1_su_t)
 	# Write to utmp.
@@ -211,6 +213,24 @@ template(`su_per_userdomain_template',`
 
 	userdom_use_user_terminals($1,$1_su_t)
 	userdom_search_user_home($1,$1_su_t)
+
+	ifdef(`enable_polyinstantiation',`
+		mls_file_read_up($1_su_t)
+		mls_file_write_down($1_su_t)
+		mls_file_upgrade($1_su_t)
+		mls_file_downgrade($1_su_t)
+		mls_process_set_level($1_su_t)
+
+		# Su can polyinstantiate
+		files_polyinstantiate_all($1_su_t)
+
+		# Su needs additional permission to mount over a previous mount
+		files_mounton_all_poly_members($1_su_t)
+
+		# Su has to unmount polyinstantiated directories (like home)
+		# that should not be polyinstantiated under the new user
+		fs_unmount_xattr_fs($1_su_t)
+	')
 
 	ifdef(`targeted_policy',`
 		# allow user to suspend terminal.
@@ -262,23 +282,6 @@ template(`su_per_userdomain_template',`
 	')
 
 	ifdef(`TODO',`
-
-	ifdef(`support_polyinstantiation', `
-	mls_file_read_up($1_su_t)
-	mls_file_write_down($1_su_t)
-	mls_file_upgrade($1_su_t)
-	mls_file_downgrade($1_su_t)
-	mls_process_set_level($1_su_t)
-
-	# Su can polyinstantiate
-	polyinstantiater($1_su_t)
-	# Su has to unmount polyinstantiated directories (like home)
-	# that should not be polyinstantiated under the new user
-	allow $1_su_t fs_t:filesystem unmount;
-	# Su needs additional permission to mount over a previous mount
-	allow $1_su_t polymember:dir mounton;
-	')
-
 	# Caused by su - init scripts
 	dontaudit $1_su_t initrc_devpts_t:chr_file { getattr ioctl };
 

@@ -1,5 +1,5 @@
 
-policy_module(init,1.1.1)
+policy_module(init,1.2.0)
 
 gen_require(`
 	class passwd rootok;
@@ -104,11 +104,11 @@ allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
-files_create_pid(init_t,init_var_run_t)
+files_filetrans_pid(init_t,init_var_run_t)
 
 allow init_t initctl_t:fifo_file { create getattr read append write setattr unlink };
 fs_associate_tmpfs(initctl_t)
-dev_create_dev_node(init_t,initctl_t,fifo_file)
+dev_filetrans_dev_node(init_t,initctl_t,fifo_file)
 
 # Modify utmp.
 allow init_t initrc_var_run_t:file { rw_file_perms setattr };
@@ -171,7 +171,7 @@ miscfiles_read_localization(init_t)
 
 ifdef(`distro_redhat',`
 	fs_use_tmpfs_chr_dev(init_t)
-	fs_create_tmpfs_data(init_t,initctl_t,fifo_file)
+	fs_filetrans_tmpfs(init_t,initctl_t,fifo_file)
 ')
 
 ifdef(`targeted_policy',`
@@ -228,12 +228,12 @@ allow initrc_t initrc_state_t:file create_file_perms;
 allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
 
 allow initrc_t initrc_var_run_t:file create_file_perms;
-files_create_pid(initrc_t,initrc_var_run_t)
+files_filetrans_pid(initrc_t,initrc_var_run_t)
 
 can_exec(initrc_t,initrc_tmp_t)
 allow initrc_t initrc_tmp_t:file create_file_perms;
 allow initrc_t initrc_tmp_t:dir create_dir_perms;
-files_create_tmp_files(initrc_t,initrc_tmp_t, { file dir })
+files_filetrans_tmp(initrc_t,initrc_tmp_t, { file dir })
 
 kernel_read_system_state(initrc_t)
 kernel_read_software_raid_state(initrc_t)
@@ -298,6 +298,7 @@ term_use_all_terms(initrc_t)
 term_reset_tty_labels(initrc_t)
 
 auth_rw_login_records(initrc_t)
+auth_setattr_login_records(initrc_t)
 auth_rw_lastlog(initrc_t)
 auth_read_pam_pid(initrc_t)
 auth_delete_pam_pid(initrc_t)
@@ -369,6 +370,7 @@ mls_file_read_up(initrc_t)
 mls_file_write_down(initrc_t)
 mls_process_read_up(initrc_t)
 mls_process_write_down(initrc_t)
+mls_rangetrans_source(initrc_t)
 
 modutils_read_module_conf(initrc_t)
 modutils_domtrans_insmod(initrc_t)
@@ -385,10 +387,10 @@ userdom_read_all_user_files(initrc_t)
 # started from init should be placed in their own domain.
 userdom_use_sysadm_terms(initrc_t)
 
-ifdef(`distro_debian', `
+ifdef(`distro_debian',`
 	dev_setattr_dev_dir(initrc_t)
 
-	fs_create_tmpfs_data(initrc_t,initrc_var_run_t,dir)
+	fs_filetrans_tmpfs(initrc_t,initrc_var_run_t,dir)
 
 	# for storing state under /dev/shm
 	fs_setattr_tmpfs_dir(initrc_t)
@@ -435,16 +437,19 @@ ifdef(`distro_redhat',`
 	fs_use_tmpfs_chr_dev(initrc_t)
 
 	storage_create_fixed_disk(initrc_t)
+	storage_getattr_removable_device(initrc_t)
 
 	files_create_boot_flag(initrc_t)
 	files_getattr_all_file_type_sockets(initrc_t)
 	# wants to read /.fonts directory
 	files_read_default_files(initrc_t)
-
 	files_mountpoint(initrc_tmp_t)
 
+	miscfiles_read_fonts(initrc_t)
+	miscfiles_read_hwdata(initrc_t)
+
 	# readahead asks for these
-	mta_read_aliases(initrc_t)
+	auth_dontaudit_read_shadow(initrc_t)
 
 	optional_policy(`bind',`
 		bind_manage_config_dir(initrc_t)
@@ -496,6 +501,7 @@ optional_policy(`bind',`
 
 optional_policy(`bluetooth',`
 	dev_read_usbfs(initrc_t)
+	bluetooth_read_config(initrc_t)
 ')
 
 optional_policy(`cpucontrol',`
@@ -507,10 +513,15 @@ optional_policy(`cups',`
 	cups_read_log(initrc_t)
 ')
 
+optional_policy(`daemontools',`
+	daemontools_manage_svc(initrc_t)
+')
+
 optional_policy(`dbus',`
 	dbus_connect_system_bus(initrc_t)
 	dbus_send_system_bus_msg(initrc_t)
 	dbus_system_bus_client_template(initrc,initrc_t)
+	dbus_read_config(initrc_t)
 
 	optional_policy(`networkmanager',`
 		networkmanager_dbus_chat(initrc_t)
@@ -572,6 +583,8 @@ optional_policy(`lvm',`
 
 	dev_read_lvm_control(initrc_t)
 	dev_create_generic_chr_file(initrc_t)
+
+	lvm_read_config(initrc_t)
 ')
 
 optional_policy(`mailman',`
@@ -580,6 +593,7 @@ optional_policy(`mailman',`
 ')
 
 optional_policy(`mta',`
+	mta_read_config(initrc_t)
 	mta_dontaudit_read_spool_symlink(initrc_t)
 ')
 
@@ -687,24 +701,13 @@ allow initrc_t xconsole_device_t:fifo_file setattr;
 allow initrc_t default_t:dir write;
 
 ifdef(`distro_redhat', `
-	# readahead asks for these
-	allow initrc_t var_lib_nfs_t:file r_file_perms;
-
-	allow initrc_t file_type:{ dir_file_class_set socket_class_set } getattr;
 	allow initrc_t device_t:dir create;
 
-	# wants to delete /poweroff and other files 
-	allow initrc_t root_t:file unlink;
 	ifdef(`xserver.te', `
 	# wants to cleanup xserver log dir
 	allow initrc_t xserver_log_t:dir rw_dir_perms;
 	allow initrc_t xserver_log_t:file unlink;
 	')
 
-	optional_policy(`rpm',`
-		rpm_stub(initrc_t)
-		#read ahead wants to read this
-		allow initrc_t system_cron_spool_t:file { getattr read };
-	')
 ')
 ') dnl end TODO

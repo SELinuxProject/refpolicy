@@ -21,12 +21,12 @@ define(`create_netif_interfaces',``
 ## </param>
 ## <infoflow type="both" weight="10"/>
 #
-interface(`corenet_tcp_sendrecv_$1',`
+interface(`corenet_tcp_sendrecv_$1_if',`
 	gen_require(`
-		type $1_netif_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_netif_t:netif { tcp_send tcp_recv };
+	allow dollarsone $1_$2:netif { tcp_send tcp_recv };
 ')
 
 ########################################
@@ -38,12 +38,12 @@ interface(`corenet_tcp_sendrecv_$1',`
 ## </param>
 ## <infoflow type="write" weight="10"/>
 #
-interface(`corenet_udp_send_$1',`
+interface(`corenet_udp_send_$1_if',`
 	gen_require(`
-		type $1_netif_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_netif_t:netif udp_send;
+	allow dollarsone $1_$2:netif udp_send;
 ')
 
 ########################################
@@ -55,12 +55,12 @@ interface(`corenet_udp_send_$1',`
 ## </param>
 ## <infoflow type="read" weight="10"/>
 #
-interface(`corenet_udp_receive_$1',`
+interface(`corenet_udp_receive_$1_if',`
 	gen_require(`
-		type $1_netif_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_netif_t:netif udp_recv;
+	allow dollarsone $1_$2:netif udp_recv;
 ')
 
 ########################################
@@ -72,7 +72,7 @@ interface(`corenet_udp_receive_$1',`
 ## </param>
 ## <infoflow type="both" weight="10"/>
 #
-interface(`corenet_udp_sendrecv_$1',`
+interface(`corenet_udp_sendrecv_$1_if',`
 	corenet_udp_send_$1(dollarsone)
 	corenet_udp_receive_$1(dollarsone)
 ')
@@ -86,12 +86,12 @@ interface(`corenet_udp_sendrecv_$1',`
 ## </param>
 ## <infoflow type="write" weight="10"/>
 #
-interface(`corenet_raw_send_$1',`
+interface(`corenet_raw_send_$1_if',`
 	gen_require(`
-		type $1_netif_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_netif_t:netif rawip_send;
+	allow dollarsone $1_$2:netif rawip_send;
 
 	# cjp: comment out until raw access is
 	# is fixed for network users
@@ -107,12 +107,12 @@ interface(`corenet_raw_send_$1',`
 ## </param>
 ## <infoflow type="read" weight="10"/>
 #
-interface(`corenet_raw_receive_$1',`
+interface(`corenet_raw_receive_$1_if',`
 	gen_require(`
-		type $1_netif_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_netif_t:netif rawip_recv;
+	allow dollarsone $1_$2:netif rawip_recv;
 ')
 
 ########################################
@@ -124,7 +124,7 @@ interface(`corenet_raw_receive_$1',`
 ## </param>
 ## <infoflow type="both" weight="10"/>
 #
-interface(`corenet_raw_sendrecv_$1',`
+interface(`corenet_raw_sendrecv_$1_if',`
 	corenet_raw_send_$1(dollarsone)
 	corenet_raw_receive_$1(dollarsone)
 ')
@@ -148,10 +148,10 @@ define(`create_node_interfaces',``
 #
 interface(`corenet_tcp_sendrecv_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:node { tcp_send tcp_recv };
+	allow dollarsone $1_$2:node { tcp_send tcp_recv };
 ')
 
 ########################################
@@ -165,10 +165,10 @@ interface(`corenet_tcp_sendrecv_$1_node',`
 #
 interface(`corenet_udp_send_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:node udp_send;
+	allow dollarsone $1_$2:node udp_send;
 ')
 
 ########################################
@@ -182,10 +182,10 @@ interface(`corenet_udp_send_$1_node',`
 #
 interface(`corenet_udp_receive_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:node udp_recv;
+	allow dollarsone $1_$2:node udp_recv;
 ')
 
 ########################################
@@ -213,10 +213,10 @@ interface(`corenet_udp_sendrecv_$1_node',`
 #
 interface(`corenet_raw_send_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:node rawip_send;
+	allow dollarsone $1_$2:node rawip_send;
 ')
 
 ########################################
@@ -230,10 +230,10 @@ interface(`corenet_raw_send_$1_node',`
 #
 interface(`corenet_raw_receive_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:node rawip_recv;
+	allow dollarsone $1_$2:node rawip_recv;
 ')
 
 ########################################
@@ -261,10 +261,10 @@ interface(`corenet_raw_sendrecv_$1_node',`
 #
 interface(`corenet_tcp_bind_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:tcp_socket node_bind;
+	allow dollarsone $1_$2:tcp_socket node_bind;
 ')
 
 ########################################
@@ -278,10 +278,10 @@ interface(`corenet_tcp_bind_$1_node',`
 #
 interface(`corenet_udp_bind_$1_node',`
 	gen_require(`
-		type $1_node_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_node_t:udp_socket node_bind;
+	allow dollarsone $1_$2:udp_socket node_bind;
 ')
 '') dnl end create_node_interfaces
 
@@ -303,10 +303,10 @@ define(`create_port_interfaces',``
 #
 interface(`corenet_tcp_sendrecv_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:tcp_socket { send_msg recv_msg };
+	allow dollarsone $1_$2:tcp_socket { send_msg recv_msg };
 ')
 
 ########################################
@@ -320,10 +320,10 @@ interface(`corenet_tcp_sendrecv_$1_port',`
 #
 interface(`corenet_udp_send_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:udp_socket send_msg;
+	allow dollarsone $1_$2:udp_socket send_msg;
 ')
 
 ########################################
@@ -337,10 +337,10 @@ interface(`corenet_udp_send_$1_port',`
 #
 interface(`corenet_udp_receive_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:udp_socket recv_msg;
+	allow dollarsone $1_$2:udp_socket recv_msg;
 ')
 
 ########################################
@@ -368,11 +368,11 @@ interface(`corenet_udp_sendrecv_$1_port',`
 #
 interface(`corenet_tcp_bind_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:tcp_socket name_bind;
-	$2
+	allow dollarsone $1_$2:tcp_socket name_bind;
+	$4
 ')
 
 ########################################
@@ -386,11 +386,11 @@ interface(`corenet_tcp_bind_$1_port',`
 #
 interface(`corenet_udp_bind_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:udp_socket name_bind;
-	$2
+	allow dollarsone $1_$2:udp_socket name_bind;
+	$4
 ')
 
 ########################################
@@ -403,43 +403,65 @@ interface(`corenet_udp_bind_$1_port',`
 #
 interface(`corenet_tcp_connect_$1_port',`
 	gen_require(`
-		type $1_port_t;
+		$3 $1_$2;
 	')
 
-	allow dollarsone $1_port_t:tcp_socket name_connect;
+	allow dollarsone $1_$2:tcp_socket name_connect;
 ')
 '') dnl end create_port_interfaces
+
+#
+# create_netif_*_interfaces(linux_interfacename)
+#
+define(`create_netif_type_interfaces',`
+create_netif_interfaces($1,netif_t,type)
+')
+define(`create_netif_attrib_interfaces',`
+create_netif_interfaces($1,netif,attribute)
+')
 
 #
 # network_interface(linux_interfacename,mls_sensitivity)
 #
 define(`network_interface',`
-create_netif_interfaces($1)
+create_netif_type_interfaces($1)
+')
+
+#
+# create_node_*_interfaces(node_name)
+#
+define(`create_node_type_interfaces',`
+create_node_interfaces($1,node_t,type)
+')
+define(`create_node_attrib_interfaces',`
+create_node_interfaces($1,node,attribute)
 ')
 
 #
 # network_node(node_name,mls_sensitivity,address,netmask)
 #
 define(`network_node',`
-create_node_interfaces($1)
+create_node_type_interfaces($1)
 ')
 
 # These next three macros have formatting, and should not me indented
 define(`determine_reserved_capability',`dnl
+ifelse($2,`',`',`dnl
 ifelse(eval($2 < 1024),1,``allow' dollarsone self:capability net_bind_service;',`dnl
-ifelse($4,`',`',`determine_reserved_capability(shiftn(3,$*))')dnl end inner ifelse
+determine_reserved_capability(shiftn(3,$*))dnl
+')dnl end inner ifelse
 ')dnl end outer ifelse
 ') dnl end determine reserved capability
 
-define(`declare_ports',`dnl
-ifelse(eval($3 < 1024),1,`typeattribute $1 reserved_port_type;',`dnl')
-portcon $2 $3 gen_context(system_u:object_r:$1,$4)
-ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
-')
+#
+# create_port_*_interfaces(port_name, protocol,portnum,mls_sensitivity [,protocol portnum mls_sensitivity[,...]])
+# (these wrap create_port_interfaces to handle attributes and types)
+define(`create_port_type_interfaces',`create_port_interfaces($1,port_t,type,determine_reserved_capability(shift($*)))')
+define(`create_port_attrib_interfaces',`create_port_interfaces($1,port,attribute,determine_reserved_capability(shift($*)))')
 
 #
-# network_port(port_name,protocol portnum mls_sensitivity [,protocol portnum mls_sensitivity[,...]])
+# network_port(port_name,protocol portnum mls_sensitivity [,protocol,portnum,mls_sensitivity[,...]])
 #
 define(`network_port',`
-create_port_interfaces($1,determine_reserved_capability(shift($*)))
+create_port_type_interfaces($*)
 ')

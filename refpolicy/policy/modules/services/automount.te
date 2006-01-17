@@ -1,5 +1,5 @@
 
-policy_module(automount,1.0.2)
+policy_module(automount,1.1.0)
 
 ########################################
 #
@@ -28,7 +28,7 @@ files_mountpoint(automount_tmp_t)
 # Local policy
 #
 
-allow automount_t self:capability { sys_nice dac_override };
+allow automount_t self:capability { net_bind_service sys_nice dac_override };
 dontaudit automount_t self:capability sys_tty_config;
 allow automount_t self:process { signal_perms getpgid setpgid setsched };
 allow automount_t self:fifo_file rw_file_perms;
@@ -42,20 +42,20 @@ allow automount_t automount_etc_t:file { getattr read };
 can_exec(automount_t, automount_etc_t)
 
 allow automount_t automount_lock_t:file create_file_perms;
-files_create_lock(automount_t,automount_lock_t)
+files_filetrans_lock(automount_t,automount_lock_t)
 
 allow automount_t automount_tmp_t:dir create_dir_perms;
 allow automount_t automount_tmp_t:file create_file_perms;
-files_create_tmp_files(automount_t, automount_tmp_t, { file dir })
+files_filetrans_tmp(automount_t, automount_tmp_t, { file dir })
 
 # Allow automount to create and delete directories in / and /home
 allow automount_t automount_tmp_t:dir create_dir_perms;
-files_create_home_dirs(automount_t,automount_tmp_t)
-files_create_root(automount_t,automount_tmp_t,dir)
+files_filetrans_home(automount_t,automount_tmp_t)
+files_filetrans_root(automount_t,automount_tmp_t,dir)
 
 allow automount_t automount_var_run_t:file create_file_perms;
 allow automount_t automount_var_run_t:dir rw_dir_perms;
-files_create_pid(automount_t,automount_var_run_t)
+files_filetrans_pid(automount_t,automount_var_run_t)
 
 kernel_read_kernel_sysctl(automount_t)
 kernel_read_fs_sysctl(automount_t)
@@ -65,7 +65,7 @@ kernel_list_proc(automount_t)
 
 bootloader_getattr_boot_dir(automount_t)
 
-corecmd_search_sbin(automount_t)
+corecmd_exec_sbin(automount_t)
 corecmd_exec_bin(automount_t)
 corecmd_exec_shell(automount_t)
 
@@ -80,6 +80,9 @@ corenet_tcp_sendrecv_all_ports(automount_t)
 corenet_udp_sendrecv_all_ports(automount_t)
 corenet_tcp_bind_all_nodes(automount_t)
 corenet_udp_bind_all_nodes(automount_t)
+corenet_tcp_connect_portmap_port(automount_t)
+corenet_tcp_connect_all_ports(automount_t)
+corenet_dontaudit_tcp_connect_all_reserved_ports(automount_t)
 
 dev_read_sysfs(automount_t)
 # for SSP
@@ -105,6 +108,7 @@ fs_search_auto_mountpoints(automount_t)
 fs_manage_auto_mountpoints(automount_t)
 
 term_dontaudit_use_console(automount_t)
+term_dontaudit_getattr_pty_dir(automount_t)
 
 init_use_fd(automount_t)
 init_use_script_pty(automount_t)
@@ -113,6 +117,7 @@ libs_use_ld_so(automount_t)
 libs_use_shared_libs(automount_t)
 
 logging_send_syslog_msg(automount_t)
+logging_search_logs(automount_t)
 
 miscfiles_read_localization(automount_t)
 
@@ -134,6 +139,10 @@ ifdef(`targeted_policy', `
 
 optional_policy(`apm',`
 	corecmd_exec_bin(automount_t)
+')
+
+optional_policy(`bind',`
+	bind_search_cache(automount_t)
 ')
 
 optional_policy(`fstools',`

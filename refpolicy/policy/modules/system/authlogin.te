@@ -1,5 +1,5 @@
 
-policy_module(authlogin,1.1.0)
+policy_module(authlogin,1.2.0)
 
 ########################################
 #
@@ -48,7 +48,7 @@ type pam_var_run_t;
 files_pid_file(pam_var_run_t)
 
 type shadow_t;
-files_type(shadow_t)
+files_security_file(shadow_t)
 neverallow ~can_read_shadow_passwords shadow_t:file read;
 neverallow ~can_write_shadow_passwords shadow_t:file { create write };
 neverallow ~can_relabelto_shadow_passwords shadow_t:file relabelto;
@@ -96,7 +96,7 @@ allow pam_t pam_var_run_t:file { getattr read unlink };
 
 allow pam_t pam_tmp_t:dir create_dir_perms;
 allow pam_t pam_tmp_t:file create_file_perms;
-files_create_tmp_files(pam_t, pam_tmp_t, { file dir })
+files_filetrans_tmp(pam_t, pam_tmp_t, { file dir })
 
 kernel_read_system_state(pam_t)
 
@@ -128,14 +128,6 @@ optional_policy(`nis',`
 optional_policy(`nscd',`
 	nscd_use_socket(pam_t)
 ')
-
-ifdef(`TODO',`
-ifdef(`gnome-pty-helper.te', `allow pam_t gphdomain:fd use;')
-# Supress xdm denial
-ifdef(`xdm.te', `
-dontaudit pam_t xdm_t:fd use;
-') dnl ifdef
-') dnl endif TODO
 
 ########################################
 #
@@ -211,6 +203,7 @@ libs_use_shared_libs(pam_console_t)
 logging_send_syslog_msg(pam_console_t)
 
 mls_file_read_up(pam_console_t)
+mls_file_write_down(pam_console_t)
 
 seutil_read_file_contexts(pam_console_t)
 
@@ -226,6 +219,10 @@ ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_tty(pam_console_t)
 	term_dontaudit_use_generic_pty(pam_console_t)
 	files_dontaudit_read_root_file(pam_console_t)
+')
+
+optional_policy(`alsa',`
+	alsa_domtrans(pam_console_t)
 ')
 
 optional_policy(`gpm',`

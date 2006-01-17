@@ -3,7 +3,7 @@
 # Rules and Targets for building modular policies
 #
 
-ALL_MODULES := $(BASE_MODS) $(MOD_MODS)
+ALL_MODULES := $(BASE_MODS) $(MOD_MODS) $(OFF_MODS)
 ALL_INTERFACES := $(ALL_MODULES:.te=.if)
 
 BASE_PKG := base.pp
@@ -17,7 +17,7 @@ BASE_POST_TE_FILES := $(USER_FILES) $(POLDIR)/constraints
 BASE_FC_FILES := $(BASE_MODS:.te=.fc)
 
 MOD_MODULES := $(MOD_MODS:.te=.mod)
-MOD_PKGS := $(notdir $(MOD_MODS:.te=.pp))
+MOD_PKGS := $(MOD_MODS:.te=.pp)
 
 # policy packages to install
 INSTPKG := $(addprefix $(MODPKGDIR)/,$(BASE_PKG) $(MOD_PKGS))
@@ -91,7 +91,7 @@ tmp/base.mod: base.conf
 # Construct a base.conf
 #
 base.conf: $(BASE_SECTIONS)
-	@echo "Creating $(NAME) base module policy.conf"
+	@echo "Creating $(NAME) base module base.conf"
 # checkpolicy can use the #line directives provided by -s for error reporting:
 	$(QUIET) m4 -D self_contained_policy $(M4PARAM) -s $^ > tmp/$@.tmp
 	$(QUIET) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
@@ -110,7 +110,7 @@ tmp/generated_definitions.conf: $(ALL_LAYERS) $(BASE_TE_FILES)
 	$(QUIET) $(GENPERM) $(AVS) $(SECCLASS) > $@
 # per-userdomain templates
 	$(QUIET) echo "define(\`per_userdomain_templates',\`" >> $@
-	$(QUIET) for i in $(patsubst %.te,%,$(notdir $(ALL_MODULES))); do \
+	$(QUIET) for i in $(patsubst %.te,%,$(BASE_MODS) $(MOD_MODS)); do \
 		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$*'")')" \
 			>> $@ ;\
 	done
@@ -167,6 +167,16 @@ endif
 	@echo "Creating $(NAME) base module file contexts."
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) m4 $(M4PARAM) $^ > $@
+
+########################################
+#
+# Remove the dontaudit rules from the base.conf
+#
+enableaudit: base.conf
+	@test -d tmp || mkdir -p tmp
+	@echo "Removing dontaudit rules from base.conf"
+	$(QUIET) grep -v dontaudit base.conf > tmp/base.audit
+	$(QUIET) mv tmp/base.audit base.conf
 
 ########################################
 #

@@ -310,8 +310,24 @@ interface(`files_list_all',`
 
 ########################################
 ## <summary>
+##	List all non-security directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_list_non_security',`
+	gen_require(`
+		attribute file_type, security_file_type;
+	')
+
+	dontaudit $1 { file_type -security_file_type }:dir r_dir_perms;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to list all
-##	non security directories.
+##	non-security directories.
 ## </summary>
 ## <param name="domain">
 ##	Domain to not audit.
@@ -422,6 +438,24 @@ interface(`files_read_all_files',`
 
 ########################################
 ## <summary>
+##	Read all non-security files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_read_non_security_files',`
+	gen_require(`
+		attribute file_type, security_file_type;
+	')
+
+	allow $1 { file_type -security_file_type }:dir search_dir_perms;
+	allow $1 { file_type -security_file_type }:file r_file_perms;
+	allow $1 { file_type -security_file_type }:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
 ##	Read all directories on the filesystem, except
 ##	the listed exceptions.
 ## </summary>
@@ -466,7 +500,7 @@ interface(`files_read_all_files_except',`
 
 ########################################
 ## <summary>
-##	Read all symbloic links on the filesystem, except
+##	Read all symbolic links on the filesystem, except
 ##	the listed exceptions.
 ## </summary>
 ## <param name="domain">
@@ -918,23 +952,20 @@ interface(`files_list_root',`
 ########################################
 ## <summary>
 ##	Create an object in the root directory, with a private
-##	type.  If no object class is specified, the
-##	default is file.
+##	type.
 ## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
-## <param name="private type" optional="true">
-##	The type of the object to be created.  If no type
-##	is specified, the type of the root directory will
-##	be used.
+## <param name="private type">
+##	The type of the object to be created.
 ## </param>
 ## <param name="object" optional="true">
 ##	The object class of the object being created.  If
 ##	no class is specified, file will be used.
 ## </param>
 #
-interface(`files_create_root',`
+interface(`files_filetrans_root',`
 	gen_require(`
 		type root_t;
 		class dir create_dir_perms;
@@ -943,17 +974,9 @@ interface(`files_create_root',`
 	allow $1 root_t:dir rw_dir_perms;
 
 	ifelse(`$3',`',`
-		ifelse(`$2',`',`
-			allow $1 root_t:file create_file_perms;
-		',`
-			type_transition $1 root_t:file $2;
-		')
+		type_transition $1 root_t:file $2;
 	',`
-		ifelse(`$2',`',`
-			allow $1 root_t:$3 create_file_perms;
-		',`
-			type_transition $1 root_t:$3 $2;
-		')
+		type_transition $1 root_t:$3 $2;
 	')
 ')
 
@@ -1467,9 +1490,9 @@ interface(`files_manage_etc_runtime_files',`
 
 ########################################
 #
-# files_create_etc_config(domain,privatetype,[class(es)])
+# files_filetrans_etc(domain,privatetype,[class(es)])
 #
-interface(`files_create_etc_config',`
+interface(`files_filetrans_etc',`
 	gen_require(`
 		type etc_t;
 		class dir rw_dir_perms;
@@ -1779,6 +1802,23 @@ interface(`files_dontaudit_search_home',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to list
+##	home directories root (/home).
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`files_dontaudit_list_home',`
+	gen_require(`
+		type home_root_t;
+	')
+
+	dontaudit $1 home_root_t:dir r_dir_perms;
+')
+
+########################################
+## <summary>
 ##	Get listing of home directories.
 ## </summary>
 ## <param name="domain">
@@ -1796,23 +1836,32 @@ interface(`files_list_home',`
 
 ########################################
 ## <summary>
-##	Create home directories
+##	Create objects in /home.
 ## </summary>
 ## <param name="domain">
 ##	The type of the process performing this action.
 ## </param>
 ## <param name="home_type">
-##	The type of the home directory
+##	The private type.
+## </param>
+## <param name="object" optional="true">
+##	The object class of the object being created.  If
+##	no class is specified, dir will be used.
 ## </param>
 #
-interface(`files_create_home_dirs',`
+interface(`files_filetrans_home',`
 	gen_require(`
 		type home_root_t;
-		class dir rw_dir_perms;
 	')
 
 	allow $1 home_root_t:dir rw_dir_perms;
-	type_transition $1 home_root_t:dir $2;
+
+	ifelse(`$3',`',`
+		type_transition $1 home_root_t:dir $2;
+	',`
+		type_transition $1 home_root_t:$3 $2;
+	')
+
 ')
 
 ########################################
@@ -2110,6 +2159,22 @@ interface(`files_list_tmp',`
 
 ########################################
 ## <summary>
+##	Do not audit listing of the tmp directory (/tmp).
+## </summary>
+## <param name="domain">
+##	Domain not to audit.
+## </param>
+#
+interface(`files_dontaudit_list_tmp',`
+	gen_require(`
+		type tmp_t;
+	')
+
+	dontaudit $1 tmp_t:dir { read getattr search };
+')
+
+########################################
+## <summary>
 ##	Read files in the tmp directory (/tmp).
 ## </summary>
 ## <param name="domain">
@@ -2178,9 +2243,9 @@ interface(`files_setattr_all_tmp_dirs',`
 
 ########################################
 #
-# files_create_tmp_files(domain,private_type,[object class(es)])
+# files_filetrans_tmp(domain,private_type,[object class(es)])
 #
-interface(`files_create_tmp_files',`
+interface(`files_filetrans_tmp',`
 	gen_require(`
 		type tmp_t;
 		class dir rw_dir_perms;
@@ -2345,7 +2410,7 @@ interface(`files_read_usr_symlinks',`
 ##	The object class.  If not specified, file is used.
 ## </param>
 #
-interface(`files_create_usr',`
+interface(`files_filetrans_usr',`
 	gen_require(`
 		type usr_t;
 		class dir rw_dir_perms;
@@ -2573,7 +2638,7 @@ interface(`files_manage_var_symlinks',`
 ##	The object class.  If not specified, file is used.
 ## </param>
 #
-interface(`files_create_var',`
+interface(`files_filetrans_var',`
 	gen_require(`
 		type var_t;
 		class dir rw_dir_perms;
@@ -2670,7 +2735,7 @@ interface(`files_list_var_lib',`
 ##	The object class.  If not specified, file is used.
 ## </param>
 #
-interface(`files_create_var_lib',`
+interface(`files_filetrans_var_lib',`
 	gen_require(`
 		type var_t, var_lib_t;
 		class dir rw_dir_perms;
@@ -2846,10 +2911,30 @@ interface(`files_delete_all_locks',`
 ')
 
 ########################################
+## <summary>
+##	Read all lock files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
 #
-# files_create_lock(domain,private_type,[object class(es)])
+interface(`files_read_all_locks',`
+	gen_require(`
+		attribute lockfile;
+		type var_t, var_lock_t;
+	')
+
+	allow $1 { var_t var_lock_t }:dir search_dir_perms;
+	allow $1 lockfile:dir r_dir_perms;
+	allow $1 lockfile:file r_file_perms;
+	allow $1 lockfile:lnk_file { getattr read };
+')
+
+########################################
 #
-interface(`files_create_lock',`
+# files_filetrans_lock(domain,private_type,[object class(es)])
+#
+interface(`files_filetrans_lock',`
 	gen_require(`
 		type var_t, var_lock_t;
 		class dir rw_dir_perms;
@@ -2929,9 +3014,9 @@ interface(`files_list_pids',`
 
 ########################################
 #
-# files_create_pid(domain,pidfile,[object class(es)])
+# files_filetrans_pid(domain,pidfile,[object class(es)])
 #
-interface(`files_create_pid',`
+interface(`files_filetrans_pid',`
 	gen_require(`
 		type var_t, var_run_t;
 		class dir rw_dir_perms;
@@ -3008,6 +3093,23 @@ interface(`files_read_all_pids',`
 	allow $1 var_t:dir search_dir_perms;
 	allow $1 pidfile:dir r_dir_perms;
 	allow $1 pidfile:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Mount filesystems on all polyinstantiation
+##	member directories.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_mounton_all_poly_members',`
+	gen_require(`
+		attribute polymember;
+	')
+
+	allow $1 polymember:dir mounton;
 ')
 
 ########################################
@@ -3121,6 +3223,47 @@ interface(`files_manage_generic_spools',`
 
 ########################################
 ## <summary>
+##	Allow access to manage all polyinstantiated
+##	directories on the system.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`files_polyinstantiate_all',`
+	gen_require(`
+		attribute polydir, polymember, polyparent;
+		type poly_t;
+	')
+
+	# Need to give access to /selinux/member
+	selinux_compute_member($1)
+
+	# Need sys_admin capability for mounting
+	allow $1 self:capability sys_admin;
+
+	# Need to give access to the directories to be polyinstantiated
+	allow $1 polydir:dir { create getattr search write add_name setattr mounton };
+
+	# Need to give access to the polyinstantiated subdirectories
+	allow $1 polymember:dir search_dir_perms;
+
+	# Need to give access to parent directories where original
+	# is remounted for polyinstantiation aware programs (like gdm)
+	allow $1 polyparent:dir { getattr mounton };
+
+	# Need to give permission to create directories where applicable
+	allow $1 self:process setfscreate;
+	allow $1 polymember: dir { create setattr };
+	allow $1 polydir: dir { write add_name };
+	allow $1 polyparent:dir { write add_name };
+
+	# Default type for mountpoints
+	allow $1 poly_t:dir { create mounton };
+')
+
+########################################
+## <summary>
 ##	Unconfined access to files.
 ## </summary>
 ## <param name="domain">
@@ -3148,4 +3291,21 @@ interface(`files_unconfined',`
 			allow $1 file_type:file execmod;
 		')
 	')
+')
+
+
+########################################
+## <summary>
+##	Allow attempts to modify any directory
+## </summary>
+## <param name="domain">
+##	Domain to allow
+## </param>
+#
+interface(`files_write_non_security_dir',`
+	gen_require(`
+		attribute file_type, security_file_type;
+	')
+
+	allow $1 file_type:dir write;
 ')

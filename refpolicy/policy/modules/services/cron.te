@@ -1,5 +1,5 @@
 
-policy_module(cron, 1.1.1)
+policy_module(cron,1.2.0)
 
 gen_require(`
 	class passwd rootok;
@@ -80,7 +80,7 @@ allow crond_t self:msgq create_msgq_perms;
 allow crond_t self:msg { send receive };
 
 allow crond_t crond_var_run_t:file create_file_perms;
-files_create_pid(crond_t,crond_var_run_t)
+files_filetrans_pid(crond_t,crond_var_run_t)
 
 allow crond_t cron_spool_t:dir rw_dir_perms;
 allow crond_t cron_spool_t:file r_file_perms;
@@ -120,6 +120,7 @@ files_search_default(crond_t)
 
 init_use_fd(crond_t)
 init_use_script_pty(crond_t)
+init_rw_script_pid(crond_t)
 
 libs_use_ld_so(crond_t)
 libs_use_shared_libs(crond_t)
@@ -148,7 +149,7 @@ ifdef(`targeted_policy',`
 	allow crond_t system_crond_tmp_t:lnk_file create_lnk_perms;
 	allow crond_t system_crond_tmp_t:sock_file create_file_perms;
 	allow crond_t system_crond_tmp_t:fifo_file create_file_perms;
-	files_create_tmp_files(crond_t,system_crond_tmp_t,{ dir file lnk_file sock_file fifo_file })
+	files_filetrans_tmp(crond_t,system_crond_tmp_t,{ dir file lnk_file sock_file fifo_file })
 
 	unconfined_domain_template(crond_t)
 
@@ -165,7 +166,7 @@ ifdef(`targeted_policy',`
 ',`
 	allow crond_t crond_tmp_t:dir create_dir_perms;
 	allow crond_t crond_tmp_t:file create_file_perms;
-	files_create_tmp_files(crond_t, crond_tmp_t, { file dir })
+	files_filetrans_tmp(crond_t, crond_tmp_t, { file dir })
 
 	mta_send_mail(crond_t)
 ')
@@ -260,11 +261,11 @@ ifdef(`targeted_policy',`
 
 	# Write /var/lock/makewhatis.lock.
 	allow system_crond_t system_crond_lock_t:file create_file_perms;
-	files_create_lock(system_crond_t,system_crond_lock_t)
+	files_filetrans_lock(system_crond_t,system_crond_lock_t)
 
 	# write temporary files
 	allow system_crond_t system_crond_tmp_t:file create_file_perms;
-	files_create_tmp_files(system_crond_t,system_crond_tmp_t)
+	files_filetrans_tmp(system_crond_t,system_crond_tmp_t)
 
 	# write temporary files in crond tmp dir:
 	allow system_crond_t crond_tmp_t:dir rw_dir_perms;
@@ -396,10 +397,20 @@ ifdef(`targeted_policy',`
 		nscd_use_socket(system_crond_t)
 	')
 
+	optional_policy(`prelink',`
+		prelink_read_cache(system_crond_t)
+		prelink_manage_log(system_crond_t)
+		prelink_delete_cache(system_crond_t)
+	')
+
 	optional_policy(`samba',`
 		samba_read_config(system_crond_t)
 		samba_read_log(system_crond_t)
 		#samba_read_secrets(system_crond_t)
+	')
+
+	optional_policy(`slocate',`
+		slocate_create_append_log(system_crond_t)
 	')
 
 	optional_policy(`sysstat',`
@@ -409,40 +420,13 @@ ifdef(`targeted_policy',`
 	ifdef(`TODO',`
 	dontaudit userdomain system_crond_t:fd use;
 
-	# Do not audit attempts to search unlabeled directories (e.g. slocate).
-	dontaudit system_crond_t unlabeled_t:dir r_dir_perms;
-	dontaudit system_crond_t unlabeled_t:file r_file_perms;
-
 	allow system_crond_t { sysfs_t rpc_pipefs_t }:dir getattr;
-
-	# Write to /var/lib/slocate.db.
-	allow system_crond_t var_lib_t:dir rw_dir_perms;
-	allow system_crond_t var_lib_t:file create_file_perms;
 
 	# for if /var/mail is a symlink
 	allow system_crond_t mail_spool_t:lnk_file read;
 
-	#
-	#  These rules are here to allow system cron jobs to su
-	#
-	ifdef(`su.te', `
-	su_restricted_domain(system_crond,system)
-	role system_r types system_crond_su_t;
-	allow system_crond_su_t crond_t:fifo_file ioctl;
-	')
-
-	#
-	# Required for webalizer
-	#
-	ifdef(`apache.te', `
-	allow system_crond_t { httpd_log_t httpd_config_t }:file r_file_perms;
-	')
-
 	ifdef(`mta.te', `
 	mta_send_mail_transition(system_crond_t)
-
-	# system_mail_t should only be reading from the cron fifo not needing to write
-	dontaudit system_mail_t crond_t:fifo_file write;
 	allow mta_user_agent system_crond_t:fd use;
 	r_dir_file(system_mail_t, crond_tmp_t)
 	')
