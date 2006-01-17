@@ -1,0 +1,66 @@
+## <summary>User network interface configuration helper</summary>
+
+########################################
+## <summary>
+##	Execute usernetctl in the usernetctl domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`usernetctl_domtrans',`
+	gen_require(`
+		type usernetctl_t, usernetctl_exec_t;
+	')
+
+	tunable_policy(`user_net_control',`
+		domain_auto_trans($1,usernetctl_exec_t,usernetctl_t)
+
+		allow $1 usernetctl_t:fd use;
+		allow usernetctl_t $1:fd use;
+		allow usernetctl_t $1:fifo_file rw_file_perms;
+		allow usernetctl_t $1:process sigchld;
+	',`
+		can_exec($1,usernetctl_exec_t)
+	')
+')
+
+########################################
+## <summary>
+##	Execute usernetctl in the usernetctl domain, and
+##	allow the specified role the usernetctl domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="role">
+##	The role to be allowed the usernetctl domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow the usernetctl domain to use.
+## </param>
+#
+interface(`usernetctl_run',`
+	gen_require(`
+		type usernetctl_t;
+	')
+
+	usernetctl_domtrans($1)
+	role $2 types usernetctl_t;
+	allow usernetctl_t $3:chr_file rw_term_perms;
+
+	sysnet_run_ifconfig(usernetctl_t,$2,$3)
+	sysnet_run_dhcpc(usernetctl_t,$2,$3)
+
+	optional_policy(`consoletype',`
+		consoletype_run(usernetctl_t,$2,$3)
+	')
+
+	optional_policy(`iptables',`
+		iptables_run(usernetctl_t,$2,$3)
+	')
+
+	optional_policy(`modutils',`
+		modutils_run_insmod(usernetctl_t,$2,$3)
+	')
+')
