@@ -242,7 +242,9 @@ interface(`corecmd_mmap_bin_files',`
 ########################################
 ## <summary>
 ##	Execute a file in a bin directory
-##	in the specified domain.
+##	in the specified domain but do not
+##	do it automatically. This is an explicit
+##	transition, requiring the caller to use setexeccon().
 ## </summary>
 ## <desc>
 ##	<p>
@@ -259,7 +261,7 @@ interface(`corecmd_mmap_bin_files',`
 ##	</p>
 ##	<p>
 ##	This interface was added to handle
-##	the ssh-agent policy.
+##	the userhelper policy.
 ##	</p>
 ## </desc>
 ## <param name="domain">
@@ -269,17 +271,54 @@ interface(`corecmd_mmap_bin_files',`
 ##	The type of the new process.
 ## </param>
 #
-interface(`corecmd_bin_domtrans',`
+interface(`corecmd_bin_spec_domtrans',`
 	gen_require(`
 		type bin_t;
-		class dir search;
-		class lnk_file { getattr read };
 	')
 
 	allow $1 bin_t:dir search;
 	allow $1 bin_t:lnk_file { getattr read };
 
-	domain_auto_trans($1,bin_t,$2)
+	domain_trans($1,bin_t,$2)
+')
+
+########################################
+## <summary>
+##      Execute a file in a bin directory
+##      in the specified domain.
+## </summary>
+## <desc>
+##      <p>
+##      Execute a file in a bin directory
+##      in the specified domain.  This allows
+##      the specified domain to execute any file
+##      on these filesystems in the specified
+##      domain.  This is not suggested.
+##      </p>
+##      <p>
+##      No interprocess communication (signals, pipes,
+##      etc.) is provided by this interface since
+##      the domains are not owned by this module.
+##      </p>
+##      <p>
+##      This interface was added to handle
+##      the ssh-agent policy.
+##      </p>
+## </desc>
+## <param name="domain">
+##      Domain allowed access.
+## </param>
+## <param name="target_domain">
+##      The type of the new process.
+## </param>
+#
+interface(`corecmd_bin_domtrans',`
+	gen_require(`
+		type bin_t;
+	')
+
+	corecmd_bin_spec_domtrans($1,$2)
+	type_transition $1 bin_t:process $2;
 ')
 
 ########################################
@@ -541,6 +580,49 @@ interface(`corecmd_sbin_domtrans',`
 
 ########################################
 ## <summary>
+##	Execute a file in a sbin directory
+##	in the specified domain but do not
+##	do it automatically. This is an explicit
+##	transition, requiring the caller to use setexeccon().
+## </summary>
+## <desc>
+##	<p>
+##	Execute a file in a sbin directory
+##	in the specified domain.  This allows
+##	the specified domain to execute any file
+##	on these filesystems in the specified
+##	domain.  This is not suggested.
+##	</p>
+##	<p>
+##	No interprocess communication (signals, pipes,
+##	etc.) is provided by this interface since
+##	the domains are not owned by this module.
+##	</p>
+##	<p>
+##	This interface was added to handle
+##	the userhelper policy.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="target_domain">
+##	The type of the new process.
+## </param>
+#
+interface(`corecmd_sbin_spec_domtrans',`
+	gen_require(`
+		type sbin_t;
+	')
+
+	allow $1 sbin_t:dir search;
+	allow $1 sbin_t:lnk_file { getattr read };
+
+	domain_trans($1,sbin_t,$2)
+')
+
+########################################
+## <summary>
 ##	Check if a shell is executable (DAC-wise).
 ## </summary>
 ## <param name="domain">
@@ -564,8 +646,6 @@ interface(`corecmd_check_exec_shell',`
 interface(`corecmd_exec_shell',`
 	gen_require(`
 		type bin_t, shell_exec_t;
-		class dir r_dir_perms;
-		class lnk_file r_file_perms;
 	')
 
 	allow $1 bin_t:dir r_dir_perms;
@@ -580,8 +660,6 @@ interface(`corecmd_exec_shell',`
 interface(`corecmd_exec_ls',`
 	gen_require(`
 		type bin_t, ls_exec_t;
-		class dir r_dir_perms;
-		class lnk_file r_file_perms;
 	')
 
 	allow $1 bin_t:dir r_dir_perms;
@@ -617,8 +695,6 @@ interface(`corecmd_exec_ls',`
 interface(`corecmd_shell_spec_domtrans',`
 	gen_require(`
 		type bin_t, shell_exec_t;
-		class dir r_dir_perms;
-		class lnk_file r_file_perms;
 	')
 
 	allow $1 bin_t:dir r_dir_perms;
