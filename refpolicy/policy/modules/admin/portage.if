@@ -1,0 +1,199 @@
+## <summary>
+##	Portage Package Management System. The primary package management and
+##	distribution system for Gentoo.
+## </summary>
+
+########################################
+## <summary>
+##	Execute emerge in the portage domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`portage_domtrans',`
+	gen_require(`
+		type portage_t, portage_exec_t;
+	')
+
+	files_search_usr($1)
+	corecmd_search_bin($1)
+	domain_auto_trans($1,portage_exec_t,portage_t)
+
+	allow $1 portage_t:fd use;
+	allow portage_t $1:fd use;
+	allow portage_t $1:fifo_file rw_file_perms;
+	allow portage_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute emerge in the portage domain, and
+##	allow the specified role the portage domain.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="role">
+##	The role to allow the portage domain.
+## </param>
+## <param name="terminal">
+##	The type of the terminal allow for portage to use.
+## </param>
+#
+interface(`portage_run',`
+	gen_require(`
+		type portage_t, portage_fetch_t, portage_sandbox_t;
+	')
+
+	portage_domtrans($1)
+
+	role $2 types portage_t;
+	role $2 types portage_fetch_t;
+	role $2 types portage_sandbox_t;
+
+	allow portage_t $3:chr_file rw_term_perms;
+	allow portage_fetch_t $3:chr_file rw_term_perms;
+	allow portage_sandbox_t $3:chr_file rw_term_perms;
+
+	# not sure about this one, may be stray fds
+	allow portage_t $1:udp_socket write;
+	allow $1 portage_t:udp_socket write;
+')
+
+########################################
+## <summary>
+##	Template for portage sandbox.
+## </summary>
+## <desc>
+##	<p>
+##	Template for portage sandbox.  Portage
+##	does all compiling in the sandbox.
+##	</p>
+## </desc>
+## <param name="prefix">
+##	Name to be used to derive types.
+## </param>
+#
+template(`portage_compile_domain_template',`
+	type $1_t;
+	domain_type($1_t)
+	domain_entry_file($1_t,portage_exec_t)
+
+	type $1_devpts_t;
+	term_pty($1_devpts_t)
+
+	type $1_tmp_t;
+	files_tmp_file($1_tmp_t)
+
+	type $1_tmpfs_t;
+	files_tmpfs_file($1_tmpfs_t)
+
+	allow $1_t self:capability { fowner fsetid mknod setgid setuid chown dac_override net_raw };
+	allow $1_t self:process { setpgid setsched setrlimit signal_perms execmem };
+	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_t self:fd use;
+	allow $1_t self:fifo_file rw_file_perms;
+	allow $1_t self:shm create_shm_perms;
+	allow $1_t self:sem create_sem_perms;
+	allow $1_t self:msgq create_msgq_perms;
+	allow $1_t self:msg { send receive };
+	allow $1_t self:unix_dgram_socket create_socket_perms;
+	allow $1_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_t self:unix_dgram_socket sendto;
+	allow $1_t self:unix_stream_socket connectto;
+	# really shouldnt need this
+	allow $1_t self:tcp_socket create_stream_socket_perms;
+	allow $1_t self:udp_socket create_socket_perms;
+	# misc networking stuff (esp needed for compiling perl):
+	allow $1_t self:rawip_socket { create ioctl };
+	allow $1_t self:udp_socket recvfrom;
+	# needed for merging dbus:
+	allow $1_sandbox_t self:netlink_selinux_socket { bind create read };
+
+	allow $1_t $1_devpts_t:chr_file { rw_file_perms setattr };
+	term_create_pty($1_t,$1_devpts_t)
+
+	allow $1_t $1_tmp_t:dir manage_dir_perms;
+	allow $1_t $1_tmp_t:file manage_file_perms;
+	allow $1_t $1_tmp_t:lnk_file create_lnk_perms;
+	allow $1_t $1_tmp_t:fifo_file manage_file_perms;
+	allow $1_t $1_tmp_t:sock_file manage_file_perms;
+	files_create_tmp($1_t,$1_tmp_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_t $1_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1_t $1_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_t $1_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_t $1_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	fs_create_tmpfs_data($1_t,$1_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	# write merge logs
+	allow $1_t portage_log_t:dir setattr;
+	allow $1_t portage_log_t:file { append write setattr };
+
+	kernel_read_system_state($1_t)
+	kernel_read_network_state($1_t)
+	kernel_read_software_raid_state($1_t)
+	kernel_getattr_core($1_t)
+	kernel_getattr_message_if($1_t)
+	kernel_read_kernel_sysctl($1_t)
+
+	corecmd_exec_bin($1_t)
+	corecmd_exec_sbin($1_t)
+
+	# really shouldnt need this
+	corenet_non_ipsec_sendrecv($1_t)
+	corenet_tcp_sendrecv_generic_if($1_t)
+	corenet_udp_sendrecv_generic_if($1_t)
+	corenet_raw_sendrecv_generic_if($1_t)
+	corenet_tcp_sendrecv_all_nodes($1_t)
+	corenet_udp_sendrecv_all_nodes($1_t)
+	corenet_raw_sendrecv_all_nodes($1_t)
+	corenet_tcp_sendrecv_all_ports($1_t)
+	corenet_udp_sendrecv_all_ports($1_t)
+	corenet_tcp_connect_all_reserved_ports($1_t)
+	corenet_tcp_connect_distccd_port($1_t)
+
+	dev_read_sysfs($1_t)
+	dev_read_rand($1_t)
+	dev_read_urand($1_t)
+
+	domain_exec_all_entry_files($1_t)
+	domain_use_wide_inhert_fds($1_t)
+
+	files_exec_etc_files($1_t)
+	files_exec_usr_src_files($1_t)
+
+	fs_getattr_xattr_fs($1_t)
+	fs_list_noxattr_fs($1_t)
+	fs_read_noxattr_fs_files($1_t)
+	fs_read_noxattr_fs_symlinks($1_t)
+	fs_search_auto_mountpoints($1_t)
+
+	# needed for merging dbus:
+	selinux_compute_access_vector($1_t)
+
+	auth_read_all_dirs_except_shadow($1_t)
+	auth_read_all_files_except_shadow($1_t)
+	auth_read_all_symlinks_except_shadow($1_t)
+
+	libs_use_ld_so($1_t)
+	libs_use_shared_libs($1_t)
+	libs_exec_lib_files($1_t)
+	# some config scripts use ldd
+	libs_exec_ld_so($1_t)
+	# this violates the idea of sandbox, but
+	# regular sandbox allows it
+	libs_domtrans_ldconfig($1_t)
+
+	logging_send_syslog_msg($1_t)
+
+	ifdef(`TODO',`
+	# some gui ebuilds want to interact with X server, like xawtv
+	optional_policy(`xdm',`
+		allow $1_t xdm_xserver_tmp_t:dir { add_name remove_name write };
+		allow $1_t xdm_xserver_tmp_t:sock_file { create getattr unlink write };
+	')
+	') dnl end TODO
+')
