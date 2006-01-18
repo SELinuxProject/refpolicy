@@ -233,6 +233,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	fi
 
 html: $(POLXML)
+	@echo "Building html interface reference documentation in $(HTMLDIR)"
 	@mkdir -p $(HTMLDIR)
 	$(QUIET) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
 	$(QUIET) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
