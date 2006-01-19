@@ -1,0 +1,321 @@
+## <summary>X Windows Server</summary>
+
+template(`xserver_common_domain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_xserver_t;
+	domain_type($1_xserver_t)
+
+	type $1_xserver_tmp_t;
+	files_tmp_file($1_xserver_tmp_t)
+
+	type $1_xserver_tmpfs_t;
+	files_tmpfs_file($1_xserver_tmpfs_t)
+
+	##############################
+	#
+	# $1_xserver_t local policy
+	#
+
+	# setuid/setgid for the wrapper program to change UID
+	# sys_rawio is for iopl access - should not be needed for frame-buffer
+	# sys_admin, locking shared mem?  chowning IPC message queues or semaphores?
+	# admin of APM bios?
+	# sys_nice is so that the X server can set a negative nice value
+	# execheap needed until the X module loader is fixed.
+
+	allow $1_xserver_t self:capability { dac_override fsetid setgid setuid ipc_owner sys_rawio sys_admin sys_nice sys_tty_config mknod net_bind_service };
+	dontaudit $1_xserver_t self:capability chown;
+	allow $1_xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_xserver_t self:process { execmem execheap setsched };
+	allow $1_xserver_t self:fd use;
+	allow $1_xserver_t self:fifo_file rw_file_perms;
+	allow $1_xserver_t self:sock_file r_file_perms;
+	allow $1_xserver_t self:shm create_shm_perms;
+	allow $1_xserver_t self:sem create_sem_perms;
+	allow $1_xserver_t self:msgq create_msgq_perms;
+	allow $1_xserver_t self:msg { send receive };
+	allow $1_xserver_t self:unix_dgram_socket { create_socket_perms sendto };
+	allow $1_xserver_t self:unix_stream_socket { create_stream_socket_perms connectto };
+	allow $1_xserver_t self:tcp_socket create_stream_socket_perms;
+	allow $1_xserver_t self:udp_socket create_socket_perms;
+
+	allow $1_xserver_t $1_xserver_tmp_t:dir manage_dir_perms;
+	allow $1_xserver_t $1_xserver_tmp_t:file manage_file_perms;
+	allow $1_xserver_t $1_xserver_tmp_t:sock_file manage_file_perms;
+	files_filetrans_tmp($1_xserver_t, $1_xserver_tmp_t, { file dir sock_file })
+
+	allow $1_xserver_t $1_xserver_tmpfs_t:dir manage_dir_perms;
+	allow $1_xserver_t $1_xserver_tmpfs_t:file manage_file_perms;
+	allow $1_xserver_t $1_xserver_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_xserver_t $1_xserver_tmpfs_t:sock_file manage_file_perms;
+	allow $1_xserver_t $1_xserver_tmpfs_t:fifo_file manage_file_perms;
+	fs_filetrans_tmpfs($1_xserver_t,$1_xserver_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_xserver_t xkb_var_lib_t:dir rw_dir_perms;
+	allow $1_xserver_t xkb_var_lib_t:file manage_file_perms;
+	allow $1_xserver_t xkb_var_lib_t:lnk_file create_lnk_perms;
+	files_search_var_lib($1_xserver_t)
+
+	# Create files in /var/log with the xserver_log_t type.
+	allow $1_xserver_t xserver_log_t:file manage_file_perms;
+	allow $1_xserver_t xserver_log_t:dir r_dir_perms;
+	logging_filetrans_log($1_xserver_t,xserver_log_t,file)
+
+	kernel_read_system_state($1_xserver_t)
+	kernel_read_device_sysctl($1_xserver_t)
+	# Xorg wants to check if kernel is tainted
+	kernel_read_kernel_sysctl($1_xserver_t)
+
+	# Run helper programs in $1_xserver_t.
+	corecmd_search_sbin($1_xserver_t)
+	corecmd_exec_bin($1_xserver_t)
+	corecmd_exec_shell($1_xserver_t)
+
+	corenet_non_ipsec_sendrecv($1_xserver_t)
+	corenet_tcp_sendrecv_generic_if($1_xserver_t)
+	corenet_udp_sendrecv_generic_if($1_xserver_t)
+	corenet_raw_sendrecv_generic_if($1_xserver_t)
+	corenet_tcp_sendrecv_all_nodes($1_xserver_t)
+	corenet_udp_sendrecv_all_nodes($1_xserver_t)
+	corenet_raw_sendrecv_all_nodes($1_xserver_t)
+	corenet_tcp_sendrecv_all_ports($1_xserver_t)
+	corenet_udp_sendrecv_all_ports($1_xserver_t)
+	corenet_tcp_bind_all_nodes($1_xserver_t)
+	corenet_udp_bind_all_nodes($1_xserver_t)
+	corenet_tcp_bind_xserver_port($1_xserver_t)
+	corenet_tcp_connect_all_ports($1_xserver_t)
+
+	dev_read_sysfs($1_xserver_t)
+	dev_rw_mouse($1_xserver_t)
+	dev_rw_mtrr($1_xserver_t)
+	dev_rw_apm_bios($1_xserver_t)
+	dev_rw_agp_dev($1_xserver_t)
+	dev_rw_framebuffer($1_xserver_t)
+	dev_manage_dri_dev($1_xserver_t)
+	dev_create_dir($1_xserver_t)
+	dev_setattr_dev_dir($1_xserver_t)
+	# raw memory access is needed if not using the frame buffer
+	dev_read_raw_memory($1_xserver_t)
+	dev_write_raw_memory($1_xserver_t)
+	# for other device nodes such as the NVidia binary-only driver
+	dev_rw_xserver_misc_dev($1_xserver_t)
+	# read events - the synaptics touchpad driver reads raw events
+	dev_rw_input_dev($1_xserver_t)
+
+	files_read_etc_files($1_xserver_t)
+	files_read_etc_runtime_files($1_xserver_t)
+	# brought on by rhgb
+	files_search_mnt($1_xserver_t)
+	# for nscd
+	files_dontaudit_search_pids($1_xserver_t)
+
+	fs_getattr_xattr_fs($1_xserver_t)
+	fs_search_nfs($1_xserver_t)
+	fs_search_auto_mountpoints($1_xserver_t)
+
+	term_setattr_unallocated_ttys($1_xserver_t)
+	term_use_unallocated_tty($1_xserver_t)
+
+	libs_use_ld_so($1_xserver_t)
+	libs_use_shared_libs($1_xserver_t)
+
+	logging_send_syslog_msg($1_xserver_t)
+
+	miscfiles_read_localization($1_xserver_t)
+	miscfiles_read_fonts($1_xserver_t)
+
+	seutil_dontaudit_search_config($1_xserver_t)
+
+	sysnet_read_config($1_xserver_t)
+
+	optional_policy(`authlogin',`
+		auth_search_pam_console_data($1_xserver_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_xserver_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_use_socket($1_xserver_t)
+	')
+
+	ifdef(`TODO',`
+	ifdef(`distro_redhat',`
+		kernel_read_modprobe_sysctl($1_xserver_t)
+
+		modutils_domtrans_insmod($1_xserver_t)
+
+		ifdef(`rpm.te', `
+			allow $1_xserver_t rpm_t:shm { unix_read unix_write read write associate getattr };
+			allow $1_xserver_t rpm_tmpfs_t:file { read write };
+			rpm_use_fd($1_xserver_t)
+		')
+	')
+
+	file_type_auto_trans($1_xserver_t, xdm_xserver_tmp_t, $1_xserver_tmp_t, sock_file)
+
+	# Connect to xfs.
+	ifdef(`xfs.te', `
+		can_unix_connect($1_xserver_t, xfs_t)
+		allow $1_xserver_t xfs_tmp_t:dir r_dir_perms;
+		allow $1_xserver_t xfs_tmp_t:sock_file rw_file_perms;
+	')
+	') dnl end TODO
+')
+
+#######################################
+## <summary>
+##	The per user domain template for the xserver module.
+## </summary>
+## <desc>
+##	<p>
+##	Define a derived domain for the X server when executed
+##	by a user domain (e.g. via startx).  See the xdm module
+##	if using an X Display Manager.
+##	</p>
+##	<p>
+##	This is invoked automatically for each user and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="user_domain">
+##	The type of the user domain.
+## </param>
+## <param name="user_role">
+##	The role associated with the user domain.
+## </param>
+#
+template(`xserver_per_userdomain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	xserver_common_domain_template($1)
+	role $3 types $1_xserver_t;
+
+	##############################
+	#
+	# Local policy
+	#
+
+	domain_auto_trans($2, xserver_exec_t, $1_xserver_t)
+	allow $2 $1_xserver_t:fd use;
+	allow $1_xserver_t $2:fd use;
+	allow $1_xserver_t $2:fifo_file rw_file_perms;
+	allow $1_xserver_t $2:process { signal sigchld };
+
+	allow $1_xserver_t $2:shm rw_shm_perms;
+
+	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
+	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
+	allow $2 $1_xserver_t:unix_stream_socket connectto;
+
+	allow $2 $1_xserver_tmpfs_t:file rw_file_perms;
+
+	# Communicate via System V shared memory.
+	allow $1_xserver_t $2:shm rw_shm_perms;
+	allow $2 $1_xserver_t:shm rw_shm_perms;
+
+	getty_use_fd($1_xserver_t)
+
+	locallogin_use_fd($1_xserver_t)
+
+	userdom_search_user_home($1,$1_xserver_t)
+	userdom_use_user_tty($1,$1_xserver_t)
+	userdom_setattr_user_tty($1,$1_xserver_t)
+	userdom_rw_user_tmpfs_files($1,$1_xserver_t)
+
+	optional_policy(`userhelper',`
+		userhelper_search_config($1_xserver_t)
+	')
+
+	ifdef(`TODO',`
+	# Read fonts
+	read_fonts($1_xserver_t, $1)
+
+	ifdef(`xauth.te', `
+		domain_auto_trans($1_xserver_t, xauth_exec_t, $1_xauth_t)
+		allow $1_xserver_t $1_xauth_home_t:file { getattr read };
+	', `
+		allow $1_xserver_t $1_home_t:file { getattr read };
+	')
+
+	allow $1_t xdm_xserver_tmp_t:dir r_dir_perms;
+	allow $1_t xdm_xserver_t:unix_stream_socket connectto;
+
+	ifdef(`xdm.te', `
+		allow $1_t xdm_tmp_t:sock_file unlink;
+		allow $1_xserver_t xdm_var_run_t:dir search;
+	')
+	') dnl end TODO
+')
+
+#######################################
+## <summary>
+##	Define a derived domain for the X server when executed
+##	by an X Display Manager.
+## </summary>
+## <param name="prefix">
+##	The prefix of the display manager domain.
+## </param>
+## <param name="xdm_domain">
+##	The type of the display manager domain.
+## </param>
+#
+template(`xserver_displaymgr_domain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	xserver_common_domain_template($1)
+	role system_r types xdm_xserver_t;
+
+	##############################
+	#
+	# Local policy
+	#
+
+	domain_auto_trans($2, xserver_exec_t, $1_xserver_t)
+	allow $2 $1_xserver_t:fd use;
+	allow $1_xserver_t $2:fd use;
+	allow $1_xserver_t $2:fifo_file rw_file_perms;
+	allow $1_xserver_t $2:process { signal sigchld };
+
+	allow $2 $1_xserver_t:process signal;
+
+	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
+	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
+	allow $2 $1_xserver_t:unix_stream_socket connectto;
+
+	allow $2 $1_xserver_t:shm rw_shm_perms;
+	allow $1_xserver_t $2:shm rw_shm_perms;
+
+	init_use_fd($1_xserver_t)
+
+	userdom_dontaudit_search_all_users_home($1_xserver_t)
+
+	ifdef(`TODO',`
+	# Read all global and per user fonts
+	read_fonts($1_xserver_t, sysadm)
+	read_fonts($1_xserver_t, staff)
+	read_fonts($1_xserver_t, user)
+
+	dontaudit $1_xserver_t sysadm_t:shm { unix_read unix_write };
+	allow $1_xserver_t xdm_tmpfs_t:file rw_file_perms;
+	') dnl end TODO
+')
