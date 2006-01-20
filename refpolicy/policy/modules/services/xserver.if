@@ -68,6 +68,7 @@ template(`xserver_common_domain_template',`
 
 	kernel_read_system_state($1_xserver_t)
 	kernel_read_device_sysctl($1_xserver_t)
+	kernel_read_modprobe_sysctl($1_xserver_t)
 	# Xorg wants to check if kernel is tainted
 	kernel_read_kernel_sysctl($1_xserver_t)
 
@@ -129,6 +130,8 @@ template(`xserver_common_domain_template',`
 	miscfiles_read_localization($1_xserver_t)
 	miscfiles_read_fonts($1_xserver_t)
 
+	modutils_domtrans_insmod($1_xserver_t)
+
 	seutil_dontaudit_search_config($1_xserver_t)
 
 	sysnet_read_config($1_xserver_t)
@@ -147,10 +150,6 @@ template(`xserver_common_domain_template',`
 
 	ifdef(`TODO',`
 	ifdef(`distro_redhat',`
-		kernel_read_modprobe_sysctl($1_xserver_t)
-
-		modutils_domtrans_insmod($1_xserver_t)
-
 		ifdef(`rpm.te', `
 			allow $1_xserver_t rpm_t:shm { unix_read unix_write read write associate getattr };
 			allow $1_xserver_t rpm_tmpfs_t:file { read write };
@@ -430,8 +429,9 @@ template(`xserver_displaymgr_domain_template',`
 	allow $1_xserver_t $2:fd use;
 	allow $1_xserver_t $2:fifo_file rw_file_perms;
 	allow $1_xserver_t $2:process { signal sigchld };
+	allow $2 $1_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
 
-	allow $2 $1_xserver_t:process signal;
+	allow $2 $1_xserver_tmp_t:file unlink;
 
 	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
 	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
@@ -439,6 +439,11 @@ template(`xserver_displaymgr_domain_template',`
 
 	allow $2 $1_xserver_t:shm rw_shm_perms;
 	allow $1_xserver_t $2:shm rw_shm_perms;
+
+	# Run xkbcomp.
+	can_exec($1_xserver_t, xkb_var_lib_t)
+	allow $1_xserver_t xkb_var_lib_t:lnk_file read;
+	files_search_var_lib($1_xserver_t)
 
 	init_use_fd($1_xserver_t)
 
