@@ -52,11 +52,32 @@ allow xdm_t self:shm create_shm_perms;
 allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow xdm_t self:unix_dgram_socket create_socket_perms;
 
+# wdm has its own config dir /etc/X11/wdm
+# this is ugly, daemons should not create files under /etc!
+allow xdm_t xdm_rw_etc_t:dir rw_dir_perms;
+allow xdm_t xdm_rw_etc_t:file create_file_perms;
+
+allow xdm_t xdm_var_run_t:dir setattr;
+# for xdmctl
+allow xdm_t xdm_var_run_t:fifo_file create_file_perms;
+
 kernel_read_system_state(xdm_t)
 kernel_read_kernel_sysctl(xdm_t)
 
+corecmd_exec_shell(xdm_t)
+corecmd_exec_bin(xdm_t)
+corecmd_exec_sbin(xdm_t)
+
+corenet_tcp_connect_all_ports(xdm_t)
+
 dev_read_rand(xdm_t)
 dev_read_urand(xdm_t)
+
+files_read_etc_files(xdm_t)
+files_read_etc_runtime_files(xdm_t)
+files_exec_etc(xdm_t)
+# Read /usr/share/terminfo/l/linux and /usr/share/icons/default/index.theme...
+files_read_usr_files(xdm_t)
 
 selinux_get_fs_mount(xdm_t)
 selinux_validate_context(xdm_t)
@@ -65,13 +86,19 @@ selinux_compute_create_context(xdm_t)
 selinux_compute_relabel_context(xdm_t)
 selinux_compute_user_contexts(xdm_t)
 
-files_read_etc_runtime_files(xdm_t)
+auth_rw_lastlog(xdm_t)
+auth_append_login_records(xdm_t)
 
-ifdef(`targeted_policy',`
-	allow xdm_t self:process { execheap execmem };
-	unconfined_domain_template(xdm_t)
-	unconfined_domtrans(xdm_t)
-',`
+init_rw_utmp(xdm_t)
+# for reboot
+init_write_initctl(xdm_t)
+
+libs_exec_lib(xdm_t)
+
+seutil_read_config(xdm_t)
+seutil_read_default_contexts(xdm_t)
+
+ifdef(`strict_policy',`
 	allow xdm_t xdm_lock_t:file create_file_perms;
 	files_filetrans_lock(xdm_t,xdm_lock_t)
 
@@ -90,6 +117,24 @@ ifdef(`targeted_policy',`
 	allow xdm_t xdm_var_lib_t:file create_file_perms;
 	allow xdm_t xdm_var_lib_t:dir create_dir_perms;
 	files_filetrans_var_lib(xdm_t,xdm_var_lib_t)
+
+	allow xdm_t xdm_var_run_t:dir manage_dir_perms;
+	allow xdm_t xdm_var_run_t:fifo_file manage_file_perms;
+	files_filetrans_pid(xdm_t,xdm_var_run_t,{ dir fifo_file })
+')
+
+ifdef(`targeted_policy',`
+	allow xdm_t self:process { execheap execmem };
+	unconfined_domain_template(xdm_t)
+	unconfined_domtrans(xdm_t)
+')
+
+optional_policy(`hostname',`
+	hostname_exec(xdm_t)
+')
+
+optional_policy(`loadkeys',`
+	loadkeys_exec(xdm_t)
 ')
 
 optional_policy(`locallogin',`
@@ -104,13 +149,7 @@ ifdef(`TODO',`
 # cjp: TODO: integrate strict policy:
 daemon_domain(xdm, `, privuser, privrole, auth_chkpwd, privowner, privmem, nscd_client_domain')
 
-allow xdm_t xdm_var_run_t:dir setattr;
-
-# for xdmctl
-allow xdm_t xdm_var_run_t:fifo_file create_file_perms;
 allow initrc_t xdm_var_run_t:fifo_file unlink;
-file_type_auto_trans(xdm_t, var_run_t, xdm_var_run_t, fifo_file)
-file_type_auto_trans(xdm_t, var_run_t, xdm_var_run_t, dir)
 
 # NB we do NOT allow xdm_xserver_t xdm_var_lib_t:dir, only access to an open
 # handle of a file inside the dir!!!
@@ -118,20 +157,14 @@ allow xdm_xserver_t xdm_var_lib_t:file { getattr read };
 dontaudit xdm_xserver_t xdm_var_lib_t:dir search;
 allow xdm_xserver_t xdm_var_run_t:file { getattr read };
 
-allow xdm_t default_context_t:dir search;
-allow xdm_t default_context_t:{ file lnk_file } { read getattr };
-
 can_network(xdm_t)
-allow xdm_t port_type:tcp_socket name_connect;
 
 allow xdm_t xdm_xserver_tmp_t:dir r_dir_perms;
 allow xdm_t xdm_xserver_t:process signal;
-can_unix_connect(xdm_t, xdm_xserver_t)
+allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
 allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
 allow xdm_t xdm_xserver_tmp_t:dir { setattr r_dir_perms };
 allow xdm_xserver_t xdm_t:process signal;
-# for reboot
-allow xdm_t initctl_t:fifo_file write;
 
 # init script wants to check if it needs to update windowmanagerlist
 allow initrc_t xdm_rw_etc_t:file { getattr read };
@@ -172,19 +205,10 @@ allow xdm_xserver_t sysadm_t:fd use;
 rw_dir_create_file(xdm_xserver_t, xdm_tmp_t)
 allow xdm_xserver_t xdm_tmp_t:sock_file create_file_perms;
 
-# Run helper programs.
-allow xdm_t etc_t:file { getattr read };
-allow xdm_t bin_t:dir { getattr search };
-# lib_t is for running cpp
-can_exec(xdm_t, { shell_exec_t etc_t bin_t sbin_t lib_t })
-allow xdm_t { bin_t sbin_t }:lnk_file read;
-ifdef(`hostname.te', `can_exec(xdm_t, hostname_exec_t)')
-ifdef(`loadkeys.te', `can_exec(xdm_t, loadkeys_exec_t)')
 allow xdm_t xdm_xserver_t:process sigkill;
 allow xdm_t xdm_xserver_tmp_t:file unlink;
 
 # Access devices.
-allow xdm_t device_t:dir { read search };
 allow xdm_t console_device_t:chr_file setattr;
 allow xdm_t xconsole_device_t:fifo_file { getattr setattr };
 allow xdm_t framebuf_device_t:chr_file { getattr setattr };
@@ -197,7 +221,6 @@ allow xdm_t { xserver_misc_device_t misc_device_t }:chr_file { setattr getattr }
 allow xdm_t v4l_device_t:chr_file { setattr getattr };
 allow xdm_t scanner_device_t:chr_file { setattr getattr };
 allow xdm_t tty_device_t:chr_file { ioctl read write setattr getattr };
-allow xdm_t device_t:lnk_file read;
 can_resmgrd_connect(xdm_t)
 
 # Access xdm log files.
@@ -226,13 +249,6 @@ allow xdm_t gpm_t:unix_stream_socket connectto;
 
 allow xdm_t sysfs_t:dir search;
 
-# Update utmp and wtmp.
-allow xdm_t initrc_var_run_t: file { read write lock };
-allow xdm_t wtmp_t:file append;
-
-# Update lastlog.
-allow xdm_t lastlog_t:file rw_file_perms;
-
 # Need to further investigate these permissions and
 # perhaps define derived types.
 allow xdm_t var_lib_t:dir { write search add_name remove_name  create unlink };
@@ -244,13 +260,6 @@ allow xdm_t xfs_tmp_t:dir search;
 allow xdm_t xfs_tmp_t:sock_file write;
 can_unix_connect(xdm_t, xfs_t)
 ')
-
-allow xdm_t etc_t:lnk_file read;
-
-# wdm has its own config dir /etc/X11/wdm
-# this is ugly, daemons should not create files under /etc!
-allow xdm_t xdm_rw_etc_t:dir rw_dir_perms;
-allow xdm_t xdm_rw_etc_t:file create_file_perms;
 
 # Signal any user domain.
 allow xdm_t userdomain:process signal_perms;
@@ -274,9 +283,6 @@ dontaudit xdm_t devpts_t:dir search;
 # Do not audit denied probes of /proc.
 dontaudit xdm_t domain:dir r_dir_perms;
 dontaudit xdm_t domain:{ file lnk_file } r_file_perms;
-
-# Read /usr/share/terminfo/l/linux and /usr/share/icons/default/index.theme...
-allow xdm_t usr_t:{ lnk_file file } { getattr read };
 
 # Read fonts
 read_fonts(xdm_t)
@@ -396,7 +402,6 @@ domain_auto_trans(xdm_t, alsa_exec_t, alsa_t)
 allow xdm_t var_log_t:file { getattr read };
 allow xdm_t wtmp_t:file { getattr read };
 
-domain_auto_trans(initrc_t, xserver_exec_t, xdm_xserver_t)
 #
 # Poweroff wants to create the /poweroff file when run from xdm
 #
@@ -412,7 +417,6 @@ allow xdm_xserver_t vnc_port_t:tcp_socket name_bind;
 ifdef(`crack.te', `
 allow xdm_t crack_db_t:file r_file_perms;
 ')
-r_dir_file(xdm_t, selinux_config_t)
 
 # Run telinit->init to shutdown.
 can_exec(xdm_t, init_exec_t)
