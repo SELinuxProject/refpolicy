@@ -305,6 +305,16 @@ template(`xserver_per_userdomain_template',`
 
 	allow $2 $1_xauth_t:process signal;
 
+	# allow ps to show xauth
+	allow $2 $1_xauth_t:dir { search getattr read };
+	allow $2 $1_xauth_t:{ file lnk_file } { read getattr };
+	allow $2 $1_xauth_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_xauth_t:process ptrace;
+
 	allow $2 $1_xauth_home_t:file manage_file_perms;
 	allow $2 $1_xauth_home_t:file { relabelfrom relabelto };
 
@@ -325,6 +335,7 @@ template(`xserver_per_userdomain_template',`
 	sysnet_dns_name_resolve($1_xauth_t)
 
 	userdom_use_user_terminals($1,$1_xauth_t)
+	userdom_read_user_tmp_files($1,$1_xauth_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_files($1_xauth_t)
@@ -338,20 +349,11 @@ template(`xserver_per_userdomain_template',`
 		nis_use_ypbind($1_xauth_t)
 	')
 
-	ifdef(`TODO',`
-	ifdef(`ssh.te', `
-		domain_auto_trans($1_ssh_t, xauth_exec_t, $1_xauth_t)
-		dontaudit $1_xauth_t $1_ssh_t:tcp_socket { read write };
-
-		allow $1_xauth_t sshd_t:fifo_file { getattr read };
-		allow $1_xauth_t sshd_t:process sigchld;
-	')dnl end if ssh
-
-	# allow ps to show xauth
-	can_ps($1_t, $1_xauth_t)
-
-	allow $1_xauth_t $1_tmp_t:file { getattr ioctl read };
-	') dnl end TODO
+	optional_policy(`ssh',`
+		ssh_sigchld($1_xauth_t)
+		ssh_read_pipe($1_xauth_t)
+		ssh_dontaudit_rw_tcp_socket($1_xauth_t)
+	')
 
 	##############################
 	#
@@ -366,6 +368,16 @@ template(`xserver_per_userdomain_template',`
 
 	allow $1_iceauth_t $1_iceauth_home_t:file manage_file_perms;
 	userdom_filetrans_user_home_dir($1,$1_iceauth_t,$1_iceauth_home_t,file)
+
+	# allow ps to show iceauth
+	allow $2 $1_iceauth_t:dir { search getattr read };
+	allow $2 $1_iceauth_t:{ file lnk_file } { read getattr };
+	allow $2 $1_iceauth_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_iceauth_t:process ptrace;
 
 	allow $2 $1_iceauth_home_t:file manage_file_perms;
 	allow $2 $1_iceauth_home_t:file { relabelfrom relabelto };
@@ -384,13 +396,6 @@ template(`xserver_per_userdomain_template',`
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_iceauth_t)
 	')
-
-	ifdef(`TODO',`
-	# Supress xdm trying to restore .ICEauthority permissions
-	ifdef(`xdm.te', `
-	dontaudit xdm_t $1_iceauth_home_t:file r_file_perms;
-	')
-	') dnl end TODO
 ')
 
 #######################################
@@ -448,4 +453,54 @@ template(`xserver_displaymgr_domain_template',`
 	dontaudit $1_xserver_t sysadm_t:shm { unix_read unix_write };
 	allow $1_xserver_t xdm_tmpfs_t:file rw_file_perms;
 	') dnl end TODO
+')
+
+########################################
+## <summary>
+##	Transition to a user Xauthority domain.
+## </summary>
+## <desc>
+##	<p>
+##	Transition to a user Xauthority domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+## </param>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+template(`xserver_domtrans_user_xauth',`
+	gen_require(`
+		type $1_xauth_t, xauth_exec_t;
+	')
+
+	domain_auto_trans($2, xauth_exec_t, $1_xauth_t)
+	allow $2 $1_xauth_t:fd use;
+	allow $1_xauth_t $2:fd use;
+	allow $1_xauth_t $2:fifo_file rw_file_perms;
+	allow $1_xauth_t $2:process sigchld;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read all user
+##	.ICEauthority files.
+## </summary>
+## <param name="domain">
+##	Domain do not audit.
+## </param>
+#
+interface(`xserver_dontaudit_read_all_users_iceauth',`
+	gen_require(`
+		attribute iceauth_home_type;
+	')
+
+	dontaudit $1 iceauth_home_type:file r_file_perms;
 ')

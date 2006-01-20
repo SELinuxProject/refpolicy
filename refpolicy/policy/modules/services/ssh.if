@@ -202,6 +202,10 @@ template(`ssh_per_userdomain_template',`
 		nscd_use_socket($1_ssh_t)
 	')
 
+	optional_policy(`xserver',`
+		xserver_domtrans_user_xauth($1,$1_ssh_t)
+	')
+
 	ifdef(`TODO',`
 
 	# Read /var/run, /var/log.
@@ -550,15 +554,65 @@ template(`ssh_server_template', `
 ')
 
 ########################################
-## <summary>Read ssh server keys</summary>
+## <summary>
+##	Send a SIGCHLD signal to the ssh server.
+## </summary>
 ## <param name="domain">
-##	The type of the process performing this action.
+##	Domain allowed access.
+## </param>
+#
+interface(`ssh_sigchld',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	allow $1 sshd_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read a ssh server unnamed pipe.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`ssh_read_pipe',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	allow $1 sshd_t:fifo_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write
+##	ssh server TCP sockets.
+## </summary>
+## <param name="domain">
+##	Domain to not audit.
+## </param>
+#
+interface(`ssh_dontaudit_rw_tcp_socket',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	dontaudit $1 sshd_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Read ssh server keys
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
 ## </param>
 #
 interface(`ssh_dontaudit_read_server_keys',`
 	gen_require(`
 		type sshd_key_t;
-		class file { getattr read };
 	')
 
 	dontaudit $1 sshd_key_t:file { getattr read };
