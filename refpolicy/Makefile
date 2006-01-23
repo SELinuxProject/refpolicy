@@ -267,7 +267,7 @@ install-appconfig: $(APPFILES)
 
 $(INSTALLDIR)/booleans: $(BOOLEANS)
 	@mkdir -p $(INSTALLDIR)
-	$(QUIET) sed -r -e 's/false/0/g' -e 's/true/1/g' \ 
+	$(QUIET) sed -r -e 's/false/0/g' -e 's/true/1/g' \
 		-e '/^[[:blank:]]*($$|#)/d' $(BOOLEANS) | sort > tmp/booleans
 	$(QUIET) install -m 644 tmp/booleans $@
 
