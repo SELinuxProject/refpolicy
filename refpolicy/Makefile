@@ -250,9 +250,8 @@ $(USERPATH)/system.users: $(M4SUPPORT) tmp/generated_definitions.conf $(USER_FIL
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | \
-		egrep -v "^[[:blank:]]*($$|#)" | \
-		sed -r -e 's/^[[:blank:]]+//' >> tmp/system.users
+	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | sed -r -e 's/^[[:blank:]]+//' \
+		-e '/^[[:blank:]]*($$|#)/d' >> tmp/system.users
 	$(QUIET) install -m 644 tmp/system.users $@
 
 $(USERPATH)/local.users: config/local.users
@@ -268,8 +267,8 @@ install-appconfig: $(APPFILES)
 
 $(INSTALLDIR)/booleans: $(BOOLEANS)
 	@mkdir -p $(INSTALLDIR)
-	$(QUIET) egrep '^[[:blank:]]*[[:alpha:]]' $(BOOLEANS) \
-		| sed -e 's/false/0/g' -e 's/true/1/g' > tmp/booleans
+	$(QUIET) sed -r -e 's/false/0/g' -e 's/true/1/g' \ 
+		-e '/^[[:blank:]]*($$|#)/d' $(BOOLEANS) | sort > tmp/booleans
 	$(QUIET) install -m 644 tmp/booleans $@
 
 $(CONTEXTPATH)/files/media: $(APPCONF)/media
