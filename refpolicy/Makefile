@@ -128,6 +128,20 @@ endif
 
 override M4PARAM += -D hide_broken_symptoms
 
+# we need exuberant ctags; unfortunately it is named
+# differently on different distros
+ifeq ($(DISTRO),debian)
+	CTAGS := ctags-exuberant
+endif
+
+ifeq ($(DISTRO),gentoo)
+	CTAGS := exuberant-ctags	
+endif
+
+ifeq ($(CTAGS),)
+	CTAGS := ctags
+endif
+
 # determine the policy version and current kernel version if possible
 PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
 KV := $(shell cat /selinux/policyvers)
@@ -319,6 +333,20 @@ install-src:
 
 ########################################
 #
+# Generate tags file
+#
+tags:
+	@($(CTAGS) --version | grep -q Exuberant) || (echo ERROR: Need exuberant-ctags to function!; exit 1)
+	@LC_ALL=C $(CTAGS) --langdef=te --langmap=te:..te.if.spt \
+	 --regex-te='/^type[ \t]+(\w+)(,|;)/\1/t,type/' \
+	 --regex-te='/^typealias[ \t]+\w+[ \t+]+alias[ \t]+(\w+);/\1/t,type/' \
+	 --regex-te='/^attribute[ \t]+(\w+);/\1/a,attribute/' \
+	 --regex-te='/^[ \t]*define\(`(\w+)/\1/d,define/' \
+	 --regex-te='/^[ \t]*interface\(`(\w+)/\1/i,interface/' \
+	 --regex-te='/^[ \t]*bool[ \t]+(\w+)/\1/b,bool/' policy/modules/*/*.{if,te} policy/support/*.spt
+
+########################################
+#
 # Clean everything
 #
 bare: clean
@@ -328,6 +356,7 @@ bare: clean
 	rm -f $(MOD_CONF)
 	rm -f $(BOOLEANS)
 	rm -fR $(HTMLDIR)
+	rm -f tags
 ifneq ($(GENERATED_TE),)
 	rm -f $(GENERATED_TE)
 endif
@@ -338,6 +367,6 @@ ifneq ($(GENERATED_FC),)
 	rm -f $(GENERATED_FC)
 endif
 
-.PHONY: install-src install-appconfig conf html bare
+.PHONY: install-src install-appconfig conf html bare tags
 .SUFFIXES:
 .SUFFIXES: .c
