@@ -138,9 +138,7 @@ ifeq ($(DISTRO),gentoo)
 	CTAGS := exuberant-ctags	
 endif
 
-ifeq ($(CTAGS),)
-	CTAGS := ctags
-endif
+CTAGS ?= ctags
 
 # determine the policy version and current kernel version if possible
 PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
