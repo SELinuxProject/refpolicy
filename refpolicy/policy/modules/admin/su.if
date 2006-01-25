@@ -8,9 +8,6 @@ template(`su_restricted_domain_template', `
 	type $1_su_t;
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
-	domain_role_change_exempt($1_su_t)
-	domain_subj_id_change_exempt($1_su_t)
-	domain_obj_id_change_exempt($1_su_t)
 	domain_wide_inherit_fd($1_su_t)
 	role $3 types $1_su_t;
 
@@ -48,13 +45,6 @@ template(`su_restricted_domain_template', `
 	files_search_var_lib($1_su_t)
 	files_dontaudit_getattr_tmp_dir($1_su_t)
 
-	selinux_get_fs_mount($1_su_t)
-	selinux_validate_context($1_su_t)
-	selinux_compute_access_vector($1_su_t)
-	selinux_compute_create_context($1_su_t)
-	selinux_compute_relabel_context($1_su_t)
-	selinux_compute_user_contexts($1_su_t)
-
 	auth_domtrans_chk_passwd($1_su_t)
 	auth_dontaudit_read_shadow($1_su_t)
 	auth_use_nsswitch($1_su_t)
@@ -72,12 +62,6 @@ template(`su_restricted_domain_template', `
 	logging_send_syslog_msg($1_su_t)
 
 	miscfiles_read_localization($1_su_t)
-
-	seutil_read_config($1_su_t)
-	seutil_read_default_contexts($1_su_t)
-
-	# Only allow transitions to unprivileged user domains.
-	userdom_spec_domtrans_unpriv_users($1_su_t)
 
 	optional_policy(`cron',`
 		cron_read_pipe($1_su_t)
@@ -133,9 +117,6 @@ template(`su_per_userdomain_template',`
 	type $1_su_t;
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
-	domain_role_change_exempt($1_su_t)
-	domain_subj_id_change_exempt($1_su_t)
-	domain_obj_id_change_exempt($1_su_t)
 	domain_wide_inherit_fd($1_su_t)
 	role $3 types $1_su_t;
 
@@ -169,20 +150,6 @@ template(`su_per_userdomain_template',`
 
 	fs_search_auto_mountpoints($1_su_t)
 
-	selinux_get_fs_mount($1_su_t)
-	selinux_validate_context($1_su_t)
-	selinux_compute_access_vector($1_su_t)
-	selinux_compute_create_context($1_su_t)
-	selinux_compute_relabel_context($1_su_t)
-	selinux_compute_user_contexts($1_su_t)
-
-	# Relabel ttys and ptys.
-	term_relabel_all_user_ttys($1_su_t)
-	term_relabel_all_user_ptys($1_su_t)
-	# Close and re-open ttys and ptys to get the fd into the correct domain.
-	term_use_all_user_ttys($1_su_t)
-	term_use_all_user_ptys($1_su_t)
-
 	auth_domtrans_user_chk_passwd($1,$1_su_t)
 	auth_dontaudit_read_shadow($1_su_t)
 	auth_use_nsswitch($1_su_t)
@@ -208,27 +175,11 @@ template(`su_per_userdomain_template',`
 
 	miscfiles_read_localization($1_su_t)
 
-	seutil_read_config($1_su_t)
-	seutil_read_default_contexts($1_su_t)
-
 	userdom_use_user_terminals($1,$1_su_t)
 	userdom_search_user_home($1,$1_su_t)
 
 	ifdef(`enable_polyinstantiation',`
-		mls_file_read_up($1_su_t)
-		mls_file_write_down($1_su_t)
-		mls_file_upgrade($1_su_t)
-		mls_file_downgrade($1_su_t)
-		mls_process_set_level($1_su_t)
-
-		# Su can polyinstantiate
-		files_polyinstantiate_all($1_su_t)
-
-		# Su needs additional permission to mount over a previous mount
-		files_mounton_all_poly_members($1_su_t)
-
-		# Su has to unmount polyinstantiated directories (like home)
-		# that should not be polyinstantiated under the new user
+		fs_mount_xattr_fs($1_su_t)
 		fs_unmount_xattr_fs($1_su_t)
 	')
 
@@ -243,22 +194,6 @@ template(`su_per_userdomain_template',`
 		corecmd_exec_bin($1_su_t)
 		userdom_manage_all_user_files($1_su_t)
 		userdom_manage_all_user_symlinks($1_su_t)
-
-		# newrole does not make any sense in
-		# the targeted policy.  This is to
-		# make sediff easier.
-		if(!secure_mode) {
-			unconfined_domtrans($1_su_t)
-			unconfined_signal($1_su_t)
-		}
-	',`
-		if(secure_mode) {
-			# Only allow transitions to unprivileged user domains.
-			userdom_spec_domtrans_unpriv_users($1_su_t)
-		} else {
-			# Allow transitions to all user domains
-			userdom_spec_domtrans_all_users($1_su_t)
-		}
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
