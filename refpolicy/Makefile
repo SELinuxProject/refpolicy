@@ -82,51 +82,50 @@ MODPKGDIR = $(DESTDIR)/usr/share/selinux/$(NAME)
 
 # compile strict policy if requested.
 ifneq ($(findstring strict,$(TYPE)),)
-	override M4PARAM += -D strict_policy
+	M4PARAM += -D strict_policy
 endif
 
 # compile targeted policy if requested.
 ifneq ($(findstring targeted,$(TYPE)),)
-	override M4PARAM += -D targeted_policy
+	M4PARAM += -D targeted_policy
 endif
 
 # enable MLS if requested.
 ifneq ($(findstring -mls,$(TYPE)),)
-	override M4PARAM += -D enable_mls
-	override CHECKPOLICY += -M
-	override CHECKMODULE += -M
+	M4PARAM += -D enable_mls
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
 endif
 
 # enable MLS if MCS requested.
 ifneq ($(findstring -mcs,$(TYPE)),)
-	override M4PARAM += -D enable_mcs
-	override CHECKPOLICY += -M
-	override CHECKMODULE += -M
+	M4PARAM += -D enable_mcs
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
 endif
 
 # enable distribution-specific policy
 ifneq ($(DISTRO),)
-	override M4PARAM += -D distro_$(DISTRO)
+	M4PARAM += -D distro_$(DISTRO)
 endif
 
 # enable polyinstantiation
 ifeq ($(POLY),y)
-	override M4PARAM += -D enable_polyinstantiation
+	M4PARAM += -D enable_polyinstantiation
 endif
 
 ifneq ($(OUTPUT_POLICY),)
-	override CHECKPOLICY += -c $(OUTPUT_POLICY)
+	CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
 
-ifeq ($(NAME),)
-	NAME := $(TYPE)
-endif
+# if not set, use the type as the name.
+NAME ?= $(TYPE)
 
 ifeq ($(DIRECT_INITRC),y)
-	override M4PARAM += -D direct_sysadm_daemon
+	M4PARAM += -D direct_sysadm_daemon
 endif
 
-override M4PARAM += -D hide_broken_symptoms
+M4PARAM += -D hide_broken_symptoms
 
 # we need exuberant ctags; unfortunately it is named
 # differently on different distros
