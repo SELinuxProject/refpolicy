@@ -74,12 +74,14 @@ BOOLEANS := $(POLDIR)/booleans.conf
 ROLEMAP := $(POLDIR)/rolemap
 
 # install paths
-TOPDIR = $(DESTDIR)/etc/selinux
-INSTALLDIR = $(TOPDIR)/$(NAME)
-SRCPATH = $(INSTALLDIR)/src
-USERPATH = $(INSTALLDIR)/users
-CONTEXTPATH = $(INSTALLDIR)/contexts
-MODPKGDIR = $(DESTDIR)/usr/share/selinux/$(NAME)
+TOPDIR := $(DESTDIR)/etc/selinux
+INSTALLDIR := $(TOPDIR)/$(NAME)
+SRCPATH := $(INSTALLDIR)/src
+USERPATH := $(INSTALLDIR)/users
+CONTEXTPATH := $(INSTALLDIR)/contexts
+SHAREDIR := $(DESTDIR)$(PREFIX)/share/selinux
+MODPKGDIR := $(SHAREDIR)/$(NAME)
+HEADERDIR := $(SHAREDIR)/refpolicy/include
 
 # compile strict policy if requested.
 ifneq ($(findstring strict,$(TYPE)),)
@@ -124,6 +126,10 @@ NAME ?= $(TYPE)
 
 ifeq ($(DIRECT_INITRC),y)
 	M4PARAM += -D direct_sysadm_daemon
+endif
+
+ifeq ($(QUIET),y)
+	verbose = @
 endif
 
 M4PARAM += -D hide_broken_symptoms
@@ -189,15 +195,15 @@ OFF_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == 
 
 # parse-rolemap modulename,outputfile
 define parse-rolemap
-	$(QUIET) m4 $(M4PARAM) $(ROLEMAP) | \
+	$(verbose) m4 $(M4PARAM) $(ROLEMAP) | \
 		awk '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
 endef
 
 # peruser-expansion modulename,outputfile
 define peruser-expansion
-	$(QUIET) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
+	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
 	$(call parse-rolemap,$1,$2)
-	$(QUIET) echo "')" >> $2
+	$(verbose) echo "')" >> $2
 endef
 
 ########################################
@@ -220,8 +226,8 @@ $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
-	$(QUIET) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
+	$(verbose) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
+	$(verbose) egrep "^[[:blank:]]*network_(interface|node|port)\(.*\)" $(@:.if=.te).in \
 		| m4 -D self_contained_policy $(M4PARAM) $(MODDIR)/kernel/corenetwork.if.m4 - \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
@@ -230,7 +236,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ \
+	$(verbose) m4 -D self_contained_policy $(M4PARAM) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 ########################################
@@ -241,7 +247,7 @@ conf: $(MOD_CONF) $(BOOLEANS) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
 
 $(MOD_CONF) $(BOOLEANS): $(POLXML)
 	@echo "Updating $(MOD_CONF) and $(BOOLEANS)"
-	$(QUIET) cd $(DOCS) && ../$(GENDOC) -t ../$(BOOLEANS) -m ../$(MOD_CONF) -x ../$(POLXML)
+	$(verbose) cd $(DOCS) && ../$(GENDOC) -t ../$(BOOLEANS) -m ../$(MOD_CONF) -x ../$(POLXML)
 
 ########################################
 #
@@ -255,18 +261,18 @@ $(MOD_CONF) $(BOOLEANS): $(POLXML)
 $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXML))
 	@echo "Creating $@"
 	@mkdir -p tmp
-	$(QUIET) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(QUIET) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(QUIET) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) $(ALL_LAYERS) >> $@
-	$(QUIET) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
+	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
+	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
+	$(verbose) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) $(ALL_LAYERS) >> $@
+	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
 html: $(POLXML)
 	@echo "Building html interface reference documentation in $(HTMLDIR)"
 	@mkdir -p $(HTMLDIR)
-	$(QUIET) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
-	$(QUIET) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
+	$(verbose) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
+	$(verbose) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
 
 ########################################
 #
@@ -280,14 +286,14 @@ $(USERPATH)/system.users: $(M4SUPPORT) tmp/generated_definitions.conf $(USER_FIL
 	@echo "# This file is replaced on reinstalls of this policy." >> tmp/system.users
 	@echo "# Please edit local.users to make local changes." >> tmp/system.users
 	@echo "#" >> tmp/system.users
-	$(QUIET) m4 -D self_contained_policy $(M4PARAM) $^ | sed -r -e 's/^[[:blank:]]+//' \
+	$(verbose) m4 -D self_contained_policy $(M4PARAM) $^ | sed -r -e 's/^[[:blank:]]+//' \
 		-e '/^[[:blank:]]*($$|#)/d' >> tmp/system.users
-	$(QUIET) install -m 644 tmp/system.users $@
+	$(verbose) install -m 644 tmp/system.users $@
 
 $(USERPATH)/local.users: config/local.users
 	@mkdir -p $(USERPATH)
 	@echo "Installing local.users"
-	$(QUIET) install -b -m 644 $< $@
+	$(verbose) install -b -m 644 $< $@
 
 ########################################
 #
@@ -297,45 +303,54 @@ install-appconfig: $(APPFILES)
 
 $(INSTALLDIR)/booleans: $(BOOLEANS)
 	@mkdir -p $(INSTALLDIR)
-	$(QUIET) sed -r -e 's/false/0/g' -e 's/true/1/g' \
+	$(verbose) sed -r -e 's/false/0/g' -e 's/true/1/g' \
 		-e '/^[[:blank:]]*($$|#)/d' $(BOOLEANS) | sort > tmp/booleans
-	$(QUIET) install -m 644 tmp/booleans $@
+	$(verbose) install -m 644 tmp/booleans $@
 
 $(CONTEXTPATH)/files/media: $(APPCONF)/media
 	@mkdir -p $(CONTEXTPATH)/files/
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/default_contexts: $(APPCONF)/default_contexts
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/removable_context: $(APPCONF)/removable_context
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/default_type: $(APPCONF)/default_type
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/userhelper_context: $(APPCONF)/userhelper_context
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/initrc_context: $(APPCONF)/initrc_context
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/failsafe_context: $(APPCONF)/failsafe_context
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/dbus_contexts: $(APPCONF)/dbus_contexts
 	@mkdir -p $(APPDIR)
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
 
 $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 	@mkdir -p $(APPDIR)/users
-	$(QUIET) install -m 644 $< $@
+	$(verbose) install -m 644 $< $@
+
+########################################
+#
+# Install policy headers
+#
+install-headers: $(DETECTED_MODS:.te=.if) $(ROLEMAP) $(M4SUPPORT) $(SUPPORT)/Makefile.devel build.conf
+	mkdir -p $(HEADERDIR)
+	$(verbose) install -m 644 $^ $(HEADERDIR)
+	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/all_perms.spt
 
 ########################################
 #
