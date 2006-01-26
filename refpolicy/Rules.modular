@@ -64,7 +64,8 @@ $(MODPKGDIR)/%.pp: %.pp
 #
 tmp/%.mod: $(M4SUPPORT) tmp/generated_definitions.conf tmp/all_interfaces.conf %.te
 	@echo "Compliling $(NAME) $(@F) module"
-	$(QUIET) m4 $(M4PARAM) -s $^ > $(@:.mod=.tmp)
+	$(call peruser-expansion,$(basename $(@F)),$@.role)
+	$(QUIET) m4 $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
 	$(QUIET) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
 tmp/%.mod.fc: $(M4SUPPORT) %.fc
@@ -109,8 +110,8 @@ tmp/generated_definitions.conf: $(BASE_TE_FILES)
 # define all available object classes
 	$(QUIET) $(GENPERM) $(AVS) $(SECCLASS) > $@
 # per-userdomain templates
-	$(QUIET) echo "define(\`per_userdomain_templates',\`" >> $@
-	$(QUIET) for i in $(patsubst %.te,%,$(BASE_MODS) $(MOD_MODS)); do \
+	$(QUIET) echo "define(\`base_per_userdomain_template',\`" >> $@
+	$(QUIET) for i in $(patsubst %.te,%,$(BASE_MODS)); do \
 		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$*'")')" \
 			>> $@ ;\
 	done
@@ -134,6 +135,7 @@ ifeq ($(BASE_TE_FILES),)
 endif
 	@test -d tmp || mkdir -p tmp
 	$(QUIET) cat $^ > $@
+	$(call parse-rolemap,base,$@)
 
 tmp/post_te_files.conf: $(BASE_POST_TE_FILES)
 	@test -d tmp || mkdir -p tmp

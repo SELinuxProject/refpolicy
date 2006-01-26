@@ -71,6 +71,7 @@ GLOBALBOOL := $(POLDIR)/global_booleans
 MOD_CONF := $(POLDIR)/modules.conf
 TUNABLES := $(POLDIR)/tunables.conf
 BOOLEANS := $(POLDIR)/booleans.conf
+ROLEMAP := $(POLDIR)/rolemap
 
 # install paths
 TOPDIR = $(DESTDIR)/etc/selinux
@@ -180,6 +181,24 @@ MODUNUSED := off
 BASE_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 MOD_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 OFF_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null))
+
+########################################
+#
+# Functions
+#
+
+# parse-rolemap modulename,outputfile
+define parse-rolemap
+	$(QUIET) m4 $(M4PARAM) $(ROLEMAP) | \
+		awk '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
+endef
+
+# peruser-expansion modulename,outputfile
+define peruser-expansion
+	$(QUIET) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
+	$(call parse-rolemap,$1,$2)
+	$(QUIET) echo "')" >> $2
+endef
 
 ########################################
 #
