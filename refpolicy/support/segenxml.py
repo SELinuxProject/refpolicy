@@ -36,7 +36,7 @@ bool_files = []
 #	 -> ("interface", "kernel_read_system_state")
 #	"template(`base_user_template',`"
 #	 -> ("template", "base_user_template")
-INTERFACE = re.compile("^\s*(interface|template)\(`([A-Za-z0-9_]*)'")
+INTERFACE = re.compile("^\s*(interface|template)\(`(\w*)'")
 
 # Matches either a gen_bool or a gen_tunable statement. Will give the tuple:
 #	("tunable" or "bool", name, "true" or "false")
@@ -45,7 +45,7 @@ INTERFACE = re.compile("^\s*(interface|template)\(`([A-Za-z0-9_]*)'")
 #	 -> ("bool", "secure_mode", "false")
 #	"gen_tunable(allow_kerberos, false)"
 #	 -> ("tunable", "allow_kerberos", "false")
-BOOLEAN = re.compile("^\s*gen_(tunable|bool)\(\s*([A-Za-z0-9_]*)\s*,\s*(true|false)\s*\)")
+BOOLEAN = re.compile("^\s*gen_(tunable|bool)\(\s*(\w*)\s*,\s*(true|false)\s*\)")
 
 # Matches a XML comment in the policy, which is defined as any line starting
 #  with two # and at least one character of white space. Will give the single
@@ -77,8 +77,8 @@ def getModuleXML(file_name):
 	module_buf = []
 
 	# Infer the module name, which is the base of the file name.
-	module_buf.append("<module name=\"%s\">\n" 
-		% os.path.splitext(os.path.split(file_name)[-1])[0])
+	module_buf.append("<module name=\"%s\" filename=\"%s\">\n" 
+		% (os.path.splitext(os.path.split(file_name)[-1])[0], file_name))
 
 	temp_buf = []
 	interface = None
@@ -92,7 +92,9 @@ def getModuleXML(file_name):
 		module_code = module_code[1:]
 
 	# Go line by line and figure out what to do with it.
+	line_num = 0
 	for line in module_code:
+		line_num += 1
 		if finding_header:
 			# If there is a XML comment, add it to the temp buffer.
 			comment = XML_COMMENT.match(line)
@@ -130,7 +132,8 @@ def getModuleXML(file_name):
 			interface = INTERFACE.match(line)
 		if interface:
 			# Add the opening tag for the interface/template
-			module_buf.append("<%s name=\"%s\">\n" % interface.groups())
+			groups = interface.groups()
+			module_buf.append("<%s name=\"%s\" lineno=\"%s\">\n" % (groups[0], groups[1], line_num))
 
 			# Add all the comments attributed to this interface to
 			#  the module buffer.
