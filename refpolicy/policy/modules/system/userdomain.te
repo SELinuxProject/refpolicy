@@ -1,5 +1,5 @@
 
-policy_module(userdomain,1.2.4)
+policy_module(userdomain,1.2.5)
 
 gen_require(`
 	role sysadm_r, staff_r, user_r;
@@ -156,12 +156,19 @@ ifdef(`targeted_policy',`
 
 	mls_process_read_up(sysadm_t)
 
-	logging_read_audit_log(sysadm_t)
-
 	ifdef(`direct_sysadm_daemon',`
 		optional_policy(`init',`
 			init_run_daemon(sysadm_t,sysadm_r,admin_terminal)
 		')
+	')
+
+	ifdef(`enable_mls',`
+		logging_read_audit_log(secadm_t)
+		logging_domtrans_auditctl(secadm_t)
+		mls_process_read_up(secadm_t)
+	', `
+		logging_domtrans_auditctl(sysadm_t)
+		logging_read_audit_log(sysadm_t)
 	')
 
 	tunable_policy(`allow_ptrace',`
@@ -205,10 +212,18 @@ ifdef(`targeted_policy',`
 
 	optional_policy(`consoletype',`
 		consoletype_exec(sysadm_t)
+
+		ifdef(`enable_mls',`
+			consoletype_exec(secadm_t)
+		')
 	')
 
 	optional_policy(`ddcprobe',`
 		ddcprobe_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+
+	optional_policy(`dmesg',`
+		dmesg_exec(sysadm_t)
 	')
 
 	optional_policy(`dmidecode',`
@@ -320,13 +335,27 @@ ifdef(`targeted_policy',`
 	')
 
 	optional_policy(`selinuxutil',`
-		seutil_run_checkpol(sysadm_t,sysadm_r,admin_terminal)
-		seutil_run_loadpol(sysadm_t,sysadm_r,admin_terminal)
 		seutil_run_restorecon(sysadm_t,sysadm_r,admin_terminal)
-		seutil_run_setfiles(sysadm_t,sysadm_r,admin_terminal)
+		seutil_run_runinit(sysadm_t,sysadm_r,admin_terminal)
 
-		ifdef(`targeted_policy',`',`
-			seutil_run_runinit(sysadm_t,sysadm_r,admin_terminal)
+		ifdef(`enable_mls',`
+			selinux_set_enforce_mode(secadm_t)
+			selinux_set_boolean(secadm_t)
+			selinux_set_parameters(secadm_t)
+
+			seutil_manage_binary_pol(secadm_t)
+			seutil_run_checkpol(secadm_t,secadm_r,admin_terminal)
+			seutil_run_loadpol(secadm_t,secadm_r,admin_terminal)
+			seutil_run_setfiles(secadm_t,secadm_r,admin_terminal)
+		', `
+			selinux_set_enforce_mode(sysadm_t)
+			selinux_set_boolean(sysadm_t)
+			selinux_set_parameters(sysadm_t)
+
+			seutil_manage_binary_pol(sysadm_t)
+			seutil_run_checkpol(sysadm_t,sysadm_r,admin_terminal)
+			seutil_run_loadpol(sysadm_t,sysadm_r,admin_terminal)
+			seutil_run_setfiles(sysadm_t,sysadm_r,admin_terminal)
 		')
 	')
 
