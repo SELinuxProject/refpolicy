@@ -1,12 +1,10 @@
 
-policy_module(xserver,1.0.0)
+policy_module(xserver,1.0.1)
 
 ########################################
 #
 # Declarations
 #
-
-attribute iceauth_home_type;
 
 type ice_tmp_t;
 files_tmp_file(ice_tmp_t)
@@ -17,6 +15,33 @@ files_type(iceauth_exec_t)
 type xauth_exec_t;
 files_type(xauth_exec_t)
 
+type xdm_t;
+# real declaration moved to mls until
+# range_transition works in loadable modules
+gen_require(`
+	type xdm_exec_t;
+')
+init_domain(xdm_t,xdm_exec_t)
+init_daemon_domain(xdm_t,xdm_exec_t)
+
+type xdm_lock_t;
+files_lock_file(xdm_lock_t)
+
+type xdm_rw_etc_t;
+files_type(xdm_rw_etc_t)
+
+type xdm_var_lib_t;
+files_type(xdm_var_lib_t)
+
+type xdm_var_run_t;
+files_pid_file(xdm_var_run_t)
+
+type xdm_tmp_t;
+files_tmp_file(xdm_tmp_t)
+
+type xdm_tmpfs_t;
+files_tmpfs_file(xdm_tmpfs_t)
+
 # type for /var/lib/xkb
 type xkb_var_lib_t;
 files_config_file(xkb_var_lib_t)
@@ -25,10 +50,422 @@ files_config_file(xkb_var_lib_t)
 type xserver_exec_t;
 files_type(xserver_exec_t)
 
+type xsession_exec_t;
+files_type(xsession_exec_t)
+
 # Type for the X server log file.
 type xserver_log_t;
 logging_log_file(xserver_log_t)
 
+ifdef(`strict_policy',`
+	xserver_common_domain_template(xdm)
+	init_system_domain(xdm_xserver_t,xserver_exec_t)
+')
+
 optional_policy(`prelink',`
 	prelink_object_file(xkb_var_lib_t)
 ')
+
+########################################
+#
+# XDM Local policy
+#
+
+allow xdm_t self:capability { setgid setuid sys_resource kill sys_tty_config mknod chown dac_override dac_read_search fowner fsetid ipc_owner sys_nice sys_rawio net_bind_service };
+allow xdm_t self:process { setexec setpgid setsched setrlimit signal_perms };
+allow xdm_t self:fifo_file rw_file_perms;
+allow xdm_t self:shm create_shm_perms;
+allow xdm_t self:sem create_sem_perms;
+allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow xdm_t self:unix_dgram_socket create_socket_perms;
+allow xdm_t self:tcp_socket create_stream_socket_perms;
+allow xdm_t self:udp_socket create_socket_perms;
+
+# Supress permission check on .ICE-unix
+dontaudit xdm_t ice_tmp_t:dir { getattr setattr };
+
+# Allow gdm to run gdm-binary
+can_exec(xdm_t, xdm_exec_t)
+
+# wdm has its own config dir /etc/X11/wdm
+# this is ugly, daemons should not create files under /etc!
+allow xdm_t xdm_rw_etc_t:dir rw_dir_perms;
+allow xdm_t xdm_rw_etc_t:file create_file_perms;
+
+kernel_read_system_state(xdm_t)
+kernel_read_kernel_sysctl(xdm_t)
+
+corecmd_exec_shell(xdm_t)
+corecmd_exec_bin(xdm_t)
+corecmd_exec_sbin(xdm_t)
+
+corenet_tcp_sendrecv_generic_if(xdm_t)
+corenet_udp_sendrecv_generic_if(xdm_t)
+corenet_raw_sendrecv_generic_if(xdm_t)
+corenet_tcp_sendrecv_all_nodes(xdm_t)
+corenet_udp_sendrecv_all_nodes(xdm_t)
+corenet_raw_sendrecv_all_nodes(xdm_t)
+corenet_tcp_sendrecv_all_ports(xdm_t)
+corenet_udp_sendrecv_all_ports(xdm_t)
+corenet_non_ipsec_sendrecv(xdm_t)
+corenet_tcp_bind_all_nodes(xdm_t)
+corenet_udp_bind_all_nodes(xdm_t)
+corenet_tcp_connect_all_ports(xdm_t)
+# xdm tries to bind to biff_port_t
+corenet_dontaudit_tcp_bind_all_ports(xdm_t)
+
+dev_read_rand(xdm_t)
+dev_read_urand(xdm_t)
+dev_read_sysfs(xdm_t)
+dev_getattr_framebuffer(xdm_t)
+dev_setattr_framebuffer(xdm_t)
+dev_getattr_mouse(xdm_t)
+dev_setattr_mouse(xdm_t)
+dev_rw_apm_bios(xdm_t)
+dev_setattr_apm_bios(xdm_t)
+dev_rw_dri_dev(xdm_t)
+dev_rw_agp_dev(xdm_t)
+dev_getattr_xserver_misc_dev(xdm_t)
+dev_setattr_xserver_misc_dev(xdm_t)
+dev_getattr_misc(xdm_t)
+dev_setattr_misc(xdm_t)
+dev_dontaudit_rw_misc(xdm_t)
+dev_getattr_video_dev(xdm_t)
+dev_setattr_video_dev(xdm_t)
+dev_getattr_scanner(xdm_t)
+dev_setattr_scanner(xdm_t)
+dev_getattr_snd_dev(xdm_t)
+dev_setattr_snd_dev(xdm_t)
+dev_getattr_power_management(xdm_t)
+dev_setattr_power_management(xdm_t)
+
+domain_use_wide_inherit_fd(xdm_t)
+# Do not audit denied probes of /proc.
+domain_dontaudit_read_all_domains_state(xdm_t)
+
+files_read_etc_files(xdm_t)
+files_read_etc_runtime_files(xdm_t)
+files_exec_etc_files(xdm_t)
+files_list_mnt(xdm_t)
+# Read /usr/share/terminfo/l/linux and /usr/share/icons/default/index.theme...
+files_read_usr_files(xdm_t)
+# Poweroff wants to create the /poweroff file when run from xdm
+files_create_boot_flag(xdm_t)
+
+fs_getattr_all_fs(xdm_t)
+fs_search_auto_mountpoints(xdm_t)
+
+selinux_get_fs_mount(xdm_t)
+selinux_validate_context(xdm_t)
+selinux_compute_access_vector(xdm_t)
+selinux_compute_create_context(xdm_t)
+selinux_compute_relabel_context(xdm_t)
+selinux_compute_user_contexts(xdm_t)
+
+storage_dontaudit_read_fixed_disk(xdm_t)
+storage_dontaudit_write_fixed_disk(xdm_t)
+storage_dontaudit_setattr_fixed_disk(xdm_t)
+storage_dontaudit_raw_read_removable_device(xdm_t)
+storage_dontaudit_raw_write_removable_device(xdm_t)
+storage_dontaudit_setattr_removable_device(xdm_t)
+storage_dontaudit_rw_scsi_generic(xdm_t)
+
+term_setattr_console(xdm_t)
+term_dontaudit_use_console(xdm_t)
+term_use_unallocated_tty(xdm_t)
+term_setattr_unallocated_ttys(xdm_t)
+
+auth_rw_lastlog(xdm_t)
+auth_read_login_records(xdm_t)
+auth_append_login_records(xdm_t)
+auth_manage_pam_pid(xdm_t)
+auth_exec_pam(xdm_t)
+auth_manage_pam_console_data(xdm_t)
+
+init_rw_utmp(xdm_t)
+init_use_script_pty(xdm_t)
+# Run telinit->init to shutdown.
+init_exec(xdm_t)
+init_write_initctl(xdm_t)
+
+libs_use_ld_so(xdm_t)
+libs_use_shared_libs(xdm_t)
+libs_exec_lib_files(xdm_t)
+
+logging_send_syslog_msg(xdm_t)
+logging_read_generic_logs(xdm_t)
+
+miscfiles_read_localization(xdm_t)
+miscfiles_read_fonts(xdm_t)
+
+seutil_read_config(xdm_t)
+seutil_read_default_contexts(xdm_t)
+
+sysnet_read_config(xdm_t)
+
+userdom_dontaudit_use_unpriv_user_fd(xdm_t)
+userdom_dontaudit_search_sysadm_home_dir(xdm_t)
+# for .dmrc
+userdom_read_unpriv_user_home_files(xdm_t)
+# Search /proc for any user domain processes.
+userdom_read_all_userdomains_state(xdm_t)
+userdom_signal_all_users(xdm_t)
+
+ifdef(`enable_polyinstantiation',`
+	# xdm_t can polyinstantiate
+	files_polyinstantiate_all(xdm_t)
+')
+
+ifdef(`strict_policy',`
+	allow xdm_t xdm_lock_t:file create_file_perms;
+	files_filetrans_lock(xdm_t,xdm_lock_t)
+
+	allow xdm_t xdm_tmp_t:dir create_dir_perms;
+	allow xdm_t xdm_tmp_t:file create_file_perms;
+	allow xdm_t xdm_tmp_t:file create_file_perms;
+	files_filetrans_tmp(xdm_t, xdm_tmp_t, { file dir sock_file })
+
+	allow xdm_t xdm_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow xdm_t xdm_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow xdm_t xdm_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+	allow xdm_t xdm_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow xdm_t xdm_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	fs_filetrans_tmpfs(xdm_t,xdm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow xdm_t xdm_var_lib_t:file create_file_perms;
+	allow xdm_t xdm_var_lib_t:dir create_dir_perms;
+	files_filetrans_var_lib(xdm_t,xdm_var_lib_t)
+
+	allow xdm_t xdm_var_run_t:dir manage_dir_perms;
+	allow xdm_t xdm_var_run_t:fifo_file manage_file_perms;
+	files_filetrans_pid(xdm_t,xdm_var_run_t,{ dir fifo_file })
+
+	allow xdm_t xdm_xserver_t:process signal;
+	allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
+
+	allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
+	allow xdm_t xdm_xserver_tmp_t:dir { setattr r_dir_perms };
+
+	# transition to the xdm xserver
+	domain_auto_trans(xdm_t, xserver_exec_t, xdm_xserver_t)
+	allow xdm_t xdm_xserver_t:fd use;
+	allow xdm_xserver_t xdm_t:fd use;
+	allow xdm_xserver_t xdm_t:fifo_file rw_file_perms;
+	allow xdm_xserver_t xdm_t:process { signal sigchld };
+	allow xdm_t xdm_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
+
+	allow xdm_t xdm_xserver_t:shm rw_shm_perms;
+
+	# connect to xdm xserver over stream socket
+	allow xdm_t xdm_xserver_tmp_t:dir r_dir_perms;
+	allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
+	allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
+
+	# Remove /tmp/.X11-unix/X0.
+	allow xdm_t xdm_xserver_tmp_t:dir { remove_name write };
+	allow xdm_t xdm_xserver_tmp_t:sock_file unlink;
+	allow xdm_t xdm_xserver_tmp_t:file unlink;
+
+	allow xdm_t xserver_log_t:dir { rw_dir_perms setattr };
+	allow xdm_t xserver_log_t:file manage_file_perms;
+	allow xdm_t xserver_log_t:fifo_file manage_file_perms;
+	logging_filetrans_log(xdm_t,xserver_log_t,file)
+
+	domain_subj_id_change_exempt(xdm_t)
+	domain_role_change_exempt(xdm_t)
+	domain_obj_id_change_exempt(xdm_t)
+
+	auth_domtrans_chk_passwd(xdm_t)
+	auth_domtrans_pam_console(xdm_t)	
+
+	# FIXME:
+	# xserver_rw_session_template(xdm,xdm_t,xdm_tmpfs_t)
+
+	tunable_policy(`xdm_sysadm_login',`
+		userdom_xsession_spec_domtrans_all_users(xdm_t)
+		# FIXME:
+#		xserver_rw_session_template(xdm,userdomain)
+	',`
+		userdom_xsession_spec_domtrans_unpriv_users(xdm_t)
+		# FIXME:
+#		xserver_rw_session_template(xdm,unpriv_userdomain)
+#		dontaudit xdm_xserver_t sysadm_t:shm { unix_read unix_write };
+#		allow xdm_xserver_t xdm_tmpfs_t:file rw_file_perms;
+	')
+
+	optional_policy(`alsa',`
+		alsa_domtrans(xdm_t)
+	')
+')
+
+ifdef(`targeted_policy',`
+	allow xdm_t self:process { execheap execmem };
+	unconfined_domain_template(xdm_t)
+	unconfined_domtrans(xdm_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(xdm_t)
+	fs_manage_nfs_files(xdm_t)
+	fs_manage_nfs_symlinks(xdm_t)
+	fs_execute_nfs_files(xdm_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(xdm_t)
+	fs_manage_cifs_files(xdm_t)
+	fs_manage_cifs_symlinks(xdm_t)
+	fs_execute_cifs_files(xdm_t)
+')
+
+optional_policy(`gpm',`
+	# Talk to the console mouse server.
+	gpm_stream_connect(xdm_t)
+	gpm_setattr_gpmctl(xdm_t)
+')
+
+optional_policy(`hostname',`
+	hostname_exec(xdm_t)
+')
+
+optional_policy(`loadkeys',`
+	loadkeys_exec(xdm_t)
+')
+
+optional_policy(`locallogin',`
+	locallogin_signull(xdm_t)
+')
+
+optional_policy(`mta',`
+	# Do not audit attempts to check whether user root has email
+	mta_dontaudit_getattr_spool(xdm_t)
+')
+
+optional_policy(`nscd',`
+	nscd_use_socket(xdm_t)
+')
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(xdm_t)
+')
+
+optional_policy(`udev',`
+	udev_read_db(xdm_t)
+')
+
+optional_policy(`userhelper',`
+	userhelper_dontaudit_search_config(xdm_t)
+')
+
+optional_policy(`usermanage',`
+	usermanage_read_crack_db(xdm_t)
+')
+
+optional_policy(`xfs',`
+	xfs_stream_connect(xdm_t)
+')
+
+########################################
+#
+# XDM Xserver local policy
+#
+
+ifdef(`strict_policy',`
+	allow xdm_xserver_t xdm_t:process signal;
+	allow xdm_xserver_t xdm_t:shm rw_shm_perms;
+
+	# NB we do NOT allow xdm_xserver_t xdm_var_lib_t:dir, only access to an open
+	# handle of a file inside the dir!!!
+	allow xdm_xserver_t xdm_var_lib_t:file { getattr read };
+	dontaudit xdm_xserver_t xdm_var_lib_t:dir search;
+
+	allow xdm_xserver_t xdm_var_run_t:file { getattr read };
+
+	# Label pid and temporary files with derived types.
+	allow xdm_xserver_t xdm_tmp_t:dir rw_dir_perms;
+	allow xdm_xserver_t xdm_tmp_t:file manage_file_perms;
+	allow xdm_xserver_t xdm_tmp_t:lnk_file create_lnk_perms;
+	allow xdm_xserver_t xdm_tmp_t:sock_file manage_file_perms;
+
+	# Run xkbcomp.
+	allow xdm_xserver_t xkb_var_lib_t:lnk_file read;
+	can_exec(xdm_xserver_t, xkb_var_lib_t)
+	files_search_var_lib(xdm_xserver_t)
+
+	# VNC v4 module in X server
+	corenet_tcp_bind_vnc_port(xdm_xserver_t)
+
+	fs_search_auto_mountpoints(xdm_xserver_t)
+
+	init_use_fd(xdm_xserver_t)
+
+	# FIXME: After per user fonts are properly working
+	# xdm_xserver_t may no longer have any reason
+	# to read ROLE_home_t - examine this in more detail
+	# (xauth?)
+	userdom_read_unpriv_user_home_files(xdm_xserver_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs(xdm_xserver_t)
+		fs_manage_nfs_files(xdm_xserver_t)
+		fs_manage_nfs_symlinks(xdm_xserver_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs(xdm_xserver_t)
+		fs_manage_cifs_files(xdm_xserver_t)
+		fs_manage_cifs_symlinks(xdm_xserver_t)
+	')
+
+	ifdef(`TODO',`
+	# Read all global and per user fonts
+	read_fonts(xdm_xserver_t, sysadm)
+	read_fonts(xdm_xserver_t, staff)
+	read_fonts(xdm_xserver_t, user)
+	') dnl end TODO
+')
+
+ifdef(`TODO',`
+# cjp: TODO: integrate strict policy:
+# init script wants to check if it needs to update windowmanagerlist
+allow initrc_t xdm_rw_etc_t:file { getattr read };
+ifdef(`distro_suse', `
+# set permissions on /tmp/.X11-unix
+allow initrc_t xdm_tmp_t:dir setattr;
+')
+
+allow xdm_t xconsole_device_t:fifo_file { getattr setattr };
+
+can_resmgrd_connect(xdm_t)
+
+# Need to further investigate these permissions and
+# perhaps define derived types.
+allow xdm_t var_lib_t:dir { write search add_name remove_name  create unlink };
+allow xdm_t var_lib_t:file { create write unlink };
+
+# Do not audit attempts to write to index files under /usr
+dontaudit xdm_t usr_t:file write;
+
+ifdef(`rhgb.te', `
+allow xdm_xserver_t ramfs_t:dir rw_dir_perms;
+allow xdm_xserver_t ramfs_t:file create_file_perms;
+allow rhgb_t xdm_xserver_t:process signal;
+')
+
+ifdef(`enable_polyinstantiation',`
+# xdm needs access for linking .X11-unix to poly /tmp
+allow xdm_t polymember:dir { add_name remove_name write };
+allow xdm_t polymember:lnk_file { create unlink };
+# xdm needs access for copying .Xauthority into new home
+allow xdm_t polymember:file { create getattr write };
+')
+
+#
+# Wants to delete .xsession-errors file
+#
+allow xdm_t user_home_type:file unlink;
+#
+# Should fix exec of pam_timestamp_check is not closing xdm file descriptor
+#
+allow pam_t xdm_t:fifo_file { getattr ioctl write };
+') dnl end TODO

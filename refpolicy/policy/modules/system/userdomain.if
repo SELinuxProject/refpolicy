@@ -436,6 +436,17 @@ template(`base_user_template',`
 		usernetctl_run($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 	')
 
+	optional_policy(`xserver',`
+		dev_rw_xserver_misc_dev($1_t)
+		xserver_xsession_entry_type($1_t)
+		xserver_dontaudit_write_log($1_t)
+		xserver_stream_connect_xdm($1_t)
+		# certain apps want to read xdm.pid file
+		xserver_read_xdm_pid($1_t)
+		# gnome-session creates socket under /tmp/.ICE-unix/
+		xserver_create_xdm_tmp_socket($1_t)
+	')
+
 	ifdef(`TODO',`
 	#
 	# Cups daemon running as user tries to write /etc/printcap
@@ -464,20 +475,8 @@ template(`base_user_template',`
 	# Use X
 	x_client_domain($1, $1)
 
-	ifdef(`xserver.te', `
-		allow $1_t xserver_misc_device_t:{ chr_file blk_file } rw_file_perms;
-	')
-
 	ifdef(`xdm.te', `
-		# Connect to the X server run by the X Display Manager.
-		can_unix_connect($1_t, xdm_t)
-		# certain apps want to read xdm.pid file
-		r_dir_file($1_t, xdm_var_run_t)
 		allow $1_t xdm_var_lib_t:file r_file_perms;
-		allow xdm_t $1_home_dir_t:dir getattr;
-		ifdef(`xauth.te', `
-			file_type_auto_trans(xdm_t, $1_home_dir_t, $1_xauth_home_t, file)
-		')
 	')
 
 	# start read_fonts()
@@ -2542,6 +2541,28 @@ interface(`userdom_spec_domtrans_all_users',`
 
 ########################################
 ## <summary>
+##	Execute an Xserver session in all unprivileged user domains.  This
+##	is an explicit transition, requiring the
+##	caller to use setexeccon().
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_xsession_spec_domtrans_all_users',`
+	gen_require(`
+		attribute userdomain;
+	')
+
+	xserver_xsession_spec_domtrans($1,userdomain)
+	allow $1 userdomain:fd use;
+	allow userdomain $1:fd use;
+	allow userdomain $1:fifo_file rw_file_perms;
+	allow userdomain $1:process sigchld;
+')
+
+########################################
+## <summary>
 ##	Execute a shell in all unprivileged user domains.  This
 ##	is an explicit transition, requiring the
 ##	caller to use setexeccon().
@@ -2556,6 +2577,28 @@ interface(`userdom_spec_domtrans_unpriv_users',`
 	')
 
 	corecmd_shell_spec_domtrans($1,unpriv_userdomain)
+	allow $1 unpriv_userdomain:fd use;
+	allow unpriv_userdomain $1:fd use;
+	allow unpriv_userdomain $1:fifo_file rw_file_perms;
+	allow unpriv_userdomain $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute an Xserver session in all unprivileged user domains.  This
+##	is an explicit transition, requiring the
+##	caller to use setexeccon().
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`userdom_xsession_spec_domtrans_unpriv_users',`
+	gen_require(`
+		attribute unpriv_userdomain;
+	')
+
+	xserver_xsession_spec_domtrans($1,unpriv_userdomain)
 	allow $1 unpriv_userdomain:fd use;
 	allow unpriv_userdomain $1:fd use;
 	allow unpriv_userdomain $1:fifo_file rw_file_perms;
@@ -3616,6 +3659,7 @@ interface(`userdom_read_unpriv_user_home_files',`
 		attribute user_home_dir_type, user_home_type;
 	')
 
+	files_search_home($1)
 	allow $1 user_home_dir_type:dir search_dir_perms;
 	allow $1 user_home_type:dir r_dir_perms;
 	allow $1 user_home_type:lnk_file { getattr read };

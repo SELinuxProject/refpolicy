@@ -6,9 +6,6 @@ template(`xserver_common_domain_template',`
 	#
 	# Declarations
 	#
-	gen_require(`
-		type xkb_var_lib_t, xserver_log_t;
-	')
 
 	type $1_xserver_t;
 	domain_type($1_xserver_t)
@@ -51,6 +48,9 @@ template(`xserver_common_domain_template',`
 	allow $1_xserver_t $1_xserver_tmp_t:file manage_file_perms;
 	allow $1_xserver_t $1_xserver_tmp_t:sock_file manage_file_perms;
 	files_filetrans_tmp($1_xserver_t, $1_xserver_tmp_t, { file dir sock_file })
+
+	allow $1_xserver_t xdm_xserver_tmp_t:dir rw_dir_perms;
+	type_transition $1_xserver_t xdm_xserver_tmp_t:sock_file $1_xserver_tmp_t;
 
 	allow $1_xserver_t $1_xserver_tmpfs_t:dir manage_dir_perms;
 	allow $1_xserver_t $1_xserver_tmpfs_t:file manage_file_perms;
@@ -151,6 +151,10 @@ template(`xserver_common_domain_template',`
 		nscd_use_socket($1_xserver_t)
 	')
 
+	optional_policy(`xfs',`
+		xfs_stream_connect($1_xserver_t)
+	')
+
 	ifdef(`TODO',`
 	ifdef(`distro_redhat',`
 		ifdef(`rpm.te', `
@@ -158,15 +162,6 @@ template(`xserver_common_domain_template',`
 			allow $1_xserver_t rpm_tmpfs_t:file { read write };
 			rpm_use_fd($1_xserver_t)
 		')
-	')
-
-	file_type_auto_trans($1_xserver_t, xdm_xserver_tmp_t, $1_xserver_tmp_t, sock_file)
-
-	# Connect to xfs.
-	ifdef(`xfs.te', `
-		can_unix_connect($1_xserver_t, xfs_t)
-		allow $1_xserver_t xfs_tmp_t:dir r_dir_perms;
-		allow $1_xserver_t xfs_tmp_t:sock_file rw_file_perms;
 	')
 	') dnl end TODO
 ')
@@ -204,12 +199,6 @@ template(`xserver_per_userdomain_template',`
 	#
 	# Declarations
 	#
-
-	gen_require(`
-		type xauth_exec_t;
-		type xserver_exec_t;
-		type iceauth_exec_t;
-	')
 
 	xserver_common_domain_template($1)
 	role $3 types $1_xserver_t;
@@ -326,6 +315,9 @@ template(`xserver_per_userdomain_template',`
 	allow $2 $1_xauth_home_t:file manage_file_perms;
 	allow $2 $1_xauth_home_t:file { relabelfrom relabelto };
 
+	allow xdm_t $1_xauth_home_t:file manage_file_perms;
+	userdom_filetrans_user_home_dir($1,xdm_t,$1_xauth_home_t,file)
+
 	domain_use_wide_inherit_fd($1_xauth_t)
 
 	files_read_etc_files($1_xauth_t)
@@ -406,69 +398,6 @@ template(`xserver_per_userdomain_template',`
 	')
 ')
 
-#######################################
-## <summary>
-##	Define a derived domain for the X server when executed
-##	by an X Display Manager.
-## </summary>
-## <param name="prefix">
-##	The prefix of the display manager domain.
-## </param>
-## <param name="xdm_domain">
-##	The type of the display manager domain.
-## </param>
-#
-template(`xserver_displaymgr_domain_template',`
-
-	##############################
-	#
-	# Declarations
-	#
-
-	xserver_common_domain_template($1)
-	init_system_domain($1_xserver_t,xserver_exec_t)
-
-	##############################
-	#
-	# Local policy
-	#
-
-	domain_auto_trans($2, xserver_exec_t, $1_xserver_t)
-	allow $2 $1_xserver_t:fd use;
-	allow $1_xserver_t $2:fd use;
-	allow $1_xserver_t $2:fifo_file rw_file_perms;
-	allow $1_xserver_t $2:process { signal sigchld };
-	allow $2 $1_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
-
-	allow $2 $1_xserver_tmp_t:file unlink;
-
-	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
-	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
-	allow $2 $1_xserver_t:unix_stream_socket connectto;
-
-	allow $2 $1_xserver_t:shm rw_shm_perms;
-	allow $1_xserver_t $2:shm rw_shm_perms;
-
-	# Run xkbcomp.
-	can_exec($1_xserver_t, xkb_var_lib_t)
-	allow $1_xserver_t xkb_var_lib_t:lnk_file read;
-	files_search_var_lib($1_xserver_t)
-
-	init_use_fd($1_xserver_t)
-
-	userdom_dontaudit_search_all_users_home($1_xserver_t)
-
-	ifdef(`TODO',`
-	# Read all global and per user fonts
-	read_fonts($1_xserver_t, sysadm)
-	read_fonts($1_xserver_t, staff)
-	read_fonts($1_xserver_t, user)
-
-	dontaudit $1_xserver_t sysadm_t:shm { unix_read unix_write };
-	allow $1_xserver_t xdm_tmpfs_t:file rw_file_perms;
-	') dnl end TODO
-')
-
 ########################################
 ## <summary>
 ##	Transition to a user Xauthority domain.
@@ -504,17 +433,119 @@ template(`xserver_domtrans_user_xauth',`
 
 ########################################
 ## <summary>
-##	Do not audit attempts to read all user
-##	.ICEauthority files.
+##	Connect to XDM over a unix domain
+##	stream socket.
 ## </summary>
 ## <param name="domain">
-##	Domain do not audit.
+##	Domain allowed access.
 ## </param>
 #
-interface(`xserver_dontaudit_read_all_users_iceauth',`
+interface(`xserver_stream_connect_xdm',`
 	gen_require(`
-		attribute iceauth_home_type;
+		type xdm_t;
 	')
 
-	dontaudit $1 iceauth_home_type:file r_file_perms;
+	allow $1 xdm_t:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Create a named socket in a XDM
+##	temporary directory.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`xserver_create_xdm_tmp_socket',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 xdm_tmp_t:dir ra_dir_perms;
+	allow $1 xdm_tmp_t:sock_file create;
+')
+
+########################################
+## <summary>
+##	Read XDM pid files.
+## </summary>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+#
+interface(`xserver_read_xdm_pid',`
+	gen_require(`
+		type xdm_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 xdm_var_run_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Make an X session script an entrypoint for the specified domain.
+## </summary>
+## <param name="domain">
+##	The domain for which the shell is an entrypoint.
+## </param>
+#
+interface(`xserver_xsession_entry_type',`
+	gen_require(`
+		type xsession_exec_t;
+	')
+
+	domain_entry_file($1,xsession_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute an X session in the target domain.  This
+##	is an explicit transition, requiring the
+##	caller to use setexeccon().
+## </summary>
+## <desc>
+##	<p>
+##	Execute an Xsession in the target domain.  This
+##	is an explicit transition, requiring the
+##	caller to use setexeccon().
+##	</p>
+##	<p>
+##	No interprocess communication (signals, pipes,
+##	etc.) is provided by this interface since
+##	the domains are not owned by this module.
+##	</p>
+## </desc>
+## <param name="domain">
+##	Domain allowed access.
+## </param>
+## <param name="target_domain">
+##	The type of the shell process.
+## </param>
+#
+interface(`xserver_xsession_spec_domtrans',`
+	gen_require(`
+		type xsession_exec_t;
+	')
+
+	domain_trans($1,xsession_exec_t,$2)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write the X server
+##	log files.
+## </summary>
+## <param name="domain">
+##	Domain to not audit
+## </param>
+#
+interface(`xserver_dontaudit_write_log',`
+	gen_require(`
+		type xserver_log_t;
+	')
+
+	dontaudit $1 xserver_log_t:file { append write };
 ')
