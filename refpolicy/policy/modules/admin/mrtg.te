@@ -1,0 +1,172 @@
+
+policy_module(mrtg,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type mrtg_t;
+type mrtg_exec_t;
+init_system_domain(mrtg_t,mrtg_exec_t)
+
+type mrtg_etc_t;
+files_config_file(mrtg_etc_t)
+
+type mrtg_lock_t;
+files_lock_file(mrtg_lock_t)
+
+type mrtg_log_t;
+logging_log_file(mrtg_log_t)
+
+type mrtg_var_lib_t;
+files_type(mrtg_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mrtg_t self:capability { setgid setuid };
+dontaudit mrtg_t self:capability sys_tty_config;
+allow mrtg_t self:process signal_perms;
+allow mrtg_t self:fifo_file { getattr read write ioctl };
+allow mrtg_t self:unix_stream_socket create_socket_perms;
+allow mrtg_t self:tcp_socket create_socket_perms;
+allow mrtg_t self:udp_socket create_socket_perms;
+
+allow mrtg_t mrtg_etc_t:file r_file_perms;
+allow mrtg_t mrtg_etc_t:dir r_dir_perms;
+allow mrtg_t mrtg_etc_t:lnk_file { getattr read };
+files_search_etc(mrtg_t)
+
+allow mrtg_t mrtg_lock_t:dir rw_dir_perms;
+allow mrtg_t mrtg_lock_t:file create_file_perms;
+allow mrtg_t mrtg_lock_t:lnk_file create_lnk_perms;
+
+allow mrtg_t mrtg_log_t:file create_file_perms;
+allow mrtg_t mrtg_log_t:dir rw_dir_perms;
+logging_filetrans_log(mrtg_t,mrtg_log_t,{ file dir })
+
+allow mrtg_t mrtg_var_lib_t:dir rw_dir_perms;
+allow mrtg_t mrtg_var_lib_t:file create_file_perms;
+allow mrtg_t mrtg_var_lib_t:lnk_file create_lnk_perms;
+
+# read config files
+dontaudit mrtg_t mrtg_etc_t:dir write;
+dontaudit mrtg_t mrtg_etc_t:file { write ioctl };
+files_read_etc_files(mrtg_t)
+
+kernel_read_system_state(mrtg_t)
+kernel_read_network_state(mrtg_t)
+kernel_read_kernel_sysctls(mrtg_t)
+
+corecmd_exec_bin(mrtg_t)
+corecmd_exec_sbin(mrtg_t)
+corecmd_exec_shell(mrtg_t)
+
+corenet_non_ipsec_sendrecv(mrtg_t)
+corenet_tcp_sendrecv_generic_if(mrtg_t)
+corenet_udp_sendrecv_generic_if(mrtg_t)
+corenet_raw_sendrecv_generic_if(mrtg_t)
+corenet_tcp_sendrecv_all_nodes(mrtg_t)
+corenet_udp_sendrecv_all_nodes(mrtg_t)
+corenet_raw_sendrecv_all_nodes(mrtg_t)
+corenet_tcp_sendrecv_all_ports(mrtg_t)
+corenet_udp_sendrecv_all_ports(mrtg_t)
+corenet_tcp_bind_all_nodes(mrtg_t)
+corenet_udp_bind_all_nodes(mrtg_t)
+corenet_tcp_connect_all_ports(mrtg_t)
+
+dev_read_sysfs(mrtg_t)
+dev_read_urand(mrtg_t)
+
+domain_use_wide_inherit_fd(mrtg_t)
+
+files_read_usr_files(mrtg_t)
+files_search_var(mrtg_t)
+files_search_locks(mrtg_t)
+files_search_var_lib(mrtg_t)
+files_search_spool(mrtg_t)
+files_getattr_tmp_dirs(mrtg_t)
+# for uptime
+files_read_etc_runtime_files(mrtg_t)
+
+fs_search_auto_mountpoints(mrtg_t)
+fs_getattr_xattr_fs(mrtg_t)
+
+term_dontaudit_use_console(mrtg_t)
+
+init_use_fd(mrtg_t)
+init_use_script_pty(mrtg_t)
+# for uptime
+init_read_utmp(mrtg_t)
+init_dontaudit_write_utmp(mrtg_t)
+
+libs_read_lib(mrtg_t)
+libs_use_ld_so(mrtg_t)
+libs_use_shared_libs(mrtg_t)
+
+logging_send_syslog_msg(mrtg_t)
+
+miscfiles_read_localization(mrtg_t)
+
+selinux_dontaudit_getattr_dir(mrtg_t)
+
+# Use the network.
+sysnet_read_config(mrtg_t)
+
+userdom_dontaudit_use_unpriv_user_fd(mrtg_t)
+userdom_use_sysadm_terms(mrtg_t)
+
+ifdef(`distro_redhat',`
+	allow mrtg_t mrtg_etc_t:dir rw_dir_perms;
+	allow mrtg_t mrtg_lock_t:file create_file_perms;
+	type_transition mrtg_t mrtg_etc_t:file mrtg_lock_t;
+')
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_tty(mrtg_t)
+	term_dontaudit_use_generic_pty(mrtg_t)
+	files_dontaudit_read_root_files(mrtg_t)
+')
+
+optional_policy(`apache',`
+	apache_manage_sys_content(mrtg_t)
+')
+
+optional_policy(`cron',`
+	cron_system_entry(mrtg_t,mrtg_exec_t)
+')
+
+optional_policy(`hostname',`
+	hostname_exec(mrtg_t)
+')
+
+optional_policy(`nis',`
+	nis_use_ypbind(mrtg_t)
+')
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(mrtg_t)
+')
+
+optional_policy(`quota',`
+	quota_dontaudit_getattr_db(mrtg_t)
+')
+
+optional_policy(`snmp',`
+	snmp_udp_chat(mrtg_t)
+	snmp_read_snmp_var_lib(mrtg_t)
+')
+
+optional_policy(`udev',`
+	udev_read_db(mrtg_t)
+')
+
+ifdef(`TODO',`
+	# should not need this!
+	dontaudit mrtg_t { staff_home_dir_t sysadm_home_dir_t }:dir { search read getattr };
+	dontaudit mrtg_t { boot_t device_t file_t lost_found_t }:dir getattr;
+	dontaudit mrtg_t root_t:lnk_file getattr;
+')
