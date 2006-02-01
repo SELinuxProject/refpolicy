@@ -6,7 +6,6 @@
 # install paths
 POLICYPATH = $(INSTALLDIR)/policy
 LOADPATH = $(POLICYPATH)/$(POLVER)
-FCPATH = $(CONTEXTPATH)/files/file_contexts
 HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 
 FC := file_contexts
@@ -44,6 +43,11 @@ policy: $(POLVER)
 install: $(LOADPATH) $(FCPATH) $(APPFILES) $(USERPATH)/local.users
 
 load: tmp/load
+
+checklabels: $(FCPATH)
+restorelabels: $(FCPATH)
+relabel:  $(FCPATH)
+resetlabels:  $(FCPATH)
 
 ########################################
 #
@@ -186,36 +190,6 @@ $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 	$(verbose) install -m 644 $(FC) $(FCPATH)
 	$(verbose) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
 	$(verbose) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(NAME) $(USEPWD)
-
-########################################
-#
-# Filesystem labeling
-#
-FILESYSTEMS := `mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';`
-
-checklabels: $(FCPATH) $(SETFILES)
-	@echo "Checking labels on filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(verbose) $(SETFILES) -v -n $(FCPATH) $(FILESYSTEMS)
-
-restorelabels: $(FCPATH) $(SETFILES)
-	@echo "Restoring labels on filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(verbose) $(SETFILES) -v $(FCPATH) $(FILESYSTEMS)
-
-relabel:  $(FCPATH) $(SETFILES)
-	@echo "Relabeling filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
-		echo "No filesystems with extended attributes found!" ;\
-		false ;\
-	fi
-	$(verbose) $(SETFILES) $(FCPATH) $(FILESYSTEMS)
 
 ########################################
 #

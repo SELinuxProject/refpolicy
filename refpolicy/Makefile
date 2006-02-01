@@ -25,10 +25,12 @@
 
 include build.conf
 
+# refpolicy version
+VERSION = $(shell cat VERSION)
+
 # executable paths
-PREFIX := /usr
-BINDIR := $(PREFIX)/bin
-SBINDIR := $(PREFIX)/sbin
+BINDIR := /usr/bin
+SBINDIR := /usr/sbin
 CHECKPOLICY := $(BINDIR)/checkpolicy
 CHECKMODULE := $(BINDIR)/checkmodule
 SEMODULE := $(SBINDIR)/semodule
@@ -64,24 +66,30 @@ XMLDTD = $(DOCS)/policy.dtd
 LAYERXML = metadata.xml
 HTMLDIR = $(DOCS)/html
 DOCTEMPLATE = $(DOCS)/templates
+DEVMAKEFILE = $(SUPPORT)/Makefile.devel
+EXAMPLEMOD = $(addprefix $(DOCS)/,example.te example.if example.fc)
 
 # config file paths
-GLOBALTUN := $(POLDIR)/global_tunables
-GLOBALBOOL := $(POLDIR)/global_booleans
-MOD_CONF := $(POLDIR)/modules.conf
-TUNABLES := $(POLDIR)/tunables.conf
-BOOLEANS := $(POLDIR)/booleans.conf
-ROLEMAP := $(POLDIR)/rolemap
+GLOBALTUN = $(POLDIR)/global_tunables
+GLOBALBOOL = $(POLDIR)/global_booleans
+MOD_CONF = $(POLDIR)/modules.conf
+TUNABLES = $(POLDIR)/tunables.conf
+BOOLEANS = $(POLDIR)/booleans.conf
+ROLEMAP = $(POLDIR)/rolemap
 
 # install paths
-TOPDIR := $(DESTDIR)/etc/selinux
-INSTALLDIR := $(TOPDIR)/$(NAME)
-SRCPATH := $(INSTALLDIR)/src
-USERPATH := $(INSTALLDIR)/users
-CONTEXTPATH := $(INSTALLDIR)/contexts
-SHAREDIR := $(DESTDIR)$(PREFIX)/share/selinux
-MODPKGDIR := $(SHAREDIR)/$(NAME)
-HEADERDIR := $(SHAREDIR)/refpolicy/include
+PKGNAME ?= refpolicy-$(VERSION)
+PREFIX = $(DESTDIR)/usr
+TOPDIR = $(DESTDIR)/etc/selinux
+INSTALLDIR = $(TOPDIR)/$(NAME)
+SRCPATH = $(INSTALLDIR)/src
+USERPATH = $(INSTALLDIR)/users
+CONTEXTPATH = $(INSTALLDIR)/contexts
+FCPATH = $(CONTEXTPATH)/files/file_contexts
+SHAREDIR = $(PREFIX)/share/selinux
+MODPKGDIR = $(SHAREDIR)/$(NAME)
+HEADERDIR = $(SHAREDIR)/refpolicy/include
+DOCSDIR = $(PREFIX)/share/doc/$(PKGNAME)
 
 # compile strict policy if requested.
 ifneq ($(findstring strict,$(TYPE)),)
@@ -188,6 +196,9 @@ BASE_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 ==
 MOD_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 OFF_MODS := $(addsuffix .te,$(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null))
 
+# filesystems to be labeled
+FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
+
 ########################################
 #
 # Functions
@@ -268,11 +279,12 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
 
-html: $(POLXML)
+html tmp/html: $(POLXML)
 	@echo "Building html interface reference documentation in $(HTMLDIR)"
 	@mkdir -p $(HTMLDIR)
 	$(verbose) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
 	$(verbose) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
+	@touch tmp/html
 
 ########################################
 #
@@ -347,10 +359,22 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 #
 # Install policy headers
 #
-install-headers: $(DETECTED_MODS:.te=.if) $(ROLEMAP) $(M4SUPPORT) $(SUPPORT)/Makefile.devel build.conf
-	mkdir -p $(HEADERDIR)
+install-headers: $(DETECTED_MODS:.te=.if) $(ROLEMAP) $(M4SUPPORT)
+	@mkdir -p $(HEADERDIR)
+	@echo "Installing policy headers"
 	$(verbose) install -m 644 $^ $(HEADERDIR)
 	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/all_perms.spt
+
+########################################
+#
+# Install policy documentation
+#
+install-docs: $(DEVMAKEFILE) $(EXAMPLEMOD) build.conf tmp/html
+	@mkdir -p $(DOCSDIR)/html
+	@echo "Installing policy documentation"
+	$(verbose) install -m 644 $(DEVMAKEFILE) $(EXAMPLEMOD) $(DOCSDIR)
+	$(verbose) install -m 644 build.conf $(DOCSDIR)/build.conf.example
+	$(verbose) install -m 644 $(wildcard $(HTMLDIR)/*) $(DOCSDIR)/html
 
 ########################################
 #
@@ -375,6 +399,42 @@ tags:
 	 --regex-te='/^[ \t]*define\(`(\w+)/\1/d,define/' \
 	 --regex-te='/^[ \t]*interface\(`(\w+)/\1/i,interface/' \
 	 --regex-te='/^[ \t]*bool[ \t]+(\w+)/\1/b,bool/' policy/modules/*/*.{if,te} policy/support/*.spt
+
+########################################
+#
+# Filesystem labeling
+#
+checklabels:
+	@echo "Checking labels on filesystem types: ext2 ext3 xfs jfs"
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
+	$(verbose) $(SETFILES) -v -n $(FCPATH) $(FILESYSTEMS)
+
+restorelabels:
+	@echo "Restoring labels on filesystem types: ext2 ext3 xfs jfs"
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
+	$(verbose) $(SETFILES) -v $(FCPATH) $(FILESYSTEMS)
+
+relabel:
+	@echo "Relabeling filesystem types: ext2 ext3 xfs jfs"
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
+	$(verbose) $(SETFILES) $(FCPATH) $(FILESYSTEMS)
+
+resetlabels:
+	@echo "Resetting labels on filesystem types: ext2 ext3 xfs jfs"
+	@if test -z "$(FILESYSTEMS)"; then \
+		echo "No filesystems with extended attributes found!" ;\
+		false ;\
+	fi
+	$(verbose) $(SETFILES) -F $(FCPATH) $(FILESYSTEMS)
 
 ########################################
 #
