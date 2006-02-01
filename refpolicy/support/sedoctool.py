@@ -401,8 +401,8 @@ def gen_docs(doc, working_dir, templatedir):
 		for interface in node.getElementsByTagName("interface"):
 			interface_parameters = []
 			interface_desc = interface_summary = None
-			for i,v in interface.attributes.items():
-				interface_name = v
+			interface_name = interface.getAttribute("name")
+			interface_line = interface.getAttribute("lineno")
 			for desc in interface.getElementsByTagName("desc"):
 				interface_desc = format_html_desc(desc)
 			for desc in interface.getElementsByTagName("summary"):
@@ -410,14 +410,11 @@ def gen_docs(doc, working_dir, templatedir):
 			
 			for args in interface.getElementsByTagName("param"):
 				paramdesc = args.firstChild.data
-				paramname = None
-				paramopt = "No"
-				for name,val in args.attributes.items():
-					if name == "name":
-						paramname = val
-					if name == "optional":
-						if val == "true":
-							paramopt = "yes"
+				paramname = args.getAttribute("name")
+				if args.getAttribute("optional") == "true":
+					paramopt = "Yes"
+				else:
+					paramopt = "No"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
 					      "optional" : paramopt }
@@ -443,8 +440,8 @@ def gen_docs(doc, working_dir, templatedir):
 		for template in node.getElementsByTagName("template"):
 			template_parameters = []
 			template_desc = template_summary = None
-			for i,v in template.attributes.items():
-				template_name = v
+			template_name = template.getAttribute("name")
+			template_line = template.getAttribute("lineno")
 			for desc in template.getElementsByTagName("desc"):
 				template_desc = format_html_desc(desc)
 			for desc in template.getElementsByTagName("summary"):
@@ -452,14 +449,11 @@ def gen_docs(doc, working_dir, templatedir):
 			
 			for args in template.getElementsByTagName("param"):
 				paramdesc = args.firstChild.data
-				paramname = None
-				paramopt = "No"
-				for name,val in args.attributes.items():
-					if name == "name":
-						paramname = val
-					if name == "optional":
-						if val == "true":
-							paramopt = "yes"
+				paramname = args.getAttribute("name")
+				if args.getAttribute("optional") == "true":
+					paramopt = "Yes"
+				else:
+					paramopt = "No"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
 					      "optional" : paramopt }
