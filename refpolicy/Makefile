@@ -66,8 +66,7 @@ XMLDTD = $(DOCS)/policy.dtd
 LAYERXML = metadata.xml
 HTMLDIR = $(DOCS)/html
 DOCTEMPLATE = $(DOCS)/templates
-DEVMAKEFILE = $(SUPPORT)/Makefile.devel
-EXAMPLEMOD = $(addprefix $(DOCS)/,example.te example.if example.fc)
+DOCFILES = $(DOCS)/Makefile.example $(addprefix $(DOCS)/,example.te example.if example.fc)
 
 # config file paths
 GLOBALTUN = $(POLDIR)/global_tunables
@@ -369,10 +368,10 @@ install-headers: $(DETECTED_MODS:.te=.if) $(ROLEMAP) $(M4SUPPORT)
 #
 # Install policy documentation
 #
-install-docs: $(DEVMAKEFILE) $(EXAMPLEMOD) build.conf tmp/html
+install-docs: $(DOCFILES) build.conf tmp/html
 	@mkdir -p $(DOCSDIR)/html
 	@echo "Installing policy documentation"
-	$(verbose) install -m 644 $(DEVMAKEFILE) $(EXAMPLEMOD) $(DOCSDIR)
+	$(verbose) install -m 644 $(DOCFILES) $(DOCSDIR)
 	$(verbose) install -m 644 build.conf $(DOCSDIR)/build.conf.example
 	$(verbose) install -m 644 $(wildcard $(HTMLDIR)/*) $(DOCSDIR)/html
 
