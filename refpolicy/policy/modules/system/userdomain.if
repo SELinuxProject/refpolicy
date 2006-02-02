@@ -200,7 +200,7 @@ template(`base_user_template',`
 	selinux_compute_user_contexts($1_t)
 
 	# for eject
-	storage_getattr_fixed_disk($1_t)
+	storage_getattr_fixed_disk_dev($1_t)
 
 	auth_read_login_records($1_t)
 	auth_dontaudit_write_login_records($1_t)
@@ -233,7 +233,7 @@ template(`base_user_template',`
 	files_dontaudit_getattr_non_security_chr_files($1_t)
 
 	# Caused by su - init scripts
-	init_dontaudit_use_script_pty($1_t)
+	init_dontaudit_use_script_ptys($1_t)
 
 	libs_use_ld_so($1_t)
 	libs_use_shared_libs($1_t)
@@ -346,7 +346,7 @@ template(`base_user_template',`
 	')
 
 	optional_policy(`dictd',`
-		dictd_use($1_t)
+		dictd_tcp_connect($1_t)
 	')
 
 	optional_policy(`ftp',`
@@ -367,7 +367,7 @@ template(`base_user_template',`
 		inetd_tcp_connect($1_t)
 		inetd_udp_sendto($1_t)
 		inetd_use_fd($1_t)
-		inetd_rw_tcp_socket($1_t)
+		inetd_rw_tcp_sockets($1_t)
 	')
 
 	optional_policy(`inn',`
@@ -389,7 +389,7 @@ template(`base_user_template',`
 	')
 
 	optional_policy(`nscd',`
-		nscd_use_socket($1_t)
+		nscd_socket_use($1_t)
 	')
 
 	optional_policy(`pcmcia',`
@@ -416,7 +416,7 @@ template(`base_user_template',`
 	')
 
 	optional_policy(`samba',`
-		samba_connect_winbind($1_t)
+		samba_stream_connect_winbind($1_t)
 	')
 
 	optional_policy(`slrnpull',`
@@ -444,7 +444,7 @@ template(`base_user_template',`
 		# certain apps want to read xdm.pid file
 		xserver_read_xdm_pid($1_t)
 		# gnome-session creates socket under /tmp/.ICE-unix/
-		xserver_create_xdm_tmp_socket($1_t)
+		xserver_create_xdm_tmp_sockets($1_t)
 	')
 
 	ifdef(`TODO',`
@@ -593,7 +593,7 @@ template(`unpriv_user_template', `
 	seutil_read_config($1_t)
 	# Allow users to execute checkpolicy without a domain transition
 	# so it can be used without privilege to write real binary policy file
-	seutil_exec_checkpol($1_t)
+	seutil_exec_checkpolicy($1_t)
 
 	ifdef(`enable_polyinstantiation',`
 		type_member $1_t $1_home_dir_t:dir $1_home_t;
@@ -631,7 +631,7 @@ template(`unpriv_user_template', `
 
 	# for running depmod as part of the kernel packaging process
 	optional_policy(`modutils',`
-		modutils_read_module_conf($1_t)
+		modutils_read_module_config($1_t)
 	')
 
 	optional_policy(`netutils',`
@@ -779,11 +779,11 @@ template(`admin_user_template',`
 	base_user_template($1)
 
 	typeattribute $1_t privhome;
-	domain_obj_id_change_exempt($1_t)
+	domain_obj_id_change_exemption($1_t)
 	role system_r types $1_t;
 
 	ifdef(`direct_sysadm_daemon',`
-		domain_system_change_exempt($1_t)
+		domain_system_change_exemption($1_t)
 	')
 	
 	typeattribute $1_devpts_t admin_terminal;
@@ -859,7 +859,7 @@ template(`admin_user_template',`
 	storage_raw_write_removable_device($1_t)
 
 	term_use_console($1_t)
-	term_use_unallocated_tty($1_t)
+	term_use_unallocated_ttys($1_t)
 	term_use_all_user_ptys($1_t)
 	term_use_all_user_ttys($1_t)
 
@@ -885,7 +885,7 @@ template(`admin_user_template',`
 
 	files_exec_usr_src_files($1_t)
 
-	init_use_initctl($1_t)
+	init_rw_initctl($1_t)
 
 	logging_send_syslog_msg($1_t)
 
@@ -895,10 +895,10 @@ template(`admin_user_template',`
 	# The following rule is temporary until such time that a complete
 	# policy management infrastructure is in place so that an administrator
 	# cannot directly manipulate policy files with arbitrary programs.
-	seutil_manage_src_pol($1_t)
+	seutil_manage_src_policy($1_t)
 	# Violates the goal of limiting write access to checkpolicy.
 	# But presently necessary for installing the file_contexts file.
-	seutil_manage_binary_pol($1_t)
+	seutil_manage_bin_policy($1_t)
 
 	optional_policy(`cron',`
 		cron_admin_template($1,$1_t,$1_r)
@@ -2439,7 +2439,7 @@ template(`userdom_setattr_user_tty',`
 #
 template(`userdom_use_user_tty',`
 	ifdef(`targeted_policy',`
-		term_use_unallocated_tty($2)
+		term_use_unallocated_ttys($2)
 	',`
 		gen_require(`
 			type $1_tty_device_t;
@@ -2472,8 +2472,8 @@ template(`userdom_use_user_tty',`
 #
 template(`userdom_use_user_terminals',`
 	ifdef(`targeted_policy',`
-		term_use_unallocated_tty($2)
-		term_use_generic_pty($2)
+		term_use_unallocated_ttys($2)
+		term_use_generic_ptys($2)
 	',`
 		gen_require(`
 			type $1_tty_device_t, $1_devpts_t;
@@ -2699,7 +2699,7 @@ interface(`userdom_entry_spec_domtrans_unpriv_users',`
 		attribute unpriv_userdomain;
 	')
 
-	domain_entry_spec_domtrans($1,unpriv_userdomain)
+	domain_entry_file_spec_domtrans($1,unpriv_userdomain)
 
 	allow $1 unpriv_userdomain:fd use;
 	allow unpriv_userdomain $1:fd use;
@@ -2790,7 +2790,7 @@ interface(`userdom_entry_spec_domtrans_sysadm',`
 		type sysadm_t;
 	')
 
-	domain_entry_spec_domtrans($1,sysadm_t)
+	domain_entry_file_spec_domtrans($1,sysadm_t)
 
 	allow $1 sysadm_t:fd use;
 	allow sysadm_t $1:fd use;
@@ -2879,7 +2879,7 @@ interface(`userdom_sigchld_sysadm',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_dontaudit_getattr_sysadm_tty',`
+interface(`userdom_dontaudit_getattr_sysadm_ttys',`
 	ifdef(`targeted_policy',`
 		term_dontaudit_getattr_unallocated_ttys($1)
 	',`
@@ -2899,9 +2899,9 @@ interface(`userdom_dontaudit_getattr_sysadm_tty',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_use_sysadm_tty',`
+interface(`userdom_use_sysadm_ttys',`
 	ifdef(`targeted_policy',`
-		term_use_unallocated_tty($1)
+		term_use_unallocated_ttys($1)
 	',`
 		gen_require(`
 			type sysadm_tty_device_t;
@@ -2921,9 +2921,9 @@ interface(`userdom_use_sysadm_tty',`
 ##	Domain to not audit.
 ## </param>
 #
-interface(`userdom_dontaudit_use_sysadm_tty',`
+interface(`userdom_dontaudit_use_sysadm_ttys',`
 	ifdef(`targeted_policy',`
-		term_dontaudit_use_unallocated_tty($1)
+		term_dontaudit_use_unallocated_ttys($1)
 	',`
 		gen_require(`
 			type sysadm_tty_device_t;
@@ -2941,9 +2941,9 @@ interface(`userdom_dontaudit_use_sysadm_tty',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_use_sysadm_pty',`
+interface(`userdom_use_sysadm_ptys',`
 	ifdef(`targeted_policy',`
-		term_use_generic_pty($1)
+		term_use_generic_ptys($1)
 	',`
 		gen_require(`
 			type sysadm_devpts_t;
@@ -2963,9 +2963,9 @@ interface(`userdom_use_sysadm_pty',`
 ##	Domain to not audit.
 ## </param>
 #
-interface(`userdom_dontaudit_use_sysadm_pty',`
+interface(`userdom_dontaudit_use_sysadm_ptys',`
 	ifdef(`targeted_policy',`
-		term_dontaudit_use_generic_pty($1)
+		term_dontaudit_use_generic_ptys($1)
 	',`
 		gen_require(`
 			type sysadm_devpts_t;
@@ -2984,8 +2984,8 @@ interface(`userdom_dontaudit_use_sysadm_pty',`
 ## </param>
 #
 interface(`userdom_use_sysadm_terms',`
-	userdom_use_sysadm_tty($1)
-	userdom_use_sysadm_pty($1)
+	userdom_use_sysadm_ttys($1)
+	userdom_use_sysadm_ptys($1)
 ')
 
 ########################################
@@ -2998,7 +2998,7 @@ interface(`userdom_use_sysadm_terms',`
 #
 interface(`userdom_dontaudit_use_sysadm_terms',`
 	ifdef(`targeted_policy',`
-		term_dontaudit_use_generic_pty($1)
+		term_dontaudit_use_generic_ptys($1)
 	',`
 		gen_require(`
 			attribute admin_terminal;
@@ -3037,10 +3037,10 @@ interface(`userdom_use_sysadm_fd',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_rw_sysadm_pipe',`
+interface(`userdom_rw_sysadm_pipes',`
 	ifdef(`targeted_policy',`
 		#cjp: need to doublecheck this one
-		unconfined_rw_pipe($1)
+		unconfined_rw_pipes($1)
 	',`
 		gen_require(`
 			type sysadm_t;
@@ -3077,7 +3077,7 @@ interface(`userdom_getattr_sysadm_home_dir',`
 ##	Domain to not audit.
 ## </param>
 #
-interface(`userdom_dontaudit_getattr_sysadm_home_dir',`
+interface(`userdom_dontaudit_getattr_sysadm_home_dirs',`
 	ifdef(`targeted_policy',`
 		gen_require(`
 			type user_home_dir_t;
@@ -3690,9 +3690,9 @@ interface(`userdom_setattr_unpriv_user_pty',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_use_unpriv_user_pty',`
+interface(`userdom_use_unpriv_users_ptys',`
 	ifdef(`targeted_policy',`
-		term_use_generic_pty($1)
+		term_use_generic_ptys($1)
 	',`
 		gen_require(`
 			attribute user_ptynode;
@@ -3712,9 +3712,9 @@ interface(`userdom_use_unpriv_user_pty',`
 ##	Domain to not audit.
 ## </param>
 #
-interface(`userdom_dontaudit_use_unpriv_user_pty',`
+interface(`userdom_dontaudit_use_unpriv_users_ptys',`
 	ifdef(`targeted_policy',`
-		term_dontaudit_use_generic_pty($1)
+		term_dontaudit_use_generic_ptys($1)
 	',`
 		gen_require(`
 			attribute user_ptynode;
@@ -3749,7 +3749,7 @@ interface(`userdom_relabelto_unpriv_user_pty',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_dontaudit_relabelfrom_unpriv_user_pty',`
+interface(`userdom_dontaudit_relabelfrom_unpriv_users_ptys',`
 	gen_require(`
 		attribute user_ptynode;
 	')
@@ -3842,9 +3842,9 @@ interface(`userdom_write_unpriv_user_tmp',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_dontaudit_use_unpriv_user_tty',`
+interface(`userdom_dontaudit_use_unpriv_users_ttys',`
 	ifdef(`targeted_policy',`
-		term_dontaudit_use_unallocated_tty($1)
+		term_dontaudit_use_unallocated_ttys($1)
 	',`
 		gen_require(`
 			attribute user_ttynode;
@@ -3862,7 +3862,7 @@ interface(`userdom_dontaudit_use_unpriv_user_tty',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_read_all_userdomains_state',`
+interface(`userdom_read_all_users_state',`
 	gen_require(`
 		attribute userdomain;
 	')
@@ -3896,7 +3896,7 @@ interface(`userdom_getattr_all_userdomains',`
 ##	Domain allowed access.
 ## </param>
 #
-interface(`userdom_use_all_user_fd',`
+interface(`userdom_use_all_users_fd',`
 	gen_require(`
 		attribute userdomain;
 	')
