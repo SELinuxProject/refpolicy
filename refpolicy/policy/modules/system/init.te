@@ -1,5 +1,5 @@
 
-policy_module(init,1.2.1)
+policy_module(init,1.2.2)
 
 gen_require(`
 	class passwd rootok;
@@ -428,29 +428,45 @@ ifdef(`distro_redhat',`
 	storage_raw_read_fixed_disk(initrc_t)
 	storage_raw_write_fixed_disk(initrc_t)
 
-	fs_rw_tmpfs_chr_files(initrc_t)
-
-	storage_create_fixed_disk(initrc_t)
-	storage_getattr_removable_dev(initrc_t)
-
 	files_create_boot_flag(initrc_t)
 	# wants to read /.fonts directory
 	files_read_default_files(initrc_t)
 	files_mountpoint(initrc_tmp_t)
 
-	miscfiles_read_fonts(initrc_t)
-	miscfiles_read_hwdata(initrc_t)
+	fs_rw_tmpfs_chr_files(initrc_t)
+
+	storage_create_fixed_disk(initrc_t)
+	storage_getattr_removable_dev(initrc_t)
 
 	# readahead asks for these
 	auth_dontaudit_read_shadow(initrc_t)
 
+	miscfiles_read_fonts(initrc_t)
+	miscfiles_read_hwdata(initrc_t)
+
 	optional_policy(`bind',`
 		bind_manage_config_dirs(initrc_t)
+		bind_write_config(initrc_t)
 	')
 
 	optional_policy(`rpc',`
 		#for /etc/rc.d/init.d/nfs to create /etc/exports
 		rpc_write_exports(initrc_t)
+	')
+
+	optional_policy(`sysnetwork',`
+		sysnet_rw_dhcp_config(initrc_t)
+	')
+
+	optional_policy(`xserver',`
+		xserver_delete_log(initrc_t)
+	')
+')
+
+ifdef(`distro_suse',`
+	optional_policy(`xserver',`
+		# set permissions on /tmp/.X11-unix
+		xserver_setattr_xdm_tmp_dirs(initrc_t)
 	')
 ')
 
@@ -484,12 +500,6 @@ optional_policy(`bind',`
 
 	# for chmod in start script
 	bind_setattr_pid_dirs(initrc_t)
-
-	# for /etc/rndc.key
-	ifdef(`distro_redhat',`
-		# Allow init script to cp localtime to named_conf_t
-		bind_write_config(initrc_t)
-	')
 ')
 
 optional_policy(`bluetooth',`
@@ -668,10 +678,6 @@ optional_policy(`su',`
 ')
 
 optional_policy(`sysnetwork',`
-	ifdef(`distro_redhat',`
-		sysnet_rw_dhcp_config(initrc_t)
-	')
-
 	sysnet_read_dhcpc_state(initrc_t)
 ')
 
@@ -682,6 +688,11 @@ optional_policy(`xfs',`
 	xfs_read_sockets(initrc_t)
 ')
 
+optional_policy(`xserver',`
+	# init s	cript wants to check if it needs to update windowmanagerlist
+	xserver_read_xdm_rw_config(initrc_t)
+')
+
 optional_policy(`zebra',`
 	zebra_read_config(initrc_t)
 ')
@@ -690,17 +701,7 @@ ifdef(`TODO',`
 # Set device ownerships/modes.
 allow initrc_t xconsole_device_t:fifo_file setattr;
 
-# during boot up initrc needs to do the following
-allow initrc_t default_t:dir write;
-
 ifdef(`distro_redhat', `
 	allow initrc_t device_t:dir create;
-
-	ifdef(`xserver.te', `
-	# wants to cleanup xserver log dir
-	allow initrc_t xserver_log_t:dir rw_dir_perms;
-	allow initrc_t xserver_log_t:file unlink;
-	')
-
 ')
 ') dnl end TODO
