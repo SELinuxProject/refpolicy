@@ -55,7 +55,10 @@ def gen_tunable_conf(doc, file_name, namevalue_list):
 	"""
 
 	for node in doc.getElementsByTagName("tunable"):
-		s = string.split(format_txt_desc(node), "\n")
+		for desc in node.getElementsByTagName("desc"):
+			tun_desc = format_txt_desc(desc)
+		s = string.split(tun_desc, "\n")
+		file_name.write("#\n")
 		for line in s:
 			file_name.write("# %s\n" % line)
 		tun_name = tun_val = None
@@ -403,13 +406,15 @@ def gen_docs(doc, working_dir, templatedir):
 			interface_desc = interface_summary = None
 			interface_name = interface.getAttribute("name")
 			interface_line = interface.getAttribute("lineno")
-			for desc in interface.getElementsByTagName("desc"):
-				interface_desc = format_html_desc(desc)
-			for desc in interface.getElementsByTagName("summary"):
-				interface_summary = format_html_desc(desc)
-			
+			for desc in interface.childNodes:
+				if desc.nodeName == "desc":
+					interface_desc = format_html_desc(desc)
+				elif desc.nodeName == "summary":
+					interface_summary = format_html_desc(desc)
+
 			for args in interface.getElementsByTagName("param"):
-				paramdesc = args.firstChild.data
+				for desc in args.getElementsByTagName("summary"):
+					paramdesc = format_html_desc(desc)
 				paramname = args.getAttribute("name")
 				if args.getAttribute("optional") == "true":
 					paramopt = "Yes"
@@ -442,13 +447,15 @@ def gen_docs(doc, working_dir, templatedir):
 			template_desc = template_summary = None
 			template_name = template.getAttribute("name")
 			template_line = template.getAttribute("lineno")
-			for desc in template.getElementsByTagName("desc"):
-				template_desc = format_html_desc(desc)
-			for desc in template.getElementsByTagName("summary"):
-				template_summary = format_html_desc(desc)
-			
+			for desc in template.childNodes:
+				if desc.nodeName == "desc":
+					template_desc = format_html_desc(desc)
+				elif desc.nodeName == "summary":
+					template_summary = format_html_desc(desc)
+
 			for args in template.getElementsByTagName("param"):
-				paramdesc = args.firstChild.data
+				for desc in args.getElementsByTagName("summary"):
+					paramdesc = format_html_desc(desc)
 				paramname = args.getAttribute("name")
 				if args.getAttribute("optional") == "true":
 					paramopt = "Yes"
@@ -558,7 +565,8 @@ def gen_docs(doc, working_dir, templatedir):
 		if tunable.parentNode.nodeName == "policy":
 			tunable_name = tunable.getAttribute("name")
 			default_value = tunable.getAttribute("dftval")
-			description = format_html_desc(tunable)
+			for desc in tunable.getElementsByTagName("desc"):
+				description = format_html_desc(desc)
 			global_tun_buf.append( { "tun_name" : tunable_name,
 						"def_val" : default_value,
 						"desc" : description } )
@@ -582,7 +590,8 @@ def gen_docs(doc, working_dir, templatedir):
 		if boolean.parentNode.nodeName == "policy":
 			bool_name = boolean.getAttribute("name")
 			default_value = boolean.getAttribute("dftval")
-			description = format_html_desc(boolean)
+			for desc in boolean.getElementsByTagName("desc"):
+				description = format_html_desc(desc)
 			global_bool_buf.append( { "bool_name" : bool_name,
 						"def_val" : default_value,
 						"desc" : description } )

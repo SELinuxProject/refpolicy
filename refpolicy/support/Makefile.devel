@@ -1,0 +1,180 @@
+
+include $(HEADERDIR)/build.conf
+
+# executables
+PREFIX := /usr
+BINDIR := $(PREFIX)/bin
+SBINDIR := $(PREFIX)/sbin
+CHECKMODULE := $(BINDIR)/checkmodule
+SEMODULE := $(SBINDIR)/semodule
+SEMOD_PKG := $(BINDIR)/semodule_package
+XMLLINT := $(BINDIR)/xmllint
+
+# helper tools
+AWK ?= gawk
+INSTALL ?= install
+M4 ?= m4
+SED ?= sed
+EINFO ?= echo
+PYTHON ?= python
+
+# set default build options if missing
+TYPE ?= strict
+NAME ?= $(TYPE)
+DIRECT_INITRC ?= n
+POLY ?= n
+QUIET ?= y
+
+genxml := $(PYTHON) $(HEADERDIR)/support/segenxml.py
+
+docs = doc
+polxml = $(docs)/policy.xml
+xmldtd = $(HEADERDIR)/support/policy.dtd
+layerxml = metadata.xml
+
+globaltun = $(HEADERDIR)/global_tunables.xml
+globalbool = $(HEADERDIR)/global_booleans.xml
+
+# compile strict policy if requested.
+ifneq ($(findstring strict,$(TYPE)),)
+	M4PARAM += -D strict_policy
+endif
+
+# compile targeted policy if requested.
+ifneq ($(findstring targeted,$(TYPE)),)
+	M4PARAM += -D targeted_policy
+endif
+
+# enable MLS if requested.
+ifneq ($(findstring -mls,$(TYPE)),)
+	M4PARAM += -D enable_mls
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
+endif
+
+# enable MLS if MCS requested.
+ifneq ($(findstring -mcs,$(TYPE)),)
+	M4PARAM += -D enable_mcs
+	CHECKPOLICY += -M
+	CHECKMODULE += -M
+endif
+
+# enable distribution-specific policy
+ifneq ($(DISTRO),)
+	M4PARAM += -D distro_$(DISTRO)
+endif
+
+# enable polyinstantiation
+ifeq ($(POLY),y)
+	M4PARAM += -D enable_polyinstantiation
+endif
+
+ifeq ($(DIRECT_INITRC),y)
+	M4PARAM += -D direct_sysadm_daemon
+endif
+
+ifeq ($(QUIET),y)
+	verbose := @
+endif
+
+M4PARAM += -D hide_broken_symptoms
+
+# policy headers
+m4support = $(wildcard $(HEADERDIR)/support/*.spt)
+all_layers = $(filter-out $(HEADERDIR)/support,$(shell find $(wildcard $(HEADERDIR)/*) -maxdepth 0 -type d))
+all_interfaces = $(foreach layer,$(all_layers),$(wildcard $(layer)/*.if))
+rolemap = $(HEADERDIR)/rolemap
+
+detected_layers =  $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
+3rd_party_mods = $(wildcard *.te)
+3rd_party_ifs = $(3rd_party_mods:.te=.if)
+detected_mods = $(3rd_party_mods) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.te))
+detected_ifs = $(3rd_party_ifs) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.if))
+all_packages = $(detected_mods:.te=.pp)
+
+# if there are modules in the current directory, add them into the third party layer
+ifneq "$(3rd_party_ifs)" ""
+        genxml += -3 .
+endif
+
+########################################
+#
+# Functions
+#
+
+# parse-rolemap modulename,outputfile
+define parse-rolemap
+	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
+		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
+endef
+
+# peruser-expansion modulename,outputfile
+define peruser-expansion
+	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
+	$(call parse-rolemap,$1,$2)
+	$(verbose) echo "')" >> $2
+endef
+
+.PHONY: clean all xml
+.SUFFIXES:
+.SUFFIXES: .pp
+
+########################################
+#
+# Main targets
+#
+
+all: $(all_packages)
+
+xml: $(polxml)
+
+########################################
+#
+# Build module packages
+#
+tmp/%.mod: $(m4support) tmp/all_interfaces.conf %.te
+	@$(EINFO) "Compliling $(NAME) $(basename $(@F)) module"
+	@test -d tmp || mkdir -p tmp
+	$(call peruser-expansion,$(basename $(@F)),$@.role)
+	$(verbose) $(M4) $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
+	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
+
+tmp/%.mod.fc: $(m4support) %.fc
+	$(verbose) $(M4) $(M4PARAM) $^ > $@
+
+%.pp: tmp/%.mod tmp/%.mod.fc
+	@echo "Creating $(NAME) $(@F) policy package"
+	$(verbose) $(SEMOD_PKG) -o $@ -m $< -f $<.fc
+
+tmp/all_interfaces.conf: $(m4support) $(all_interfaces) $(detected_ifs)
+	@test -d tmp || mkdir -p tmp
+	$(verbose) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
+
+
+########################################
+#
+# Documentation generation
+#
+
+# minimal dependencies here, because we don't want to rebuild
+# this and its dependents every time the dependencies
+# change.  Also use all .if files here, rather then just the
+# enabled modules.
+$(polxml): $(detected_ifs) $(foreach dir,$(all_layers),$(dir)/$(layerxml))
+	@echo "Creating $@"
+	@mkdir -p doc
+	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
+	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(xmldtd)">' >> $@
+	$(verbose) $(genxml) -m $(layerxml) --tunables-xml $(globaltun) --booleans-xml $(globalbool) $(all_layers) $(detected_layers) >> $@
+	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
+		$(XMLLINT) --noout --dtdvalid $(xmldtd) $@ ;\
+	fi
+
+########################################
+#
+# Clean the environment
+#
+
+clean:
+	rm -fR tmp
+	rm -f *.pp

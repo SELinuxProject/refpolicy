@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
-#  Author: Donald Miner <dminer@tresys.com>
+#  Author(s): Donald Miner <dminer@tresys.com>
+#             Dave Sugar <dsugar@tresys.com>
+#             Brian Williams <bwilliams@tresys.com>
 #
-# Copyright (C) 2003 - 2005 Tresys Technology, LLC
+# Copyright (C) 2003 - 2006 Tresys Technology, LLC
 #      This program is free software; you can redistribute it and/or modify
 #      it under the terms of the GNU General Public License as published by
 #      the Free Software Foundation, version 2.
@@ -20,12 +22,15 @@ import re
 # GLOBALS
 
 # Default values of command line arguments:
-directory = "./"
 warn = False
 meta = "metadata"
-layers = []
+third_party = "third-party"
+layers = {}
 tunable_files = []
 bool_files = []
+xml_tunable_files = []
+xml_bool_files = []
+output_dir = ""
 
 # Pre compiled regular expressions:
 
@@ -144,11 +149,14 @@ def getModuleXML(file_name):
 			# Add default summaries and parameters so that the
 			#  DTD is happy.
 			else:
+				warning ("unable to find XML for %s %s()" % (groups[0], groups[1]))	
 				module_buf.append("<summary>\n")
 				module_buf.append("Summary is missing!\n")
 				module_buf.append("</summary>\n")
 				module_buf.append("<param name=\"?\">\n")
+				module_buf.append("<summary>")
 				module_buf.append("Parameter descriptions are missing!\n")
+				module_buf.append("</summary>")
 				module_buf.append("</param>\n")
 
 			# Close the interface/template tag.
@@ -171,7 +179,7 @@ def getModuleXML(file_name):
 
 	return module_buf
 
-def getLayerXML(directory):
+def getLayerXML (layerName, directories):
 	'''
 	Returns the XML documentation for a layer.
 	'''
@@ -179,21 +187,35 @@ def getLayerXML(directory):
 	layer_buf = []
 
 	# Infer the layer name from the directory name.
-	layer_buf.append("<layer name=\"%s\">\n" % os.path.basename(directory))
+	layer_buf.append("<layer name=\"%s\">\n" % layerName)
 
-	# Try to open the metadata file for this directory and if it exists,
+	# Try to file the metadata file for this layer and if it exists,
 	# append the contents to the buffer.
-	try:
-		layer_meta = open(directory+"/"+meta, "r")
-		layer_buf += layer_meta.readlines()
-		layer_meta.close()
-	except:
-		warning("cannot open file %s for read, assuming no data"\
-			% meta)
+	bFoundMeta = False
+	for directory in directories:
+		metafile = directory + "/" + meta
 
+		if not bFoundMeta and os.path.isfile (metafile):
+			layer_meta = open (metafile, "r")
+			layer_buf += layer_meta.readlines ()
+			layer_meta.close()
+			bFoundMeta = True
+
+	# force the metadata for the third party layer
+	if not bFoundMeta:
+		if layerName == third_party:
+			layer_buf.append ("<summary>This is all third-party generated modules.</summary>\n")
+			bFoundMeta = True
+
+	# didn't find meta data for this layer - oh well	
+	if not bFoundMeta:
+		layer_buf.append ("<summary>Summary is missing!.</summary>\n")
+		warning ("unable to find %s for layer %s" % (meta, layerName))	
+	
 	# For each module file in the layer, add its XML.
-	for module in glob.glob("%s/*.if" % directory):
-		layer_buf += getModuleXML(module)
+	for directory in directories:
+		for module in glob.glob("%s/*.if" % directory):
+			layer_buf += getModuleXML(module)
 
 	layer_buf.append("</layer>\n")
 
@@ -222,7 +244,7 @@ def getTunableXML(file_name, kind):
 		# If it is an XML comment, add it to the buffer and go on.
 		comment = XML_COMMENT.match(line)
 		if comment:
-			temp_buf.append(comment.group(1))
+			temp_buf.append(comment.group(1) + "\n")
 			continue
 
 		# Get the boolean/tunable data.
@@ -246,49 +268,69 @@ def getTunableXML(file_name, kind):
 	if len(temp_buf):
 		warning("orphan XML comments at bottom of file %s" % file_name)
 
+
+	# If the caller requested a the global_tunables and global_booleans to be
+	# output to a file output them now
+	if len(output_dir) > 0:
+		xmlfile = os.path.split(file_name)[1] + ".xml"
+
+		try:
+			xml_outfile = open(output_dir + "/" + xmlfile, "w")
+			for tunable_line in tunable_buf:
+				xml_outfile.write (tunable_line)
+			xml_outfile.close()
+		except:
+			warning ("cannot write to file %s, skipping creation" % xmlfile)
+
 	return tunable_buf
 
-def getPolicyXML(directory):
+def getXMLFileContents (file_name):
+	'''
+	Return all the XML in the file specified.
+	'''
+
+	tunable_buf = []
+	# Try to open the xml file for this type of file
+	# append the contents to the buffer.
+	try:
+		tunable_xml = open(file_name, "r")
+		tunable_buf += tunable_xml.readlines()
+		tunable_xml.close()
+	except:
+		warning("cannot open file %s for read, assuming no data" % file_name)
+
+	return tunable_buf
+
+def getPolicyXML():
 	'''
 	Return the compelete reference policy XML documentation through a list,
 	one line per item.
 	'''
 
-	# Keep track of original path so that it will change back at the end.
-	old_dir = os.path.abspath(os.path.curdir)
-
-	# Attempt to change directory into the policy directory. If it doesn't
-	# exist just return an empty documentation.
-	try:
-		os.chdir(directory)
-	except:
-		warning("cannot change directory to %s, ignoring"\
-			% directory)
-		return []
-
 	policy_buf = []
 	policy_buf.append("<policy>\n")
 
 	# Add to the XML each layer specified by the user.
-	for layer in layers:
-		policy_buf += getLayerXML(layer)
+	for layer in layers.keys ():
+		policy_buf += getLayerXML(layer, layers[layer])
 
 	# Add to the XML each tunable file specified by the user.
 	for tunable_file in tunable_files:
 		policy_buf += getTunableXML(tunable_file, "tunable")
 
+	# Add to the XML each XML tunable file specified by the user.
+	for tunable_file in xml_tunable_files:
+		policy_buf += getXMLFileContents (tunable_file)
+
 	# Add to the XML each bool file specified by the user.
 	for bool_file in bool_files:
 		policy_buf += getTunableXML(bool_file, "bool")
 
+	# Add to the XML each XML bool file specified by the user.
+	for bool_file in xml_bool_files:
+		policy_buf += getXMLFileContents (bool_file)
 
 	policy_buf.append("</policy>\n")
-
-	# Return to old directory.
-	try:
-		os.chdir(old_dir)
-	except:
-		error("cannot change directory to %s" % old_dir)
 
 	return policy_buf
 
@@ -297,27 +339,39 @@ def usage():
 	Displays a message describing the proper usage of this script.
 	"""
 
-	sys.stdout.write("usage: %s [-w] [-d directory] [-m file] "\
+	sys.stdout.write("usage: %s [-w] [-m file] "\
 		% sys.argv[0])
 
 	sys.stdout.write("layerdirectory [layerdirectory...]\n\n")
 
 	sys.stdout.write("Options:\n")
 
-	sys.stdout.write("-w --warn		--	"+\
+	sys.stdout.write ("-h --help                      -- "+\
+				"show command line options\n")
+
+	sys.stdout.write("-w --warn                      -- "+\
 				"show warnings\n")
 
-	sys.stdout.write("-m --meta <file>	--	"+\
+	sys.stdout.write("-m --meta <file>               -- "+\
 				"the filename of the metadata in each layer\n")
 
-	sys.stdout.write("-d --directory <dir>	--	"+\
-				"directory where the layers are\n")
-
-	sys.stdout.write("-t --tunable <file>	--	"+\
+	sys.stdout.write("-t --tunable <file>            -- "+\
 				"A file containing tunable declarations\n")
 
-	sys.stdout.write("-b --bool <file>      --      "+\
+	sys.stdout.write("-b --bool <file>               -- "+\
 				"A file containing bool declarations\n")
+												   
+	sys.stdout.write("-o --output-dir <directory>    -- "+\
+				"A directory to output global_tunables.xml and global_booleans.xml\n")
+
+	sys.stdout.write("--tunables-xml <file>          -- "+\
+				"A file containing tunable declarations already in XML format\n")
+
+	sys.stdout.write("--booleans-xml <file>          -- "+\
+				"A file containing bool declarations already in XML format\n")
+				
+	sys.stdout.write ("-3 --third-party <directory>   -- "+\
+				"Look for 3rd Party modules in directory.\n")
 
 def warning(description):
 	'''
@@ -349,16 +403,13 @@ if len(sys.argv) <= 1:
 
 # Parse the command line arguments
 for i in range(1, len(sys.argv)):
-	if sys.argv[i-1] in ("-d", "--directory", "-m", "--meta",\
-					"-t", "--tunable", "-b", "--bool"):
+	if sys.argv[i-1] in ("-m", "--meta",\
+					"-t", "--tunable", "-b", "--bool",\
+					"-o", "--output-dir", "-3", "--third-party", \
+					"--tunables-xml", "--booleans-xml"):
 		continue
 	elif sys.argv[i] in ("-w", "--warn"):
 		warn = True
-	elif sys.argv[i] in ("-d", "--directory"):
-		if i < len(sys.argv)-1:
-			directory = sys.argv[i+1]
-		else:
-			usage()
 	elif sys.argv[i] in ("-m", "--meta"):
 		if i < len(sys.argv)-1:
 			meta = sys.argv[i+1]
@@ -374,12 +425,49 @@ for i in range(1, len(sys.argv)):
 			bool_files.append(sys.argv[i+1])
 		else:
 			usage()
+	
+	elif sys.argv[i] == "--tunables-xml":
+		if i < len(sys.argv)-1:
+			xml_bool_files.append (sys.argv[i+1])
+		else:
+			usage ()
+			
+	elif sys.argv[i] == "--booleans-xml":
+		if i < len(sys.argv)-1:
+			xml_tunable_files.append (sys.argv[i+1])
+		else:
+			usage ()
+			
+	elif sys.argv[i] in ("-o", "--output-dir"):
+		if i < len(sys.argv)-1:
+			output_dir = sys.argv[i+1]
+		else:
+			usage ()
+			
+	elif sys.argv[i] in ("-3", "--third-party"):
+		if i < len(sys.argv) -1:
+			if layers.has_key (third_party):
+				layers[third_party].append (sys.argv[i+1])
+			else:
+				layers[third_party] = [sys.argv[i+1]]
+		else:
+			usage ()
+
+	elif sys.argv[i] in ("-h", "--help"):
+		usage ()
+		sys.exit (1)
 
 	else:
-		layers.append(sys.argv[i])
+		# store directories in hash stored by layer name
+		splitlayer = os.path.split(sys.argv[i])
+		if layers.has_key (splitlayer[1]):
+			layers[splitlayer[1]].append (sys.argv[i])
+		else:
+			layers[splitlayer[1]] = [sys.argv[i]]
 
 
 # Generate the XML and output it to a file
-lines = getPolicyXML(directory)
+lines = getPolicyXML()
 for s in lines:
 	sys.stdout.write(s)
+

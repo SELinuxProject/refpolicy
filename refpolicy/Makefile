@@ -273,7 +273,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	@mkdir -p tmp
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(verbose) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) $(ALL_LAYERS) >> $@
+	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o tmp $(ALL_LAYERS) >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --dtdvalid $(XMLDTD) $@ ;\
 	fi
@@ -358,21 +358,38 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 #
 # Install policy headers
 #
-install-headers: $(DETECTED_MODS:.te=.if) $(ROLEMAP) $(M4SUPPORT)
+install-headers: doc/policy.xml
 	@mkdir -p $(HEADERDIR)
 	@echo "Installing policy headers"
-	$(verbose) install -m 644 $^ $(HEADERDIR)
-	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/all_perms.spt
+	$(verbose) install -m 644 tmp/global_{tunables,booleans}.xml $(HEADERDIR)
+	$(verbose) m4 $(M4PARAM) $(ROLEMAP) > $(HEADERDIR)/$(notdir $(ROLEMAP))
+	$(verbose) mkdir -p $(HEADERDIR)/support
+	$(verbose) install -m 644 $(M4SUPPORT) $(GENXML) $(XMLDTD) $(HEADERDIR)/support
+	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/support/all_perms.spt
+	$(verbose) for i in $(notdir $(ALL_LAYERS)); do \
+		mkdir -p $(HEADERDIR)/$$i ;\
+		install -m 644 $(MODDIR)/$$i/*.if \
+			$(MODDIR)/$$i/metadata.xml \
+			$(HEADERDIR)/$$i ;\
+	done
+	$(verbose) echo "TYPE=$(TYPE)" > $(HEADERDIR)/build.conf
+	$(verbose) echo "NAME=$(NAME)" >> $(HEADERDIR)/build.conf
+ifneq "$(DISTRO)" ""
+	$(verbose) echo "DISTRO=$(DISTRO)" >> $(HEADERDIR)/build.conf
+endif
+	$(verbose) echo "MONOLITHIC=n" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "DIRECT_INITRC=$(DIRECT_INITRC)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "POLY=$(POLY)" >> $(HEADERDIR)/build.conf
+	$(verbose) install -m 644 $(SUPPORT)/Makefile.devel $(HEADERDIR)/Makefile
 
 ########################################
 #
 # Install policy documentation
 #
-install-docs: $(DOCFILES) build.conf tmp/html
+install-docs: tmp/html
 	@mkdir -p $(DOCSDIR)/html
 	@echo "Installing policy documentation"
 	$(verbose) install -m 644 $(DOCFILES) $(DOCSDIR)
-	$(verbose) install -m 644 build.conf $(DOCSDIR)/build.conf.example
 	$(verbose) install -m 644 $(wildcard $(HTMLDIR)/*) $(DOCSDIR)/html
 
 ########################################
