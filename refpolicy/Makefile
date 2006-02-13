@@ -41,7 +41,15 @@ GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 XMLLINT := $(BINDIR)/xmllint
 SECHECK := $(BINDIR)/sechecker
 
-CFLAGS := -Wall
+# interpreters and aux tools
+AWK ?= gawk
+GREP ?= egrep
+M4 ?= m4
+PYTHON ?= python
+SED ?= sed
+SH ?= sh
+
+CFLAGS += -Wall
 
 # policy source layout
 POLDIR := policy
@@ -53,11 +61,11 @@ AVS := $(FLASKDIR)/access_vectors
 
 # policy building support tools
 SUPPORT := support
-GENXML := $(SUPPORT)/segenxml.py
-GENDOC := $(SUPPORT)/sedoctool.py
-GENPERM := $(SUPPORT)/genclassperms.py
+GENXML := $(PYTHON) $(SUPPORT)/segenxml.py
+GENDOC := $(PYTHON) $(SUPPORT)/sedoctool.py
+GENPERM := $(PYTHON) $(SUPPORT)/genclassperms.py
 FCSORT := $(SUPPORT)/fc_sort
-SETTUN := $(SUPPORT)/set_tunables
+SETTUN := $(SH) $(SUPPORT)/set_tunables
 
 # documentation paths
 DOCS = doc
@@ -257,7 +265,7 @@ conf: $(MOD_CONF) $(BOOLEANS) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
 
 $(MOD_CONF) $(BOOLEANS): $(POLXML)
 	@echo "Updating $(MOD_CONF) and $(BOOLEANS)"
-	$(verbose) cd $(DOCS) && ../$(GENDOC) -t ../$(BOOLEANS) -m ../$(MOD_CONF) -x ../$(POLXML)
+	$(verbose) $(GENDOC) -t $(BOOLEANS) -m $(MOD_CONF) -x $(POLXML)
 
 ########################################
 #
@@ -281,7 +289,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 html tmp/html: $(POLXML)
 	@echo "Building html interface reference documentation in $(HTMLDIR)"
 	@mkdir -p $(HTMLDIR)
-	$(verbose) cd $(DOCS) && ../$(GENDOC) -d ../$(HTMLDIR) -T ../$(DOCTEMPLATE) -x ../$(POLXML)
+	$(verbose) $(GENDOC) -d $(HTMLDIR) -T $(DOCTEMPLATE) -x $(POLXML)
 	$(verbose) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
 	@touch tmp/html
 
