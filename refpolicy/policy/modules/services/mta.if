@@ -224,6 +224,12 @@ template(`mta_per_userdomain_template',`
 	userdom_manage_user_home_subdir_pipes($1,mailserver_delivery)
 	userdom_manage_user_home_subdir_sockets($1,mailserver_delivery)
 	userdom_filetrans_user_home($1,mailserver_delivery,{ dir file lnk_file fifo_file sock_file })
+	# Read user temporary files.
+	userdom_read_user_tmp_files($1,$1_mail_t)
+	userdom_dontaudit_append_user_tmp_files($1,$1_mail_t)
+	# cjp: this should probably be read all user tmp
+	# files in an appropriate place for mta_user_agent
+	userdom_read_user_tmp_files($1,mta_user_agent)
 
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_mail_t)
@@ -232,21 +238,17 @@ template(`mta_per_userdomain_template',`
 
 	optional_policy(`postfix',`
 		allow $1_mail_t self:capability dac_override;
+
+		# Read user temporary files.
+		# postfix seems to need write access if the file handle is opened read/write
+		userdom_rw_user_tmp_files($1,$1_mail_t)
+
 		postfix_read_config($1_mail_t)
 		postfix_list_spool($1_mail_t)
 	')
 
+
 	ifdef(`TODO',`
-	# Read user temporary files.
-	allow $1_mail_t $1_tmp_t:file r_file_perms;
-	dontaudit $1_mail_t $1_tmp_t:file append;
-	ifdef(`postfix.te',`
-		# postfix seems to need write access if the file handle is opened read/write
-		allow $1_mail_t $1_tmp_t:file write;
-	')
-
-	allow mta_user_agent $1_tmp_t:file r_file_perms;
-
 	# if you do not want to allow dead.letter then use the following instead
 	#allow $1_mail_t { $1_home_dir_t $1_home_t }:dir r_dir_perms;
 	#allow $1_mail_t $1_home_t:file r_file_perms;
