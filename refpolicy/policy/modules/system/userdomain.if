@@ -245,7 +245,6 @@ template(`base_user_template',`
 	logging_dontaudit_getattr_all_logs($1_t)
 
 	miscfiles_read_localization($1_t)
-	miscfiles_read_fonts($1_t)
 	# for running TeX programs
 	miscfiles_read_tetex_data($1_t)
 	miscfiles_exec_tetex_data($1_t)
@@ -440,6 +439,7 @@ template(`base_user_template',`
 
 	optional_policy(`xserver',`
 		dev_rw_xserver_misc($1_t)
+		xserver_user_client_template($1,$1_t,$1_tmpfs_t)
 		xserver_xsession_entry_type($1_t)
 		xserver_dontaudit_write_log($1_t)
 		xserver_stream_connect_xdm($1_t)
@@ -474,27 +474,9 @@ template(`base_user_template',`
 
 	can_resmgrd_connect($1_t)
 
-	# Use X
-	x_client_domain($1, $1)
-
 	ifdef(`xdm.te', `
 		allow $1_t xdm_var_lib_t:file r_file_perms;
 	')
-
-	# start read_fonts()
-	# cjp: these types come in from fontconfig
-	# Manipulate the global font cache
-	create_dir_file($1, $1_fonts_cache_t)
-
-	# Read per user fonts and font config
-	r_dir_file($1, $1_fonts_t)
-	r_dir_file($1, $1_fonts_config_t)
-
-	# There are some fonts in .gnome2
-	ifdef(`gnome.te', `
-	allow $1 $2_gnome_settings_t:dir { getattr search };
-	')
-	# end read_fonts()
 	') dnl endif TODO
 
 ')
@@ -1388,6 +1370,39 @@ template(`userdom_dontaudit_read_user_home_files',`
 
 	dontaudit $2 $1_home_t:dir r_dir_perms;
 	dontaudit $2 $1_home_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write user home files.
+## </summary>
+## <desc>
+##	<p>
+##	Do not audit attempts to write user home files.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+template(`userdom_dontaudit_write_user_home_files',`
+	gen_require(`
+		type $1_home_t;
+	')
+
+	dontaudit $2 $1_home_t:file write;
 ')
 
 ########################################

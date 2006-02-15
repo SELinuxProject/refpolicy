@@ -48,6 +48,9 @@ template(`java_per_userdomain_template',`
 	
 	type $1_javaplugin_tmp_t;
 	files_tmp_file($1_javaplugin_tmp_t)
+
+	type $1_javaplugin_tmpfs_t;
+	files_tmpfs_file($1_javaplugin_tmpfs_t)
 	
 	########################################
 	#
@@ -66,6 +69,13 @@ template(`java_per_userdomain_template',`
 	allow $1_javaplugin_t $1_javaplugin_tmp_t:dir create_dir_perms;
 	allow $1_javaplugin_t $1_javaplugin_tmp_t:file create_file_perms;
 	files_filetrans_tmp($1_javaplugin_t,$1_javaplugin_tmp_t,{ file dir })
+
+	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	fs_filetrans_tmpfs($1_javaplugin_t,$1_javaplugin_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	# cjp: rw_dir_perms here doesnt make sense
 	allow $1_javaplugin_t $1_home_t:dir rw_dir_perms;
@@ -164,21 +174,7 @@ template(`java_per_userdomain_template',`
 		nscd_socket_use($1_javaplugin_t)
 	')
 
-	ifdef(`TODO',`
-	# Manipulate the global font cache
-	create_dir_file($1, $2_fonts_cache_t)
-	
-	# Read per user fonts and font config
-	r_dir_file($1, $2_fonts_t)
-	r_dir_file($1, $2_fonts_config_t)
-	
-	# There are some fonts in .gnome2
-	ifdef(`gnome.te', `
-		allow $1 $2_gnome_settings_t:dir { getattr search };
+	optional_policy(`xserver',`
+		xserver_user_client_template($1,$1_javaplugin_t,$1_javaplugin_tmpfs_t)
 	')
-	
-	allow $1_javaplugin_t $1_xauth_home_t:file { getattr read };
-	# Connect to X server
-	x_client_domain($1_javaplugin, $2) 
-	') dnl end TODO
 ')

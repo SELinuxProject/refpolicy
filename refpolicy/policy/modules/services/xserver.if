@@ -1,5 +1,17 @@
 ## <summary>X Windows Server</summary>
 
+#######################################
+## <summary>
+##	Template to create types and rules common to
+##	all X server domains.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
 template(`xserver_common_domain_template',`
 
 	##############################
@@ -401,6 +413,160 @@ template(`xserver_per_userdomain_template',`
 
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_iceauth_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Template for creating sessions on a
+##	prefix X server, with read-only
+##	access to the X server shared
+##	memory segments.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="tmpfs_type">
+##	<summary>
+##	The type of the domain SYSV tmpfs files.
+##	</summary>
+## </param>
+#
+template(`xserver_ro_session_template',`
+	gen_require(`
+		type $1_xserver_t, $1_xserver_tmp_t, $1_xserver_tmpfs_t;
+	')
+
+	# Xserver read/write client shm
+	allow $1_xserver_t $2:fd use;
+	allow $1_xserver_t $2:shm rw_shm_perms;
+	allow $1_xserver_t $3:file rw_file_perms;
+
+	# Connect to xserver
+	allow $2 $1_xserver_t:unix_stream_socket connectto;
+	allow $2 $1_xserver_t:process signal;
+
+	# Read /tmp/.X0-lock
+	allow $2 $1_xserver_tmp_t:file { getattr read };
+
+	# Client read xserver shm
+	allow $2 $1_xserver_t:fd use;
+	allow $2 $1_xserver_t:shm r_shm_perms;
+	allow $2 $1_xserver_tmpfs_t:file r_file_perms;
+')
+
+#######################################
+## <summary>
+##	Template for creating sessions on a
+##	prefix X server, with read and write
+##	access to the X server shared
+##	memory segments.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="tmpfs_type">
+##	<summary>
+##	The type of the domain SYSV tmpfs files.
+##	</summary>
+## </param>
+#
+template(`xserver_rw_session_template',`
+	gen_require(`
+		type $1_xserver_t, $1_xserver_tmpfs_t;
+	')
+
+	xserver_ro_session_template($1,$2,$3)
+	allow $2 $1_xserver_t:shm rw_shm_perms;
+	allow $2 $1_xserver_tmpfs_t:file rw_file_perms;
+')
+
+#######################################
+## <summary>
+##	Template for creating full client sessions
+##	on a user X server.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="tmpfs_type">
+##	<summary>
+##	The type of the domain SYSV tmpfs files.
+##	</summary>
+## </param>
+#
+template(`xserver_user_client_template',`
+
+	gen_require(`
+		type xdm_t, xdm_tmp_t;
+		type $1_xauth_home_t, $1_xserver_t, $1_xserver_tmpfs_t;
+	')
+
+	allow $2 self:shm create_shm_perms;
+	allow $2 self:unix_dgram_socket create_socket_perms;
+	allow $2 self:unix_stream_socket { connectto create_stream_socket_perms };
+
+	# Read .Xauthority file
+	allow $2 $1_xauth_home_t:file { getattr read };
+
+	# for when /tmp/.X11-unix is created by the system
+	allow $2 xdm_t:fd use;
+	allow $2 xdm_t:fifo_file { getattr read write ioctl };
+	allow $2 xdm_tmp_t:dir search;
+	allow $2 xdm_tmp_t:sock_file { read write };
+	dontaudit $2 xdm_t:tcp_socket { read write };
+
+	# Allow connections to X server.
+	files_search_tmp($2)
+
+	miscfiles_read_fonts($2)
+
+	userdom_search_user_home($1,$2)
+	# for .xsession-errors
+	userdom_dontaudit_write_user_home_files($1,$2)
+
+	xserver_ro_session_template(xdm,$2,$3)
+	xserver_rw_session_template($1,$2,$3)
+
+	# Client write xserver shm
+	tunable_policy(`allow_write_xshm',`
+		allow $2 $1_xserver_t:shm rw_shm_perms;
+		allow $2 $1_xserver_tmpfs_t:file rw_file_perms;
+	')
+
+	# for X over a ssh tunnel
+	optional_policy(`ssh',`
+		kernel_tcp_recvfrom($2)
+		ssh_tcp_connect($2)
+	')
+
+	ifdef(`TODO',`
+	# cjp: need to implement the user-specific fonts part
+	read_fonts($2, $1)
 	')
 ')
 

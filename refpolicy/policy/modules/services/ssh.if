@@ -59,10 +59,13 @@ template(`ssh_per_userdomain_template',`
 	domain_entry_file($1_ssh_agent_t,ssh_agent_exec_t)
 	role $3 types $1_ssh_agent_t;
 
-	type $1_ssh_keysign_t; #, nscd_client_domain;
+	type $1_ssh_keysign_t;
 	domain_type($1_ssh_keysign_t)
 	domain_entry_file($1_ssh_keysign_t,ssh_keysign_exec_t)
 	role $3 types $1_ssh_keysign_t;
+
+	type $1_ssh_tmpfs_t;
+	files_tmpfs_file($1_ssh_tmpfs_t)
 
 	##############################
 	#
@@ -81,6 +84,13 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t self:msgq { associate getattr setattr create destroy read write enqueue unix_read unix_write };
 	allow $1_ssh_t self:msg { send receive };
 	allow $1_ssh_t self:tcp_socket { create connect ioctl read getattr write setattr append bind getopt setopt shutdown };
+
+	allow $1_ssh_t $1_ssh_tmpfs_t:dir rw_dir_perms;
+	allow $1_ssh_t $1_ssh_tmpfs_t:file manage_file_perms;
+	allow $1_ssh_t $1_ssh_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_ssh_t $1_ssh_tmpfs_t:sock_file manage_file_perms;
+	allow $1_ssh_t $1_ssh_tmpfs_t:fifo_file manage_file_perms;
+	fs_filetrans_tmpfs($1_ssh_t,$1_ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	# Transition from the user domain to the derived domain.
 	domain_auto_trans($2, ssh_exec_t, $1_ssh_t)
@@ -211,6 +221,7 @@ template(`ssh_per_userdomain_template',`
 	')
 
 	optional_policy(`xserver',`
+		xserver_user_client_template($1,$1_ssh_t,$1_ssh_tmpfs_t)
 		xserver_domtrans_user_xauth($1,$1_ssh_t)
 	')
 
@@ -232,14 +243,8 @@ template(`ssh_per_userdomain_template',`
 	# for /bin/sh used to execute xauth
 	dontaudit $1_ssh_t proc_t:{ lnk_file file } { getattr read };
 
-	# Inherit and use descriptors from gnome-pty-helper.
-	ifdef(`gnome-pty-helper.te', `allow $1_ssh_t $1_gph_t:fd use;')
-
 	# allow ps to show ssh
 	can_ps($1_t, $1_ssh_t)
-
-	# Connect to X server
-	x_client_domain($1_ssh, $1)
 
 	#allow ssh to access keys stored on removable media
 	# Should we have a boolean around this?
@@ -606,6 +611,26 @@ interface(`ssh_dontaudit_rw_tcp_sockets',`
 	')
 
 	dontaudit $1 sshd_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Connect to SSH daemons over TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_tcp_connect',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	allow $1 sshd_t:tcp_socket { connectto recvfrom };
+	allow sshd_t $1:tcp_socket { acceptfrom recvfrom };
+	kernel_tcp_recvfrom($1)
 ')
 
 ########################################
