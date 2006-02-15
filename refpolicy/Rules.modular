@@ -11,6 +11,8 @@ BASE_FC := $(BUILDDIR)/base.fc
 BASE_CONF := $(BUILDDIR)/base.conf
 BASE_MOD := $(TMPDIR)/base.mod
 
+USERS_EXTRA := $(TMPDIR)/users_extra
+
 BASE_SECTIONS := $(TMPDIR)/pre_te_files.conf $(TMPDIR)/generated_definitions.conf $(TMPDIR)/all_interfaces.conf $(TMPDIR)/all_attrs_types.conf $(GLOBALBOOL) $(GLOBALTUN) $(TMPDIR)/only_te_rules.conf $(TMPDIR)/all_post.conf
 
 BASE_PRE_TE_FILES := $(SECCLASS) $(ISIDS) $(AVS) $(M4SUPPORT) $(POLDIR)/mls $(POLDIR)/mcs
@@ -86,14 +88,19 @@ $(BUILDDIR)/%.pp: $(TMPDIR)/%.mod $(TMPDIR)/%.mod.fc
 #
 # Create a base module package
 #
-$(BASE_PKG): $(BASE_MOD) $(BASE_FC)
+$(BASE_PKG): $(BASE_MOD) $(BASE_FC) $(USERS_EXTRA)
 	@echo "Creating $(NAME) base module package"
 	@test -d $(BUILDDIR) || mkdir -p $(BUILDDIR)
-	$(verbose) $(SEMOD_PKG) -o $@ -m $(BASE_MOD) -f $(BASE_FC)
+	$(verbose) $(SEMOD_PKG) -o $@ -m $(BASE_MOD) -f $(BASE_FC) -u $(USERS_EXTRA)
 
 $(BASE_MOD): $(BASE_CONF)
 	@echo "Compiling $(NAME) base module"
 	$(verbose) $(CHECKMODULE) $^ -o $@
+
+$(USERS_EXTRA): $(M4SUPPORT) $(USER_FILES)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	$(verbose) $(M4) $(M4PARAM) -D users_extra $^ | \
+		$(SED) -r -n -e 's/^[[:blank:]]*//g' -e '/^user/p' > $@
 
 ########################################
 #

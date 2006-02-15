@@ -112,6 +112,7 @@ GLOBALTUN = $(POLDIR)/global_tunables
 GLOBALBOOL = $(POLDIR)/global_booleans
 TUNABLES = $(POLDIR)/tunables.conf
 ROLEMAP = $(POLDIR)/rolemap
+USER_FILES := $(POLDIR)/users
 
 # local config file paths
 ifndef LOCAL_ROOT
@@ -215,7 +216,6 @@ APPCONF := config/appconfig-$(TYPE)
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
-USER_FILES := $(POLDIR)/users
 
 ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 ifdef LOCAL_ROOT
@@ -251,7 +251,7 @@ BASE_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if 
 MOD_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null) $(APPS_MODS)))
 OFF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null) $(APPS_OFF)))
 
-# filesystems to be labeled
+# filesystems to be used in labeling targets
 FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
 
 ########################################
