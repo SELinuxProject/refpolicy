@@ -212,7 +212,8 @@ endif
 
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt $(LOCAL_POLDIR)/support/*.spt)
 
-APPCONF := config/appconfig-$(TYPE)
+APPCONF := $(ROOT)/config/appconfig-$(TYPE)
+SEUSERS := $(APPCONF)/seusers
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
