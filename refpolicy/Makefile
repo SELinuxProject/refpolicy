@@ -219,7 +219,7 @@ USER_FILES := $(POLDIR)/users
 
 ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 ifdef LOCAL_ROOT
-LOCAL_LAYERS := $(filter-out $(LOCAL_MODDIR)/CVS,$(shell find $(wildcard $(LOCAL_MODDIR)/*) -maxdepth 0 -type d))
+ALL_LAYERS += $(filter-out $(LOCAL_MODDIR)/CVS,$(shell find $(wildcard $(LOCAL_MODDIR)/*) -maxdepth 0 -type d))
 endif
 
 GENERATED_TE := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te.in)))
@@ -339,7 +339,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(TMPDIR) $(ALL_LAYERS) $(LOCAL_LAYERS) >> $@
+	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(TMPDIR) $(ALL_LAYERS) >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --path $(dir $(XMLDTD)) --dtdvalid $(XMLDTD) $@ ;\
 	fi
