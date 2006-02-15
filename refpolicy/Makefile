@@ -67,7 +67,6 @@ GREP ?= egrep
 M4 ?= m4
 PYTHON ?= python
 SED ?= sed
-SH ?= sh
 
 CFLAGS += -Wall
 
@@ -91,7 +90,7 @@ GENXML := $(PYTHON) $(SUPPORT)/segenxml.py
 GENDOC := $(PYTHON) $(SUPPORT)/sedoctool.py
 GENPERM := $(PYTHON) $(SUPPORT)/genclassperms.py
 FCSORT := $(TMPDIR)/fc_sort
-SETTUN := $(SH) $(SUPPORT)/set_tunables
+SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
 
 # documentation paths
 DOCS = $(ROOT)/doc
@@ -134,7 +133,7 @@ CONTEXTPATH = $(INSTALLDIR)/contexts
 FCPATH = $(CONTEXTPATH)/files/file_contexts
 SHAREDIR = $(PREFIX)/share/selinux
 MODPKGDIR = $(SHAREDIR)/$(NAME)
-HEADERDIR = $(SHAREDIR)/refpolicy/include
+HEADERDIR = $(MODPKGDIR)/include
 DOCSDIR = $(PREFIX)/share/doc/$(PKGNAME)
 
 # compile strict policy if requested.
@@ -433,7 +432,7 @@ install-headers: $(POLXML)
 	$(verbose) install -m 644 $(TMPDIR)/global_{tunables,booleans}.xml $(HEADERDIR)
 	$(verbose) m4 $(M4PARAM) $(ROLEMAP) > $(HEADERDIR)/$(notdir $(ROLEMAP))
 	$(verbose) mkdir -p $(HEADERDIR)/support
-	$(verbose) install -m 644 $(M4SUPPORT) $(GENXML) $(XMLDTD) $(HEADERDIR)/support
+	$(verbose) install -m 644 $(M4SUPPORT) $(word $(words $(GENXML)),$(GENXML)) $(XMLDTD) $(HEADERDIR)/support
 	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/support/all_perms.spt
 	$(verbose) for i in $(notdir $(ALL_LAYERS)); do \
 		mkdir -p $(HEADERDIR)/$$i ;\
