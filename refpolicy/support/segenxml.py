@@ -154,9 +154,9 @@ def getModuleXML(file_name):
 				module_buf.append("Summary is missing!\n")
 				module_buf.append("</summary>\n")
 				module_buf.append("<param name=\"?\">\n")
-				module_buf.append("<summary>")
+				module_buf.append("<summary>\n")
 				module_buf.append("Parameter descriptions are missing!\n")
-				module_buf.append("</summary>")
+				module_buf.append("</summary>\n")
 				module_buf.append("</param>\n")
 
 			# Close the interface/template tag.
