@@ -3,14 +3,14 @@
 # Rules and Targets for building monolithic policies
 #
 
-POLICY_CONF = $(BUILDDIR)/policy.conf
-FC = $(BUILDDIR)/file_contexts
-POLVER = policy.$(PV)
-HOMEDIR_TEMPLATE = $(BUILDDIR)/homedir_template
+POLICY_CONF = $(BUILDDIR)policy.conf
+FC = $(BUILDDIR)file_contexts
+POLVER = $(BUILDDIR)policy.$(PV)
+HOMEDIR_TEMPLATE = $(BUILDDIR)homedir_template
 
 # install paths
 POLICYPATH = $(INSTALLDIR)/policy
-LOADPATH = $(POLICYPATH)/$(POLVER)
+LOADPATH = $(POLICYPATH)/$(notdir $(POLVER))
 HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
 
 APPFILES += $(INSTALLDIR)/booleans
@@ -60,7 +60,7 @@ ifneq ($(PV),$(KV))
 	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
-	$(verbose) $(CHECKPOLICY) $^ -o $(BUILDDIR)/$@
+	$(verbose) $(CHECKPOLICY) $^ -o $@
 
 ########################################
 #
@@ -118,7 +118,7 @@ $(TMPDIR)/generated_definitions.conf: $(ALL_TE_FILES)
 	$(verbose) for i in $(notdir $(ALL_MODULES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
-	$(verbose) test -f $(BOOLEANS) && $(SETBOOLS) $(BOOLEANS) >> $@
+	$(verbose) test -f $(BOOLEANS) && $(SETBOOLS) $(BOOLEANS) >> $@ || true
 
 $(TMPDIR)/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
 ifeq ($(ALL_INTERFACES),)
@@ -197,11 +197,13 @@ $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 #
 # Run policy source checks
 #
-check: $(POLICY_CONF) $(FC)
-	$(SECHECK) -s --profile=development --policy=$(POLICY_CONF) --fcfile=$(FC) > $(BUILDDIR)/$@.res
+check: $(BUILDDIR)check.res
+$(BUILDDIR)check.res: $(POLICY_CONF) $(FC)
+	$(SECHECK) -s --profile=development --policy=$(POLICY_CONF) --fcfile=$(FC) > $@
 
-longcheck: $(POLICY_CONF) $(FC)
-	$(SECHECK) -s --profile=all --policy=$(POLICY_CONF) --fcfile=$(FC) > $(BUILDDIR)/$@.res
+longcheck: $(BUILDDIR)longcheck.res
+$(BUILDDIR)longcheck.res: $(POLICY_CONF) $(FC)
+	$(SECHECK) -s --profile=all --policy=$(POLICY_CONF) --fcfile=$(FC) > $@
 
 ########################################
 #
@@ -218,7 +220,7 @@ $(APPDIR)/customizable_types: policy.conf
 #
 clean:
 	rm -f $(POLICY_CONF)
-	rm -f $(BUILDDIR)/policy.$(PV)
+	rm -f $(POLVER)
 	rm -f $(FC)
 	rm -f $(HOMEDIR_TEMPLATE)
 	rm -f *.res

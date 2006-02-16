@@ -23,14 +23,10 @@
 # NO OPTIONS BELOW HERE
 #
 
-# Top level directory - so make can be run from outside 
-# of the tree (if this is overridden on the command line)
-ROOT ?= .
-
 # Include the local build.conf if it exists, otherwise
 # include the configuration of the root directory.
 ifndef LOCAL_ROOT
-	include $(ROOT)/build.conf
+	include build.conf
 else
 	include $(LOCAL_ROOT)/build.conf
 endif
@@ -39,13 +35,12 @@ endif
 VERSION = $(shell cat VERSION)
 
 ifdef LOCAL_ROOT
-BUILDDIR := $(LOCAL_ROOT)
+BUILDDIR := $(LOCAL_ROOT)/
 TMPDIR := $(LOCAL_ROOT)/tmp
 TAGS := $(LOCAL_ROOT)/tags
 else
-BUILDDIR := $(ROOT)
-TMPDIR := $(ROOT)/tmp
-TAGS := $(ROOT)/tags
+TMPDIR := tmp
+TAGS := tags
 endif
 
 # executable paths
@@ -71,7 +66,7 @@ SED ?= sed
 CFLAGS += -Wall
 
 # policy source layout
-POLDIR := $(ROOT)/policy
+POLDIR := policy
 MODDIR := $(POLDIR)/modules
 FLASKDIR := $(POLDIR)/flask
 SECCLASS := $(FLASKDIR)/security_classes
@@ -85,7 +80,7 @@ LOCAL_MODDIR := $(LOCAL_POLDIR)/modules
 endif
 
 # policy building support tools
-SUPPORT := $(ROOT)/support
+SUPPORT := support
 GENXML := $(PYTHON) $(SUPPORT)/segenxml.py
 GENDOC := $(PYTHON) $(SUPPORT)/sedoctool.py
 GENPERM := $(PYTHON) $(SUPPORT)/genclassperms.py
@@ -93,7 +88,7 @@ FCSORT := $(TMPDIR)/fc_sort
 SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
 
 # documentation paths
-DOCS = $(ROOT)/doc
+DOCS := doc
 XMLDTD = $(DOCS)/policy.dtd
 LAYERXML = metadata.xml
 DOCTEMPLATE = $(DOCS)/templates
@@ -212,7 +207,7 @@ endif
 
 M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt $(LOCAL_POLDIR)/support/*.spt)
 
-APPCONF := $(ROOT)/config/appconfig-$(TYPE)
+APPCONF := config/appconfig-$(TYPE)
 SEUSERS := $(APPCONF)/seusers
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
@@ -279,9 +274,9 @@ endef
 #
 
 ifeq ($(MONOLITHIC),y)
-	include $(ROOT)/Rules.monolithic
+	include Rules.monolithic
 else
-	include $(ROOT)/Rules.modular
+	include Rules.modular
 endif
 
 ########################################
