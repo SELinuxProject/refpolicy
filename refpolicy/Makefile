@@ -289,6 +289,8 @@ endif
 #
 # NOTE: There is no "local" version of these files.
 #
+generate: $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
+
 $(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/kernel/corenetwork.if.in
 	@echo "#" > $@
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
@@ -322,7 +324,7 @@ $(MOD_CONF) $(BOOLEANS): $(POLXML)
 # Generate the fc_sort program
 #
 $(FCSORT) : $(SUPPORT)/fc_sort.c
-	$(CC) $(CFLAGS) $(SUPPORT)/fc_sort.c -o $(FCSORT)
+	$(verbose) $(CC) $(CFLAGS) $(SUPPORT)/fc_sort.c -o $(FCSORT)
 
 ########################################
 #
@@ -551,6 +553,6 @@ ifneq ($(GENERATED_FC),)
 endif
 endif
 
-.PHONY: install-src install-appconfig conf html bare tags
+.PHONY: install-src install-appconfig generate conf html bare tags
 .SUFFIXES:
 .SUFFIXES: .c
