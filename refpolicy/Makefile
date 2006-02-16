@@ -96,9 +96,13 @@ DOCFILES = $(DOCS)/Makefile.example $(addprefix $(DOCS)/,example.te example.if e
 
 ifndef LOCAL_ROOT
 POLXML = $(DOCS)/policy.xml
+TUNXML = $(DOCS)/global_tunables.xml
+BOOLXML = $(DOCS)/global_booleans.xml
 HTMLDIR = $(DOCS)/html
 else
 POLXML = $(LOCAL_ROOT)/doc/policy.xml
+TUNXML = $(LOCAL_ROOT)/doc/global_tunables.xml
+BOOLXML = $(LOCAL_ROOT)/doc/global_booleans.xml
 HTMLDIR = $(LOCAL_ROOT)/doc/html
 endif
 
@@ -335,10 +339,12 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(TMPDIR) $(ALL_LAYERS) >> $@
+	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(DOCS) $(ALL_LAYERS) >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --path $(dir $(XMLDTD)) --dtdvalid $(XMLDTD) $@ ;\
 	fi
+
+$(TUNXML) $(BOOLXML): $(POLXML)
 
 html $(TMPDIR)/html: $(POLXML)
 	@echo "Building html interface reference documentation in $(HTMLDIR)"
@@ -423,10 +429,10 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 #
 # Install policy headers
 #
-install-headers: $(POLXML)
+install-headers: $(TUNXML) $(BOOLXML)
 	@mkdir -p $(HEADERDIR)
 	@echo "Installing policy headers"
-	$(verbose) install -m 644 $(TMPDIR)/global_{tunables,booleans}.xml $(HEADERDIR)
+	$(verbose) install -m 644 $(TUNXML) $(BOOLXML) $(HEADERDIR)
 	$(verbose) m4 $(M4PARAM) $(ROLEMAP) > $(HEADERDIR)/$(notdir $(ROLEMAP))
 	$(verbose) mkdir -p $(HEADERDIR)/support
 	$(verbose) install -m 644 $(M4SUPPORT) $(word $(words $(GENXML)),$(GENXML)) $(XMLDTD) $(HEADERDIR)/support
@@ -524,6 +530,8 @@ resetlabels:
 #
 bare: clean
 	rm -f $(POLXML)
+	rm -f $(TUNXML)
+	rm -f $(BOOLXML)
 	rm -f $(MOD_CONF)
 	rm -f $(BOOLEANS)
 	rm -fR $(HTMLDIR)
