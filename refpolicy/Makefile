@@ -284,10 +284,6 @@ else
 	include $(ROOT)/Rules.modular
 endif
 
-test:
-	# $(MODDIR)
-	# $(ALL_LAYERS)
-
 ########################################
 #
 # Generated files
