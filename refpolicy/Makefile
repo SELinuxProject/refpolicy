@@ -25,10 +25,10 @@
 
 # Include the local build.conf if it exists, otherwise
 # include the configuration of the root directory.
-ifndef LOCAL_ROOT
-	include build.conf
-else
-	include $(LOCAL_ROOT)/build.conf
+include build.conf
+
+ifdef LOCAL_ROOT
+	-include $(LOCAL_ROOT)/build.conf
 endif
 
 # refpolicy version
@@ -335,8 +335,9 @@ $(FCSORT) : $(SUPPORT)/fc_sort.c
 # this and its dependents every time the dependencies
 # change.  Also use all .if files here, rather then just the
 # enabled modules.
+xml: $(POLXML)
 $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXML))
-	@echo "Creating $@"
+	@echo "Creating $(@F)"
 	@test -d $(dir $(POLXML)) || mkdir -p $(dir $(POLXML))
 	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
@@ -433,7 +434,7 @@ $(APPDIR)/users/root: $(APPCONF)/root_default_contexts
 #
 install-headers: $(TUNXML) $(BOOLXML)
 	@mkdir -p $(HEADERDIR)
-	@echo "Installing policy headers"
+	@echo "Installing $(TYPE) policy headers."
 	$(verbose) install -m 644 $(TUNXML) $(BOOLXML) $(HEADERDIR)
 	$(verbose) m4 $(M4PARAM) $(ROLEMAP) > $(HEADERDIR)/$(notdir $(ROLEMAP))
 	$(verbose) mkdir -p $(HEADERDIR)/support
@@ -553,6 +554,6 @@ ifneq ($(GENERATED_FC),)
 endif
 endif
 
-.PHONY: install-src install-appconfig generate conf html bare tags
+.PHONY: install-src install-appconfig generate xml conf html bare tags
 .SUFFIXES:
 .SUFFIXES: .c
