@@ -39,11 +39,12 @@ template(`xserver_common_domain_template',`
 	# admin of APM bios?
 	# sys_nice is so that the X server can set a negative nice value
 	# execheap needed until the X module loader is fixed.
+	# NVIDIA Needs execstack
 
 	allow $1_xserver_t self:capability { dac_override fsetid setgid setuid ipc_owner sys_rawio sys_admin sys_nice sys_tty_config mknod net_bind_service };
 	dontaudit $1_xserver_t self:capability chown;
 	allow $1_xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_xserver_t self:process { execmem execheap setsched };
+	allow $1_xserver_t self:process { execmem execheap execstack setsched };
 	allow $1_xserver_t self:fd use;
 	allow $1_xserver_t self:fifo_file rw_file_perms;
 	allow $1_xserver_t self:sock_file r_file_perms;
@@ -53,6 +54,7 @@ template(`xserver_common_domain_template',`
 	allow $1_xserver_t self:msg { send receive };
 	allow $1_xserver_t self:unix_dgram_socket { create_socket_perms sendto };
 	allow $1_xserver_t self:unix_stream_socket { create_stream_socket_perms connectto };
+	allow $1_xserver_t self:netlink_route_socket r_netlink_socket_perms;
 	allow $1_xserver_t self:tcp_socket create_stream_socket_perms;
 	allow $1_xserver_t self:udp_socket create_socket_perms;
 
@@ -86,6 +88,7 @@ template(`xserver_common_domain_template',`
 	kernel_read_modprobe_sysctls($1_xserver_t)
 	# Xorg wants to check if kernel is tainted
 	kernel_read_kernel_sysctls($1_xserver_t)
+	kernel_write_proc_files($1_xserver_t)
 
 	# Run helper programs in $1_xserver_t.
 	corecmd_search_sbin($1_xserver_t)
@@ -122,9 +125,12 @@ template(`xserver_common_domain_template',`
 	dev_rw_xserver_misc($1_xserver_t)
 	# read events - the synaptics touchpad driver reads raw events
 	dev_rw_input_dev($1_xserver_t)
+	dev_rwx_zero($1_xserver_t)
 
 	files_read_etc_files($1_xserver_t)
 	files_read_etc_runtime_files($1_xserver_t)
+	files_read_usr_files($1_xserver_t)
+
 	# brought on by rhgb
 	files_search_mnt($1_xserver_t)
 	# for nscd
@@ -133,6 +139,8 @@ template(`xserver_common_domain_template',`
 	fs_getattr_xattr_fs($1_xserver_t)
 	fs_search_nfs($1_xserver_t)
 	fs_search_auto_mountpoints($1_xserver_t)
+
+	init_getpgid($1_xserver_t)
 
 	term_setattr_unallocated_ttys($1_xserver_t)
 	term_use_unallocated_ttys($1_xserver_t)
