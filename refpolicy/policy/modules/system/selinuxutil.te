@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.1.5)
+policy_module(selinuxutil,1.1.6)
 
 gen_require(`
 	bool secure_mode;
@@ -88,6 +88,22 @@ type run_init_exec_t;
 domain_type(run_init_t)
 domain_entry_file(run_init_t,run_init_exec_t)
 domain_system_change_exemption(run_init_t)
+
+type semanage_t;
+domain_type(semanage_t)
+
+type semanage_exec_t;
+domain_entry_file(semanage_t, semanage_exec_t)
+role system_r types semanage_t;
+
+type semanage_store_t;
+files_type(semanage_store_t)
+
+type semanage_read_lock_t;
+files_type(semanage_read_lock_t)
+
+type semanage_trans_lock_t; 
+files_type(semanage_trans_lock_t)
 
 type setfiles_t, can_relabelto_binary_policy;
 domain_obj_id_change_exemption(setfiles_t)
@@ -466,6 +482,47 @@ ifdef(`targeted_policy',`',`
 
 ########################################
 #
+# semodule local policy
+#
+
+allow semanage_t self:unix_stream_socket create_stream_socket_perms;
+
+allow semanage_t policy_config_t:file { read write };
+
+kernel_read_system_state(semanage_t)
+kernel_read_kernel_sysctls(semanage_t)
+
+corecmd_exec_bin(semanage_t)
+corecmd_exec_sbin(semanage_t)
+
+files_read_etc_files(semanage_t)
+files_read_usr_files(semanage_t)
+files_list_pids(semanage_t)
+
+mls_file_write_down(semanage_t)
+mls_rangetrans_target(semanage_t)
+
+selinux_get_enforce_mode(semanage_t)
+
+term_use_all_terms(semanage_t)
+
+libs_use_ld_so(semanage_t)
+libs_use_shared_libs(semanage_t)
+libs_use_lib_files(semanage_t)
+
+seutil_search_default_contexts(semanage_t)
+seutil_rw_file_contexts(semanage_t)
+seutil_domtrans_setfiles(semanage_t)
+seutil_domtrans_loadpolicy(semanage_t)
+seutil_read_config(semanage_t)
+seutil_manage_bin_policy(semanage_t)
+seutil_use_newrole_fds(semanage_t)
+seutil_manage_module_store(semanage_t)
+seutil_get_semanage_trans_lock(semanage_t)
+seutil_get_semanage_read_lock(semanage_t)
+
+########################################
+#
 # Setfiles local policy
 #
 
@@ -525,12 +582,8 @@ logging_send_syslog_msg(setfiles_t)
 
 miscfiles_read_localization(setfiles_t)
 
+seutil_get_semanage_read_lock(setfiles_t)
+
 userdom_use_all_users_fds(setfiles_t)
 # for config files in a home directory
 userdom_read_all_users_home_content_files(setfiles_t)
-
-ifdef(`TODO',`
-# for upgrading glibc and other shared objects - without this the upgrade
-# scripts will put things in a state such that setfiles can not be run!
-allow setfiles_t lib_t:file { read execute };
-') dnl endif TODO

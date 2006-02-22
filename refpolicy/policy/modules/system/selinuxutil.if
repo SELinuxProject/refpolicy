@@ -778,3 +778,124 @@ interface(`seutil_manage_src_policy',`
 	allow $1 policy_src_t:dir create_dir_perms;
 	allow $1 policy_src_t:file create_file_perms;
 ')
+
+########################################
+## <summary>
+##	Execute a domain transition to run semanage.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`seutil_domtrans_semanage',`
+	gen_require(`
+		type semanage_t, semanage_exec_t;
+	')
+
+	files_search_usr($1)
+	corecmd_search_bin($1)
+	domain_auto_trans($1,semanage_exec_t,semanage_t)
+
+	allow $1 semanage_t:fd use;
+	allow semanage_t $1:fd use;
+	allow semanage_t $1:fifo_file rw_file_perms;
+	allow semanage_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute semanage in the semanage domain, and
+##	allow the specified role the semanage domain,
+##	and use the caller's terminal.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the checkpolicy domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the semanage domain to use.
+##	</summary>
+## </param>
+#
+interface(`seutil_run_semanage',`
+	gen_require(`
+		type semanage_t;
+	')
+
+	seutil_domtrans_semanage($1)
+	role $2 types semanage_t;
+	allow semanage_t $3:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Full management of the semanage
+##	module store.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`seutil_manage_module_store',`
+	gen_require(`
+		type selinux_config_t, semanage_store_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir rw_dir_perms;
+	type_transition $1 selinux_config_t:dir semanage_store_t;
+
+	allow $1 semanage_store_t:dir create_dir_perms;
+	allow $1 semanage_store_t:file create_file_perms;
+')
+
+#######################################
+## <summary>
+##	Get read lock on module store
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`seutil_get_semanage_read_lock',`
+	gen_require(`
+		type selinux_config_t, semanage_read_lock_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir search_dir_perms;
+	allow $1 semanage_read_lock_t:file rw_file_perms;
+')
+
+#######################################
+## <summary>
+##	Get trans lock on module store
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`seutil_get_semanage_trans_lock',`
+	gen_require(`
+		type selinux_config_t, semanage_trans_lock_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir search_dir_perms;
+	allow $1 semanage_trans_lock_t:file rw_file_perms;
+')
