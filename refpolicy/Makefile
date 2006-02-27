@@ -446,14 +446,14 @@ install-headers: $(TUNXML) $(BOOLXML)
 			$(MODDIR)/$$i/metadata.xml \
 			$(HEADERDIR)/$$i ;\
 	done
-	$(verbose) echo "TYPE=$(TYPE)" > $(HEADERDIR)/build.conf
-	$(verbose) echo "NAME=$(NAME)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "TYPE ?= $(TYPE)" > $(HEADERDIR)/build.conf
+	$(verbose) echo "NAME ?= $(NAME)" >> $(HEADERDIR)/build.conf
 ifneq "$(DISTRO)" ""
-	$(verbose) echo "DISTRO=$(DISTRO)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "DISTRO ?= $(DISTRO)" >> $(HEADERDIR)/build.conf
 endif
-	$(verbose) echo "MONOLITHIC=n" >> $(HEADERDIR)/build.conf
-	$(verbose) echo "DIRECT_INITRC=$(DIRECT_INITRC)" >> $(HEADERDIR)/build.conf
-	$(verbose) echo "POLY=$(POLY)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "MONOLITHIC ?= n" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "DIRECT_INITRC ?= $(DIRECT_INITRC)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "POLY ?= $(POLY)" >> $(HEADERDIR)/build.conf
 	$(verbose) install -m 644 $(SUPPORT)/Makefile.devel $(HEADERDIR)/Makefile
 
 ########################################
