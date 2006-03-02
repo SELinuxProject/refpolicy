@@ -1,19 +1,10 @@
 
-policy_module(bootloader,1.1.3)
+policy_module(bootloader,1.1.4)
 
 ########################################
 #
 # Declarations
 #
-
-attribute rw_kern_modules;
-
-#
-# boot_t is the type for files in /boot
-#
-type boot_t;
-files_type(boot_t)
-files_mountpoint(boot_t)
 
 #
 # boot_runtime_t is the type for /boot/kernel.h,
@@ -45,18 +36,6 @@ type bootloader_tmp_t;
 files_tmp_file(bootloader_tmp_t)
 dev_node(bootloader_tmp_t)
 
-# kernel modules
-type modules_object_t;
-files_type(modules_object_t)
-
-#neverallow ~rw_kern_modules modules_object_t:file { create append write };
-
-#
-# system_map_t is for the system.map files in /boot
-#
-type system_map_t;
-files_type(system_map_t)
-
 #
 # /var/log/ksyms
 # cjp: this probably can be removed, I do not
@@ -73,14 +52,10 @@ allow bootloader_t self:capability { dac_read_search fsetid sys_rawio sys_admin 
 allow bootloader_t self:process { sigkill sigstop signull signal };
 allow bootloader_t self:fifo_file rw_file_perms;
 
-allow bootloader_t boot_t:dir { create rw_dir_perms };
-allow bootloader_t boot_t:file create_file_perms;
-allow bootloader_t boot_t:lnk_file create_lnk_perms;
-
 allow bootloader_t bootloader_etc_t:file r_file_perms;
 # uncomment the following lines if you use "lilo -p"
-#allow bootloader_t bootloader_etc_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-#files_etc_filetrans(bootloader_t,bootloader_etc_t)
+#allow bootloader_t bootloader_etc_t:file manage_file_perms;
+#files_etc_filetrans(bootloader_t,bootloader_etc_t,file)
 
 allow bootloader_t bootloader_tmp_t:dir create_dir_perms;
 allow bootloader_t bootloader_tmp_t:file create_file_perms;
@@ -89,11 +64,7 @@ allow bootloader_t bootloader_tmp_t:blk_file create_file_perms;
 allow bootloader_t bootloader_tmp_t:lnk_file create_lnk_perms;
 files_tmp_filetrans(bootloader_t,bootloader_tmp_t,{ dir file lnk_file chr_file blk_file })
 # for tune2fs (cjp: ?)
-files_root_filetrans(bootloader_t,bootloader_tmp_t)
-
-allow bootloader_t modules_object_t:dir r_dir_perms;
-allow bootloader_t modules_object_t:file r_file_perms;
-allow bootloader_t modules_object_t:lnk_file r_file_perms;
+files_root_filetrans(bootloader_t,bootloader_tmp_t,file)
 
 kernel_getattr_core_if(bootloader_t)
 kernel_read_system_state(bootloader_t)
@@ -127,12 +98,16 @@ corecmd_exec_shell(bootloader_t)
 domain_exec_all_entry_files(bootloader_t)
 domain_use_interactive_fds(bootloader_t)
 
+files_create_boot_dirs(bootloader_t)
+files_manage_boot_files(bootloader_t)
+files_manage_boot_symlinks(bootloader_t)
 files_read_etc_files(bootloader_t)
 files_exec_etc_files(bootloader_t)
 files_read_etc_runtime_files(bootloader_t)
 files_read_usr_src_files(bootloader_t)
 files_read_usr_files(bootloader_t)
 files_read_var_files(bootloader_t)
+files_read_kernel_modules(bootloader_t)
 # for nscd
 files_dontaudit_search_pids(bootloader_t)
 
@@ -157,11 +132,11 @@ seutil_dontaudit_search_config(bootloader_t)
 
 ifdef(`distro_debian',`
 	allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
-	allow bootloader_t modules_object_t:file { relabelfrom relabelto unlink };
-	allow bootloader_t boot_t:file relabelfrom;
-
 	fs_list_tmpfs(bootloader_t)
 
+	files_relabel_kernel_modules(bootloader_t)
+	files_relabelfrom_boot_files(bootloader_t)
+	files_delete_kernel_modules(bootloader_t)
 	files_relabelto_usr_files(bootloader_t)
 	files_search_var_lib(bootloader_t)
 	# for /usr/share/initrd-tools/scripts

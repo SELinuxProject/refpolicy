@@ -104,7 +104,7 @@ allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
-files_pid_filetrans(init_t,init_var_run_t)
+files_pid_filetrans(init_t,init_var_run_t,file)
 
 allow init_t initctl_t:fifo_file { create getattr read append write setattr unlink };
 fs_associate_tmpfs(initctl_t)
@@ -224,7 +224,7 @@ allow initrc_t initrc_state_t:file create_file_perms;
 allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
 
 allow initrc_t initrc_var_run_t:file create_file_perms;
-files_pid_filetrans(initrc_t,initrc_var_run_t)
+files_pid_filetrans(initrc_t,initrc_var_run_t,file)
 
 can_exec(initrc_t,initrc_tmp_t)
 allow initrc_t initrc_tmp_t:file create_file_perms;
@@ -245,7 +245,7 @@ kernel_rw_all_sysctls(initrc_t)
 # for lsof which is used by alsa shutdown:
 kernel_dontaudit_getattr_message_if(initrc_t)
 
-bootloader_read_kernel_symbol_table(initrc_t)
+files_read_kernel_symbol_table(initrc_t)
 
 corenet_tcp_sendrecv_all_if(initrc_t)
 corenet_raw_sendrecv_all_if(initrc_t)
@@ -395,7 +395,8 @@ ifdef(`distro_debian',`
 
 	# for storing state under /dev/shm
 	fs_setattr_tmpfs_dirs(initrc_t)
-	storage_create_fixed_disk_tmpfs(initrc_t)
+	storage_manage_fixed_disk(initrc_t)
+	storage_tmpfs_filetrans_fixed_disk(initrc_t)
 
 	files_setattr_etc_dirs(initrc_t)
 ')
@@ -416,7 +417,7 @@ ifdef(`distro_redhat',`
 
 	# Red Hat systems seem to have a stray
 	# fd open from the initrd
-	kernel_dontaudit_use_fd(initrc_t)
+	kernel_dontaudit_use_fds(initrc_t)
 	files_dontaudit_read_root_files(initrc_t)
 
 	selinux_set_enforce_mode(initrc_t)
@@ -424,7 +425,7 @@ ifdef(`distro_redhat',`
 	# Create and read /boot/kernel.h and /boot/System.map.
 	# Redhat systems typically create this file at boot time.
 	bootloader_create_runtime_file(initrc_t)
-	bootloader_rw_boot_symlinks(initrc_t)
+	files_rw_boot_symlinks(initrc_t)
 
 	# These seem to be from the initrd
 	# during device initialization:
@@ -442,7 +443,8 @@ ifdef(`distro_redhat',`
 
 	fs_rw_tmpfs_chr_files(initrc_t)
 
-	storage_create_fixed_disk(initrc_t)
+	storage_manage_fixed_disk(initrc_t)
+	storage_dev_filetrans_fixed_disk(initrc_t)
 	storage_getattr_removable_dev(initrc_t)
 
 	# readahead asks for these

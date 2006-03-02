@@ -367,8 +367,8 @@ template(`base_user_template',`
 
 	optional_policy(`inetd',`
 		inetd_tcp_connect($1_t)
-		inetd_udp_sendto($1_t)
-		inetd_use_fd($1_t)
+		inetd_udp_send($1_t)
+		inetd_use_fds($1_t)
 		inetd_rw_tcp_sockets($1_t)
 	')
 
@@ -551,7 +551,7 @@ template(`unpriv_user_template', `
 	dev_read_sysfs($1_t)
 
 	# cjp: why?
-	bootloader_read_kernel_symbol_table($1_t)
+	files_read_kernel_symbol_table($1_t)
 
 	# port access is audited even if dac would not have allowed it, so dontaudit it here
 	corenet_dontaudit_tcp_bind_all_reserved_ports($1_t)
@@ -574,7 +574,7 @@ template(`unpriv_user_template', `
 	# then fall back to read-only if it fails. 
 	init_dontaudit_write_utmp($1_t)
 	# Stop warnings about access to /dev/console
-	init_dontaudit_use_fd($1_t)
+	init_dontaudit_use_fds($1_t)
 	init_dontaudit_use_script_fds($1_t)
 
 	miscfiles_read_man_pages($1_t)
@@ -3360,8 +3360,7 @@ interface(`userdom_dontaudit_use_sysadm_terms',`
 #
 interface(`userdom_use_sysadm_fds',`
 	ifdef(`targeted_policy',`
-		#cjp: need to doublecheck this one
-		unconfined_use_fd($1)
+		unconfined_use_fds($1)
 	',`
 		gen_require(`
 			type sysadm_t;
@@ -3859,7 +3858,7 @@ interface(`userdom_home_filetrans_generic_user_home_dir',`
 		type user_home_dir_t;
 	')
 
-	files_home_filetrans($1,user_home_dir_t)
+	files_home_filetrans($1,user_home_dir_t,dir)
 ')
 
 ########################################
@@ -3890,7 +3889,7 @@ interface(`userdom_search_generic_user_home_dirs',`
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
-## <param name="object_class" optional="true">
+## <param name="object_class">
 ##	<summary>
 ##	The class of the object to be created.
 ##	If not specified, file is used.
@@ -3903,13 +3902,8 @@ interface(`userdom_generic_user_home_dir_filetrans_generic_user_home_content',`
 	')
 
 	files_search_home($1)
-
 	allow $1 user_home_dir_t:dir rw_dir_perms;
-	ifelse(`$2',`',`
-		type_transition $1 user_home_dir_t:file user_home_t;
-	',`
-		type_transition $1 user_home_dir_t:$2 user_home_t;
-	')
+	type_transition $1 user_home_dir_t:$2 user_home_t;
 ')
 
 ########################################
@@ -4436,5 +4430,5 @@ interface(`userdom_unconfined',`
 	')
 
 	allow $1 user_home_dir_t:dir create_dir_perms;
-	files_home_filetrans($1,user_home_dir_t)
+	files_home_filetrans($1,user_home_dir_t,dir)
 ')
