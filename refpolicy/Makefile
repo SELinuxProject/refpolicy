@@ -317,7 +317,7 @@ conf: $(MOD_CONF) $(BOOLEANS) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
 
 $(MOD_CONF) $(BOOLEANS): $(POLXML)
 	@echo "Updating $(MOD_CONF) and $(BOOLEANS)"
-	$(verbose) $(GENDOC) -t $(BOOLEANS) -m $(MOD_CONF) -x $(POLXML)
+	$(verbose) $(GENDOC) -b $(BOOLEANS) -m $(MOD_CONF) -x $(POLXML)
 
 ########################################
 #
