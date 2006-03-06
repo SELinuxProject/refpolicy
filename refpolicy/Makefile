@@ -240,16 +240,24 @@ MODMOD := module
 MODUNUSED := off
 
 # test for module overrides from command line
-MOD_TEST = $(filter $(APPS_OFF), $(APPS_ON) $(APPS_MODS))
-MOD_TEST += $(filter $(APPS_MODS), $(APPS_ON))
+MOD_TEST = $(filter $(APPS_OFF), $(APPS_BASE) $(APPS_MODS))
+MOD_TEST += $(filter $(APPS_MODS), $(APPS_BASE))
 ifneq ($(strip $(MOD_TEST)),)
         $(error Applications must be on, module, or off, and not in more than one list! $(strip $(MOD_TEST)) found in multiple lists!)
 endif
 
 # extract settings from modules.conf
-BASE_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null) $(APPS_ON)))
-MOD_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null) $(APPS_MODS)))
-OFF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null) $(APPS_OFF)))
+BASE_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+MOD_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+OFF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+
+# add module overrides from command line
+BASE_MODS += $(APPS_BASE)
+MOD_MODS += $(APPS_MODS)
+OFF_MODS += $(APPS_OFF)
+
+# add modules not in modules.conf to the off list
+OFF_MODS += $(filter-out $(BASE_MODS) $(MOD_MODS),$(notdir $(DETECTED_MODS)))
 
 # filesystems to be used in labeling targets
 FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
