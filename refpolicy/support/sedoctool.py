@@ -24,6 +24,10 @@ MOD_BASE = "base"
 MOD_ENABLED = "module"
 MOD_DISABLED = "off"
 
+#booleans enabled and disabled values
+BOOL_ENABLED = "true"
+BOOL_DISABLED = "false"
+
 #tunables enabled and disabled values
 TUN_ENABLED = "true"
 TUN_DISABLED = "false"
@@ -48,34 +52,60 @@ def read_policy_xml(filename):
 	xml_fh.close()	
 	return doc
 
-def gen_tunable_conf(doc, file_name, namevalue_list):
+def gen_booleans_conf(doc, file_name, namevalue_list):
 	"""
-	Generates the tunable configuration file using the XML provided and the
-	previous tunable configuration.
+	Generates the booleans configuration file using the XML provided and the
+	previous booleans configuration.
 	"""
 
-	for node in doc.getElementsByTagName("tunable"):
+	for node in doc.getElementsByTagName("bool"):
 		for desc in node.getElementsByTagName("desc"):
-			tun_desc = format_txt_desc(desc)
-		s = string.split(tun_desc, "\n")
+			bool_desc = format_txt_desc(desc)
+		s = string.split(bool_desc, "\n")
 		file_name.write("#\n")
 		for line in s:
 			file_name.write("# %s\n" % line)
-		tun_name = tun_val = None
-        	for (name, value) in node.attributes.items():
+
+		bool_name = bool_val = None
+		for (name, value) in node.attributes.items():
 			if name == "name":
-				tun_name = value
+				bool_name = value
 			elif name == "dftval":
-				tun_val = value
+				bool_val = value
 
-			if [tun_name,TUN_ENABLED] in namevalue_list:
-				tun_val = TUN_ENABLED
-			elif [tun_name,TUN_DISABLED] in namevalue_list:
-				tun_val = TUN_DISABLED
+			if [bool_name,BOOL_ENABLED] in namevalue_list:
+				bool_val = BOOL_ENABLED
+			elif [bool_name,BOOL_DISABLED] in namevalue_list:
+				bool_val = BOOL_DISABLED
 
-			if tun_name and tun_val:
-	            		file_name.write("%s = %s\n\n" % (tun_name, tun_val))
-				tun_name = tun_val = None
+			if bool_name and bool_val:
+	            		file_name.write("%s = %s\n\n" % (bool_name, bool_val))
+				bool_name = bool_val = None
+
+	# tunables are currently implemented as booleans
+	for node in doc.getElementsByTagName("tunable"):
+		for desc in node.getElementsByTagName("desc"):
+			bool_desc = format_txt_desc(desc)
+		s = string.split(bool_desc, "\n")
+		file_name.write("#\n")
+		for line in s:
+			file_name.write("# %s\n" % line)
+
+		bool_name = bool_val = None
+		for (name, value) in node.attributes.items():
+			if name == "name":
+				bool_name = value
+			elif name == "dftval":
+				bool_val = value
+
+			if [bool_name,BOOL_ENABLED] in namevalue_list:
+				bool_val = BOOL_ENABLED
+			elif [bool_name,BOOL_DISABLED] in namevalue_list:
+				bool_val = BOOL_DISABLED
+
+			if bool_name and bool_val:
+	            		file_name.write("%s = %s\n\n" % (bool_name, bool_val))
+				bool_name = bool_val = None
 
 def gen_module_conf(doc, file_name, namevalue_list):
 	"""
@@ -635,7 +665,7 @@ def usage():
 
 	sys.stdout.write("%s [-tmdT] -x <xmlfile>\n\n" % sys.argv[0])
 	sys.stdout.write("Options:\n")
-	sys.stdout.write("-t --tunables	<file>		--	write tunable config to <file>\n")
+	sys.stdout.write("-b --booleans	<file>		--	write boolean config to <file>\n")
 	sys.stdout.write("-m --modules <file>		--	write module config to <file>\n")
 	sys.stdout.write("-d --docs <dir>		--	write interface documentation to <dir>\n")
 	sys.stdout.write("-x --xml <file>		--	filename to read xml data from\n")
@@ -644,18 +674,18 @@ def usage():
 
 # MAIN PROGRAM
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "t:m:d:x:T:", ["tunables","modules","docs","xml", "templates"])
+	opts, args = getopt.getopt(sys.argv[1:], "b:m:d:x:T:", ["booleans","modules","docs","xml", "templates"])
 except getopt.GetoptError:
 	usage()
 	sys.exit(1)
 
-tunables = modules = docsdir = None
+booleans = modules = docsdir = None
 templatedir = "templates/"
 xmlfile = "policy.xml"
 
 for opt, val in opts:
-	if opt in ("-t", "--tunables"):
-		tunables = val
+	if opt in ("-b", "--booleans"):
+		booleans = val
 	if opt in ("-m", "--modules"):
 		modules = val
 	if opt in ("-d", "--docs"):
@@ -667,24 +697,24 @@ for opt, val in opts:
 
 doc = read_policy_xml(xmlfile)
 		
-if tunables:
+if booleans:
 	namevalue_list = []
-	if os.path.exists(tunables):
+	if os.path.exists(booleans):
 		try:
-			conf = open(tunables, 'r')
+			conf = open(booleans, 'r')
 		except:
-			error("Could not open tunables file for reading")
+			error("Could not open booleans file for reading")
 
 		namevalue_list = get_conf(conf)
 
 		conf.close()
 
 	try:
-		conf = open(tunables, 'w')
+		conf = open(booleans, 'w')
 	except:
-		error("Could not open tunables file for writing")
+		error("Could not open booleans file for writing")
 
-	gen_tunable_conf(doc, conf, namevalue_list)
+	gen_booleans_conf(doc, conf, namevalue_list)
 	conf.close()
 
 

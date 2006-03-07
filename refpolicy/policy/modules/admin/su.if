@@ -8,7 +8,7 @@ template(`su_restricted_domain_template', `
 	type $1_su_t;
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
-	domain_wide_inherit_fd($1_su_t)
+	domain_interactive_fd($1_su_t)
 	role $3 types $1_su_t;
 
 	allow $2 $1_su_t:process signal;
@@ -47,9 +47,9 @@ template(`su_restricted_domain_template', `
 	auth_dontaudit_read_shadow($1_su_t)
 	auth_use_nsswitch($1_su_t)
 
-	domain_use_wide_inherit_fd($1_su_t)
+	domain_use_interactive_fds($1_su_t)
 
-	init_dontaudit_use_fd($1_su_t)
+	init_dontaudit_use_fds($1_su_t)
 	init_dontaudit_use_script_ptys($1_su_t)
 	# Write to utmp.
 	init_rw_utmp($1_su_t)
@@ -121,7 +121,7 @@ template(`su_per_userdomain_template',`
 	type $1_su_t;
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
-	domain_wide_inherit_fd($1_su_t)
+	domain_interactive_fd($1_su_t)
 	role $3 types $1_su_t;
 
 	allow $2 $1_su_t:process signal;
@@ -161,14 +161,14 @@ template(`su_per_userdomain_template',`
 	corecmd_search_bin($1_su_t)
 	corecmd_search_sbin($1_su_t)
 
-	domain_use_wide_inherit_fd($1_su_t)
+	domain_use_interactive_fds($1_su_t)
 
 	files_read_etc_files($1_su_t)
 	files_read_etc_runtime_files($1_su_t)
 	files_search_var_lib($1_su_t)
 	files_dontaudit_getattr_tmp_dirs($1_su_t)
 
-	init_dontaudit_use_fd($1_su_t)
+	init_dontaudit_use_fds($1_su_t)
 	# Write to utmp.
 	init_rw_utmp($1_su_t)
 
@@ -180,7 +180,7 @@ template(`su_per_userdomain_template',`
 	miscfiles_read_localization($1_su_t)
 
 	userdom_use_user_terminals($1,$1_su_t)
-	userdom_search_user_home($1,$1_su_t)
+	userdom_search_user_home_dirs($1,$1_su_t)
 
 	ifdef(`enable_polyinstantiation',`
 		fs_mount_xattr_fs($1_su_t)
@@ -196,8 +196,8 @@ template(`su_per_userdomain_template',`
 		allow $1_su_t self:process sigstop;
 
 		corecmd_exec_bin($1_su_t)
-		userdom_manage_all_user_files($1_su_t)
-		userdom_manage_all_user_symlinks($1_su_t)
+		userdom_manage_all_users_home_content_files($1_su_t)
+		userdom_manage_all_users_home_content_symlinks($1_su_t)
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
@@ -220,6 +220,14 @@ template(`su_per_userdomain_template',`
 		nscd_socket_use($1_su_t)
 	')
 
+	# Modify .Xauthority file (via xauth program).
+	optional_policy(`xserver',`
+#		file_type_auto_trans($1_su_t, staff_home_dir_t, staff_xauth_home_t, file)
+#		file_type_auto_trans($1_su_t, user_home_dir_t, user_xauth_home_t, file)
+#		file_type_auto_trans($1_su_t, sysadm_home_dir_t, sysadm_xauth_home_t, file)
+		xserver_domtrans_user_xauth($1, $1_su_t)
+	')
+
 	ifdef(`TODO',`
 	# Caused by su - init scripts
 	dontaudit $1_su_t initrc_devpts_t:chr_file { getattr ioctl };
@@ -235,17 +243,6 @@ template(`su_per_userdomain_template',`
 	dontaudit $1_su_t home_dir_type:dir { search write };
 	')
 
-	# Modify .Xauthority file (via xauth program).
-	ifdef(`xauth.te', `
-	file_type_auto_trans($1_su_t, staff_home_dir_t, staff_xauth_home_t, file)
-	file_type_auto_trans($1_su_t, user_home_dir_t, user_xauth_home_t, file)
-	file_type_auto_trans($1_su_t, sysadm_home_dir_t, sysadm_xauth_home_t, file)
-	domain_auto_trans($1_su_t, xauth_exec_t, $1_xauth_t)
-	')
-
-	ifdef(`cyrus.te', `
-	allow $1_su_t cyrus_var_lib_t:dir search;
-	')
 	ifdef(`ssh.te', `
 	# Access sshd cookie files.
 	allow $1_su_t sshd_tmp_t:file rw_file_perms;

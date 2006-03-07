@@ -258,9 +258,9 @@ interface(`seutil_sigchld_newrole',`
 
 #######################################
 #
-# seutil_use_newrole_fd(domain)
+# seutil_use_newrole_fds(domain)
 #
-interface(`seutil_use_newrole_fd',`
+interface(`seutil_use_newrole_fds',`
 	gen_require(`
 		type newrole_t;
 	')
@@ -364,6 +364,35 @@ interface(`seutil_domtrans_runinit',`
 
 ########################################
 ## <summary>
+##	Execute init scripts in the run_init domain.
+## </summary>
+## <desc>
+##	<p>
+##	Execute init scripts in the run_init domain.
+##	This is used for the Gentoo integrated run_init.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`seutil_init_script_domtrans_runinit',`
+	gen_require(`
+		type run_init_t;
+	')
+
+	init_script_file_domtrans($1,run_init_t)
+
+	allow $1 run_init_t:fd use;
+	allow run_init_t $1:fd use;
+	allow run_init_t $1:fifo_file rw_file_perms;
+	allow run_init_t $1:process sigchld;
+')
+
+########################################
+## <summary>
 ##	Execute run_init in the run_init domain, and
 ##	allow the specified role the run_init domain,
 ##	and use the caller's terminal.
@@ -397,10 +426,54 @@ interface(`seutil_run_runinit',`
 ')
 
 ########################################
+## <summary>
+##	Execute init scripts in the run_init domain, and
+##	allow the specified role the run_init domain,
+##	and use the caller's terminal.
+## </summary>
+## <desc>
+##	<p>
+##	Execute init scripts in the run_init domain, and
+##	allow the specified role the run_init domain,
+##	and use the caller's terminal.
+##	</p>
+##	<p>
+##	This is used for the Gentoo integrated run_init.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the run_init domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the run_init domain to use.
+##	</summary>
+## </param>
 #
-# seutil_use_runinit_fd(domain)
+interface(`seutil_init_script_run_runinit',`
+	gen_require(`
+		type run_init_t;
+		role system_r;
+	')
+
+	seutil_init_script_domtrans_runinit($1)
+	role $2 types run_init_t;
+	allow run_init_t $3:chr_file rw_term_perms;
+	allow $2 system_r;
+')
+
+########################################
 #
-interface(`seutil_use_runinit_fd',`
+# seutil_use_runinit_fds(domain)
+#
+interface(`seutil_use_runinit_fds',`
 	gen_require(`
 		type run_init_t;
 	')
@@ -586,6 +659,28 @@ interface(`seutil_read_file_contexts',`
 ')
 
 ########################################
+## <summary>
+##	Read and write the file_contexts files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`seutil_rw_file_contexts',`
+	gen_require(`
+		type selinux_config_t, file_context_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir search;
+	allow $1 file_context_t:dir r_dir_perms;
+	allow $1 file_context_t:file rw_file_perms;
+	allow $1 file_context_t:lnk_file { getattr read };
+')
+
+########################################
 #
 # seutil_read_bin_policy(domain)
 #
@@ -684,3 +779,123 @@ interface(`seutil_manage_src_policy',`
 	allow $1 policy_src_t:file create_file_perms;
 ')
 
+########################################
+## <summary>
+##	Execute a domain transition to run semanage.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`seutil_domtrans_semanage',`
+	gen_require(`
+		type semanage_t, semanage_exec_t;
+	')
+
+	files_search_usr($1)
+	corecmd_search_bin($1)
+	domain_auto_trans($1,semanage_exec_t,semanage_t)
+
+	allow $1 semanage_t:fd use;
+	allow semanage_t $1:fd use;
+	allow semanage_t $1:fifo_file rw_file_perms;
+	allow semanage_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute semanage in the semanage domain, and
+##	allow the specified role the semanage domain,
+##	and use the caller's terminal.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the checkpolicy domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the semanage domain to use.
+##	</summary>
+## </param>
+#
+interface(`seutil_run_semanage',`
+	gen_require(`
+		type semanage_t;
+	')
+
+	seutil_domtrans_semanage($1)
+	role $2 types semanage_t;
+	allow semanage_t $3:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Full management of the semanage
+##	module store.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`seutil_manage_module_store',`
+	gen_require(`
+		type selinux_config_t, semanage_store_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir rw_dir_perms;
+	type_transition $1 selinux_config_t:dir semanage_store_t;
+
+	allow $1 semanage_store_t:dir create_dir_perms;
+	allow $1 semanage_store_t:file create_file_perms;
+')
+
+#######################################
+## <summary>
+##	Get read lock on module store
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`seutil_get_semanage_read_lock',`
+	gen_require(`
+		type selinux_config_t, semanage_read_lock_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir search_dir_perms;
+	allow $1 semanage_read_lock_t:file rw_file_perms;
+')
+
+#######################################
+## <summary>
+##	Get trans lock on module store
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`seutil_get_semanage_trans_lock',`
+	gen_require(`
+		type selinux_config_t, semanage_trans_lock_t;
+	')
+
+	files_search_etc($1)
+	allow $1 selinux_config_t:dir search_dir_perms;
+	allow $1 semanage_trans_lock_t:file rw_file_perms;
+')

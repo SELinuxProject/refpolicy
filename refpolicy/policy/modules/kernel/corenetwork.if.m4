@@ -81,8 +81,8 @@ interface(`corenet_udp_receive_$1_if',`
 ## <infoflow type="both" weight="10"/>
 #
 interface(`corenet_udp_sendrecv_$1_if',`
-	corenet_udp_send_$1(dollarsone)
-	corenet_udp_receive_$1(dollarsone)
+	corenet_udp_send_$1_if(dollarsone)
+	corenet_udp_receive_$1_if(dollarsone)
 ')
 
 ########################################

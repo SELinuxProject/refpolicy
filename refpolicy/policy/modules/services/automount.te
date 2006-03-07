@@ -1,5 +1,5 @@
 
-policy_module(automount,1.1.2)
+policy_module(automount,1.2.0)
 
 ########################################
 #
@@ -28,7 +28,7 @@ files_mountpoint(automount_tmp_t)
 # Local policy
 #
 
-allow automount_t self:capability { net_bind_service sys_nice dac_override };
+allow automount_t self:capability { net_bind_service sys_nice sys_resource dac_override };
 dontaudit automount_t self:capability sys_tty_config;
 allow automount_t self:process { signal_perms getpgid setpgid setsched };
 allow automount_t self:fifo_file rw_file_perms;
@@ -42,20 +42,20 @@ allow automount_t automount_etc_t:file { getattr read };
 can_exec(automount_t, automount_etc_t)
 
 allow automount_t automount_lock_t:file create_file_perms;
-files_filetrans_lock(automount_t,automount_lock_t)
+files_lock_filetrans(automount_t,automount_lock_t,file)
 
 allow automount_t automount_tmp_t:dir create_dir_perms;
 allow automount_t automount_tmp_t:file create_file_perms;
-files_filetrans_tmp(automount_t, automount_tmp_t, { file dir })
+files_tmp_filetrans(automount_t, automount_tmp_t, { file dir })
 
 # Allow automount to create and delete directories in / and /home
 allow automount_t automount_tmp_t:dir create_dir_perms;
-files_filetrans_home(automount_t,automount_tmp_t)
-files_filetrans_root(automount_t,automount_tmp_t,dir)
+files_home_filetrans(automount_t,automount_tmp_t,dir)
+files_root_filetrans(automount_t,automount_tmp_t,dir)
 
 allow automount_t automount_var_run_t:file create_file_perms;
 allow automount_t automount_var_run_t:dir rw_dir_perms;
-files_filetrans_pid(automount_t,automount_var_run_t)
+files_pid_filetrans(automount_t,automount_var_run_t,file)
 
 kernel_read_kernel_sysctls(automount_t)
 kernel_read_fs_sysctls(automount_t)
@@ -63,7 +63,7 @@ kernel_read_proc_symlinks(automount_t)
 kernel_read_system_state(automount_t)
 kernel_list_proc(automount_t)
 
-bootloader_search_boot(automount_t)
+files_search_boot(automount_t)
 
 corecmd_exec_sbin(automount_t)
 corecmd_exec_bin(automount_t)
@@ -83,16 +83,19 @@ corenet_udp_bind_all_nodes(automount_t)
 corenet_tcp_connect_portmap_port(automount_t)
 corenet_tcp_connect_all_ports(automount_t)
 corenet_dontaudit_tcp_connect_all_reserved_ports(automount_t)
+# Automount execs showmount when you browse /net.  This is required until
+# Someone writes a showmount policy
+corenet_tcp_bind_reserved_port(automount_t)
 
 dev_read_sysfs(automount_t)
 # for SSP
 dev_read_urand(automount_t)
 
-domain_use_wide_inherit_fd(automount_t)
+domain_use_interactive_fds(automount_t)
 
 files_dontaudit_write_var_dirs(automount_t)
-files_search_var_lib(automount_t)
-files_search_mnt(automount_t)
+files_getattr_all_dirs(automount_t)
+files_list_mnt(automount_t)
 files_getattr_home_dir(automount_t)
 files_read_etc_files(automount_t)
 files_read_etc_runtime_files(automount_t)
@@ -110,7 +113,7 @@ fs_manage_auto_mountpoints(automount_t)
 term_dontaudit_use_console(automount_t)
 term_dontaudit_getattr_pty_dirs(automount_t)
 
-init_use_fd(automount_t)
+init_use_fds(automount_t)
 init_use_script_ptys(automount_t)
 
 libs_use_ld_so(automount_t)
@@ -128,8 +131,8 @@ sysnet_dns_name_resolve(automount_t)
 sysnet_use_ldap(automount_t)
 sysnet_read_config(automount_t)
 
-userdom_dontaudit_use_unpriv_user_fd(automount_t)
-userdom_dontaudit_search_sysadm_home_dir(automount_t)
+userdom_dontaudit_use_unpriv_user_fds(automount_t)
+userdom_dontaudit_search_sysadm_home_dirs(automount_t)
 
 ifdef(`targeted_policy', `
 	files_dontaudit_read_root_files(automount_t)

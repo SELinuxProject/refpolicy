@@ -1,5 +1,5 @@
 
-policy_module(cron,1.2.1)
+policy_module(cron,1.3.0)
 
 gen_require(`
 	class passwd rootok;
@@ -24,7 +24,7 @@ gen_require(`
 	type crond_exec_t;
 ')
 init_daemon_domain(crond_t,crond_exec_t)
-domain_wide_inherit_fd(crond_t)
+domain_interactive_fd(crond_t)
 domain_cron_exemption_source(crond_t)
 
 type crond_tmp_t;
@@ -80,7 +80,7 @@ allow crond_t self:msgq create_msgq_perms;
 allow crond_t self:msg { send receive };
 
 allow crond_t crond_var_run_t:file create_file_perms;
-files_filetrans_pid(crond_t,crond_var_run_t)
+files_pid_filetrans(crond_t,crond_var_run_t,file)
 
 allow crond_t cron_spool_t:dir rw_dir_perms;
 allow crond_t cron_spool_t:file r_file_perms;
@@ -110,7 +110,7 @@ corecmd_exec_shell(crond_t)
 corecmd_list_sbin(crond_t)
 corecmd_read_sbin_symlinks(crond_t)
 
-domain_use_wide_inherit_fd(crond_t)
+domain_use_interactive_fds(crond_t)
 
 files_read_etc_files(crond_t)
 files_read_generic_spool(crond_t)
@@ -119,7 +119,7 @@ files_list_usr(crond_t)
 files_search_var_lib(crond_t)
 files_search_default(crond_t)
 
-init_use_fd(crond_t)
+init_use_fds(crond_t)
 init_use_script_ptys(crond_t)
 init_rw_utmp(crond_t)
 
@@ -134,9 +134,9 @@ seutil_sigchld_newrole(crond_t)
 
 miscfiles_read_localization(crond_t)
 
-userdom_use_unpriv_users_fd(crond_t)
+userdom_use_unpriv_users_fds(crond_t)
 # Not sure why this is needed
-userdom_list_all_users_home_dir(crond_t)
+userdom_list_all_users_home_dirs(crond_t)
 
 ifdef(`distro_redhat', `
 	# Run the rpm program in the rpm_t domain. Allow creation of RPM log files
@@ -152,24 +152,24 @@ ifdef(`targeted_policy',`
 	allow crond_t system_crond_tmp_t:lnk_file create_lnk_perms;
 	allow crond_t system_crond_tmp_t:sock_file create_file_perms;
 	allow crond_t system_crond_tmp_t:fifo_file create_file_perms;
-	files_filetrans_tmp(crond_t,system_crond_tmp_t,{ dir file lnk_file sock_file fifo_file })
+	files_tmp_filetrans(crond_t,system_crond_tmp_t,{ dir file lnk_file sock_file fifo_file })
 
 	unconfined_domain(crond_t)
 
 	# cjp: fix this to generic_user interfaces
-	userdom_manage_user_home_subdirs(user,crond_t)
-	userdom_manage_user_home_subdir_files(user,crond_t)
-	userdom_manage_user_home_subdir_symlinks(user,crond_t)
-	userdom_manage_user_home_subdir_pipes(user,crond_t)
-	userdom_manage_user_home_subdir_sockets(user,crond_t)
-	userdom_filetrans_user_home(user,crond_t,{ dir file lnk_file fifo_file sock_file })
+	userdom_manage_user_home_content_dirs(user,crond_t)
+	userdom_manage_generic_user_home_content_files(crond_t)
+	userdom_manage_generic_user_home_content_symlinks(crond_t)
+	userdom_manage_generic_user_home_content_sockets(crond_t)
+	userdom_manage_generic_user_home_content_pipes(crond_t)
+	userdom_generic_user_home_dir_filetrans_generic_user_home_content(crond_t,{ dir file lnk_file fifo_file sock_file })
 
 	allow crond_t unconfined_t:dbus send_msg;
 	allow crond_t initrc_t:dbus send_msg;
 ',`
 	allow crond_t crond_tmp_t:dir create_dir_perms;
 	allow crond_t crond_tmp_t:file create_file_perms;
-	files_filetrans_tmp(crond_t, crond_tmp_t, { file dir })
+	files_tmp_filetrans(crond_t, crond_tmp_t, { file dir })
 
 	mta_send_mail(crond_t)
 ')
@@ -247,11 +247,11 @@ ifdef(`targeted_policy',`
 
 	# Write /var/lock/makewhatis.lock.
 	allow system_crond_t system_crond_lock_t:file create_file_perms;
-	files_filetrans_lock(system_crond_t,system_crond_lock_t)
+	files_lock_filetrans(system_crond_t,system_crond_lock_t,file)
 
 	# write temporary files
 	allow system_crond_t system_crond_tmp_t:file create_file_perms;
-	files_filetrans_tmp(system_crond_t,system_crond_tmp_t)
+	files_tmp_filetrans(system_crond_t,system_crond_tmp_t,file)
 
 	# write temporary files in crond tmp dir:
 	allow system_crond_t crond_tmp_t:dir rw_dir_perms;
@@ -266,7 +266,7 @@ ifdef(`targeted_policy',`
 	kernel_read_software_raid_state(system_crond_t)
 
 	# ps does not need to access /boot when run from cron
-	bootloader_dontaudit_search_boot(system_crond_t)
+	files_dontaudit_search_boot(system_crond_t)
 
 	corenet_tcp_sendrecv_all_if(system_crond_t)
 	corenet_raw_sendrecv_all_if(system_crond_t)
@@ -314,8 +314,8 @@ ifdef(`targeted_policy',`
 	# /var/spool/anacron and /var/spool/slrnpull.
 	files_manage_generic_spool(system_crond_t)
 
-	init_use_fd(system_crond_t)
-	init_use_script_fd(system_crond_t)
+	init_use_fds(system_crond_t)
+	init_use_script_fds(system_crond_t)
 	init_use_script_ptys(system_crond_t)
 	init_read_utmp(system_crond_t)
 	init_dontaudit_rw_utmp(system_crond_t)
@@ -360,6 +360,9 @@ ifdef(`targeted_policy',`
 	optional_policy(`apache',`
 		# Needed	 for certwatch
 		apache_exec_modules(system_crond_t)
+		apache_read_config(system_crond_t)
+		apache_read_log(system_crond_t)
+		apache_read_sys_content(system_crond_t)
 	')
 
 	optional_policy(`cyrus',`
@@ -391,6 +394,10 @@ ifdef(`targeted_policy',`
 	optional_policy(`nscd',`
 		nscd_socket_use(system_crond_t)
 	')
+
+	optional_policy(`postfix',`
+		postfix_read_config(system_crond_t)
+	')	
 
 	optional_policy(`prelink',`
 		prelink_read_cache(system_crond_t)

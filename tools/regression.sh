@@ -9,7 +9,7 @@ do_test() {
 	local OPTS=""
 
 	for i in $TYPES; do
-		OPTS="TYPE=$i QUIET=@ DIRECT_INITRC=y"
+		OPTS="TYPE=$i QUIET=y DIRECT_INITRC=y"
 		[ ! -z "$1" ] && OPTS="$OPTS DISTRO=$1"
 		make bare || exit 1
 		echo "**** Options: $OPTS ****"

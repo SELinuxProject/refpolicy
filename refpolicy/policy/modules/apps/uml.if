@@ -1,0 +1,267 @@
+## <summary>Policy for UML</summary>
+	
+#######################################
+## <summary>
+##	The per user domain template for the uml module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for uml program.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`uml_per_userdomain_template',`
+	
+	########################################
+	#
+	# Declarations
+	#
+	type $1_uml_t;
+	domain_type($1_uml_t)
+	role $3 types $1_uml_t;
+
+	type $1_uml_exec_t;
+	domain_entry_file($1_uml_t,$1_uml_exec_t)
+
+	type $1_uml_ro_t;
+	files_type($1_uml_ro_t)
+
+	type $1_uml_rw_t;
+	files_type($1_uml_rw_t)
+
+	type $1_uml_tmp_t;
+	files_tmp_file($1_uml_tmp_t)
+
+	type $1_uml_tmpfs_t;
+	files_tmpfs_file($1_uml_tmpfs_t)
+
+	type $1_uml_devpts_t;
+	term_pty($1_uml_devpts_t)
+
+	########################################
+	#
+	# Local policy
+	#
+	allow $1_uml_t self:fifo_file rw_file_perms;
+	allow $1_uml_t self:process { fork signal_perms ptrace };
+	allow $1_uml_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_uml_t self:unix_dgram_socket create_socket_perms;
+	# Use the network.
+	allow $1_uml_t self:tcp_socket create_stream_socket_perms;
+	allow $1_uml_t self:udp_socket create_socket_perms;
+
+	allow $1_uml_t $2:process sigchld;
+	allow $1_uml_t $2:fifo_file { ioctl read write getattr lock append };
+
+	# allow the UML thing to happen
+	allow $1_uml_t $1_uml_devpts_t:chr_file { rw_file_perms setattr };
+	term_create_pty($1_uml_t,$1_uml_devpts_t)
+
+	allow $1_uml_t $1_uml_tmp_t:dir create_dir_perms;
+	allow $1_uml_t $1_uml_tmp_t:file create_file_perms;
+	files_tmp_filetrans($1_uml_t, $1_uml_tmp_t, { file dir })
+	can_exec($1_uml_t, $1_uml_tmp_t)
+
+	allow $1_uml_t $1_uml_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
+	allow $1_uml_t $1_uml_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_uml_t $1_uml_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
+	allow $1_uml_t $1_uml_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1_uml_t $1_uml_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	fs_tmpfs_filetrans($1_uml_t,$1_uml_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	can_exec($1_uml_t, $1_uml_tmpfs_t)
+
+	# access config files
+	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:dir r_dir_perms;
+	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:file r_file_perms;
+	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:lnk_file { getattr read };
+
+	allow $1_uml_t $1_uml_rw_t:dir create_dir_perms;
+	allow $1_uml_t $1_uml_rw_t:file create_file_perms;
+	allow $1_uml_t $1_uml_rw_t:lnk_file create_lnk_perms;
+	allow $1_uml_t $1_uml_rw_t:sock_file create_file_perms;
+	allow $1_uml_t $1_uml_rw_t:fifo_file create_file_perms;
+	userdom_user_home_dir_filetrans($1,$1_uml_t,$1_uml_rw_t,{ file lnk_file sock_file fifo_file })
+
+	allow $2 uml_ro_t:dir r_dir_perms;
+	allow $2 uml_ro_t:file r_file_perms;
+	allow $2 uml_ro_t:lnk_file { getattr read };
+
+	allow $2 { $1_uml_ro_t $1_uml_rw_t }:{ file sock_file fifo_file } { relabelfrom relabelto create_file_perms };
+	allow $2 { $1_uml_ro_t $1_uml_rw_t }:lnk_file { relabelfrom relabelto create_lnk_perms };
+	allow $2 { $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t }:dir { relabelfrom relabelto create_dir_perms };
+	allow $2 $1_uml_exec_t:file { relabelfrom relabelto create_file_perms };
+
+	allow $2 $1_uml_t:process ptrace;
+	allow $2 $1_uml_t:process signal_perms;
+
+	# allow ps, ptrace, signal
+	allow $2 $1_uml_t:dir { search getattr read };
+	allow $2 $1_uml_t:{ file lnk_file } { read getattr };
+	allow $2 $1_uml_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_uml_t:process ptrace;
+
+	allow $2 $1_uml_tmp_t:dir create_dir_perms;
+	allow $2 $1_uml_tmp_t:file create_file_perms;
+	allow $2 $1_uml_tmp_t:lnk_file create_lnk_perms;
+	allow $2 $1_uml_tmp_t:sock_file create_file_perms;
+
+	# Transition from the user domain to this domain.
+	domain_auto_trans($2, { uml_exec_t $1_uml_exec_t }, $1_uml_t)
+	can_exec($1_uml_t, { uml_exec_t $1_uml_exec_t })
+
+	# for mconsole
+	allow { $2 $1_uml_t } $1_uml_t:unix_dgram_socket sendto;
+	allow $1_uml_t $2:unix_dgram_socket sendto;
+	
+	kernel_read_system_state($1_uml_t)
+	# for SKAS - need something better
+	kernel_write_proc_files($1_uml_t)
+
+	# for xterm
+	corecmd_exec_bin($1_uml_t)
+	corecmd_exec_sbin($1_uml_t)
+
+	corenet_tcp_sendrecv_generic_if($1_uml_t)
+	corenet_udp_sendrecv_generic_if($1_uml_t)
+	corenet_raw_sendrecv_generic_if($1_uml_t)
+	corenet_tcp_sendrecv_all_nodes($1_uml_t)
+	corenet_udp_sendrecv_all_nodes($1_uml_t)
+	corenet_raw_sendrecv_all_nodes($1_uml_t)
+	corenet_tcp_sendrecv_all_ports($1_uml_t)
+	corenet_udp_sendrecv_all_ports($1_uml_t)
+	corenet_non_ipsec_sendrecv($1_uml_t)
+	corenet_tcp_bind_all_nodes($1_uml_t)
+	corenet_udp_bind_all_nodes($1_uml_t)
+	corenet_tcp_connect_all_ports($1_uml_t)
+	corenet_rw_tun_tap_dev($1_uml_t)
+	
+	domain_use_interactive_fds($1_uml_t)
+
+	# for xterm
+	files_read_etc_files($1_uml_t)
+	files_dontaudit_read_etc_runtime_files($1_uml_t)
+	# putting uml data under /var is usual...
+	files_search_var($1_uml_t)
+
+	fs_getattr_xattr_fs($1_uml_t)
+
+	init_read_utmp($1_uml_t)
+	init_dontaudit_write_utmp($1_uml_t)
+
+	# for xterm
+	libs_use_ld_so($1_uml_t)
+	libs_use_shared_libs($1_uml_t)
+	libs_exec_lib_files($1_uml_t)
+
+	# Inherit and use descriptors from newrole.
+	seutil_use_newrole_fds($1_uml_t)
+
+	# Use the network.
+	sysnet_read_config($1_uml_t)
+
+	userdom_use_user_terminals($1,$1_uml_t)
+
+	optional_policy(`mount',`
+		mount_send_nfs_client_request($1_uml_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_uml_t)
+	')
+
+	optional_policy(`ssh',`	
+		ssh_tcp_connect($1_uml_t)
+	')
+	
+	ifdef(`TODO',`
+		# for X
+		optional_policy(`startx',`
+			ifelse($1, sysadm,`
+			',`
+				optional_policy(`xdm',`
+					allow $1_uml_t xdm_xserver_tmp_t:dir search;
+				')
+				allow $1_uml_t $1_xserver_tmp_t:sock_file write;
+				allow $1_uml_t $1_xserver_t:unix_stream_socket connectto;
+			')
+		')
+
+		optional_policy(`uml_net.te',`
+			# for uml_net
+			domain_auto_trans($1_uml_t, uml_net_exec_t, uml_net_t)
+			allow uml_net_t $1_uml_t:unix_stream_socket { read write };
+			allow uml_net_t $1_uml_t:unix_dgram_socket { read write };
+			dontaudit uml_net_t privfd:fd use;
+			can_access_pty(uml_net_t, $1_uml)
+			dontaudit uml_net_t $1_uml_rw_t:dir { getattr search };
+		')
+		#TODO
+		optional_policy(`xauth',`
+			allow $1_uml_t $1_xauth_home_t:file { getattr read };
+		')
+	')
+')
+
+########################################
+## <summary>
+##	Set attributes on uml utility socket files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`uml_setattr_util_sockets',`
+	gen_require(`
+		type uml_switch_var_run_t;
+	')
+
+	allow $1 uml_switch_var_run_t:sock_file setattr;
+')
+
+########################################
+## <summary>
+##	Manage uml utility files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`uml_manage_util_files',`
+	gen_require(`
+		type uml_switch_var_run_t;
+	')
+
+	allow $1 uml_switch_var_run_t:dir rw_dir_perms;
+	allow $1 uml_switch_var_run_t:file create_file_perms;
+	allow $1 uml_switch_var_run_t:lnk_file create_lnk_perms;
+')

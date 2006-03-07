@@ -57,7 +57,7 @@ template(`java_per_userdomain_template',`
 	# Local policy
 	#
 
-	allow $1_javaplugin_t self:process { signal_perms getsched setsched };
+	allow $1_javaplugin_t self:process { signal_perms getsched setsched execmem };
 	allow $1_javaplugin_t self:fifo_file rw_file_perms;
 	allow $1_javaplugin_t self:tcp_socket create_socket_perms;
 	allow $1_javaplugin_t self:udp_socket create_socket_perms;
@@ -68,14 +68,14 @@ template(`java_per_userdomain_template',`
 
 	allow $1_javaplugin_t $1_javaplugin_tmp_t:dir create_dir_perms;
 	allow $1_javaplugin_t $1_javaplugin_tmp_t:file create_file_perms;
-	files_filetrans_tmp($1_javaplugin_t,$1_javaplugin_tmp_t,{ file dir })
+	files_tmp_filetrans($1_javaplugin_t,$1_javaplugin_tmp_t,{ file dir })
 
 	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
 	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
 	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
 	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
 	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	fs_filetrans_tmpfs($1_javaplugin_t,$1_javaplugin_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	fs_tmpfs_filetrans($1_javaplugin_t,$1_javaplugin_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	# cjp: rw_dir_perms here doesnt make sense
 	allow $1_javaplugin_t $1_home_t:dir rw_dir_perms;
@@ -140,22 +140,17 @@ template(`java_per_userdomain_template',`
 	sysnet_read_config($1_javaplugin_t)
 
 	userdom_dontaudit_use_user_terminals($1,$1_javaplugin_t)
-	userdom_dontaudit_setattr_user_home_files($1,$1_javaplugin_t)
-	userdom_dontaudit_exec_user_home_files($1,$1_javaplugin_t)
-	userdom_manage_user_home_subdirs($1,$1_javaplugin_t)
-	userdom_manage_user_home_subdir_files($1,$1_javaplugin_t)
-	userdom_manage_user_home_subdir_symlinks($1,$1_javaplugin_t)
-	userdom_manage_user_home_subdir_pipes($1,$1_javaplugin_t)
-	userdom_manage_user_home_subdir_sockets($1,$1_javaplugin_t)
-	userdom_filetrans_user_home($1,$1_javaplugin_t,{ file lnk_file sock_file fifo_file })
+	userdom_dontaudit_setattr_user_home_content_files($1,$1_javaplugin_t)
+	userdom_dontaudit_exec_user_home_content_files($1,$1_javaplugin_t)
+	userdom_manage_user_home_content_dirs($1,$1_javaplugin_t)
+	userdom_manage_user_home_content_files($1,$1_javaplugin_t)
+	userdom_manage_user_home_content_symlinks($1,$1_javaplugin_t)
+	userdom_manage_user_home_content_pipes($1,$1_javaplugin_t)
+	userdom_manage_user_home_content_sockets($1,$1_javaplugin_t)
+	userdom_user_home_dir_filetrans_user_home_content($1,$1_javaplugin_t,{ file lnk_file sock_file fifo_file })
 
-	# libdeploy.so legacy
-	tunable_policy(`allow_execmem',`
-		allow $1_javaplugin_t self:process execmem;
-	')
-	
 	tunable_policy(`allow_java_execstack',`
-		allow $1_javaplugin_t self:process { execmem execstack };
+		allow $1_javaplugin_t self:process execstack;
 
 		allow $1_javaplugin_t $1_javaplugin_tmp_t:file execute;
 
@@ -176,5 +171,33 @@ template(`java_per_userdomain_template',`
 
 	optional_policy(`xserver',`
 		xserver_user_client_template($1,$1_javaplugin_t,$1_javaplugin_tmpfs_t)
+	')
+')
+
+########################################
+## <summary>
+##	Execute the java program in the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_domtrans',`
+	ifdef(`targeted_policy',`
+		gen_require(`
+			type java_t, java_exec_t;
+		')
+
+		corecmd_search_bin($1)
+		domain_auto_trans($1, java_exec_t, java_t)
+
+		allow $1 java_t:fd use;
+		allow java_t $1:fd use;
+		allow java_t $1:fifo_file rw_file_perms;
+		allow java_t $1:process sigchld;
+	',`
+		errprint(`Warning: $0($1) has no effect in strict policy.'__endline__)
 	')
 ')

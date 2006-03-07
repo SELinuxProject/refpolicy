@@ -89,7 +89,7 @@ template(`cron_per_userdomain_template',`
 	kernel_read_kernel_sysctls($1_crond_t)
 
 	# ps does not need to access /boot when run from cron
-	bootloader_dontaudit_search_boot($1_crond_t)
+	files_dontaudit_search_boot($1_crond_t)
 
 	corenet_tcp_sendrecv_all_if($1_crond_t)
 	corenet_raw_sendrecv_all_if($1_crond_t)
@@ -141,14 +141,14 @@ template(`cron_per_userdomain_template',`
 	userdom_manage_user_tmp_pipes($1,$1_crond_t)
 	userdom_manage_user_tmp_sockets($1,$1_crond_t)
 	# Run scripts in user home directory and access shared libs.
-	userdom_exec_user_home_files($1,$1_crond_t)
+	userdom_exec_user_home_content_files($1,$1_crond_t)
 	# Access user files and dirs.
 #	userdom_manage_user_home_subdir_dirs($1,$1_crond_t)
-	userdom_manage_user_home_subdir_files($1,$1_crond_t)
-	userdom_manage_user_home_subdir_symlinks($1,$1_crond_t)
-	userdom_manage_user_home_subdir_pipes($1,$1_crond_t)
-	userdom_manage_user_home_subdir_sockets($1,$1_crond_t)
-#	userdom_filetrans_user_home($1,$1_crond_t,notdevfile_class_set)
+	userdom_manage_user_home_content_files($1,$1_crond_t)
+	userdom_manage_user_home_content_symlinks($1,$1_crond_t)
+	userdom_manage_user_home_content_pipes($1,$1_crond_t)
+	userdom_manage_user_home_content_sockets($1,$1_crond_t)
+#	userdom_user_home_dir_filetrans_user_home_content($1,$1_crond_t,notdevfile_class_set)
 
 	tunable_policy(`fcron_crond', `
 		allow crond_t $1_cron_spool_t:file create_file_perms;
@@ -223,7 +223,7 @@ template(`cron_per_userdomain_template',`
 	corecmd_sbin_domtrans($1_crontab_t,$2)
 	corecmd_shell_domtrans($1_crontab_t,$2)
 
-	domain_use_wide_inherit_fd($1_crontab_t)
+	domain_use_interactive_fds($1_crontab_t)
 
 	files_read_etc_files($1_crontab_t)
 	files_dontaudit_search_pids($1_crontab_t)
@@ -242,7 +242,7 @@ template(`cron_per_userdomain_template',`
 	# Access terminals.
 	userdom_use_user_terminals($1,$1_crontab_t)
 	# Read user crontabs
-	userdom_read_user_home_files($1,$1_crontab_t)
+	userdom_read_user_home_content_files($1,$1_crontab_t)
 
 	tunable_policy(`fcron_crond', `
 		# fcron wants an instant update of a crontab change for the administrator
@@ -352,7 +352,7 @@ interface(`cron_system_entry',`
 ##	</summary>
 ## </param>
 #
-interface(`cron_use_fd',`
+interface(`cron_use_fds',`
 	gen_require(`
 		type crond_t;
 	')
@@ -434,7 +434,7 @@ interface(`cron_rw_pipes',`
 
 ########################################
 ## <summary>
-##	Create, read, and write a cron daemon TCP socket.
+##	Read, and write cron daemon TCP sockets.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -442,13 +442,12 @@ interface(`cron_rw_pipes',`
 ##	</summary>
 ## </param>
 #
-# cjp: need to fix this name
-interface(`cron_crw_tcp_socket',`
+interface(`cron_rw_tcp_sockets',`
 	gen_require(`
 		type crond_t;
 	')
 
-	allow $1 crond_t:tcp_socket { create read write };
+	allow $1 crond_t:tcp_socket { read write };
 ')
 
 ########################################
@@ -504,7 +503,7 @@ interface(`cron_anacron_domtrans_system_job',`
 ##	</summary>
 ## </param>
 #
-interface(`cron_use_system_job_fd',`
+interface(`cron_use_system_job_fds',`
 	gen_require(`
 		type system_crond_t;
 	')
@@ -545,7 +544,7 @@ interface(`cron_rw_system_job_pipes',`
 		type system_crond_t;
 	')
 
-	allow $1 system_crond_t:file rw_file_perms;
+	allow $1 system_crond_t:fifo_file rw_file_perms;
 ')
 
 ########################################

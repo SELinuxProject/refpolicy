@@ -31,6 +31,7 @@ template(`apache_content_template',`
 
 	# This type is used for executable scripts files
 	type httpd_$1_script_exec_t; # customizable;
+	corecmd_shell_entry_type(httpd_$1_script_t)
 	domain_entry_file(httpd_$1_script_t,httpd_$1_script_exec_t)
 
 	# The following three are the only areas that 
@@ -84,7 +85,7 @@ template(`apache_content_template',`
 	allow httpd_$1_script_t httpd_$1_script_rw_t:lnk_file create_lnk_perms;
 	allow httpd_$1_script_t httpd_$1_script_rw_t:sock_file create_file_perms;
 	allow httpd_$1_script_t httpd_$1_script_rw_t:fifo_file create_file_perms;
-	files_filetrans_tmp(httpd_$1_script_t,httpd_$1_script_rw_t,{ dir file lnk_file sock_file fifo_file })
+	files_tmp_filetrans(httpd_$1_script_t,httpd_$1_script_rw_t,{ dir file lnk_file sock_file fifo_file })
 
 	kernel_dontaudit_search_sysctl(httpd_$1_script_t)
 	kernel_dontaudit_search_kernel_sysctl(httpd_$1_script_t)
@@ -174,6 +175,7 @@ template(`apache_content_template',`
 		dev_read_urand(httpd_$1_script_t)
 
 		fs_getattr_xattr_fs(httpd_$1_script_t)
+		fs_read_eventpollfs(httpd_$1_script_t)
 
 		files_read_etc_runtime_files(httpd_$1_script_t)
 		files_read_usr_files(httpd_$1_script_t)
@@ -274,7 +276,7 @@ template(`apache_per_userdomain_template', `
 	apache_content_template($1)
 
 	typeattribute httpd_$1_content_t httpd_script_domains;
-	userdom_home_file($1,httpd_$1_content_t)
+	userdom_user_home_content($1,httpd_$1_content_t)
 
 	role $3 types httpd_$1_script_t;
 
@@ -323,9 +325,9 @@ template(`apache_per_userdomain_template', `
 
 	# allow accessing files/dirs below the users home dir
 	tunable_policy(`httpd_enable_homedirs',`
-		userdom_search_user_home($1,httpd_t)
-		userdom_search_user_home($1,httpd_suexec_t)
-		userdom_search_user_home($1,httpd_$1_script_t)
+		userdom_search_user_home_dirs($1,httpd_t)
+		userdom_search_user_home_dirs($1,httpd_suexec_t)
+		userdom_search_user_home_dirs($1,httpd_$1_script_t)
 	')
 ')
 
@@ -399,7 +401,7 @@ interface(`apache_sigchld',`
 ##	</summary>
 ## </param>
 #
-interface(`apache_use_fd',`
+interface(`apache_use_fds',`
 	gen_require(`
 		type httpd_t;
 	')
@@ -779,6 +781,25 @@ interface(`apache_append_squirrelmail_data',`
 	')
 
 	allow $1 httpd_squirrelmail_t:file { getattr append };
+')
+
+########################################
+## <summary>
+##	Read apache system content
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`apache_read_sys_content',`
+	gen_require(`
+		type httpd_sys_content_t;
+	')
+
+	allow $1 httpd_sys_content_t:dir r_dir_perms;
+	allow $1 httpd_sys_content_t:file { getattr read };
 ')
 
 ########################################

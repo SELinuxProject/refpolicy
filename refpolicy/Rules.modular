@@ -6,10 +6,14 @@
 ALL_MODULES := $(BASE_MODS) $(MOD_MODS) $(OFF_MODS)
 ALL_INTERFACES := $(ALL_MODULES:.te=.if)
 
-BASE_PKG := base.pp
-BASE_FC := base.fc
+BASE_PKG := $(BUILDDIR)base.pp
+BASE_FC := $(BUILDDIR)base.fc
+BASE_CONF := $(BUILDDIR)base.conf
+BASE_MOD := $(TMPDIR)/base.mod
 
-BASE_SECTIONS := tmp/pre_te_files.conf tmp/generated_definitions.conf tmp/all_interfaces.conf tmp/all_attrs_types.conf $(GLOBALBOOL) $(GLOBALTUN) tmp/only_te_rules.conf tmp/all_post.conf
+USERS_EXTRA := $(TMPDIR)/users_extra
+
+BASE_SECTIONS := $(TMPDIR)/pre_te_files.conf $(TMPDIR)/generated_definitions.conf $(TMPDIR)/all_interfaces.conf $(TMPDIR)/all_attrs_types.conf $(GLOBALBOOL) $(GLOBALTUN) $(TMPDIR)/only_te_rules.conf $(TMPDIR)/all_post.conf
 
 BASE_PRE_TE_FILES := $(SECCLASS) $(ISIDS) $(AVS) $(M4SUPPORT) $(POLDIR)/mls $(POLDIR)/mcs
 BASE_TE_FILES := $(BASE_MODS)
@@ -17,10 +21,10 @@ BASE_POST_TE_FILES := $(USER_FILES) $(POLDIR)/constraints
 BASE_FC_FILES := $(BASE_MODS:.te=.fc)
 
 MOD_MODULES := $(MOD_MODS:.te=.mod)
-MOD_PKGS := $(MOD_MODS:.te=.pp)
+MOD_PKGS := $(addprefix $(BUILDDIR),$(notdir $(MOD_MODS:.te=.pp)))
 
 # policy packages to install
-INSTPKG := $(addprefix $(MODPKGDIR)/,$(BASE_PKG) $(MOD_PKGS))
+INSTPKG := $(addprefix $(MODPKGDIR)/,$(notdir $(BASE_PKG)) $(MOD_PKGS))
 
 # search layer dirs for source files
 vpath %.te $(ALL_LAYERS)
@@ -33,9 +37,9 @@ vpath %.fc $(ALL_LAYERS)
 #
 # default action: create all module packages
 #
-default: base
+default: policy
 
-all: base modules
+all policy: base modules
 
 base: $(BASE_PKG)
 
@@ -49,13 +53,13 @@ install: $(INSTPKG) $(APPFILES)
 #
 load: $(INSTPKG) $(APPFILES)
 	@echo "Loading configured modules."
-	$(verbose) $(SEMODULE) -s $(NAME) -b $(MODPKGDIR)/$(BASE_PKG) $(foreach mod,$(MOD_PKGS),-i $(MODPKGDIR)/$(mod))
+	$(verbose) $(SEMODULE) -s $(NAME) -b $(MODPKGDIR)/$(notdir $(BASE_PKG)) $(foreach mod,$(MOD_PKGS),-i $(MODPKGDIR)/$(mod))
 
 ########################################
 #
 # Install policy packages
 #
-$(MODPKGDIR)/%.pp: %.pp
+$(MODPKGDIR)/%.pp: $(BUILDDIR)%.pp
 	@mkdir -p $(MODPKGDIR)
 	@echo "Installing $(NAME) $(@F) policy package."
 	$(verbose) install -m 0644 $^ $(MODPKGDIR)
@@ -64,51 +68,62 @@ $(MODPKGDIR)/%.pp: %.pp
 #
 # Build module packages
 #
-tmp/%.mod: $(M4SUPPORT) tmp/generated_definitions.conf tmp/all_interfaces.conf %.te
+$(TMPDIR)/%.mod: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(TMPDIR)/all_interfaces.conf %.te
 	@echo "Compliling $(NAME) $(@F) module"
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(call peruser-expansion,$(basename $(@F)),$@.role)
 	$(verbose) m4 $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
 	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
-tmp/%.mod.fc: $(M4SUPPORT) %.fc
+$(TMPDIR)/%.mod.fc: $(M4SUPPORT) %.fc
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) m4 $(M4PARAM) $(M4SUPPORT) $^ > $@
 
-%.pp: tmp/%.mod tmp/%.mod.fc
+$(BUILDDIR)%.pp: $(TMPDIR)/%.mod $(TMPDIR)/%.mod.fc
 	@echo "Creating $(NAME) $(@F) policy package"
+	@test -d $(BUILDDIR) || mkdir -p $(BUILDDIR)
 	$(verbose) $(SEMOD_PKG) -o $@ -m $< -f $<.fc
 
 ########################################
 #
 # Create a base module package
 #
-$(BASE_PKG): tmp/base.mod $(BASE_FC)
+$(BASE_PKG): $(BASE_MOD) $(BASE_FC) $(USERS_EXTRA) $(SEUSERS)
 	@echo "Creating $(NAME) base module package"
-	$(verbose) $(SEMOD_PKG) -o $@ -m tmp/base.mod -f $(BASE_FC)
+	@test -d $(BUILDDIR) || mkdir -p $(BUILDDIR)
+	$(verbose) $(SEMOD_PKG) -o $@ -m $(BASE_MOD) -f $(BASE_FC) -u $(USERS_EXTRA) -s $(SEUSERS)
 
-tmp/base.mod: base.conf
+$(BASE_MOD): $(BASE_CONF)
 	@echo "Compiling $(NAME) base module"
 	$(verbose) $(CHECKMODULE) $^ -o $@
+
+$(USERS_EXTRA): $(M4SUPPORT) $(USER_FILES)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	$(verbose) $(M4) $(M4PARAM) -D users_extra $^ | \
+		$(SED) -r -n -e 's/^[[:blank:]]*//g' -e '/^user/p' > $@
 
 ########################################
 #
 # Construct a base.conf
 #
-base.conf: $(BASE_SECTIONS)
-	@echo "Creating $(NAME) base module base.conf"
+$(BASE_CONF): $(BASE_SECTIONS)
+	@echo "Creating $(NAME) base module $(@F)"
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	@test -d $(dir $(BASE_CONF)) || mkdir -p $(dir $(BASE_CONF))
 # checkpolicy can use the #line directives provided by -s for error reporting:
-	$(verbose) m4 -D self_contained_policy $(M4PARAM) -s $^ > tmp/$@.tmp
-	$(verbose) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < tmp/$@.tmp > $@
+	$(verbose) m4 -D self_contained_policy $(M4PARAM) -s $^ > $(TMPDIR)/$(@F).tmp
+	$(verbose) sed -e /^portcon/d -e /^nodecon/d -e /^netifcon/d < $(TMPDIR)/$(@F).tmp > $@
 # the ordering of these ocontexts matters:
-	$(verbose) grep ^portcon tmp/$@.tmp >> $@ || true
-	$(verbose) grep ^netifcon tmp/$@.tmp >> $@ || true
-	$(verbose) grep ^nodecon tmp/$@.tmp >> $@ || true
+	$(verbose) grep ^portcon $(TMPDIR)/$(@F).tmp >> $@ || true
+	$(verbose) grep ^netifcon $(TMPDIR)/$(@F).tmp >> $@ || true
+	$(verbose) grep ^nodecon $(TMPDIR)/$(@F).tmp >> $@ || true
 
-tmp/pre_te_files.conf: $(BASE_PRE_TE_FILES)
-	@test -d tmp || mkdir -p tmp
+$(TMPDIR)/pre_te_files.conf: $(BASE_PRE_TE_FILES)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) cat $^ > $@
 
-tmp/generated_definitions.conf: $(BASE_TE_FILES)
-	@test -d tmp || mkdir -p tmp
+$(TMPDIR)/generated_definitions.conf: $(BASE_TE_FILES)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 # define all available object classes
 	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $@
 # per-userdomain templates
@@ -122,83 +137,84 @@ tmp/generated_definitions.conf: $(BASE_TE_FILES)
 	$(verbose) for i in $(notdir $(BASE_TE_FILES)); do \
 		echo "define(\`$$i')" >> $@ ;\
 	done
-	$(verbose) $(SETTUN) $(BOOLEANS) >> $@
+	$(verbose) test -f $(BOOLEANS) && $(SETBOOLS) $(BOOLEANS) >> $@ || true
 
-tmp/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
+$(TMPDIR)/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
 ifeq ($(ALL_INTERFACES),)
 	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
 endif
-	@test -d tmp || mkdir -p tmp
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
 
-tmp/all_te_files.conf: $(BASE_TE_FILES)
+$(TMPDIR)/all_te_files.conf: $(BASE_TE_FILES)
 ifeq ($(BASE_TE_FILES),)
 	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
 endif
-	@test -d tmp || mkdir -p tmp
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) cat $^ > $@
 	$(call parse-rolemap,base,$@)
 
-tmp/post_te_files.conf: $(BASE_POST_TE_FILES)
-	@test -d tmp || mkdir -p tmp
+$(TMPDIR)/post_te_files.conf: $(BASE_POST_TE_FILES)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) cat $^ > $@
 
 # extract attributes and put them first. extract post te stuff
 # like genfscon and put last.  portcon, nodecon, and netifcon
 # is delayed since they are generated by m4
-tmp/all_attrs_types.conf tmp/only_te_rules.conf tmp/all_post.conf: tmp/all_te_files.conf tmp/post_te_files.conf
-	$(verbose) grep ^attribute tmp/all_te_files.conf > tmp/all_attrs_types.conf || true
-	$(verbose) grep '^type ' tmp/all_te_files.conf >> tmp/all_attrs_types.conf
-	$(verbose) cat tmp/post_te_files.conf > tmp/all_post.conf
-	$(verbose) grep '^sid ' tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(verbose) egrep '^fs_use_(xattr|task|trans)' tmp/all_te_files.conf >> tmp/all_post.conf || true
-	$(verbose) grep ^genfscon tmp/all_te_files.conf >> tmp/all_post.conf || true
+$(TMPDIR)/all_attrs_types.conf $(TMPDIR)/only_te_rules.conf $(TMPDIR)/all_post.conf: $(TMPDIR)/all_te_files.conf $(TMPDIR)/post_te_files.conf
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	$(verbose) grep ^attribute $(TMPDIR)/all_te_files.conf > $(TMPDIR)/all_attrs_types.conf || true
+	$(verbose) grep '^type ' $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_attrs_types.conf
+	$(verbose) cat $(TMPDIR)/post_te_files.conf > $(TMPDIR)/all_post.conf
+	$(verbose) grep '^sid ' $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
+	$(verbose) egrep '^fs_use_(xattr|task|trans)' $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
+	$(verbose) grep ^genfscon $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
 	$(verbose) sed -r -e /^attribute/d -e '/^type /d' -e /^genfscon/d \
 			-e '/^sid /d' -e '/^fs_use_(xattr|task|trans)/d' \
-			< tmp/all_te_files.conf > tmp/only_te_rules.conf
+			< $(TMPDIR)/all_te_files.conf > $(TMPDIR)/only_te_rules.conf
 
 ########################################
 #
 # Construct a base.fc
 #
-$(BASE_FC): tmp/$(BASE_FC).tmp $(FCSORT)
+$(BASE_FC): $(TMPDIR)/$(notdir $(BASE_FC)).tmp $(FCSORT)
 	$(verbose) $(FCSORT) $< $@
 
-tmp/$(BASE_FC).tmp: $(M4SUPPORT) tmp/generated_definitions.conf $(BASE_FC_FILES)
+$(TMPDIR)/$(notdir $(BASE_FC)).tmp: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(BASE_FC_FILES)
 ifeq ($(BASE_FC_FILES),)
 	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
 endif
 	@echo "Creating $(NAME) base module file contexts."
-	@test -d tmp || mkdir -p tmp
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) m4 $(M4PARAM) $^ > $@
 
 ########################################
 #
 # Remove the dontaudit rules from the base.conf
 #
-enableaudit: base.conf
-	@test -d tmp || mkdir -p tmp
-	@echo "Removing dontaudit rules from base.conf"
-	$(verbose) grep -v dontaudit base.conf > tmp/base.audit
-	$(verbose) mv tmp/base.audit base.conf
+enableaudit: $(BASE_CONF)
+	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	@echo "Removing dontaudit rules from $(^F)"
+	$(verbose) grep -v dontaudit $(BASE_CONF) > $(TMPDIR)/base.audit
+	$(verbose) mv $(TMPDIR)/base.audit $(BASE_CONF)
 
 ########################################
 #
 # Appconfig files
 #
-$(APPDIR)/customizable_types: base.conf
+$(APPDIR)/customizable_types: $(BASE_CONF)
 	@mkdir -p $(APPDIR)
-	$(verbose) grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > tmp/customizable_types
-	$(verbose) install -m 644 tmp/customizable_types $@ 
+	$(verbose) grep "^type .*customizable" $< | cut -d',' -f1 | cut -d' ' -f2 > $(TMPDIR)/customizable_types
+	$(verbose) install -m 644 $(TMPDIR)/customizable_types $@ 
 
 ########################################
 #
 # Clean the sources
 #
 clean:
-	rm -f base.conf
-	rm -f *.pp
+	rm -f $(BASE_CONF)
 	rm -f $(BASE_FC)
-	rm -fR tmp
+	rm -f $(BUILDDIR)*.pp
+	rm -fR $(TMPDIR)
 
-.PHONY: default all base modules install load clean
+.PHONY: default all policy base modules install load clean

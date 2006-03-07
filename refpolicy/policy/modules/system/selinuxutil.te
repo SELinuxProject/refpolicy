@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.1.4)
+policy_module(selinuxutil,1.2.0)
 
 gen_require(`
 	bool secure_mode;
@@ -55,7 +55,7 @@ type newrole_t;
 domain_role_change_exemption(newrole_t)
 domain_obj_id_change_exemption(newrole_t)
 domain_type(newrole_t)
-domain_wide_inherit_fd(newrole_t)
+domain_interactive_fd(newrole_t)
 
 type newrole_exec_t;
 domain_entry_file(newrole_t,newrole_exec_t)
@@ -88,6 +88,22 @@ type run_init_exec_t;
 domain_type(run_init_t)
 domain_entry_file(run_init_t,run_init_exec_t)
 domain_system_change_exemption(run_init_t)
+
+type semanage_t;
+domain_type(semanage_t)
+
+type semanage_exec_t;
+domain_entry_file(semanage_t, semanage_exec_t)
+role system_r types semanage_t;
+
+type semanage_store_t;
+files_type(semanage_store_t)
+
+type semanage_read_lock_t;
+files_type(semanage_read_lock_t)
+
+type semanage_trans_lock_t; 
+files_type(semanage_trans_lock_t)
 
 type setfiles_t, can_relabelto_binary_policy;
 domain_obj_id_change_exemption(setfiles_t)
@@ -126,19 +142,19 @@ fs_getattr_xattr_fs(checkpolicy_t)
 
 term_use_console(checkpolicy_t)
 
-domain_use_wide_inherit_fd(checkpolicy_t)
+domain_use_interactive_fds(checkpolicy_t)
 
 files_list_usr(checkpolicy_t)
 # directory search permissions for path to source and binary policy files
 files_search_etc(checkpolicy_t)
 
-init_use_fd(checkpolicy_t)
+init_use_fds(checkpolicy_t)
 init_use_script_ptys(checkpolicy_t)
 
 libs_use_ld_so(checkpolicy_t)
 libs_use_shared_libs(checkpolicy_t)
 
-userdom_use_all_users_fd(checkpolicy_t)
+userdom_use_all_users_fds(checkpolicy_t)
 
 ifdef(`targeted_policy',`
 	term_use_generic_ptys(checkpolicy_t)
@@ -162,7 +178,15 @@ allow load_policy_t selinux_config_t:dir r_dir_perms;
 allow load_policy_t selinux_config_t:file r_file_perms;
 allow load_policy_t selinux_config_t:lnk_file r_file_perms;
 
+domain_use_interactive_fds(load_policy_t)
+
+# for mcs.conf
+files_read_etc_files(load_policy_t)
+files_read_etc_runtime_files(load_policy_t)
+
 fs_getattr_xattr_fs(load_policy_t)
+
+mls_file_read_up(load_policy_t)
 
 selinux_get_fs_mount(load_policy_t)
 selinux_load_policy(load_policy_t)
@@ -171,21 +195,15 @@ selinux_set_boolean(load_policy_t)
 term_use_console(load_policy_t)
 term_list_ptys(load_policy_t)
 
-init_use_script_fd(load_policy_t)
+init_use_script_fds(load_policy_t)
 init_use_script_ptys(load_policy_t)
-
-domain_use_wide_inherit_fd(load_policy_t)
-
-# for mcs.conf
-files_read_etc_files(load_policy_t)
-files_read_etc_runtime_files(load_policy_t)
 
 libs_use_ld_so(load_policy_t)
 libs_use_shared_libs(load_policy_t)
 
 miscfiles_read_localization(load_policy_t)
 
-userdom_use_all_users_fd(load_policy_t)
+userdom_use_all_users_fds(load_policy_t)
 
 ifdef(`hide_broken_symptoms',`
 	# cjp: cover up stray file descriptors.
@@ -256,9 +274,9 @@ auth_domtrans_chk_passwd(newrole_t)
 corecmd_list_bin(newrole_t)
 corecmd_read_bin_symlinks(newrole_t)
 
-domain_use_wide_inherit_fd(newrole_t)
+domain_use_interactive_fds(newrole_t)
 # for when the user types "exec newrole" at the command line:
-domain_sigchld_wide_inherit_fd(newrole_t)
+domain_sigchld_interactive_fds(newrole_t)
 
 # Write to utmp.
 init_rw_utmp(newrole_t)
@@ -274,9 +292,9 @@ logging_send_syslog_msg(newrole_t)
 
 miscfiles_read_localization(newrole_t)
 
-userdom_use_unpriv_users_fd(newrole_t)
+userdom_use_unpriv_users_fds(newrole_t)
 # for some PAM modules and for cwd
-userdom_dontaudit_search_all_users_home(newrole_t)
+userdom_dontaudit_search_all_users_home_content(newrole_t)
 
 ifdef(`targeted_policy',`
 	# newrole does not make any sense in
@@ -303,10 +321,6 @@ optional_policy(`nscd',`
 	nscd_socket_use(newrole_t)
 ')
 
-ifdef(`TODO',`
-ifdef(`gnome-pty-helper.te', `allow newrole_t gphdomain:fd use;')
-') dnl ifdef TODO
-
 ########################################
 #
 # Restorecon local policy
@@ -319,7 +333,7 @@ allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_
 allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:file r_file_perms;
 allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file r_file_perms;
 
-kernel_use_fd(restorecon_t)
+kernel_use_fds(restorecon_t)
 kernel_rw_pipes(restorecon_t)
 kernel_read_system_state(restorecon_t)
 kernel_relabelfrom_unlabeled_dirs(restorecon_t)
@@ -351,10 +365,10 @@ term_use_unallocated_ttys(restorecon_t)
 term_use_all_user_ttys(restorecon_t)
 term_use_all_user_ptys(restorecon_t)
 
-init_use_fd(restorecon_t)
+init_use_fds(restorecon_t)
 init_use_script_ptys(restorecon_t)
 
-domain_use_wide_inherit_fd(restorecon_t)
+domain_use_interactive_fds(restorecon_t)
 domain_dontaudit_search_all_domains_state(restorecon_t)
 
 files_read_etc_runtime_files(restorecon_t)
@@ -365,7 +379,7 @@ libs_use_shared_libs(restorecon_t)
 
 logging_send_syslog_msg(restorecon_t)
 
-userdom_use_all_users_fd(restorecon_t)
+userdom_use_all_users_fds(restorecon_t)
 
 files_relabel_all_files(restorecon_t)
 files_list_all(restorecon_t)
@@ -384,7 +398,7 @@ ifdef(`hide_broken_symptoms',`
 ')
 
 optional_policy(`hotplug',`
-	hotplug_use_fd(restorecon_t)
+	hotplug_use_fds(restorecon_t)
 ')
 
 ifdef(`TODO',`
@@ -410,6 +424,13 @@ selinux_compute_create_context(run_init_t)
 selinux_compute_relabel_context(run_init_t)
 selinux_compute_user_contexts(run_init_t)
 
+ifdef(`direct_sysadm_daemon',`',`
+	ifdef(`distro_gentoo',`
+		# Gentoo integrated run_init:
+		init_script_file_entry_type(run_init_t)
+	')
+')
+
 ifdef(`targeted_policy',`',`
 	allow run_init_t self:process setexec;
 	allow run_init_t self:capability setuid;
@@ -433,7 +454,7 @@ ifdef(`targeted_policy',`',`
 	corecmd_exec_bin(run_init_t)
 	corecmd_exec_shell(run_init_t)
 
-	domain_use_wide_inherit_fd(run_init_t)
+	domain_use_interactive_fds(run_init_t)
 
 	files_read_etc_files(run_init_t)
 	files_dontaudit_search_all_dirs(run_init_t)
@@ -457,13 +478,46 @@ ifdef(`targeted_policy',`',`
 	')
 ') dnl end ifdef targeted policy
 
-ifdef(`TODO',`
-ifdef(`distro_gentoo', `
-	# Gentoo integrated run_init+open_init_pty-runscript:
-	domain_entry_file(run_init_t,initrc_exec_t)
-	domain_auto_trans(sysadm_t,initrc_exec_t,run_init_t)
-')
-') dnl end TODO
+########################################
+#
+# semodule local policy
+#
+
+allow semanage_t self:unix_stream_socket create_stream_socket_perms;
+
+allow semanage_t policy_config_t:file { read write };
+
+kernel_read_system_state(semanage_t)
+kernel_read_kernel_sysctls(semanage_t)
+
+corecmd_exec_bin(semanage_t)
+corecmd_exec_sbin(semanage_t)
+
+files_read_etc_files(semanage_t)
+files_read_usr_files(semanage_t)
+files_list_pids(semanage_t)
+
+mls_file_write_down(semanage_t)
+mls_rangetrans_target(semanage_t)
+
+selinux_get_enforce_mode(semanage_t)
+
+term_use_all_terms(semanage_t)
+
+libs_use_ld_so(semanage_t)
+libs_use_shared_libs(semanage_t)
+libs_use_lib_files(semanage_t)
+
+seutil_search_default_contexts(semanage_t)
+seutil_rw_file_contexts(semanage_t)
+seutil_domtrans_setfiles(semanage_t)
+seutil_domtrans_loadpolicy(semanage_t)
+seutil_read_config(semanage_t)
+seutil_manage_bin_policy(semanage_t)
+seutil_use_newrole_fds(semanage_t)
+seutil_manage_module_store(semanage_t)
+seutil_get_semanage_trans_lock(semanage_t)
+seutil_get_semanage_read_lock(semanage_t)
 
 ########################################
 #
@@ -508,11 +562,11 @@ term_use_unallocated_ttys(setfiles_t)
 # this is to satisfy the assertion:
 auth_relabelto_shadow(setfiles_t)
 
-init_use_fd(setfiles_t)
-init_use_script_fd(setfiles_t)
+init_use_fds(setfiles_t)
+init_use_script_fds(setfiles_t)
 init_use_script_ptys(setfiles_t)
 
-domain_use_wide_inherit_fd(setfiles_t)
+domain_use_interactive_fds(setfiles_t)
 
 libs_use_ld_so(setfiles_t)
 libs_use_shared_libs(setfiles_t)
@@ -526,12 +580,8 @@ logging_send_syslog_msg(setfiles_t)
 
 miscfiles_read_localization(setfiles_t)
 
-userdom_use_all_users_fd(setfiles_t)
-# for config files in a home directory
-userdom_read_all_user_files(setfiles_t)
+seutil_get_semanage_read_lock(setfiles_t)
 
-ifdef(`TODO',`
-# for upgrading glibc and other shared objects - without this the upgrade
-# scripts will put things in a state such that setfiles can not be run!
-allow setfiles_t lib_t:file { read execute };
-') dnl endif TODO
+userdom_use_all_users_fds(setfiles_t)
+# for config files in a home directory
+userdom_read_all_users_home_content_files(setfiles_t)

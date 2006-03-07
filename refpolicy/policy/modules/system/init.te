@@ -1,5 +1,5 @@
 
-policy_module(init,1.2.2)
+policy_module(init,1.3.0)
 
 gen_require(`
 	class passwd rootok;
@@ -104,11 +104,11 @@ allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
 allow init_t init_var_run_t:file { create getattr read append write setattr unlink };
-files_filetrans_pid(init_t,init_var_run_t)
+files_pid_filetrans(init_t,init_var_run_t,file)
 
 allow init_t initctl_t:fifo_file { create getattr read append write setattr unlink };
 fs_associate_tmpfs(initctl_t)
-dev_filetrans_dev(init_t,initctl_t,fifo_file)
+dev_filetrans(init_t,initctl_t,fifo_file)
 
 # Modify utmp.
 allow init_t initrc_var_run_t:file { rw_file_perms setattr };
@@ -155,6 +155,8 @@ libs_rw_ld_so_cache(init_t)
 logging_send_syslog_msg(init_t)
 logging_rw_generic_logs(init_t)
 
+mcs_killall(init_t)
+
 mls_file_read_up(init_t)
 mls_file_write_down(init_t)
 mls_rangetrans_target(init_t)
@@ -165,7 +167,7 @@ miscfiles_read_localization(init_t)
 
 ifdef(`distro_redhat',`
 	fs_rw_tmpfs_chr_files(init_t)
-	fs_filetrans_tmpfs(init_t,initctl_t,fifo_file)
+	fs_tmpfs_filetrans(init_t,initctl_t,fifo_file)
 ')
 
 ifdef(`targeted_policy',`
@@ -222,12 +224,14 @@ allow initrc_t initrc_state_t:file create_file_perms;
 allow initrc_t initrc_state_t:lnk_file { create read getattr setattr unlink rename };
 
 allow initrc_t initrc_var_run_t:file create_file_perms;
-files_filetrans_pid(initrc_t,initrc_var_run_t)
+files_pid_filetrans(initrc_t,initrc_var_run_t,file)
 
 can_exec(initrc_t,initrc_tmp_t)
 allow initrc_t initrc_tmp_t:file create_file_perms;
 allow initrc_t initrc_tmp_t:dir create_dir_perms;
-files_filetrans_tmp(initrc_t,initrc_tmp_t, { file dir })
+files_tmp_filetrans(initrc_t,initrc_tmp_t, { file dir })
+
+init_write_initctl(initrc_t)
 
 kernel_read_system_state(initrc_t)
 kernel_read_software_raid_state(initrc_t)
@@ -241,7 +245,7 @@ kernel_rw_all_sysctls(initrc_t)
 # for lsof which is used by alsa shutdown:
 kernel_dontaudit_getattr_message_if(initrc_t)
 
-bootloader_read_kernel_symbol_table(initrc_t)
+files_read_kernel_symbol_table(initrc_t)
 
 corenet_tcp_sendrecv_all_if(initrc_t)
 corenet_raw_sendrecv_all_if(initrc_t)
@@ -270,6 +274,7 @@ dev_setattr_all_chr_files(initrc_t)
 dev_read_lvm_control(initrc_t)
 dev_delete_lvm_control_dev(initrc_t)
 dev_manage_generic_symlinks(initrc_t)
+dev_manage_generic_files(initrc_t)
 # Wants to remove udev.tbl:
 dev_delete_generic_symlinks(initrc_t)
 
@@ -313,7 +318,7 @@ domain_read_all_domains_state(initrc_t)
 domain_getattr_all_domains(initrc_t)
 domain_dontaudit_ptrace_all_domains(initrc_t)
 domain_getsession_all_domains(initrc_t)
-domain_use_wide_inherit_fd(initrc_t)
+domain_use_interactive_fds(initrc_t)
 domain_exec_all_entry_files(initrc_t)
 # for lsof which is used by alsa shutdown:
 domain_dontaudit_getattr_all_udp_sockets(initrc_t)
@@ -360,6 +365,8 @@ miscfiles_read_localization(initrc_t)
 # slapd needs to read cert files from its initscript
 miscfiles_read_certs(initrc_t)
 
+mcs_killall(initrc_t)
+
 mls_file_read_up(initrc_t)
 mls_file_write_down(initrc_t)
 mls_process_read_up(initrc_t)
@@ -375,7 +382,7 @@ sysnet_read_config(initrc_t)
 
 udev_rw_db(initrc_t)
 
-userdom_read_all_user_files(initrc_t)
+userdom_read_all_users_home_content_files(initrc_t)
 # Allow access to the sysadm TTYs. Note that this will give access to the 
 # TTYs to any process in the initrc_t domain. Therefore, daemons and such
 # started from init should be placed in their own domain.
@@ -384,11 +391,12 @@ userdom_use_sysadm_terms(initrc_t)
 ifdef(`distro_debian',`
 	dev_setattr_generic_dirs(initrc_t)
 
-	fs_filetrans_tmpfs(initrc_t,initrc_var_run_t,dir)
+	fs_tmpfs_filetrans(initrc_t,initrc_var_run_t,dir)
 
 	# for storing state under /dev/shm
 	fs_setattr_tmpfs_dirs(initrc_t)
-	storage_create_fixed_disk_tmpfs(initrc_t)
+	storage_manage_fixed_disk(initrc_t)
+	storage_tmpfs_filetrans_fixed_disk(initrc_t)
 
 	files_setattr_etc_dirs(initrc_t)
 ')
@@ -409,7 +417,7 @@ ifdef(`distro_redhat',`
 
 	# Red Hat systems seem to have a stray
 	# fd open from the initrd
-	kernel_dontaudit_use_fd(initrc_t)
+	kernel_dontaudit_use_fds(initrc_t)
 	files_dontaudit_read_root_files(initrc_t)
 
 	selinux_set_enforce_mode(initrc_t)
@@ -417,7 +425,7 @@ ifdef(`distro_redhat',`
 	# Create and read /boot/kernel.h and /boot/System.map.
 	# Redhat systems typically create this file at boot time.
 	bootloader_create_runtime_file(initrc_t)
-	bootloader_rw_boot_symlinks(initrc_t)
+	files_rw_boot_symlinks(initrc_t)
 
 	# These seem to be from the initrd
 	# during device initialization:
@@ -435,7 +443,8 @@ ifdef(`distro_redhat',`
 
 	fs_rw_tmpfs_chr_files(initrc_t)
 
-	storage_create_fixed_disk(initrc_t)
+	storage_manage_fixed_disk(initrc_t)
+	storage_dev_filetrans_fixed_disk(initrc_t)
 	storage_getattr_removable_dev(initrc_t)
 
 	# readahead asks for these
@@ -679,6 +688,10 @@ optional_policy(`su',`
 
 optional_policy(`sysnetwork',`
 	sysnet_read_dhcpc_state(initrc_t)
+')
+
+optional_policy(`uml',`
+	uml_setattr_util_sockets(initrc_t)
 ')
 
 optional_policy(`xfs',`

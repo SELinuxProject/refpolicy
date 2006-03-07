@@ -1,5 +1,6 @@
 #!/bin/bash
 
+#DISTROS="redhat gentoo"
 DISTROS="redhat gentoo debian suse"
 TYPES="strict strict-mls strict-mcs targeted targeted-mls targeted-mcs"
 POLVER="`checkpolicy -V |cut -f 1 -d ' '`"
@@ -11,7 +12,7 @@ do_test() {
 
 	for i in $TYPES; do
 		# Monolithic tests
-		OPTS="TYPE=$i QUIET=@ DIRECT_INITRC=y"
+		OPTS="TYPE=$i MONOLITHIC=y QUIET=y DIRECT_INITRC=y"
 		[ ! -z "$1" ] && OPTS="$OPTS DISTRO=$1"
 		echo "**** Options: $OPTS ****"
 		echo -ne "\33]0;mon $i $1\007"
@@ -22,14 +23,17 @@ do_test() {
 		make $OPTS bare || exit 1
 
 		# Loadable module tests
-		OPTS="TYPE=$i MONOLITHIC=n QUIET=@ DIRECT_INITRC=y"
+		OPTS="TYPE=$i MONOLITHIC=n QUIET=y DIRECT_INITRC=y"
 		[ ! -z "$1" ] && OPTS="$OPTS DISTRO=$1"
 		echo "**** Options: $OPTS ****"
 		echo -ne "\33]0;mod $i $1\007"
 		make $OPTS conf || exit 1
-		make $OPTS all || exit 1
+		make $OPTS base || exit 1
+		make $OPTS -j2 modules || exit 1
 		mv base.pp tmp
-#		$SE_LINK tmp/base.pp *.pp || exit 1
+		############# FIXME
+		rm dmesg.pp
+		$SE_LINK tmp/base.pp *.pp || exit 1
 		make $OPTS bare || exit 1
 	done
 }

@@ -47,7 +47,7 @@ template(`ssh_per_userdomain_template',`
 	#
 
 	type $1_home_ssh_t;
-	userdom_home_file($1,$1_home_ssh_t)
+	userdom_user_home_content($1,$1_home_ssh_t)
 	role $3 types $1_ssh_t;
 
 	type $1_ssh_t;
@@ -90,7 +90,7 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t $1_ssh_tmpfs_t:lnk_file create_lnk_perms;
 	allow $1_ssh_t $1_ssh_tmpfs_t:sock_file manage_file_perms;
 	allow $1_ssh_t $1_ssh_tmpfs_t:fifo_file manage_file_perms;
-	fs_filetrans_tmpfs($1_ssh_t,$1_ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	fs_tmpfs_filetrans($1_ssh_t,$1_ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	# Transition from the user domain to the derived domain.
 	domain_auto_trans($2, ssh_exec_t, $1_ssh_t)
@@ -105,7 +105,7 @@ template(`ssh_per_userdomain_template',`
 	# Access the ssh temporary files.
 	allow $1_ssh_t sshd_tmp_t:dir create_dir_perms;
 	allow $1_ssh_t sshd_tmp_t:file create_file_perms;
-	files_filetrans_tmp($1_ssh_t, sshd_tmp_t, { file dir })
+	files_tmp_filetrans($1_ssh_t, sshd_tmp_t, { file dir })
 
 	# for rsync
 	allow $1_ssh_t $2:unix_stream_socket rw_socket_perms;
@@ -124,7 +124,7 @@ template(`ssh_per_userdomain_template',`
 	allow $2 sshd_t:unix_stream_socket rw_stream_socket_perms;
 
 	# ssh client can manage the keys and config
-	userdom_search_user_home($1,$1_ssh_t)
+	userdom_search_user_home_dirs($1,$1_ssh_t)
 	allow $1_ssh_t $1_home_ssh_t:dir r_dir_perms;
 	allow $1_ssh_t $1_home_ssh_t:file create_file_perms;
 	allow $1_ssh_t $1_home_ssh_t:lnk_file { getattr read };
@@ -160,7 +160,7 @@ template(`ssh_per_userdomain_template',`
 	corecmd_read_sbin_pipes($1_ssh_t)
 	corecmd_read_sbin_sockets($1_ssh_t)
 
-	domain_use_wide_inherit_fd($1_ssh_t)
+	domain_use_interactive_fds($1_ssh_t)
 
 	files_list_home($1_ssh_t)
 	files_read_usr_files($1_ssh_t)
@@ -181,7 +181,7 @@ template(`ssh_per_userdomain_template',`
 	sysnet_read_config($1_ssh_t)
 	sysnet_dns_name_resolve($1_ssh_t)
 
-	userdom_use_unpriv_users_fd($1_ssh_t)
+	userdom_use_unpriv_users_fds($1_ssh_t)
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_ssh_t)
 
@@ -279,6 +279,8 @@ template(`ssh_per_userdomain_template',`
 
 	allow $1_ssh_agent_t { $1_ssh_agent_t $2 }:process signull;
 
+	allow $1_ssh_agent_t self:unix_stream_socket { connectto rw_socket_perms };
+
 	allow $1_ssh_t $1_ssh_agent_t:unix_stream_socket connectto;
 
 	# for ssh-add
@@ -313,7 +315,7 @@ template(`ssh_per_userdomain_template',`
 	corecmd_shell_domtrans($1_ssh_agent_t,$1_t)
 	corecmd_bin_domtrans($1_ssh_agent_t, $1_t)
 
-	domain_use_wide_inherit_fd($1_ssh_agent_t)
+	domain_use_interactive_fds($1_ssh_agent_t)
 
 	files_read_etc_files($1_ssh_agent_t)
 	files_read_etc_runtime_files($1_ssh_agent_t)
@@ -440,7 +442,7 @@ template(`ssh_server_template', `
 	term_create_pty($1_t,$1_devpts_t)
 
 	allow $1_t $1_var_run_t:file create_file_perms;
-	files_filetrans_pid($1_t,$1_var_run_t,file)
+	files_pid_filetrans($1_t,$1_var_run_t,file)
 
 	can_exec($1_t, sshd_exec_t)
 
@@ -484,7 +486,7 @@ template(`ssh_server_template', `
 	# for sshd subsystems, such as sftp-server.
 	corecmd_getattr_bin_files($1_t)
 
-	domain_wide_inherit_fd($1_t)
+	domain_interactive_fd($1_t)
 	domain_subj_id_change_exemption($1_t)
 	domain_role_change_exemption($1_t)
 	domain_obj_id_change_exemption($1_t)
@@ -513,7 +515,7 @@ template(`ssh_server_template', `
 	sysnet_read_config($1_t)
 
 	userdom_dontaudit_relabelfrom_unpriv_users_ptys($1_t)
-	userdom_search_all_users_home($1_t)
+	userdom_search_all_users_home_content($1_t)
 
 	# Allow checking users mail at login
 	mta_getattr_spool($1_t)
@@ -534,14 +536,14 @@ template(`ssh_server_template', `
 	#		files_list_pids($1_t)
 	#	',`
 	#		corenet_tcp_bind_ssh_port($1_t)
-	#		init_use_fd($1_t)
+	#		init_use_fds($1_t)
 	#		init_use_script_ptys($1_t)
 	#	')
 	#',`
 		# These rules should match the else block
 		# of the run_ssh_inetd tunable directly above
 		corenet_tcp_bind_ssh_port($1_t)
-		init_use_fd($1_t)
+		init_use_fds($1_t)
 		init_use_script_ptys($1_t)
 	#')
 
