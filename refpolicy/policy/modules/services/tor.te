@@ -1,0 +1,98 @@
+
+policy_module(tor,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type tor_t;
+type tor_exec_t;
+init_daemon_domain(tor_t, tor_exec_t)
+
+# etc/tor
+type tor_etc_t;
+files_config_file(tor_etc_t)
+
+# var/lib/tor
+type tor_var_lib_t;
+files_type(tor_var_lib_t)
+
+# log files
+type tor_var_log_t;
+logging_log_file(tor_var_log_t)
+
+# pid files
+type tor_var_run_t;
+files_pid_file(tor_var_run_t)
+
+########################################
+#
+# tor local policy
+#
+
+allow tor_t self:fifo_file { read write };
+allow tor_t self:unix_stream_socket create_stream_socket_perms;
+allow tor_t self:netlink_route_socket r_netlink_socket_perms;
+allow tor_t self:tcp_socket create_socket_perms;
+
+# configuration files
+allow tor_t tor_etc_t:dir r_dir_perms;
+allow tor_t tor_etc_t:file r_file_perms;
+allow tor_t tor_etc_t:lnk_file { getattr read };
+
+# var/lib/tor files
+allow tor_t tor_var_lib_t:file create_file_perms;
+allow tor_t tor_var_lib_t:sock_file create_file_perms;
+allow tor_t tor_var_lib_t:dir create_dir_perms;
+files_usr_filetrans(tor_t,tor_var_lib_t,file)
+files_var_filetrans(tor_t,tor_var_lib_t,{ file dir sock_file })
+files_var_lib_filetrans(tor_t,tor_var_lib_t,file)
+
+# log files
+allow tor_t tor_var_log_t:file create_file_perms;
+allow tor_t tor_var_log_t:sock_file create_file_perms;
+allow tor_t tor_var_log_t:dir { rw_dir_perms setattr };
+logging_log_filetrans(tor_t,tor_var_log_t,{ sock_file file dir })
+
+# pid file
+allow tor_t tor_var_run_t:file manage_file_perms;
+allow tor_t tor_var_run_t:sock_file manage_file_perms;
+allow tor_t tor_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(tor_t,tor_var_run_t, { file sock_file })
+
+# networking basics
+corenet_tcp_sendrecv_all_if(tor_t)
+corenet_tcp_sendrecv_all_nodes(tor_t)
+corenet_tcp_sendrecv_all_ports(tor_t)
+corenet_tcp_sendrecv_all_reserved_ports(tor_t)
+corenet_non_ipsec_sendrecv(tor_t)
+# TOR will need to connect to various ports
+corenet_tcp_connect_all_ports(tor_t)
+# ... especially including port 80 and other privileged ports
+corenet_tcp_connect_all_reserved_ports(tor_t)
+# TOR may bind to a non-privileged port
+corenet_tcp_bind_all_ports(tor_t)
+corenet_tcp_bind_all_nodes(tor_t)
+
+# tor uses crypto and needs random
+dev_read_urand(tor_t)
+
+domain_use_interactive_fds(tor_t)
+
+files_read_etc_files(tor_t)
+
+# comm with init
+init_use_fds(tor_t)
+init_use_script_ptys(tor_t)
+
+libs_use_ld_so(tor_t)
+libs_use_shared_libs(tor_t)
+
+miscfiles_read_localization(tor_t)
+
+sysnet_dns_name_resolve(tor_t)
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(tor_t)
+')
