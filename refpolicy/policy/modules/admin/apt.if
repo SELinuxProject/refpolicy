@@ -1,0 +1,178 @@
+## <summary>APT advanced package toll.</summary>
+
+########################################
+## <summary>
+##	Execute apt programs in the apt domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_domtrans',`
+	gen_require(`
+		type apt_t, apt_exec_t;
+	')
+
+	files_search_usr($1)
+	corecmd_search_bin($1)
+	domain_auto_trans($1,apt_exec_t,apt_t)
+
+	# allow basic communication
+	allow $1 apt_t:fd use;
+	allow apt_t $1:fd use;
+	allow apt_t $1:fifo_file rw_file_perms;
+	allow apt_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute apt programs in the apt domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to allow the apt domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the apt domain to use.
+##	</summary>
+## </param>
+#
+interface(`apt_run',`
+	gen_require(`
+		type apt_t;
+	')
+
+	apt_domtrans($1)
+	role $2 types apt_t;
+	allow apt_t $3:chr_file rw_term_perms;
+	# TODO: likely have to add dpkg_run here.
+')
+
+########################################
+## <summary>
+##	Inherit and use file descriptors from apt.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_use_fds',`
+	gen_require(`
+		type apt_t;
+	')
+
+	allow $1 apt_t:fd use;
+	# TODO: enforce dpkg_use_fd?
+')
+
+########################################
+## <summary>
+##	Read from an unnamed apt pipe.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_read_pipes',`
+	gen_require(`
+		type apt_t;
+	')
+
+	allow $1 apt_t:fifo_file r_file_perms;
+	# TODO: enforce dpkg_read_pipes?
+')
+
+########################################
+## <summary>
+##	Read and write an unnamed apt pipe.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_rw_pipes',`
+	gen_require(`
+		type apt_t;
+	')
+
+	allow $1 apt_t:fifo_file rw_file_perms;
+	# TODO: enforce dpkg_rw_pipes?
+')
+
+########################################
+## <summary>
+##	Read the apt package database.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_read_db',`
+	gen_require(`
+		type apt_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 apt_var_lib_t:dir r_dir_perms;
+	allow $1 apt_var_lib_t:file { getattr read };
+	allow $1 apt_var_lib_t:lnk_file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete the apt package database.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`apt_manage_db',`
+	gen_require(`
+		type apt_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 apt_var_lib_t:dir rw_dir_perms;
+	allow $1 apt_var_lib_t:file { getattr create read write append unlink };
+	allow $1 apt_var_lib_t:lnk_file { getattr read write unlink };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to create, read, 
+##	write, and delete the apt package database.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`apt_dontaudit_manage_db',`
+	gen_require(`
+		type apt_var_lib_t;
+	')
+
+	dontaudit $1 apt_var_lib_t:dir rw_dir_perms;
+	dontaudit $1 apt_var_lib_t:file create_file_perms;
+	dontaudit $1 apt_var_lib_t:lnk_file create_lnk_perms;
+')
