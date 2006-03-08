@@ -1,0 +1,359 @@
+## <summary>Thunderbird email client</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the thunderbird module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is used
+##	for the thunderbird email client.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`thunderbird_per_userdomain_template',`
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_thunderbird_t;
+	domain_type($1_thunderbird_t)
+	domain_entry_file($1_thunderbird_t,thunderbird_exec_t)
+	role $3 types $1_thunderbird_t;
+
+	type $1_thunderbird_home_t alias $1_thunderbird_rw_t;
+	files_poly_member($1_thunderbird_home_t)
+
+	type $1_thunderbird_tmpfs_t;
+	files_tmpfs_file($1_thunderbird_tmpfs_t)
+	
+	########################################
+	#
+	# Local policy
+	#
+
+	allow $1_thunderbird_t self:capability sys_nice;
+	allow $1_thunderbird_t self:process { signal_perms setsched getsched execheap execmem execstack };
+	allow $1_thunderbird_t self:fifo_file { ioctl read write getattr };
+	allow $1_thunderbird_t self:unix_dgram_socket { create connect };
+	allow $1_thunderbird_t self:unix_stream_socket { create accept connect write getattr read listen bind };
+	allow $1_thunderbird_t self:tcp_socket create_socket_perms;
+	allow $1_thunderbird_t self:shm { read write create destroy unix_read unix_write };
+
+	# Access ~/.thunderbird
+	allow $1_thunderbird_t $1_thunderbird_home_t:dir manage_dir_perms;
+	allow $1_thunderbird_t $1_thunderbird_home_t:file manage_file_perms;
+	allow $1_thunderbird_t $1_thunderbird_home_t:lnk_file create_lnk_perms;
+	userdom_search_user_home_dirs($1,$1_thunderbird_t)
+
+	allow $1_thunderbird_t $1_thunderbird_tmpfs_t:dir rw_dir_perms;
+	allow $1_thunderbird_t $1_thunderbird_tmpfs_t:file manage_file_perms;
+	allow $1_thunderbird_t $1_thunderbird_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_thunderbird_t $1_thunderbird_tmpfs_t:sock_file manage_file_perms;
+	allow $1_thunderbird_t $1_thunderbird_tmpfs_t:fifo_file manage_file_perms;
+	fs_filetrans_tmpfs($1_thunderbird_t,$1_thunderbird_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $2 $1_thunderbird_t:fd use;
+	allow $2 $1_thunderbird_t:shm { associate getattr };
+	allow $2 $1_thunderbird_t:unix_stream_socket connectto;
+	allow $1_thunderbird_t $2:fd use;
+	allow $1_thunderbird_t $2:process sigchld;
+	allow $1_thunderbird_t $2:unix_stream_socket connectto;
+
+	# Allow the user domain to signal/ps.
+	allow $2 $1_thunderbird_t:dir { search getattr read };
+	allow $2 $1_thunderbird_t:{ file lnk_file } { read getattr };
+	allow $2 $1_thunderbird_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_thunderbird_t:process ptrace;
+
+	# Access ~/.thunderbird
+	allow $2 $1_thunderbird_home_t:dir manage_dir_perms;
+	allow $2 $1_thunderbird_home_t:file manage_file_perms;
+	allow $2 $1_thunderbird_home_t:lnk_file create_lnk_perms;
+	allow $2 $1_thunderbird_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+	
+	# Allow netstat
+	kernel_read_network_state($1_thunderbird_t)
+	
+	corecmd_exec_shell($1_thunderbird_t)
+	# Startup shellscript
+	corecmd_exec_bin($1_thunderbird_t)
+
+	corenet_tcp_sendrecv_generic_if($1_thunderbird_t)
+	corenet_raw_sendrecv_generic_if($1_thunderbird_t)
+	corenet_tcp_sendrecv_ipp_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_ldap_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_innd_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_smtp_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_pop_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_http_port($1_thunderbird_t)
+	corenet_tcp_sendrecv_all_nodes($1_thunderbird_t)
+	corenet_raw_sendrecv_all_nodes($1_thunderbird_t)
+	corenet_non_ipsec_sendrecv($1_thunderbird_t)
+	corenet_tcp_bind_all_nodes($1_thunderbird_t)
+	corenet_tcp_connect_ipp_port($1_thunderbird_t)
+	corenet_tcp_connect_ldap_port($1_thunderbird_t)
+	corenet_tcp_connect_innd_port($1_thunderbird_t)
+	corenet_tcp_connect_smtp_port($1_thunderbird_t)
+	corenet_tcp_connect_pop_port($1_thunderbird_t)
+	corenet_tcp_connect_http_port($1_thunderbird_t)
+
+	files_list_tmp($1_thunderbird_t)
+	files_read_usr_files($1_thunderbird_t)
+	files_read_etc_files($1_thunderbird_t)
+
+	fs_getattr_xattr_fs($1_thunderbird_t)
+	# Access ~/.thunderbird
+	fs_search_auto_mountpoints($1_thunderbird_t)
+	
+	libs_use_shared_libs($1_thunderbird_t)
+	libs_use_ld_so($1_thunderbird_t)
+
+	miscfiles_read_fonts($1_thunderbird_t)
+
+	sysnet_read_config($1_thunderbird_t)
+	# Allow DNS
+	sysnet_dns_name_resolve($1_thunderbird_t)
+
+	userdom_manage_user_tmp_dirs($1,$1_thunderbird_t)
+	userdom_read_user_tmp_files($1,$1_thunderbird_t)
+	userdom_write_user_tmp_sockets($1,$1_thunderbird_t)
+	userdom_manage_user_tmp_sockets($1,$1_thunderbird_t)
+	# .kde/....gtkrc
+	userdom_read_user_home_content_files($1,$1_thunderbird_t)
+
+	xserver_user_client_template($1,$1_thunderbird_t,$1_thunderbird_tmpfs_t)
+	
+	# Transition from user type
+	tunable_policy(`! disable_thunderbird_trans',`
+		domain_auto_trans($2, thunderbird_exec_t, $1_thunderbird_t)
+	')
+
+	# Access ~/.thunderbird
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_thunderbird_t)
+		fs_manage_nfs_files($1_thunderbird_t)
+		fs_manage_nfs_symlinks($1_thunderbird_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_thunderbird_t)
+		fs_manage_cifs_files($1_thunderbird_t)
+		fs_manage_cifs_symlinks($1_thunderbird_t)
+	')
+
+	tunable_policy(`mail_read_content && use_nfs_home_dirs',`
+		files_list_home($1_thunderbird_t)
+
+		fs_list_auto_mountpoints($1_thunderbird_t)
+		fs_read_nfs_files($1_thunderbird_t)
+		fs_read_nfs_symlinks($1_thunderbird_t)
+	',`
+		files_dontaudit_list_home($1_thunderbird_t)
+
+		fs_dontaudit_list_auto_mountpoints($1_thunderbird_t)
+		fs_dontaudit_list_nfs($1_thunderbird_t)
+		fs_dontaudit_read_nfs_files($1_thunderbird_t)
+	')
+
+	tunable_policy(`mail_read_content && use_samba_home_dirs',`
+		files_list_home($1_thunderbird_t)
+
+		fs_list_auto_mountpoints($1_thunderbird_t)
+		fs_read_cifs_files($1_thunderbird_t)
+		fs_read_cifs_symlinks($1_thunderbird_t)
+	',`
+		files_dontaudit_list_home($1_thunderbird_t)
+
+		fs_dontaudit_list_auto_mountpoints($1_thunderbird_t)
+		fs_dontaudit_read_cifs_files($1_thunderbird_t)
+		fs_dontaudit_list_cifs($1_thunderbird_t)
+	')
+	
+	tunable_policy(`mail_read_content',`
+		userdom_list_user_tmp($1,$1_thunderbird_t)
+		userdom_read_user_tmp_files($1,$1_thunderbird_t)
+		userdom_read_user_tmp_symlinks($1,$1_thunderbird_t)
+		userdom_search_user_home_dirs($1,$1_thunderbird_t)
+		userdom_read_user_home_content_files($1,$1_thunderbird_t)
+		userdom_read_user_home_content_symlinks($1,$1_thunderbird_t)
+		
+		ifdef(`mls_policy',`
+		',`
+			fs_search_removable($1_thunderbird_t)
+			fs_read_removable_files($1_thunderbird_t)
+			fs_read_removable_symlinks($1_thunderbird_t)
+		')
+	',`
+		files_dontaudit_list_tmp($1_thunderbird_t)
+		files_dontaudit_list_home($1_thunderbird_t)
+
+		fs_dontaudit_list_removable($1_thunderbird_t)
+		fs_donaudit_read_removable_files($1_thunderbird_t)
+
+		userdom_dontaudit_list_user_tmp($1,$1_thunderbird_t)
+		userdom_dontaudit_read_user_tmp_files($1,$1_thunderbird_t)
+		userdom_dontaudit_list_user_home_dirs($1,$1_thunderbird_t)
+		userdom_dontaudit_read_user_home_content_files($1,$1_thunderbird_t)
+	')
+	
+	tunable_policy(`mail_read_content && read_default_t',`
+		files_list_default($1_thunderbird_t)
+		files_read_default_files($1_thunderbird_t)
+		files_read_default_symlinks($1_thunderbird_t)
+	',`
+		files_dontaudit_read_default_files($1_thunderbird_t)
+		files_dontaudit_list_default($1_thunderbird_t)
+	')
+	
+	tunable_policy(`mail_read_content && read_untrusted_content',`
+		files_list_tmp($1_thunderbird_t)
+		files_list_home($1_thunderbird_t)
+
+		userdom_search_user_home_dirs($1,$1_thunderbird_t)
+		userdom_list_user_untrusted_content($1,$1_thunderbird_t)
+		userdom_read_user_untrusted_content_files($1,$1_thunderbird_t)
+		userdom_read_user_untrusted_content_symlinks($1,$1_thunderbird_t)
+		userdom_list_user_tmp_untrusted_content($1,$1_thunderbird_t)
+		userdom_read_user_tmp_untrusted_content_files($1,$1_thunderbird_t)
+		userdom_read_user_tmp_untrusted_content_symlinks($1,$1_thunderbird_t)
+	',`
+		files_dontaudit_list_tmp($1_thunderbird_t)
+		files_dontaudit_list_home($1_thunderbird_t)
+
+		userdom_dontaudit_list_user_home_dirs($1,$1_thunderbird_t)
+		userdom_dontaudit_list_user_untrusted_content($1,$1_thunderbird_t)
+		userdom_dontaudit_read_user_untrusted_content_files($1,$1_thunderbird_t)
+		userdom_dontaudit_list_user_tmp_untrusted_content($1,$1_thunderbird_t)
+		userdom_dontaudit_read_user_tmp_untrusted_content_files($1,$1_thunderbird_t)
+	')
+
+	# Manage nfs homedirs
+	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
+		files_search_home($1_thunderbird_t)
+
+		fs_search_auto_mountpoints($1_thunderbird_t)
+		fs_manage_nfs_dirs($1_thunderbird_t)
+		fs_manage_nfs_files($1_thunderbird_t)
+		fs_manage_nfs_symlinks($1_thunderbird_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_thunderbird_t)
+		fs_dontaudit_manage_nfs_dirs($1_thunderbird_t)
+		fs_dontaudit_manage_nfs_files($1_thunderbird_t)
+	')
+	
+	# Manage samba homedirs
+	tunable_policy(`write_untrusted_content && use_samba_home_dirs',`
+		files_search_home($1_thunderbird_t)
+
+		fs_search_auto_mountpoints($1_thunderbird_t)
+		fs_manage_cifs_dirs($1_thunderbird_t)
+		fs_manage_cifs_files($1_thunderbird_t)
+		fs_manage_cifs_symlinks($1_thunderbird_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_thunderbird_t)
+		fs_dontaudit_manage_cifs_dirs($1_thunderbird_t)
+		fs_dontaudit_manage_cifs_files($1_thunderbird_t)
+	')
+	
+	# Manage /tmp and /home
+	tunable_policy(`write_untrusted_content',`
+		files_search_home($1_thunderbird_t)
+		files_tmp_filetrans($1_thunderbird_t,$1_untrusted_content_tmp_t,file)
+		files_tmp_filetrans($1_thunderbird_t,$1_untrusted_content_tmp_t,dir)
+
+		userdom_manage_user_untrusted_content_files($1,$1_thunderbird_t,file)
+		userdom_manage_user_untrusted_content_files($1,$1_thunderbird_t,dir)
+	',`
+		files_dontaudit_list_home($1_thunderbird_t)
+		files_dontaudit_list_tmp($1_thunderbird_t)
+
+		userdom_dontaudit_list_user_home_dirs($1,$1_thunderbird_t)
+		userdom_dontaudit_manage_user_tmp_dirs($1,$1_thunderbird_t)
+		userdom_dontaudit_manage_user_tmp_files($1,$1_thunderbird_t)
+		userdom_dontaudit_manage_user_home_content_dirs($1,$1_thunderbird_t)
+	')
+
+	optional_policy(`dbus', `
+		dbus_system_bus_client_template($1_thunderbird,$1_thunderbird_t)
+		dbus_user_bus_client_template($1,$1_thunderbird,$1_thunderbird_t)
+		dbus_send_system_bus($1_thunderbird_t)
+		dbus_send_user_bus($1,$1_thunderbird_t)
+	')
+
+	optional_policy(`lpr',`
+		lpd_domtrans_user_lpr($1,$1_thunderbird_t)
+	')
+
+	optional_policy(`cups',`
+		cups_read_rw_config($1_thunderbird_t)
+	')
+
+	optional_policy(`gpg', `
+		gpg_domtrans_user_gpg($1,$1_thunderbird_t)
+	')
+
+	optional_policy(`nis',`
+		nis_use_ypbind($1_thunderbird_t)
+	')
+
+	ifdef(`TODO',`
+		# FIXME: Rules were removed to centralize policy in a gnome_app macro
+		# A similar thing might be necessary for mozilla compiled without GNOME
+		# support (is this possible?).
+
+		# FIXME: Why does it try to do that?
+		#dontaudit $1_thunderbird_t evolution_exec_t:file { getattr execute };
+
+		# Why is thunderbird looking in .mozilla ?
+		# FIXME: there are legitimate uses of invoking the browser - about -> release notes
+		dontaudit $1_thunderbird_t $1_mozilla_home_t:dir search;
+
+		# Start links in web browser
+		ifdef(`mozilla.te', `
+			can_exec($1_thunderbird_t, shell_exec_t)
+			domain_auto_trans($1_thunderbird_t, mozilla_exec_t, $1_mozilla_t)
+		')
+
+		# GNOME support
+		optional_policy(`gnome', `
+			gnome_application($1_thunderbird, $1)
+			gnome_file_dialog($1_thunderbird, $1)
+			allow $1_thunderbird_t $1_gnome_settings_t:file { read write };
+		')
+		optinal_policy(`dbus',`
+			allow $1_t $2_dbusd_t:dbus send_msg;
+			ifdef(`cups.te', `
+				allow cupsd_t $1_t:dbus send_msg;
+			')
+		')
+
+	')
+')
