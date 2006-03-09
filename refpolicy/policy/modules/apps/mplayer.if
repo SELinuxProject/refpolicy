@@ -1,0 +1,458 @@
+## <summary>Mplayer media player and encoder</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the mplayer module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for mplayer media player.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`mplayer_per_userdomain_template',`
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_mencoder_t;
+	domain_type($1_mencoder_t)
+	domain_entry_file($1_mencoder_t,mencoder_exec_t)
+	role $3 types $1_mencoder_t;
+
+	type $1_mplayer_t;
+	domain_type($1_mplayer_t)
+	domain_entry_file($1_mplayer_t,mplayer_exec_t)
+	role $3 types $1_mplayer_t;
+
+	type $1_mplayer_home_t alias $1_mplayer_rw_t;
+	files_poly_member($1_mplayer_home_t)
+	userdom_user_home_content($1,$1_mplayer_home_t)
+
+	type $1_mplayer_tmpfs_t;
+	files_tmpfs_file($1_mplayer_tmpfs_t)
+
+	########################################
+	#
+	# mencoder local policy
+	#
+
+	allow $1_mencoder_t $1_mplayer_home_t:dir create_dir_perms;
+	allow $1_mencoder_t $1_mplayer_home_t:file create_file_perms;
+	allow $1_mencoder_t $1_mplayer_home_t:lnk_file create_lnk_perms;
+
+	# Read global config
+	allow $1_mencoder_t mplayer_etc_t:dir r_dir_perms;
+	allow $1_mencoder_t mplayer_etc_t:file r_file_perms;
+	allow $1_mencoder_t mplayer_etc_t:lnk_file { getattr read };
+	
+	# domain transition
+	domain_auto_trans($2, mencoder_exec_t, $1_mencoder_t)
+	allow $2 $1_mencoder_t:fd use;
+	allow $1_mencoder_t $2:fd use;
+	allow $1_mencoder_t $2:fifo_file rw_file_perms;
+	allow $1_mencoder_t $2:process sigchld;
+
+	# Allow the user domain to signal/ps.
+	allow $2 $1_mencoder_t:dir { search getattr read };
+	allow $2 $1_mencoder_t:{ file lnk_file } { read getattr };
+	allow $2 $1_mencoder_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_mencoder_t:process ptrace;
+	allow $2 $1_mencoder_t:process signal_perms;
+
+	# Read /proc files and directories
+	# Necessary for /proc/meminfo, /proc/cpuinfo, etc..
+	kernel_read_system_state($1_mencoder_t)
+	# Sysctl on kernel version 
+	kernel_read_kernel_sysctls($1_mencoder_t)
+
+	# Required for win32 binary loader 
+	dev_rwx_zero($1_mencoder_t)
+	# Access to DVD/CD/V4L
+	dev_read_video_dev($1_mencoder_t)
+
+	# Read data in /usr/share (fonts, icons..)
+	files_read_usr_files($1_mencoder_t)
+	files_read_usr_symlinks($1_mencoder_t)
+
+	fs_search_auto_mountpoints($1_mencoder_t)
+
+	# Access to DVD/CD/V4L
+	storage_raw_read_removable_device($1_mencoder_t)
+
+	libs_use_ld_so($1_mencoder_t)
+	libs_use_shared_libs($1_mencoder_t)
+
+	miscfiles_read_localization($1_mencoder_t)
+
+	userdom_use_user_terminals($1,$1_mencoder_t)
+	# Handle removable media, /tmp, and /home
+	userdom_list_user_tmp($1,$1_mencoder_t)
+	userdom_read_user_tmp_files($1,$1_mencoder_t)
+	userdom_read_user_tmp_symlinks($1,$1_mencoder_t)
+	userdom_read_user_home_content_files($1,$1_mencoder_t)
+	userdom_read_user_home_content_symlinks($1,$1_mencoder_t)
+
+	# Read content to encode
+	ifdef(`mls_policy',`',`
+		fs_search_removable($1_mencoder_t)
+		fs_read_removable_files($1_mencoder_t)
+		fs_read_removable_symlinks($1_mencoder_t)
+	')
+
+	tunable_policy(`allow_execmem',`
+		allow $1_mencoder_t self:process execmem;
+	')
+
+	tunable_policy(`allow_execmod',`
+		dev_execmod_zero($1_mencoder_t)
+	')
+
+	tunable_policy(`allow_mplayer_execstack',`
+		allow $1_mencoder_t self:process { execmem execstack };
+	')
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_mencoder_t)
+		fs_manage_nfs_files($1_mencoder_t)
+		fs_manage_nfs_symlinks($1_mencoder_t)
+
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_mencoder_t)
+		fs_manage_cifs_files($1_mencoder_t)
+		fs_manage_cifs_symlinks($1_mencoder_t)
+
+	')
+
+	# Read content to encode
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_list_auto_mountpoints($1_mencoder_t)
+		files_list_home($1_mencoder_t)
+		fs_read_nfs_files($1_mencoder_t)
+		fs_read_nfs_symlinks($1_mencoder_t)
+	
+	',`
+		files_dontaudit_list_home($1_mencoder_t)
+		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
+		fs_dontaudit_read_nfs_files($1_mencoder_t)
+		fs_dontaudit_list_nfs($1_mencoder_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_list_auto_mountpoints($1_mencoder_t)
+		files_list_home($1_mencoder_t)
+		fs_read_cifs_files($1_mencoder_t)
+		fs_read_cifs_symlinks($1_mencoder_t)
+	',`
+		files_dontaudit_list_home($1_mencoder_t)
+		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
+		fs_dontaudit_read_cifs_files($1_mencoder_t)
+		fs_dontaudit_list_cifs($1_mencoder_t)
+	')
+
+	tunable_policy(`read_default_t',`
+		files_list_default($1_mencoder_t)
+		files_read_default_files($1_mencoder_t)
+		files_read_default_symlinks($1_mencoder_t)
+	',`
+		files_dontaudit_read_default_files($1_mencoder_t)
+		files_dontaudit_list_default($1_mencoder_t)
+	')
+
+	tunable_policy(`read_untrusted_content',`
+		files_list_tmp($1_mencoder_t)
+		files_list_home($1_mencoder_t)
+	
+		userdom_list_user_untrusted_content($1,$1_mencoder_t)
+		userdom_read_user_untrusted_content_files($1,$1_mencoder_t)
+		userdom_read_user_untrusted_content_symlinks($1,$1_mencoder_t)
+		userdom_list_user_tmp_untrusted_content($1,$1_mencoder_t)
+		userdom_read_user_tmp_untrusted_content_files($1,$1_mencoder_t)
+		userdom_read_user_tmp_untrusted_content_symlinks($1,$1_mencoder_t)
+	',`
+		files_dontaudit_list_tmp($1_mencoder_t)
+		files_dontaudit_list_home($1_mencoder_t)
+		userdom_dontaudit_list_user_home_dirs($1,$1_mencoder_t)
+		userdom_dontaudit_list_user_untrusted_content($1,$1_mencoder_t)
+		userdom_dontaudit_read_user_untrusted_content_files($1,$1_mencoder_t)
+		userdom_dontaudit_list_user_tmp_untrusted_content($1,$1_mencoder_t)
+		userdom_dontaudit_read_user_tmp_untrusted_content_files($1,$1_mencoder_t)
+	')
+
+	# Save encoded files
+	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
+		files_search_home($1_mencoder_t)
+
+		fs_search_auto_mountpoints($1_mencoder_t)
+		fs_manage_nfs_dirs($1_mencoder_t)
+		fs_manage_nfs_files($1_mencoder_t)
+		fs_manage_nfs_symlinks($1_mencoder_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
+		fs_dontaudit_manage_nfs_dirs($1_mencoder_t)
+		fs_dontaudit_manage_nfs_files($1_mencoder_t)
+	')
+
+	tunable_policy(`write_untrusted_content && use_samba_home_dirs',`
+		files_search_home($1_mencoder_t)
+
+		fs_search_auto_mountpoints($1_mencoder_t)
+		fs_manage_cifs_dirs($1_mencoder_t)
+		fs_manage_cifs_files($1_mencoder_t)
+		fs_manage_cifs_symlinks($1_mencoder_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
+		fs_dontaudit_manage_cifs_dirs($1_mencoder_t)
+		fs_dontaudit_manage_cifs_files($1_mencoder_t)
+	')
+
+	tunable_policy(`write_untrusted_content',`
+		files_search_home($1_mencoder_t)
+		files_tmp_filetrans($1_mencoder_t,$1_untrusted_content_tmp_t,file)
+		files_tmp_filetrans($1_mencoder_t,$1_untrusted_content_tmp_t,dir)
+
+		userdom_manage_user_untrusted_content_files($1,$1_mencoder_t,file)
+		userdom_manage_user_untrusted_content_files($1,$1_mencoder_t,dir)
+
+	',`
+		files_dontaudit_list_home($1_mencoder_t)
+		files_dontaudit_list_tmp($1_mencoder_t)
+
+		userdom_dontaudit_list_user_home_dirs($1,$1_mencoder_t)
+		userdom_dontaudit_manage_user_tmp_files($1,$1_mencoder_t)
+		userdom_dontaudit_manage_user_home_content_dirs($1,$1_mencoder_t)
+	')
+
+	########################################
+	#
+	# mplayer local policy
+	#
+
+	allow $1_mplayer_t self:process { signal_perms getsched };
+	allow $1_mplayer_t self:fifo_file rw_file_perms;
+
+	allow $1_mplayer_t $1_mplayer_home_t:dir manage_dir_perms;
+	allow $1_mplayer_t $1_mplayer_home_t:file manage_file_perms;
+	allow $1_mplayer_t $1_mplayer_home_t:lnk_file create_lnk_perms;
+	userdom_search_user_home_dirs($1,$1_mplayer_t)
+
+	allow $1_mplayer_t $1_mplayer_tmpfs_t:dir rw_dir_perms;
+	allow $1_mplayer_t $1_mplayer_tmpfs_t:file manage_file_perms;
+	allow $1_mplayer_t $1_mplayer_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_mplayer_t $1_mplayer_tmpfs_t:sock_file manage_file_perms;
+	allow $1_mplayer_t $1_mplayer_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_mplayer_t,$1_mplayer_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	# Read global config
+	allow $1_mplayer_t mplayer_etc_t:dir r_dir_perms;
+	allow $1_mplayer_t mplayer_etc_t:file r_file_perms;
+	allow $1_mplayer_t mplayer_etc_t:lnk_file { getattr read };
+
+	# Home access
+	allow $2 $1_mplayer_home_t:dir manage_dir_perms;
+	allow $2 $1_mplayer_home_t:file manage_file_perms;
+	allow $2 $1_mplayer_home_t:lnk_file create_lnk_perms;
+	allow $2 $1_mplayer_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+
+	# domain transition
+	domain_auto_trans($2, mplayer_exec_t, $1_mplayer_t)
+	allow $2 $1_mplayer_t:fd use;
+	allow $1_mplayer_t $2:fd use;
+	allow $1_mplayer_t $2:fifo_file rw_file_perms;
+	allow $1_mplayer_t $2:process sigchld;
+
+	# Allow the user domain to signal/ps.
+	allow $2 $1_mplayer_t:dir { search getattr read };
+	allow $2 $1_mplayer_t:{ file lnk_file } { read getattr };
+	allow $2 $1_mplayer_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_mplayer_t:process ptrace;
+	allow $2 $1_mplayer_t:process signal_perms;
+
+	kernel_dontaudit_list_unlabeled($1_mplayer_t)
+	kernel_dontaudit_getattr_unlabeled_files($1_mplayer_t)
+	kernel_dontaudit_read_unlabeled_files($1_mplayer_t)
+	# Necessary for /proc/meminfo, /proc/cpuinfo, etc..
+	kernel_read_system_state($1_mplayer_t)
+	# Sysctl on kernel version 
+	kernel_read_kernel_sysctls($1_mplayer_t)
+
+	# Run bash/sed (??) 
+	corecmd_exec_bin($1_mplayer_t)
+	corecmd_exec_shell($1_mplayer_t)
+
+	# Required for win32 binary loader 
+	dev_rwx_zero($1_mplayer_t)
+	# Access to DVD/CD/V4L
+	dev_read_video_dev($1_mplayer_t)
+	# Audio, alsa.conf
+	dev_read_sound_mixer($1_mplayer_t)
+	dev_write_sound_mixer($1_mplayer_t)
+	# RTC clock 
+	dev_read_realtime_clock($1_mplayer_t)
+
+	# Access to DVD/CD/V4L
+	storage_raw_read_removable_device($1_mplayer_t)
+
+	files_read_etc_files($1_mplayer_t)
+	files_dontaudit_list_non_security($1_mplayer_t)
+	files_dontaudit_getattr_non_security_files($1_mplayer_t)
+	files_read_non_security_files($1_mplayer_t)
+	# Unfortunately the ancient file dialog starts in /
+	files_list_home($1_mplayer_t)
+	# Read /etc/mtab
+	files_read_etc_runtime_files($1_mplayer_t)
+	# Read data in /usr/share (fonts, icons..)
+	files_read_usr_files($1_mplayer_t)
+	files_read_usr_symlinks($1_mplayer_t)
+
+	fs_dontaudit_getattr_all_fs($1_mplayer_t)
+	fs_search_auto_mountpoints($1_mplayer_t)
+
+	libs_use_ld_so($1_mplayer_t)
+	libs_use_shared_libs($1_mplayer_t)
+
+	miscfiles_read_localization($1_mplayer_t)
+	miscfiles_read_fonts($1_mplayer_t)
+
+	userdom_use_user_terminals($1,$1_mplayer_t)
+	# Read media files
+	userdom_list_user_tmp($1,$1_mplayer_t)
+	userdom_read_user_tmp_files($1,$1_mplayer_t)
+	userdom_read_user_tmp_symlinks($1,$1_mplayer_t)
+	userdom_read_user_home_content_files($1,$1_mplayer_t)
+	userdom_read_user_home_content_symlinks($1,$1_mplayer_t)
+
+	xserver_user_client_template($1,$1_mplayer_t,$1_mplayer_tmpfs_t)
+	
+	# Read songs
+	ifdef(`mls_policy',`',`
+		fs_search_removable($1_mplayer_t)
+		fs_read_removable_files($1_mplayer_t)
+		fs_read_removable_symlinks($1_mplayer_t)
+	')
+
+	tunable_policy(`allow_execmem',`
+		allow $1_mplayer_t self:process execmem;
+	')
+
+	tunable_policy(`allow_execmod',`
+		dev_execmod_zero($1_mplayer_t)
+	')
+
+	tunable_policy(`allow_mplayer_execstack',`
+		allow $1_mplayer_t self:process { execmem execstack };
+	')
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_mplayer_t)
+		fs_manage_nfs_files($1_mplayer_t)
+		fs_manage_nfs_symlinks($1_mplayer_t)
+	')
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_mplayer_t)
+		fs_manage_cifs_files($1_mplayer_t)
+		fs_manage_cifs_symlinks($1_mplayer_t)
+	')
+
+	# Legacy domain issues
+	tunable_policy(`allow_mplayer_execstack',`
+		allow $1_mplayer_t $1_mplayer_tmpfs_t:file execute;
+	')
+
+	# Read songs
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_list_auto_mountpoints($1_mplayer_t)
+		files_list_home($1_mplayer_t)
+		fs_read_nfs_files($1_mplayer_t)
+		fs_read_nfs_symlinks($1_mplayer_t)
+	
+	',`
+		files_dontaudit_list_home($1_mplayer_t)
+		fs_dontaudit_list_auto_mountpoints($1_mplayer_t)
+		fs_dontaudit_read_nfs_files($1_mplayer_t)
+		fs_dontaudit_list_nfs($1_mplayer_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_list_auto_mountpoints($1_mplayer_t)
+		files_list_home($1_mplayer_t)
+		fs_read_cifs_files($1_mplayer_t)
+		fs_read_cifs_symlinks($1_mplayer_t)
+	',`
+		files_dontaudit_list_home($1_mplayer_t)
+		fs_dontaudit_list_auto_mountpoints($1_mplayer_t)
+		fs_dontaudit_read_cifs_files($1_mplayer_t)
+		fs_dontaudit_list_cifs($1_mplayer_t)
+	')
+
+	tunable_policy(`read_default_t',`
+		files_list_default($1_mplayer_t)
+		files_read_default_files($1_mplayer_t)
+		files_read_default_symlinks($1_mplayer_t)
+	',`
+		files_dontaudit_read_default_files($1_mplayer_t)
+		files_dontaudit_list_default($1_mplayer_t)
+	')
+
+	tunable_policy(`read_untrusted_content',`
+		files_list_tmp($1_mplayer_t)
+		files_list_home($1_mplayer_t)
+	
+		userdom_list_user_untrusted_content($1,$1_mplayer_t)
+		userdom_read_user_untrusted_content_files($1,$1_mplayer_t)
+		userdom_read_user_untrusted_content_symlinks($1,$1_mplayer_t)
+		userdom_list_user_tmp_untrusted_content($1,$1_mplayer_t)
+		userdom_read_user_tmp_untrusted_content_files($1,$1_mplayer_t)
+		userdom_read_user_tmp_untrusted_content_symlinks($1,$1_mplayer_t)
+	',`
+		files_dontaudit_list_tmp($1_mplayer_t)
+		files_dontaudit_list_home($1_mplayer_t)
+		userdom_dontaudit_list_user_home_dirs($1,$1_mplayer_t)
+		userdom_dontaudit_list_user_untrusted_content($1,$1_mplayer_t)
+		userdom_dontaudit_read_user_untrusted_content_files($1,$1_mplayer_t)
+		userdom_dontaudit_list_user_tmp_untrusted_content($1,$1_mplayer_t)
+		userdom_dontaudit_read_user_tmp_untrusted_content_files($1,$1_mplayer_t)
+	')
+
+	optional_policy(`alsa',`
+		alsa_read_rw_config($1_mplayer_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_mplayer_t)
+	')
+')
