@@ -1,0 +1,149 @@
+
+policy_module(rhgb,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type rhgb_t;
+type rhgb_exec_t;
+init_daemon_domain(rhgb_t,rhgb_exec_t)
+
+type rhgb_devpts_t;
+term_pty(rhgb_devpts_t)
+
+type rhgb_tmpfs_t;
+files_tmpfs_file(rhgb_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rhgb_t self:capability { sys_admin sys_tty_config };
+dontaudit rhgb_t self:capability sys_tty_config;
+allow rhgb_t self:process signal_perms;
+allow rhgb_t self:shm create_shm_perms;
+allow rhgb_t self:unix_stream_socket create_stream_socket_perms;
+allow rhgb_t self:fifo_file rw_file_perms;
+allow rhgb_t self:tcp_socket create_socket_perms;
+allow rhgb_t self:udp_socket create_socket_perms;
+
+allow rhgb_t rhgb_devpts_t:chr_file { rw_file_perms setattr };
+term_create_pty(rhgb_t,rhgb_devpts_t)
+
+allow rhgb_t rhgb_tmpfs_t:dir manage_dir_perms;
+allow rhgb_t rhgb_tmpfs_t:file manage_file_perms;
+allow rhgb_t rhgb_tmpfs_t:lnk_file create_lnk_perms;
+allow rhgb_t rhgb_tmpfs_t:sock_file manage_file_perms;
+allow rhgb_t rhgb_tmpfs_t:fifo_file manage_file_perms;
+fs_tmpfs_filetrans(rhgb_t,rhgb_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+kernel_read_kernel_sysctls(rhgb_t)
+kernel_read_system_state(rhgb_t)
+
+corecmd_exec_bin(rhgb_t)
+corecmd_exec_sbin(rhgb_t)
+
+corenet_tcp_sendrecv_generic_if(rhgb_t)
+corenet_udp_sendrecv_generic_if(rhgb_t)
+corenet_raw_sendrecv_generic_if(rhgb_t)
+corenet_tcp_sendrecv_all_nodes(rhgb_t)
+corenet_udp_sendrecv_all_nodes(rhgb_t)
+corenet_raw_sendrecv_all_nodes(rhgb_t)
+corenet_tcp_sendrecv_all_ports(rhgb_t)
+corenet_udp_sendrecv_all_ports(rhgb_t)
+corenet_non_ipsec_sendrecv(rhgb_t)
+corenet_tcp_bind_all_nodes(rhgb_t)
+corenet_udp_bind_all_nodes(rhgb_t)
+corenet_tcp_connect_all_ports(rhgb_t)
+
+dev_read_sysfs(rhgb_t)
+
+domain_use_interactive_fds(rhgb_t)
+
+files_read_etc_files(rhgb_t)
+files_read_etc_runtime_files(rhgb_t)
+files_search_tmp(rhgb_t)
+files_read_usr_files(rhgb_t)
+files_mounton_mnt(rhgb_t)
+files_dontaudit_read_default_files(rhgb_t)
+files_dontaudit_search_pids(rhgb_t)
+# for nscd
+files_dontaudit_search_var(rhgb_t)
+
+fs_search_auto_mountpoints(rhgb_t)
+fs_mount_ramfs(rhgb_t)
+fs_unmount_ramfs(rhgb_t)
+# for ramfs file systems
+fs_manage_ramfs_files(rhgb_t)
+fs_manage_ramfs_pipes(rhgb_t)
+fs_manage_ramfs_sockets(rhgb_t)
+
+term_dontaudit_use_console(rhgb_t)
+term_use_unallocated_ttys(rhgb_t)
+
+init_use_fds(rhgb_t)
+init_use_script_ptys(rhgb_t)
+init_write_initctl(rhgb_t)
+
+libs_use_ld_so(rhgb_t)
+libs_use_shared_libs(rhgb_t)
+# for localization
+libs_read_lib_files(rhgb_t)
+
+logging_send_syslog_msg(rhgb_t)
+
+miscfiles_read_localization(rhgb_t)
+miscfiles_read_fonts(rhgb_t)
+
+sysnet_read_config(rhgb_t)
+
+userdom_dontaudit_use_unpriv_user_fds(rhgb_t)
+
+xserver_read_xdm_xserver_tmp_files(rhgb_t)
+xserver_kill_xdm_xserver(rhgb_t)
+# for running setxkbmap
+xserver_read_xkb_libs(rhgb_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_generic_ptys(rhgb_t)
+	files_dontaudit_read_root_files(rhgb_t)
+')
+
+optional_policy(`firstboot',`
+	firstboot_read_rw_files(rhgb_t)
+')
+
+optional_policy(`nis',`
+	nis_use_ypbind(rhgb_t)
+')
+
+optional_policy(`selinuxutil',`
+	seutil_sigchld_newrole(rhgb_t)
+')
+
+optional_policy(`udev',`
+	udev_read_db(rhgb_t)
+')
+
+ifdef(`TODO',`
+	#TODO
+	ifdef(`hide_broken_symptoms', `
+		# for a bug in the X server
+		dontaudit mount_t rhgb_gph_t:fd use;
+	')
+	#TODO this seems a bit much
+	allow domain rhgb_devpts_t:chr_file { read write };
+	#TODO this (ie files_dontaudit_read_default_files(rhgb_t))doesn't make sense with the following
+	allow rhgb_t default_t:file { getattr read };
+	#TODO
+	# for gnome-pty-helper
+	gph_domain(rhgb, system)
+	allow initrc_t rhgb_gph_t:fd use;
+	ifdef(`hide_broken_symptoms', `
+		# it should not do this
+		dontaudit rhgb_t { staff_home_dir_t sysadm_home_dir_t }:dir search;
+	')
+')
