@@ -161,6 +161,11 @@ template(`spamassassin_per_userdomain_template',`
 		files_read_default_pipes($1_spamc_t)
 	')
 
+	optional_policy(`evolution',`
+		# Allow connection to spamd socket above
+		evolution_stream_connect($1,$1_spamc_t)
+	')
+
 	optional_policy(`mount',`
 		mount_send_nfs_client_request($1_spamc_t)
 	')
@@ -310,6 +315,11 @@ template(`spamassassin_per_userdomain_template',`
 		fs_manage_cifs_symlinks($1_spamassassin_t)
 	')
 
+	optional_policy(`evolution',`
+		# Write pid file and socket in ~/.evolution/cache/tmp
+		evolution_home_filetrans($1,spamd_t,spamd_tmp_t,{ file sock_file })
+	')
+
 	optional_policy(`nis',`
 		# cjp: clearly some redundancy here
 
@@ -351,6 +361,77 @@ interface(`spamassassin_exec',`
 
 ########################################
 ## <summary>
+##	Singnal the spam assassin daemon
+## </summary>
+## <param name="domain">
+##      <summary>
+##      The type of the process performing this action.
+##      </summary>
+## </param>
+#
+interface(`spamassassin_signal_spamd',`
+	gen_require(`
+		type spamd_t;
+	')
+
+	allow $1 spamd_t:process signal;
+')
+
+########################################
+## <summary>
+##	Execute the spamassassin daemon
+##	program in the caller directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`spamassassin_exec_spamd',`
+	gen_require(`
+		type spamd_exec_t;
+	')
+
+	can_exec($1,spamd_exec_t)
+')
+
+########################################
+## <summary>
+##      Execute spamassassin client in the user spamassassin client domain.
+## </summary>
+## <desc>
+##	<p>
+##	This is a template and should only be called 
+##	from per user domain tempaltes.
+##	</p>
+## </desc>
+## <param name="prefix">
+##      <summary>
+##      The prefix of the user domain. eg user would be the prefix of user_t.
+##      </summary>
+## </param>
+## <param name="domain">
+##      <summary>
+##      The type of the process performing this action.
+##      </summary>
+## </param>
+#
+template(`spamassassin_domtrans_user_client',`
+	gen_require(`
+		type $1_spamc_t, spamc_exec_t;
+	')
+
+	domain_auto_trans($2,spamc_exec_t,$1_spamc_t)
+
+	allow $2 $1_spamc_t:fd use;
+	allow $1_spamc_t $2:fd use;
+	allow $1_spamc_t $2:fifo_file rw_file_perms;
+	allow $1_spamc_t $2:process sigchld;
+')
+
+########################################
+## <summary>
 ##	Execute the spamassassin client
 ##	program in the caller directory.
 ## </summary>
@@ -366,4 +447,75 @@ interface(`spamassassin_exec_client',`
 	')
 
 	can_exec($1,spamc_exec_t)
+')
+
+########################################
+## <summary>
+##      Execute spamassassin in the user spamassassin domain.
+## </summary>
+## <desc>
+##	<p>
+##	This is a template and should only be called 
+##	from per user domain tempaltes.
+##	</p>
+## </desc>
+## <param name="prefix">
+##      <summary>
+##	The prefix of the user domain. eg user would be the prefix of user_t.
+##      </summary>
+## </param>
+## <param name="domain">
+##      <summary>
+##      The type of the process performing this action.
+##      </summary>
+## </param>
+#
+template(`spamassassin_domtrans_user_local_client',`
+	gen_require(`
+		type $1_spamassassin_t, spamassassin_exec_t;
+	')
+
+	domain_auto_trans($2,spamassassin_exec_t,$1_spamassassin_t)
+
+	allow $2 $1_spamassassin_t:fd use;
+	allow $1_spamassassin_t $2:fd use;
+	allow $1_spamassassin_t $2:fifo_file rw_file_perms;
+	allow $1_spamassassin_t $2:process sigchld;
+')
+
+########################################
+## <summary>
+##      Read temporary spamd file.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      The type of the process performing this action.
+##      </summary>
+## </param>
+#
+interface(`spamassassin_read_spamd_tmp_files',`
+	gen_require(`
+		type spamd_tmp_t;
+	')
+
+	allow $1 spamd_tmp_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get attributes of temporary
+##	spamd sockets/
+## </summary>
+## <param name="domain">
+##      <summary>
+##	Domain to not audit.
+##      </summary>
+## </param>
+#
+interface(`spamassassin_dontaudit_getattr_spamd_tmp_sockets',`
+	gen_require(`
+		type spamd_tmp_t;
+	')
+
+	dontaudit $1 spamd_tmp_t:sock_file getattr;
 ')

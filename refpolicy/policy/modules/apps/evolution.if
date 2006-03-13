@@ -1,0 +1,822 @@
+## <summary>Evolution email client</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the evolution module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for evolution email client and other related evolution applications such as webcal and alarm
+##	type is also created to protect the user evolution keys.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`evolution_per_userdomain_template',`
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_evolution_t;
+	domain_type($1_evolution_t)
+	domain_entry_file($1_evolution_t,evolution_exec_t)
+	role $3 types $1_evolution_t;
+
+	type $1_evolution_tmpfs_t;
+	files_tmpfs_file($1_evolution_tmpfs_t)
+
+	type $1_evolution_home_t alias $1_evolution_rw_t;
+	files_poly_member($1_evolution_home_t)
+	userdom_user_home_content($1,$1_evolution_home_t)
+
+	type $1_evolution_orbit_tmp_t;
+	files_type($1_evolution_orbit_tmp_t)
+	
+	type $1_evolution_alarm_t;
+	domain_type($1_evolution_alarm_t)
+	role $3 types $1_evolution_alarm_t;
+
+	type $1_evolution_alarm_tmpfs_t;
+	files_tmpfs_file($1_evolution_alarm_tmpfs_t)
+
+	type $1_evolution_alarm_orbit_tmp_t;
+	files_type($1_evolution_alarm_orbit_tmp_t)
+
+	type $1_evolution_exchange_t;
+	domain_type($1_evolution_exchange_t)
+	role $3 types $1_evolution_exchange_t;
+
+	type $1_evolution_exchange_tmpfs_t;
+	files_tmpfs_file($1_evolution_exchange_tmpfs_t)
+
+	type $1_evolution_exchange_tmp_t;
+	files_tmp_file($1_evolution_exchange_tmp_t)
+
+	type $1_evolution_exchange_orbit_tmp_t;
+	files_type($1_evolution_exchange_orbit_tmp_t)
+
+	type $1_evolution_server_t;
+	domain_type($1_evolution_server_t)
+	role $3 types $1_evolution_server_t;
+
+	type $1_evolution_server_orbit_tmp_t;
+	files_type($1_evolution_server_orbit_tmp_t)
+
+	type $1_evolution_webcal_t;
+	domain_type($1_evolution_webcal_t)
+	role $3 types $1_evolution_webcal_t;
+
+	type $1_evolution_webcal_tmpfs_t;
+	files_tmpfs_file($1_evolution_webcal_tmpfs_t)
+
+	type $1_orbit_tmp_t;
+	files_type($1_orbit_tmp_t)
+
+	########################################
+	#
+	# Evolution local policy
+	#
+
+	allow $1_evolution_t self:capability { setuid setgid sys_nice };
+	allow $1_evolution_t self:process { signal getsched setsched };
+	allow $1_evolution_t self:fifo_file rw_file_perms;
+	allow $1_evolution_t self:tcp_socket create_socket_perms;
+	allow $1_evolution_t self:udp_socket create_socket_perms;
+
+	allow $1_evolution_t $1_evolution_alarm_t:dir search_dir_perms;
+	allow $1_evolution_t $1_evolution_alarm_t:file read;
+
+	allow $1_evolution_t $1_evolution_alarm_t:unix_stream_socket connectto;
+	allow $1_evolution_t $1_evolution_alarm_orbit_tmp_t:sock_file write;
+
+	can_exec($1_evolution_t,evolution_alarm_exec_t)
+
+	allow $1_evolution_t $1_evolution_exchange_t:unix_stream_socket connectto;
+	allow $1_evolution_t $1_evolution_exchange_orbit_tmp_t:sock_file write;
+
+	allow $1_evolution_t $1_evolution_home_t:dir manage_dir_perms;
+	allow $1_evolution_t $1_evolution_home_t:file manage_file_perms;
+	allow $1_evolution_t $1_evolution_home_t:lnk_file create_lnk_perms;
+
+	allow $1_evolution_t $1_evolution_orbit_tmp_t:dir manage_dir_perms;
+	allow $1_evolution_t $1_evolution_orbit_tmp_t:file manage_file_perms;
+	files_tmp_filetrans($1_evolution_t,$1_evolution_orbit_tmp_t,{ dir file })
+
+	allow $1_evolution_t $1_evolution_server_t:dir search_dir_perms;
+	allow $1_evolution_t $1_evolution_server_t:file read;
+
+	allow $1_evolution_t $1_evolution_server_t:unix_stream_socket connectto;
+	allow $1_evolution_t $1_evolution_server_orbit_tmp_t:sock_file write;
+
+	can_exec($1_evolution_t,evolution_server_exec_t)
+
+	allow $1_evolution_t $1_evolution_tmpfs_t:dir rw_dir_perms;
+	allow $1_evolution_t $1_evolution_tmpfs_t:file manage_file_perms;
+	allow $1_evolution_t $1_evolution_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_evolution_t $1_evolution_tmpfs_t:sock_file manage_file_perms;
+	allow $1_evolution_t $1_evolution_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_evolution_t,$1_evolution_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_evolution_t $2:dir search;
+	allow $1_evolution_t $2:fd use;
+	allow $1_evolution_t $2:file read;
+	allow $1_evolution_t $2:lnk_file read;
+	allow $1_evolution_t $2:process sigchld;
+	allow $1_evolution_t $2:unix_stream_socket connectto;
+	allow $1_evolution_t $2:dir search;
+	allow $1_evolution_t $2:file read;
+
+	domain_auto_trans($2, evolution_exec_t, $1_evolution_t)
+	
+	allow $2 $1_evolution_t:unix_stream_socket connectto;
+	allow $2 $1_evolution_t:process noatsecure;
+	allow $2 $1_evolution_t:process signal_perms;
+
+	# Access .evolution
+	allow $2 $1_evolution_home_t:dir manage_dir_perms;
+	allow $2 $1_evolution_home_t:file manage_file_perms;
+	allow $2 $1_evolution_home_t:lnk_file create_lnk_perms;
+	allow $2 $1_evolution_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+	userdom_search_user_home_dirs($1,$1_evolution_t)
+
+	# Allow the user domain to signal/ps.
+	allow $2 $1_evolution_t:dir { search getattr read };
+	allow $2 $1_evolution_t:{ file lnk_file } { read getattr };
+	allow $2 $1_evolution_t:process getattr;
+	# We need to suppress this denial because procps tries to access
+	# /proc/pid/environ and this now triggers a ptrace check in recent kernels
+	# (2.4 and 2.6).  Might want to change procps to not do this, or only if
+	# running in a privileged domain.
+	dontaudit $2 $1_evolution_t:process ptrace;
+
+	#FIXME check to see if really needed
+	kernel_read_kernel_sysctls($1_evolution_t)
+	kernel_read_system_state($1_evolution_t)
+	# Allow netstat
+	kernel_read_network_state($1_evolution_t)
+	kernel_read_net_sysctls($1_evolution_t)
+
+	corecmd_exec_shell($1_evolution_t)
+	# Run various programs
+	corecmd_exec_bin($1_evolution_t)
+	corecmd_exec_sbin($1_evolution_t)
+
+	corenet_tcp_sendrecv_generic_if($1_evolution_t)
+	corenet_udp_sendrecv_generic_if($1_evolution_t)
+	corenet_raw_sendrecv_generic_if($1_evolution_t)
+	corenet_tcp_sendrecv_all_nodes($1_evolution_t)
+	corenet_udp_sendrecv_all_nodes($1_evolution_t)
+	corenet_raw_sendrecv_all_nodes($1_evolution_t)
+	corenet_tcp_sendrecv_pop_port($1_evolution_t)
+	corenet_tcp_sendrecv_smtp_port($1_evolution_t)
+	corenet_tcp_sendrecv_innd_port($1_evolution_t)
+	corenet_tcp_sendrecv_ldap_port($1_evolution_t)
+	###corenet_tcp_sendrecv_ipp($1_evolution_t)
+	corenet_udp_sendrecv_pop_port($1_evolution_t)
+	corenet_udp_sendrecv_smtp_port($1_evolution_t)
+	corenet_udp_sendrecv_innd_port($1_evolution_t)
+	corenet_udp_sendrecv_ldap_port($1_evolution_t)
+	###corenet_udp_sendrecv_ipp($1_evolution_t)
+	corenet_non_ipsec_sendrecv($1_evolution_t)
+	corenet_tcp_bind_all_nodes($1_evolution_t)
+	corenet_udp_bind_all_nodes($1_evolution_t)
+	corenet_tcp_connect_pop_port($1_evolution_t)
+	corenet_tcp_connect_smtp_port($1_evolution_t)
+	corenet_tcp_connect_innd_port($1_evolution_t)
+	corenet_tcp_connect_ldap_port($1_evolution_t)
+	###corenet_tcp_connect_ipp_port($1_evolution_t)
+	# not sure about this bind
+	corenet_udp_bind_generic_port($1_evolution_t)
+
+	dev_read_urand($1_evolution_t)
+
+	files_read_etc_files($1_evolution_t)
+	files_read_usr_files($1_evolution_t)
+	files_read_usr_symlinks($1_evolution_t)
+	files_read_var_files($1_evolution_t)
+
+	fs_search_auto_mountpoints($1_evolution_t)
+
+	libs_use_ld_so($1_evolution_t)
+	libs_use_shared_libs($1_evolution_t)
+
+	logging_send_syslog_msg($1_evolution_t)
+
+	miscfiles_read_localization($1_evolution_t)
+
+	sysnet_read_config($1_evolution_t)
+	sysnet_dns_name_resolve($1_evolution_t)
+
+	udev_read_state($1_evolution_t)
+
+	userdom_rw_user_tmp_files($1,$1_evolution_t)
+	userdom_manage_user_tmp_dirs($1,$1_evolution_t)
+	userdom_manage_user_tmp_sockets($1,$1_evolution_t)
+	userdom_manage_user_tmp_files($1,$1_evolution_t)
+	# FIXME: suppress access to .local/.icons/.themes until properly implemented
+	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+	# until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_evolution_t)
+
+	mta_read_config($1_evolution_t)
+
+	xserver_user_client_template($1,$1_evolution_t,$1_evolution_tmpfs_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_evolution_t)
+		fs_manage_nfs_files($1_evolution_t)
+		fs_manage_nfs_symlinks($1_evolution_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_evolution_t)
+		fs_manage_cifs_files($1_evolution_t)
+		fs_manage_cifs_symlinks($1_evolution_t)
+	')
+
+	tunable_policy(`mail_read_content && use_nfs_home_dirs',`
+		fs_list_auto_mountpoints($1_evolution_t)
+		files_list_home($1_evolution_t)
+		fs_read_nfs_files($1_evolution_t)
+		fs_read_nfs_symlinks($1_evolution_t)
+	
+	',`
+		files_dontaudit_list_home($1_evolution_t)
+		fs_dontaudit_list_auto_mountpoints($1_evolution_t)
+		fs_dontaudit_read_nfs_files($1_evolution_t)
+		fs_dontaudit_list_nfs($1_evolution_t)
+	')
+
+	tunable_policy(`mail_read_content && use_samba_home_dirs',`
+		fs_list_auto_mountpoints($1_evolution_t)
+		files_list_home($1_evolution_t)
+		fs_read_cifs_files($1_evolution_t)
+		fs_read_cifs_symlinks($1_evolution_t)
+	',`
+		files_dontaudit_list_home($1_evolution_t)
+		fs_dontaudit_list_auto_mountpoints($1_evolution_t)
+		fs_dontaudit_read_cifs_files($1_evolution_t)
+		fs_dontaudit_list_cifs($1_evolution_t)
+	')
+
+	tunable_policy(`mail_read_content',`
+		userdom_list_user_tmp($1,$1_evolution_t)
+		userdom_read_user_tmp_files($1,$1_evolution_t)
+		userdom_read_user_tmp_symlinks($1,$1_evolution_t)
+		userdom_search_user_home_dirs($1,$1_evolution_t)
+		userdom_read_user_home_content_files($1,$1_evolution_t)
+		userdom_read_user_home_content_symlinks($1,$1_evolution_t)
+		
+		ifdef(`mls_policy',`',`
+			fs_search_removable($1_evolution_t)
+			fs_read_removable_files($1_evolution_t)
+			fs_read_removable_symlinks($1_evolution_t)
+		')
+	',`
+		files_dontaudit_list_tmp($1_evolution_t)
+		files_dontaudit_list_home($1_evolution_t)
+		fs_dontaudit_list_removable($1_evolution_t)
+		fs_donaudit_read_removable_files($1_evolution_t)
+		userdom_dontaudit_list_user_tmp($1,$1_evolution_t)
+		userdom_dontaudit_read_user_tmp_files($1,$1_evolution_t)
+		userdom_dontaudit_list_user_home_dirs($1,$1_evolution_t)
+		userdom_dontaudit_read_user_home_content_files($1,$1_evolution_t)
+	')
+
+	tunable_policy(`mail_read_content && read_default_t',`
+		files_list_default($1_evolution_t)
+		files_read_default_files($1_evolution_t)
+		files_read_default_symlinks($1_evolution_t)
+	',`
+		files_dontaudit_read_default_files($1_evolution_t)
+		files_dontaudit_list_default($1_evolution_t)
+	')
+
+	tunable_policy(`mail_read_content && read_untrusted_content',`
+		files_list_tmp($1_evolution_t)
+		files_list_home($1_evolution_t)
+		userdom_search_user_home_dirs($1,$1_evolution_t)
+	
+		userdom_list_user_untrusted_content($1,$1_evolution_t)
+		userdom_read_user_untrusted_content_files($1,$1_evolution_t)
+		userdom_read_user_untrusted_content_symlinks($1,$1_evolution_t)
+		userdom_list_user_tmp_untrusted_content($1,$1_evolution_t)
+		userdom_read_user_tmp_untrusted_content_files($1,$1_evolution_t)
+		userdom_read_user_tmp_untrusted_content_symlinks($1,$1_evolution_t)
+	',`
+		files_dontaudit_list_tmp($1_evolution_t)
+		files_dontaudit_list_home($1_evolution_t)
+		userdom_dontaudit_list_user_home_dirs($1,$1_evolution_t)
+		userdom_dontaudit_list_user_untrusted_content($1,$1_evolution_t)
+		userdom_dontaudit_read_user_untrusted_content_files($1,$1_evolution_t)
+		userdom_dontaudit_list_user_tmp_untrusted_content($1,$1_evolution_t)
+		userdom_dontaudit_read_user_tmp_untrusted_content_files($1,$1_evolution_t)
+	')
+
+	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
+		files_search_home($1_evolution_t)
+	
+		fs_search_auto_mountpoints($1_evolution_t)
+		fs_manage_nfs_dirs($1_evolution_t)
+		fs_manage_nfs_files($1_evolution_t)
+		fs_manage_nfs_symlinks($1_evolution_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_evolution_t)
+		fs_dontaudit_manage_nfs_dirs($1_evolution_t)
+		fs_dontaudit_manage_nfs_files($1_evolution_t)
+	')
+
+	tunable_policy(`write_untrusted_content && use_samba_home_dirs',`
+		files_search_home($1_evolution_t)
+	
+		fs_search_auto_mountpoints($1_evolution_t)
+		fs_manage_cifs_dirs($1_evolution_t)
+		fs_manage_cifs_files($1_evolution_t)
+		fs_manage_cifs_symlinks($1_evolution_t)
+	',`
+		fs_dontaudit_list_auto_mountpoints($1_evolution_t)
+		fs_dontaudit_manage_cifs_dirs($1_evolution_t)
+		fs_dontaudit_manage_cifs_files($1_evolution_t)
+	')
+
+	tunable_policy(`write_untrusted_content',`
+		files_search_home($1_evolution_t)
+	
+		userdom_manage_user_untrusted_content_files($1,$1_evolution_t,{ dir file })
+	',`
+		files_dontaudit_list_home($1_evolution_t)
+		files_dontaudit_list_tmp($1_evolution_t)
+	
+		userdom_dontaudit_list_user_home_dirs($1,$1_evolution_t)
+		#userdom_dontaudit_manage_user_tmp($1,$1_evolution_t)
+		#userdom_dontaudit_manage_user_tmp_files($1,$1_evolution_t)
+		#userdom_dontaudit_manage_user_home_subdirs($1,$1_evolution_t)
+	')
+
+	optional_policy(`automount',`
+		automount_read_state($1_evolution_t)
+	')
+
+	# Allow printing the mail
+	optional_policy(`cups',`
+		cups_read_rw_config($1_evolution_t)
+	')
+
+	optional_policy(`dbus',`
+		dbus_system_bus_client_template($1_evolution,$1_evolution_t)
+		dbus_send_system_bus($1_evolution_t)
+		dbus_user_bus_client_template($1,$1_evolution,$1_evolution_t)
+		dbus_send_user_bus($1,$1_evolution_t)
+	')
+
+	# Encrypt mail
+	optional_policy(`gpg',`
+		gpg_domtrans_user_gpg($1,$1_evolution_t)
+		gpg_signal_user_gpg($1,$1_evolution_t)
+	')
+
+	optional_policy(`lpd',`
+		lpd_domtrans_user_lpr($1,$1_evolution_t)
+	')
+
+	# Allow POP/IMAP/SMTP/NNTP/LDAP/IPP(printing)
+	optional_policy(`nis',`
+		nis_use_ypbind($1_evolution_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_evolution_exchange_t)
+	')
+
+	### Junk mail filtering (start spamd)
+	optional_policy(`spamassassin',`
+		spamassassin_exec_spamd($1_evolution_t)
+		spamassassin_domtrans_user_client($1,$1_evolution_t)
+		spamassassin_domtrans_user_local_client($1,$1_evolution_t)
+		# Allow evolution to signal the daemon
+		# FIXME: Now evolution can read spamd temp files
+		spamassassin_read_spamd_tmp_files($1_evolution_t)
+		spamassassin_signal_spamd($1_evolution_t)
+		spamassassin_dontaudit_getattr_spamd_tmp_sockets($1_evolution_t)
+	')
+
+	ifdef(`TODO',`
+
+		#dbus connect to
+		allow $1_evolution_t $1_dbusd_t:unix_stream_socket connectto;
+
+		# Gnome common stuff
+		gnome_application($1_evolution, $1)
+
+		#TODO gnome stuff
+		# Store passwords in .gnome2_private
+		# Type for storing secret data
+		# (different from home, not directly accessible from ROLE_t)
+		type $1_evolutioin_secret_t;
+		userdom_user_home_content($1,$1_evolutioin_secret_t)
+	
+		# Put secret files in .gnome2_private
+		allow $1_evolution_t $1_gnome_secret_t:dir rw_dir_perms;
+		allow $1_evolution_t $1_evolutioin_secret_t:file create_file_perms;
+		type_transition $1_evolution_t $1_gnome_secret_t:file $1_evolutioin_secret_t;
+	
+		allow $2 $1_evolution_secret_t:file unlink;
+
+		ifdef(`TODO',`
+			gnome_file_dialog($1_evolution, $1)
+		')
+		# Start links in web browser
+		ifdef(`mozilla', `
+			corecmd_exec_shell($1_evolution_t)
+			domain_auto_trans($1_evolution_t, mozilla_exec_t, $1_mozilla_t)
+		')
+
+	')
+
+	########################################
+	#
+	# Evolution alarm local policy
+	#
+
+	allow $1_evolution_alarm_t self:fifo_file { read write };
+
+	allow $1_evolution_alarm_t $1_evolution_t:unix_stream_socket connectto;
+	allow $1_evolution_alarm_t $1_evolution_orbit_tmp_t:sock_file write;
+
+	allow $1_evolution_alarm_t $1_evolution_alarm_tmpfs_t:dir rw_dir_perms;
+	allow $1_evolution_alarm_t $1_evolution_alarm_tmpfs_t:file manage_file_perms;
+	allow $1_evolution_alarm_t $1_evolution_alarm_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_evolution_alarm_t $1_evolution_alarm_tmpfs_t:sock_file manage_file_perms;
+	allow $1_evolution_alarm_t $1_evolution_alarm_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_evolution_alarm_t,$1_evolution_alarm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_evolution_alarm_t $1_evolution_exchange_t:unix_stream_socket connectto;
+	allow $1_evolution_alarm_t $1_evolution_exchange_orbit_tmp_t:sock_file write;
+
+	# Access evolution home
+	allow $1_evolution_alarm_t $1_evolution_home_t:dir manage_dir_perms;
+	allow $1_evolution_alarm_t $1_evolution_home_t:file manage_file_perms;
+	allow $1_evolution_alarm_t $1_evolution_home_t:lnk_file create_lnk_perms;
+
+	allow $1_evolution_alarm_t $1_evolution_server_t:unix_stream_socket connectto;
+	allow $1_evolution_alarm_t $1_evolution_server_orbit_tmp_t:sock_file write;
+
+	domain_auto_trans($2, evolution_alarm_exec_t, $1_evolution_alarm_t)
+	allow $1_evolution_alarm_t $2:fd use;
+
+	fs_search_auto_mountpoints($1_evolution_alarm_t)
+	
+	miscfiles_read_localization($1_evolution_alarm_t)
+
+	# Access evolution home
+	userdom_search_user_home_dirs($1,$1_evolution_alarm_t)
+	# FIXME: suppress access to .local/.icons/.themes until properly implemented
+	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+	# until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_evolution_alarm_t)
+
+	xserver_user_client_template($1,$1_evolution_alarm_t,$1_evolution_alarm_tmpfs_t)
+
+	# Access evolution home
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_files($1_evolution_alarm_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_files($1_evolution_alarm_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_evolution_alarm_t)
+	')
+
+	ifdef(`TODO',`
+		# Gnome common stuff
+		gnome_application($1_evolution_alarm,$1)
+	')
+
+	########################################
+	#
+	# Evolution exchange connector local policy
+	#
+
+	allow $1_evolution_exchange_t self:tcp_socket create_socket_perms;
+	allow $1_evolution_exchange_t self:udp_socket create_socket_perms;
+
+	allow $1_evolution_exchange_t $1_evolution_t:unix_stream_socket connectto;
+	allow $1_evolution_exchange_t $1_evolution_orbit_tmp_t:sock_file write;
+
+	allow $1_evolution_exchange_t $1_evolution_alarm_t:unix_stream_socket connectto;
+	allow $1_evolution_exchange_t $1_evolution_alarm_orbit_tmp_t:sock_file write;
+
+	# Access evolution home
+	allow $1_evolution_exchange_t $1_evolution_home_t:dir create_dir_perms;
+	allow $1_evolution_exchange_t $1_evolution_home_t:file create_file_perms;
+	allow $1_evolution_exchange_t $1_evolution_home_t:lnk_file create_lnk_perms;
+
+	allow $1_evolution_exchange_t $1_evolution_server_t:unix_stream_socket connectto;
+	allow $1_evolution_exchange_t $1_evolution_server_orbit_tmp_t:sock_file write;
+
+	# /tmp/.exchange-$USER
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmp_t:dir create_dir_perms;
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmp_t:file create_file_perms;
+	files_tmp_filetrans($1_evolution_exchange_t, $1_evolution_exchange_tmp_t, { file dir })
+
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmpfs_t:dir rw_dir_perms;
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmpfs_t:file manage_file_perms;
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmpfs_t:sock_file manage_file_perms;
+	allow $1_evolution_exchange_t $1_evolution_exchange_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_evolution_exchange_t,$1_evolution_exchange_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_evolution_exchange_t $2:unix_stream_socket connectto;
+	#FIXME, who should own this. I dont think this module should
+	allow $1_evolution_exchange_t $1_orbit_tmp_t:sock_file write;
+
+	# Clock applet talks to exchange (FIXME: Needs policy)
+	allow $2 $1_evolution_exchange_t:unix_stream_socket connectto;
+	allow $2 $1_evolution_exchange_orbit_tmp_t:sock_file write;
+
+	# Transition from user domain
+	domain_auto_trans($2, evolution_exchange_exec_t, $1_evolution_exchange_t)
+	
+	kernel_read_network_state($1_evolution_exchange_t)
+	kernel_read_net_sysctls($1_evolution_exchange_t)
+
+	# Allow netstat
+	corecmd_exec_bin($1_evolution_exchange_t)
+
+	# Access evolution home
+	fs_search_auto_mountpoints($1_evolution_exchange_t)
+	 
+	# Access evolution home
+	userdom_search_user_home_dirs($1,$1_evolution_exchange_t)
+	# FIXME: suppress access to .local/.icons/.themes until properly implemented
+	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+	# until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_evolution_exchange_t)
+
+	xserver_user_client_template($1,$1_evolution_exchange_t,$1_evolution_exchange_tmpfs_t)
+
+	# Access evolution home
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_files($1_evolution_exchange_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_files($1_evolution_exchange_t)
+	')
+	
+	optional_policy(`nscd',`
+		nscd_socket_use($1_evolution_exchange_t)
+	')
+
+	ifdef(`TODO',`
+	# Gnome common stuff
+	gnome_application($1_evolution_exchange, $1)
+	')
+
+	########################################
+	#
+	# Evolution data server local policy
+	#
+
+	allow $1_evolution_server_t self:fifo_file { read write };
+	allow $1_evolution_server_t self:unix_stream_socket { accept connectto };
+	# Talk to ldap (address book),
+	# Obtain weather data via http (read server name from xml file in /usr)
+	allow $1_evolution_server_t self:tcp_socket create_socket_perms;
+
+	allow $1_evolution_server_t $1_evolution_t:unix_stream_socket connectto;
+	allow $1_evolution_server_t $1_evolution_orbit_tmp_t:sock_file write;
+
+	allow $1_evolution_server_t $1_evolution_exchange_t:unix_stream_socket connectto;
+	allow $1_evolution_server_t $1_evolution_exchange_orbit_tmp_t:sock_file write;
+
+	# Access evolution home
+	allow $1_evolution_server_t $1_evolution_home_t:dir create_dir_perms;
+	allow $1_evolution_server_t $1_evolution_home_t:file create_file_perms;
+	allow $1_evolution_server_t $1_evolution_home_t:lnk_file create_lnk_perms;
+
+	allow $1_evolution_server_t $1_evolution_alarm_t:unix_stream_socket connectto;
+	allow $1_evolution_server_t $1_evolution_alarm_orbit_tmp_t:sock_file write;
+
+	allow $1_evolution_server_t $2:fd use;
+
+	kernel_read_system_state($1_evolution_server_t)
+
+	corecmd_exec_shell($1_evolution_server_t)
+
+	# Obtain weather data via http (read server name from xml file in /usr)
+	corenet_tcp_sendrecv_generic_if($1_evolution_server_t)
+	corenet_raw_sendrecv_generic_if($1_evolution_server_t)
+	corenet_tcp_sendrecv_all_nodes($1_evolution_server_t)
+	corenet_raw_sendrecv_all_nodes($1_evolution_server_t)
+	corenet_tcp_sendrecv_http_port($1_evolution_server_t)
+	corenet_tcp_sendrecv_http_cache_port($1_evolution_server_t)
+	corenet_non_ipsec_sendrecv($1_evolution_server_t)
+	corenet_tcp_bind_all_nodes($1_evolution_server_t)
+	corenet_tcp_connect_http_cache_port($1_evolution_server_t)
+	corenet_tcp_connect_http_port($1_evolution_server_t)
+	# Talk to ldap (address book)
+	corenet_tcp_sendrecv_generic_if($1_evolution_server_t)
+	corenet_raw_sendrecv_generic_if($1_evolution_server_t)
+	corenet_tcp_sendrecv_all_nodes($1_evolution_server_t)
+	corenet_raw_sendrecv_all_nodes($1_evolution_server_t)
+	corenet_tcp_sendrecv_ldap_port($1_evolution_server_t)
+	corenet_non_ipsec_sendrecv($1_evolution_server_t)
+	corenet_tcp_bind_all_nodes($1_evolution_server_t)
+	corenet_tcp_connect_ldap_port($1_evolution_server_t)
+
+	files_read_etc_files($1_evolution_server_t)
+	# Obtain weather data via http (read server name from xml file in /usr)
+	files_read_usr_files($1_evolution_server_t)
+
+	fs_search_auto_mountpoints($1_evolution_server_t)
+
+	libs_use_ld_so($1_evolution_server_t)
+	libs_use_shared_libs($1_evolution_server_t)
+
+	# Look in /etc/pki
+	miscfiles_read_certs($1_evolution_server_t)
+
+	# Talk to ldap (address book)
+	# Obtain weather data via http (read server name from xml file in /usr)
+	sysnet_read_config($1_evolution_server_t)
+	sysnet_dns_name_resolve($1_evolution_server_t)
+
+	# Access evolution home
+	userdom_search_user_home_dirs($1,$1_evolution_server_t)
+	# FIXME: suppress access to .local/.icons/.themes until properly implemented
+	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+	# until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_evolution_server_t)
+
+	# Transition from user type
+	tunable_policy(`!disable_evolution_trans',`
+		domain_auto_trans($2, evolution_server_exec_t, $1_evolution_server_t)
+	')
+
+	# Access evolution home
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_files($1_evolution_server_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_files($1_evolution_server_t)
+	')
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_evolution_server_t)
+	')
+
+	ifdef(`TODO',`
+	# Gnome common stuff
+	gnome_application($1_evolution_server, $1)
+	')
+
+	########################################
+	#
+	# Evolution webcal local policy
+	#
+
+	allow $1_evolution_webcal_t self:tcp_socket create_socket_perms;
+	
+	# X/evolution common stuff
+	allow $1_evolution_webcal_t $1_evolution_webcal_tmpfs_t:dir rw_dir_perms;
+	allow $1_evolution_webcal_t $1_evolution_webcal_tmpfs_t:file manage_file_perms;
+	allow $1_evolution_webcal_t $1_evolution_webcal_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_evolution_webcal_t $1_evolution_webcal_tmpfs_t:sock_file manage_file_perms;
+	allow $1_evolution_webcal_t $1_evolution_webcal_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_evolution_webcal_t,$1_evolution_webcal_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	# Transition from user type
+	domain_auto_trans($2, evolution_webcal_exec_t, $1_evolution_webcal_t)
+
+	corenet_tcp_sendrecv_generic_if($1_evolution_webcal_t)
+	corenet_raw_sendrecv_generic_if($1_evolution_webcal_t)
+	corenet_tcp_sendrecv_all_nodes($1_evolution_webcal_t)
+	corenet_raw_sendrecv_all_nodes($1_evolution_webcal_t)
+	corenet_tcp_sendrecv_http_port($1_evolution_webcal_t)
+	corenet_tcp_sendrecv_http_cache_port($1_evolution_webcal_t)
+	corenet_non_ipsec_sendrecv($1_evolution_webcal_t)
+	corenet_tcp_bind_all_nodes($1_evolution_webcal_t)
+	corenet_tcp_connect_http_cache_port($1_evolution_webcal_t)
+	corenet_tcp_connect_http_port($1_evolution_webcal_t)
+
+	# Networking capability - connect to website and handle ics link
+	sysnet_read_config($1_evolution_webcal_t)
+	sysnet_dns_name_resolve($1_evolution_webcal_t)
+
+	# Search home directory (?)
+	userdom_search_user_home_dirs($1,$1_evolution_webcal_t)
+	# FIXME: suppress access to .local/.icons/.themes until properly implemented
+	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
+	# until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_evolution_webcal_t)
+
+	xserver_user_client_template($1,$1_evolution_webcal_t,$1_evolution_webcal_tmpfs_t)
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_evolution_webcal_t)
+	')
+
+	ifdef(`TODO',`
+	# Gnome common stuff
+	gnome_application($1_evolution_webcal, $1)
+	')
+')
+
+########################################
+## <summary>
+##	Create objects in users evolution home folders.
+## </summary>
+## <desc>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.  If
+##	no class is specified, dir will be used.
+##	</summary>
+## </param>
+#
+template(`evolution_home_filetrans',`
+	gen_require(`
+		type $1_evolution_home_t;
+	')
+
+	allow $2 $1_evolution_home_t:dir rw_dir_perms;
+	type_transition $2 $1_evolution_home_t:$4 $3;
+')
+
+########################################
+## <summary>
+##	Connect to user evolution unix stream socket.
+## </summary>
+## <desc>
+##	<p>
+##	Connect to user evolution unix stream socket.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`evolution_stream_connect',`
+	gen_require(`
+		type $1_evolution_t;
+	')
+
+	allow $2 $1_evolution_t:unix_stream_socket connectto;
+	allow $2 $1_evolution_home_t:dir search;
+')
