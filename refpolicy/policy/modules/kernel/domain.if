@@ -28,26 +28,7 @@ interface(`domain_base_type',`
 		attribute domain;
 	')
 
-	# mark as a domain
 	typeattribute $1 domain;
-
-	# allow the domain to read its /proc/pid entries
-	allow $1 self:dir r_dir_perms;
-	allow $1 self:lnk_file r_file_perms;
-	allow $1 self:file rw_file_perms;
-
-	# allow $1 to create child processes in this domain
-	allow $1 self:process { fork sigchld };
-
-	ifdef(`targeted_policy',`
-		# FIXME:
-		# hack until role dominance is fixed in
-		# the module compiler
-		role secadm_r types $1;
-		role sysadm_r types $1;
-		role user_r types $1;
-		role staff_r types $1;
-	')
 ')
 
 ########################################
@@ -64,29 +45,24 @@ interface(`domain_type',`
 	# start with basic domain
 	domain_base_type($1)
 
-	# Use trusted objects in /dev
-	dev_rw_null($1)
-	dev_rw_zero($1)
-	term_use_controlling_term($1)
-
-	# read the root directory
-	files_list_root($1)
-
-	# send init a sigchld and signull
-	init_sigchld($1)
-	init_signull($1)
-
 	ifdef(`targeted_policy',`
 		unconfined_use_fds($1)
 		unconfined_sigchld($1)
 	')
+
+	# send init a sigchld and signull
+	optional_policy(`init',`
+		init_sigchld($1)
+		init_signull($1)
+	')
+
+	# these seem questionable:
 
 	# allow any domain to connect to the LDAP server
 	optional_policy(`ldap',`
 		ldap_use($1)
 	')
 
-	# these 3 seem highly questionable:
 	optional_policy(`rpm',`
 		rpm_use_fds($1)
 		rpm_read_pipes($1)

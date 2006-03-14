@@ -65,3 +65,46 @@ attribute process_uncond_exempt;	# add userhelperdomain to this one
 
 neverallow { domain unlabeled_t } ~{ domain unlabeled_t }:process *;
 neverallow ~{ domain unlabeled_t } *:process *;
+
+########################################
+#
+# Rules applied to all domains
+#
+
+# read /proc/pid entries
+allow domain self:dir r_dir_perms;
+allow domain self:lnk_file r_file_perms;
+allow domain self:file rw_file_perms;
+
+# create child processes in the domain
+allow domain self:process { fork sigchld };
+
+# Use trusted objects in /dev
+dev_rw_null(domain)
+dev_rw_zero(domain)
+term_use_controlling_term(domain)
+
+# list the root directory
+files_list_root(domain)
+
+ifdef(`targeted_policy',`
+	# RBAC is disabled in the targeted policy,
+	# as only one role is used, system_r.
+	role system_r types domain;
+
+	# FIXME:
+	# workaround until role dominance is fixed in
+	# the module compiler
+	role secadm_r types domain;
+	role sysadm_r types domain;
+	role user_r types domain;
+	role staff_r types domain;
+')
+
+tunable_policy(`global_ssp',`
+	# enable reading of urandom for all domains:
+	# this should be enabled when all programs
+	# are compiled with ProPolice/SSP
+	# stack smashing protection.
+	dev_read_urand(domain)
+')
