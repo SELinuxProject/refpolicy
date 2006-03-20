@@ -86,6 +86,8 @@ GENDOC := $(PYTHON) $(SUPPORT)/sedoctool.py
 GENPERM := $(PYTHON) $(SUPPORT)/genclassperms.py
 FCSORT := $(TMPDIR)/fc_sort
 SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
+get_type_attr_decl := $(SED) -r -f $(SUPPORT)/get_type_attr_decl.sed
+comment_move_decl := $(SED) -r -f $(SUPPORT)/comment_move_decl.sed
 
 # documentation paths
 DOCS := doc
@@ -243,7 +245,7 @@ MODUNUSED := off
 MOD_TEST = $(filter $(APPS_OFF), $(APPS_BASE) $(APPS_MODS))
 MOD_TEST += $(filter $(APPS_MODS), $(APPS_BASE))
 ifneq ($(strip $(MOD_TEST)),)
-        $(error Applications must be on, module, or off, and not in more than one list! $(strip $(MOD_TEST)) found in multiple lists!)
+        $(error Applications must be base, module, or off, and not in more than one list! $(strip $(MOD_TEST)) found in multiple lists!)
 endif
 
 # extract settings from modules.conf
