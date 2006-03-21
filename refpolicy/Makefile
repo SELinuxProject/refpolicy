@@ -62,6 +62,7 @@ GREP ?= egrep
 M4 ?= m4
 PYTHON ?= python
 SED ?= sed
+SORT ?= LC_ALL=C sort
 
 CFLAGS += -Wall
 
