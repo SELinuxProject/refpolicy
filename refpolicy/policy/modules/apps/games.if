@@ -1,0 +1,174 @@
+## <summary>Games</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the games module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for games.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`games_per_userdomain_template',`
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_games_t;
+	domain_type($1_games_t)
+	role $3 types $1_games_t;
+
+	type $1_games_devpts_t;
+	term_pty($1_games_devpts_t)
+
+	type $1_games_tmpfs_t;
+	files_tmpfs_file($1_games_tmpfs_t)
+
+	type $1_games_tmp_t;
+	files_tmp_file($1_games_tmp_t)
+	
+	########################################
+	#
+	# Local policy
+	#
+
+	allow $1_games_t self:sem create_sem_perms;
+	allow $1_games_t self:tcp_socket create_stream_socket_perms;
+	allow $1_games_t self:udp_socket create_socket_perms;
+	allow $1_games_t self:tcp_socket { connectto sendto recvfrom };
+	allow $1_games_t self:tcp_socket { acceptfrom recvfrom };
+
+	allow $1_games_t $1_games_tmpfs_t:dir rw_dir_perms;
+	allow $1_games_t $1_games_tmpfs_t:file manage_file_perms;
+	allow $1_games_t $1_games_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_games_t $1_games_tmpfs_t:sock_file manage_file_perms;
+	allow $1_games_t $1_games_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_games_t,$1_games_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_games_t $1_games_tmp_t:dir manage_dir_perms;
+	allow $1_games_t $1_games_tmp_t:file manage_file_perms;
+	files_tmp_filetrans($1_games_t, $1_games_tmp_t, { file dir })
+
+	allow $1_games_t $1_games_devpts_t:chr_file { rw_file_perms setattr };
+	term_create_pty($1_games_t,$1_games_devpts_t)
+
+	allow $1_games_t games_data_t:dir rw_dir_perms;
+	allow $1_games_t games_data_t:file manage_file_perms;
+	allow $1_games_t games_data_t:lnk_file create_lnk_perms;
+
+	can_exec($1_games_t, games_exec_t)
+
+	allow $2 $1_games_t:unix_stream_socket connectto;
+	allow $1_games_t $2:unix_stream_socket connectto;
+
+	kernel_tcp_recvfrom($1_games_t)
+	kernel_tcp_recvfrom($1_games_t)
+	kernel_read_system_state($1_games_t)
+
+	corecmd_exec_bin($1_games_t)
+	corecmd_exec_sbin($1_games_t)
+
+	corenet_tcp_sendrecv_generic_if($1_games_t)
+	corenet_udp_sendrecv_generic_if($1_games_t)
+	corenet_raw_sendrecv_generic_if($1_games_t)
+	corenet_tcp_sendrecv_all_nodes($1_games_t)
+	corenet_udp_sendrecv_all_nodes($1_games_t)
+	corenet_raw_sendrecv_all_nodes($1_games_t)
+	corenet_tcp_sendrecv_all_ports($1_games_t)
+	corenet_udp_sendrecv_all_ports($1_games_t)
+	corenet_non_ipsec_sendrecv($1_games_t)
+	corenet_tcp_bind_all_nodes($1_games_t)
+	corenet_udp_bind_all_nodes($1_games_t)
+	corenet_tcp_bind_generic_port($1_games_t)
+	corenet_tcp_connect_generic_port($1_games_t)
+
+	dev_read_sound($1_games_t)
+	dev_write_sound($1_games_t)
+	dev_read_input($1_games_t)
+	dev_read_mouse($1_games_t)
+	dev_read_urand($1_games_t)
+
+	files_list_var($1_games_t)
+	files_search_var_lib($1_games_t)
+	files_dontaudit_search_var($1_games_t)
+	files_read_etc_files($1_games_t)
+	files_read_usr_files($1_games_t)
+	files_read_var_files($1_games_t)
+
+	init_dontaudit_rw_utmp($1_games_t)
+
+	logging_dontaudit_search_logs($1_games_t)
+
+	libs_use_shared_libs($1_games_t)
+	libs_use_ld_so($1_games_t)
+
+	miscfiles_read_man_pages($1_games_t)
+	miscfiles_read_localization($1_games_t)
+
+	sysnet_read_config($1_games_t)
+
+	userdom_manage_user_tmp_dirs($1,$1_games_t)
+	userdom_manage_user_tmp_files($1,$1_games_t)
+	userdom_manage_user_tmp_symlinks($1,$1_games_t)
+	userdom_manage_user_tmp_sockets($1,$1_games_t)
+	# Suppress .icons denial until properly implemented
+	userdom_dontaudit_read_user_home_content_files($1,$1_games_t)
+	
+	# Type transition
+	tunable_policy(`!disable_games_trans',`
+		domain_auto_trans($2, games_exec_t, $1_games_t)
+	')
+
+	tunable_policy(`allow_execmem',`
+		allow $1_games_t self:process execmem;
+	')
+
+	optional_policy(`nscd',`
+		nscd_socket_use($1_games_t)
+	')
+
+	optional_policy(`xserver',`
+		xserver_user_client_template($1,$1_games_t,$1_games_tmpfs_t)
+		xserver_create_xdm_tmp_sockets($1_games_t)
+		xserver_read_xdm_lib_files($1_games_t)
+	')
+
+	ifdef(`TODO',`
+		gnome_application($1_games, $1)
+		gnome_file_dialog($1_games, $1)
+		# Access /home/user/.gnome2
+		# FIXME: Change to use per app types
+		allow $1_games_t $1_gnome_settings_t:dir create_dir_perms;
+		allow $1_games_t $1_gnome_settings_t:file create_file_perms;
+		allow $1_games_t $1_gnome_settings_t:lnk_file create_lnk_perms;
+		#missing policy
+		optional_policy(`mozilla', ` 
+			dontaudit $1_games_t $1_mozilla_t:unix_stream_socket connectto;
+		')
+	')
+')
