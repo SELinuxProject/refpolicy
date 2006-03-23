@@ -1,0 +1,221 @@
+
+policy_module(xen,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+# console ptys
+type xen_devpts_t;
+term_pty(xen_devpts_t);
+files_type(xen_devpts_t);
+
+type xend_t;
+type xend_exec_t;
+domain_type(xend_t)
+init_daemon_domain(xend_t, xend_exec_t)
+
+# var/lib files
+type xend_var_lib_t;
+files_type(xend_var_lib_t)
+
+# log files
+type xend_var_log_t;
+logging_log_file(xend_var_log_t)
+
+# pid files
+type xend_var_run_t;
+files_pid_file(xend_var_run_t)
+
+type xenstored_t;
+type xenstored_exec_t;
+domain_type(xenstored_t)
+domain_entry_file(xenstored_t,xenstored_exec_t)
+role system_r types xenstored_t;
+
+# var/lib files
+type xenstored_var_lib_t;
+files_type(xenstored_var_lib_t)
+
+# pid files
+type xenstored_var_run_t;
+files_pid_file(xenstored_var_run_t)
+
+type xenconsoled_t;
+type xenconsoled_exec_t;
+domain_type(xenconsoled_t)
+domain_entry_file(xenconsoled_t,xenconsoled_exec_t)
+role system_r types xenconsoled_t;
+
+# pid files
+type xenconsoled_var_run_t;
+files_pid_file(xenconsoled_var_run_t)
+
+########################################
+#
+# xend local policy
+#
+
+allow xend_t self:capability { dac_override ipc_lock net_admin setuid sys_nice sys_tty_config };
+allow xend_t self:process { signal sigkill };
+# internal communication is often done using fifo and unix sockets.
+allow xend_t self:fifo_file rw_file_perms;
+allow xend_t self:unix_stream_socket create_stream_socket_perms;
+allow xend_t self:unix_dgram_socket create_socket_perms;
+allow xend_t self:netlink_route_socket r_netlink_socket_perms;
+allow xend_t self:tcp_socket create_stream_socket_perms;
+allow xend_t self:packet_socket create_socket_perms;
+
+# pid file
+allow xend_t xend_var_run_t:file manage_file_perms;
+allow xend_t xend_var_run_t:sock_file manage_file_perms;
+allow xend_t xend_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(xend_t,xend_var_run_t, { file sock_file })
+
+# log files
+allow xend_t xend_var_log_t:file create_file_perms;
+allow xend_t xend_var_log_t:sock_file create_file_perms;
+allow xend_t xend_var_log_t:dir { rw_dir_perms setattr };
+logging_log_filetrans(xend_t,xend_var_log_t,{ sock_file file dir })
+
+# var/lib files for xend
+allow xend_t xend_var_lib_t:file create_file_perms;
+allow xend_t xend_var_lib_t:sock_file create_file_perms;
+allow xend_t xend_var_lib_t:dir create_dir_perms;
+files_var_lib_filetrans(xend_t,xend_var_lib_t,{ file dir sock_file })
+
+# transition to store
+domain_auto_trans(xend_t, xenstored_exec_t, xenstored_t)
+allow xenstored_t xend_t:fd use;
+allow xenstored_t xend_t:process sigchld;
+allow xenstored_t xend_t:fifo_file write;
+
+# transition to console
+domain_auto_trans(xend_t, xenconsoled_exec_t, xenconsoled_t)
+allow xenconsoled_t xend_t:fd use;
+
+kernel_read_kernel_sysctls(xend_t)
+kernel_read_system_state(xend_t)
+kernel_write_xen_state(xend_t)
+kernel_read_xen_state(xend_t)
+kernel_rw_net_sysctls(xend_t)
+kernel_read_network_state(xend_t)
+
+corecmd_exec_sbin(xend_t)
+corecmd_exec_bin(xend_t)
+corecmd_exec_shell(xend_t)
+
+corenet_tcp_sendrecv_all_if(xend_t)
+corenet_tcp_sendrecv_all_nodes(xend_t)
+corenet_tcp_sendrecv_all_ports(xend_t)
+corenet_non_ipsec_sendrecv(xend_t)
+corenet_tcp_bind_xen_port(xend_t)
+corenet_tcp_bind_soundd_port(xend_t)
+
+dev_read_urand(xend_t)
+dev_manage_xen(xend_t)
+dev_filetrans_xen(xend_t)
+dev_rw_sysfs(xend_t)
+
+domain_read_all_domains_state(xend_t)
+domain_dontaudit_read_all_domains_state(xend_t)
+
+files_read_etc_files(xend_t)
+
+storage_raw_read_fixed_disk(xend_t)
+
+term_dontaudit_getattr_all_user_ptys(xend_t)
+term_dontaudit_use_generic_ptys(xend_t)
+
+init_use_fds(xend_t)
+
+libs_use_ld_so(xend_t)
+libs_use_shared_libs(xend_t)
+
+logging_send_syslog_msg(xend_t)
+
+miscfiles_read_localization(xend_t)
+
+sysnet_domtrans_dhcpc(xend_t)
+sysnet_signal_dhcpc(xend_t)
+sysnet_domtrans_ifconfig(xend_t)
+sysnet_dns_name_resolve(xend_t)
+sysnet_delete_dhcpc_pid(xend_t)
+sysnet_read_dhcpc_pid(xend_t)
+
+consoletype_exec(xend_t)
+
+xen_stream_connect_xenstore(xend_t)
+
+########################################
+#
+# Xen console local policy
+#
+
+allow xenconsoled_t self:capability { dac_override fsetid ipc_lock };
+allow xenconsoled_t self:unix_stream_socket create_stream_socket_perms;
+allow xenconsoled_t self:fifo_file { read write };
+
+allow xenconsoled_t xen_devpts_t:chr_file rw_term_perms;
+
+# pid file
+allow xenconsoled_t xenconsoled_var_run_t:file manage_file_perms;
+allow xenconsoled_t xenconsoled_var_run_t:sock_file manage_file_perms;
+allow xenconsoled_t xenconsoled_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(xenconsoled_t,xenconsoled_var_run_t, { file sock_file })
+
+kernel_read_kernel_sysctls(xenconsoled_t)
+kernel_write_xen_state(xenconsoled_t)
+kernel_read_xen_state(xenconsoled_t)
+
+term_create_pty(xenconsoled_t,xen_devpts_t);
+term_dontaudit_use_generic_ptys(xenconsoled_t)
+
+init_use_fds(xenconsoled_t)
+
+libs_use_ld_so(xenconsoled_t)
+libs_use_shared_libs(xenconsoled_t)
+
+miscfiles_read_localization(xenconsoled_t)
+
+xen_append_log(xenconsoled_t)
+xen_stream_connect_xenstore(xenconsoled_t)
+
+########################################
+#
+# Xen store local policy
+#
+
+allow xenstored_t self:capability { dac_override mknod ipc_lock };
+allow xenstored_t self:unix_stream_socket create_stream_socket_perms;
+
+# pid file
+allow xenstored_t xenstored_var_run_t:file manage_file_perms;
+allow xenstored_t xenstored_var_run_t:sock_file manage_file_perms;
+allow xenstored_t xenstored_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(xenstored_t,xenstored_var_run_t, { file sock_file })
+
+# var/lib files for xenstored
+allow xenstored_t xenstored_var_lib_t:file create_file_perms;
+allow xenstored_t xenstored_var_lib_t:sock_file create_file_perms;
+allow xenstored_t xenstored_var_lib_t:dir create_dir_perms;
+files_var_lib_filetrans(xenstored_t,xenstored_var_lib_t,{ file dir sock_file })
+
+kernel_write_xen_state(xenstored_t)
+kernel_read_xen_state(xenstored_t)
+
+dev_create_generic_dirs(xenstored_t)
+dev_manage_xen(xenconsoled_t)
+dev_filetrans_xen(xenstored_t)
+
+term_dontaudit_use_generic_ptys(xenstored_t)
+
+init_use_fds(xenstored_t)
+
+libs_use_ld_so(xenstored_t)
+libs_use_shared_libs(xenstored_t)
+
+miscfiles_read_localization(xenstored_t)
+
+xen_append_log(xenstored_t)

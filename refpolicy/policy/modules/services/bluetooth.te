@@ -1,5 +1,5 @@
 
-policy_module(bluetooth,1.2.0)
+policy_module(bluetooth,1.2.1)
 
 ########################################
 #
@@ -115,6 +115,7 @@ corecmd_exec_bin(bluetooth_t)
 corecmd_exec_shell(bluetooth_t)
 
 domain_use_interactive_fds(bluetooth_t)
+domain_dontaudit_search_all_domains_state(bluetooth_t)
 
 files_read_etc_files(bluetooth_t)
 files_read_etc_runtime_files(bluetooth_t)
@@ -145,6 +146,7 @@ ifdef(`targeted_policy',`
 
 optional_policy(`dbus',`
 	dbus_system_bus_client_template(bluetooth,bluetooth_t)
+	dbus_connect_system_bus(bluetooth_t)
 	dbus_send_system_bus(bluetooth_t)
 ')
 
@@ -170,6 +172,7 @@ allow bluetooth_helper_t self:process getsched;
 allow bluetooth_helper_t self:fifo_file rw_file_perms;
 allow bluetooth_helper_t self:shm create_shm_perms;
 allow bluetooth_helper_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow bluetooth_helper_t self:tcp_socket create_socket_perms;
 
 allow bluetooth_helper_t bluetooth_t:socket { read write };
 
@@ -202,19 +205,22 @@ logging_send_syslog_msg(bluetooth_helper_t)
 miscfiles_read_localization(bluetooth_helper_t) 
 miscfiles_read_fonts(bluetooth_helper_t)
 
-userdom_search_all_users_home_content(bluetooth_helper_t)
+optional_policy(`dbus',`
+	dbus_system_bus_client_template(bluetooth_helper,bluetooth_helper_t)
+	dbus_connect_system_bus(bluetooth_helper_t)
+	dbus_send_system_bus(bluetooth_helper_t)
+')
 
 optional_policy(`nscd',`
 	nscd_socket_use(bluetooth_helper_t)
 ')
 
+optional_policy(`xserver',`
+       	xserver_stream_connect_xdm(bluetooth_helper_t)
+')	
+
 ifdef(`TODO',`
 allow bluetooth_helper_t tmp_t:dir search;
-
-ifdef(`xserver.te', `
-	allow bluetooth_helper_t xserver_log_t:dir search;
-	allow bluetooth_helper_t xserver_log_t:file { getattr read };
-')
 
 ifdef(`strict_policy',`
 	ifdef(`xdm.te',`
@@ -227,4 +233,9 @@ ifdef(`targeted_policy',`
 	files_rw_generic_tmp_sockets(bluetooth_helper_t)
 	allow bluetooth_helper_t tmpfs_t:file { read write };
 	allow bluetooth_helper_t unconfined_t:unix_stream_socket connectto;
+	userdom_read_all_users_home_content_files(bluetooth_helper_t)
+
+	optional_policy(`xserver',`
+		xserver_stream_connect_xdm(bluetooth_helper_t)
+	')
 ')
