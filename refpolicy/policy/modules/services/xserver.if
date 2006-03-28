@@ -229,6 +229,15 @@ template(`xserver_per_userdomain_template',`
 	xserver_common_domain_template($1)
 	role $3 types $1_xserver_t;
 
+	type $1_fonts_t, fonts_type;
+	userdom_user_home_content($1,$1_fonts_t)
+
+	type $1_fonts_cache_t, fonts_cache_type;
+	userdom_user_home_content($1,$1_fonts_cache_t)
+
+	type $1_fonts_config_t, fonts_config_type;
+	userdom_user_home_content($1,$1_fonts_cache_t)
+
 	type $1_iceauth_t;
 	domain_type($1_iceauth_t)
 	role $3 types $1_iceauth_t;
@@ -269,6 +278,17 @@ template(`xserver_per_userdomain_template',`
 
 	allow $1_xserver_t $2:shm rw_shm_perms;
 
+	allow $2 $1_fonts_t:dir manage_dir_perms;
+	allow $2 $1_fonts_t:file manage_file_perms;
+	allow $2 $1_fonts_t:{ dir file } { relabelto relabelfrom };
+
+	allow $2 $1_fonts_config_t:dir manage_dir_perms;
+	allow $2 $1_fonts_config_t:file manage_file_perms;
+	allow $2 $1_fonts_config_t:file { relabelto relabelfrom };
+
+	# For startup relabel
+	allow $2 $1_fonts_cache_t:{ dir file } { relabelto relabelfrom };
+
 	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
 	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
 	allow $2 $1_xserver_t:unix_stream_socket connectto;
@@ -288,14 +308,13 @@ template(`xserver_per_userdomain_template',`
 	userdom_setattr_user_ttys($1,$1_xserver_t)
 	userdom_rw_user_tmpfs_files($1,$1_xserver_t)
 
+	xserver_use_user_fonts($1,$1_xserver_t)
+
 	optional_policy(`
 		userhelper_search_config($1_xserver_t)
 	')
 
 	ifdef(`TODO',`
-	# Read fonts
-	read_fonts($1_xserver_t, $1)
-
 	allow $1_t xdm_xserver_tmp_t:dir r_dir_perms;
 	allow $1_t xdm_xserver_t:unix_stream_socket connectto;
 
@@ -559,6 +578,7 @@ template(`xserver_user_client_template',`
 
 	xserver_ro_session_template(xdm,$2,$3)
 	xserver_rw_session_template($1,$2,$3)
+	xserver_use_user_fonts($1,$2)
 
 	# Client write xserver shm
 	tunable_policy(`allow_write_xshm',`
@@ -571,10 +591,57 @@ template(`xserver_user_client_template',`
 		kernel_tcp_recvfrom($2)
 		ssh_tcp_connect($2)
 	')
+')
 
-	ifdef(`TODO',`
-	# cjp: need to implement the user-specific fonts part
-	read_fonts($2, $1)
+########################################
+## <summary>
+##	Read user fonts, user font configuration,
+##	and manage the user font cache.
+## </summary>
+## <desc>
+##	<p>
+##	Read user fonts, user font configuration,
+##	and manage the user font cache.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`xserver_use_user_fonts',`
+	gen_require(`
+		type $1_fonts_t, $1_fonts_cache_t, $1_fonts_config_t;
+	')
+
+	# Read per user fonts
+	allow $2 $1_fonts_t:dir list_dir_perms;
+	allow $2 $1_fonts_t:file read_file_perms;
+
+	# Manipulate the global font cache
+	allow $2 $1_fonts_cache_t:dir manage_dir_perms;
+	allow $2 $1_fonts_cache_t:file manage_file_perms;
+
+	# Read per user font config
+	allow $2 $1_fonts_config_t:dir list_dir_perms;
+	allow $2 $1_fonts_config_t:file read_file_perms;
+
+	userdom_search_user_home_dirs($1,$2)
+
+	# There are some fonts in .gnome2
+	ifdef(`gnome.te', `
+	allow $2 $1_gnome_settings_t:dir { getattr search };
 	')
 ')
 
@@ -613,6 +680,42 @@ template(`xserver_domtrans_user_xauth',`
 	allow $1_xauth_t $2:fd use;
 	allow $1_xauth_t $2:fifo_file rw_file_perms;
 	allow $1_xauth_t $2:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read all users fonts, user font configurations,
+##	and manage all users font caches.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xserver_use_all_users_fonts',`
+	gen_require(`
+		attribute fonts_type, fonts_cache_type, fonts_config_type;
+	')
+
+	# Read per user fonts
+	allow $1 fonts_type:dir list_dir_perms;
+	allow $1 fonts_type:file read_file_perms;
+
+	# Manipulate the global font cache
+	allow $1 fonts_cache_type:dir manage_dir_perms;
+	allow $1 fonts_cache_type:file manage_file_perms;
+
+	# Read per user font config
+	allow $1 fonts_config_type:dir list_dir_perms;
+	allow $1 fonts_config_type:file read_file_perms;
+
+	userdom_search_all_users_home_dirs($1)
+
+	# There are some fonts in .gnome2
+	ifdef(`gnome.te', `
+	allow $1 $1_gnome_settings_t:dir { getattr search };
+	')
 ')
 
 ########################################
