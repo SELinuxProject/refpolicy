@@ -139,8 +139,8 @@ interface(`corenet_raw_receive_$1_if',`
 ## <infoflow type="both" weight="10"/>
 #
 interface(`corenet_raw_sendrecv_$1_if',`
-	corenet_raw_send_$1(dollarsone)
-	corenet_raw_receive_$1(dollarsone)
+	corenet_raw_send_$1_if(dollarsone)
+	corenet_raw_receive_$1_if(dollarsone)
 ')
 '') dnl end create_netif_interfaces
 
