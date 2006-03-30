@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.2.2)
+policy_module(selinuxutil,1.2.3)
 
 gen_require(`
 	bool secure_mode;
@@ -82,6 +82,15 @@ type restorecon_exec_t;
 domain_obj_id_change_exemption(restorecon_t)
 init_system_domain(restorecon_t,restorecon_exec_t)
 role system_r types restorecon_t;
+
+type restorecond_t;
+type restorecond_exec_t;
+init_daemon_domain(restorecond_t,restorecond_exec_t)
+domain_obj_id_change_exemption(restorecond_t)
+role system_r types restorecond_t;
+
+type restorecond_var_run_t;
+files_pid_file(restorecond_var_run_t)
 
 type run_init_t;
 type run_init_exec_t;
@@ -415,6 +424,45 @@ domain_auto_trans(dpkg_t, restorecon_exec_t, restorecon_t)
 
 allow restorecon_t kernel_t:unix_dgram_socket { read write };
 
+########################################
+#
+# Restorecond local policy
+#
+
+allow restorecond_t self:capability { dac_override dac_read_search fowner };
+allow restorecond_t self:fifo_file rw_file_perms;
+
+allow restorecond_t restorecond_var_run_t:file create_file_perms;
+files_pid_filetrans(restorecond_t,restorecond_var_run_t, file)
+
+auth_relabel_all_files_except_shadow(restorecond_t )
+auth_read_all_files_except_shadow(restorecond_t)
+
+kernel_use_fds(restorecond_t)
+kernel_rw_pipes(restorecond_t)
+kernel_read_system_state(restorecond_t)
+
+fs_getattr_xattr_fs(restorecond_t)
+fs_list_inotifyfs(restorecond_t)
+
+selinux_get_fs_mount(restorecond_t)
+selinux_validate_context(restorecond_t)
+selinux_compute_access_vector(restorecond_t)
+selinux_compute_create_context(restorecond_t)
+selinux_compute_relabel_context(restorecond_t)
+selinux_compute_user_contexts(restorecond_t)
+
+term_dontaudit_use_generic_ptys(restorecond_t)
+
+init_use_fds(restorecond_t)
+
+libs_use_ld_so(restorecond_t)
+libs_use_shared_libs(restorecond_t)
+
+logging_send_syslog_msg(restorecond_t)
+
+miscfiles_read_localization(run_init_t)
+
 #################################
 #
 # Run_init local policy
@@ -593,8 +641,6 @@ files_relabel_all_files(setfiles_t)
 logging_send_syslog_msg(setfiles_t)
 
 miscfiles_read_localization(setfiles_t)
-
-seutil_get_semanage_read_lock(setfiles_t)
 
 userdom_use_all_users_fds(setfiles_t)
 # for config files in a home directory
