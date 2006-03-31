@@ -168,6 +168,11 @@ ifneq ($(DISTRO),)
 	M4PARAM += -D distro_$(DISTRO)
 endif
 
+# rhel4 also implies redhat
+ifeq "$(DISTRO)" "rhel4"
+	M4PARAM += -D distro_redhat
+endif
+
 # enable polyinstantiation
 ifeq ($(POLY),y)
 	M4PARAM += -D enable_polyinstantiation
