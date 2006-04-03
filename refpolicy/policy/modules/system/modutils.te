@@ -1,5 +1,5 @@
 
-policy_module(modutils,1.1.0)
+policy_module(modutils,1.1.1)
 
 gen_require(`
 	bool secure_mode_insmod;
@@ -53,12 +53,9 @@ allow insmod_t { modules_conf_t modules_dep_t }:file r_file_perms;
 
 can_exec(insmod_t, insmod_exec_t)
 
-# make sediff happy (no effect)
-dontaudit insmod_t self:process { noatsecure rlimitinh siginh };
-type_transition insmod_t insmod_exec_t:process insmod_t;
-
 kernel_load_module(insmod_t)
 kernel_read_system_state(insmod_t)
+kernel_write_proc_files(insmod_t)
 kernel_mount_debugfs(insmod_t)
 kernel_read_debugfs(insmod_t)
 # Rules for /proc/sys/kernel/tainted
@@ -157,12 +154,11 @@ optional_policy(`
 	rpm_rw_pipes(insmod_t)
 ')
 
-ifdef(`TODO',`
-allow insmod_t proc_t:file rw_file_perms;
 optional_policy(`
+	# cjp: why is this needed:
+	dev_rw_xserver_misc(insmod_t)
+
 	xserver_getattr_log(insmod_t)
-	allow insmod_t xserver_misc_device_t:chr_file { read write };
-')
 ')
 
 ########################################
@@ -217,12 +213,6 @@ ifdef(`targeted_policy', `
 optional_policy(`
 	rpm_rw_pipes(depmod_t)
 ')
-
-ifdef(`TODO',`
-ifdef(`gnome-pty-helper.te', `allow depmod_t sysadm_gph_t:fd use;')
-') dnl end ifdef TODO
-
-allow depmod_t modules_object_t:file unlink;
 
 #################################
 #
