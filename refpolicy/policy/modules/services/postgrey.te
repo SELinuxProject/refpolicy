@@ -1,0 +1,106 @@
+
+policy_module(postgrey,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type postgrey_t;
+type postgrey_exec_t;
+init_daemon_domain(postgrey_t,postgrey_exec_t)
+
+type postgrey_etc_t;
+files_config_file(postgrey_etc_t)
+
+type postgrey_var_lib_t;
+files_type(postgrey_var_lib_t)
+
+type postgrey_var_run_t;
+files_pid_file(postgrey_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow postgrey_t self:capability { chown setgid setuid };
+dontaudit postgrey_t self:capability sys_tty_config;
+allow postgrey_t self:process signal_perms;
+allow postgrey_t self:tcp_socket create_stream_socket_perms;
+
+allow postgrey_t postgrey_etc_t:file r_file_perms;
+allow postgrey_t postgrey_etc_t:dir r_dir_perms;
+allow postgrey_t postgrey_etc_t:lnk_file { getattr read };
+
+allow postgrey_t postgrey_var_lib_t:file create_file_perms;
+allow postgrey_t postgrey_var_lib_t:dir rw_dir_perms;
+files_var_lib_filetrans(postgrey_t,postgrey_var_lib_t,file)
+
+allow postgrey_t postgrey_var_run_t:file create_file_perms;
+allow postgrey_t postgrey_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(postgrey_t,postgrey_var_run_t,file)
+
+kernel_read_system_state(postgrey_t)
+kernel_read_kernel_sysctls(postgrey_t)
+
+# for perl
+corecmd_search_bin(postgrey_t)
+corecmd_search_sbin(postgrey_t)
+
+corenet_non_ipsec_sendrecv(postgrey_t)
+corenet_tcp_sendrecv_generic_if(postgrey_t)
+corenet_raw_sendrecv_generic_if(postgrey_t)
+corenet_tcp_sendrecv_all_nodes(postgrey_t)
+corenet_raw_sendrecv_all_nodes(postgrey_t)
+corenet_tcp_sendrecv_all_ports(postgrey_t)
+corenet_tcp_bind_all_nodes(postgrey_t)
+corenet_tcp_bind_postgrey_port(postgrey_t)
+
+dev_read_urand(postgrey_t)
+dev_read_sysfs(postgrey_t)
+
+domain_use_interactive_fds(postgrey_t)
+
+files_read_etc_files(postgrey_t)
+files_read_etc_runtime_files(postgrey_t)
+files_read_usr_files(postgrey_t)
+files_getattr_tmp_dirs(postgrey_t)
+
+fs_getattr_all_fs(postgrey_t)
+fs_search_auto_mountpoints(postgrey_t)
+
+term_dontaudit_use_console(postgrey_t)
+
+init_use_fds(postgrey_t)
+init_use_script_ptys(postgrey_t)
+
+libs_use_ld_so(postgrey_t)
+libs_use_shared_libs(postgrey_t)
+
+logging_send_syslog_msg(postgrey_t)
+
+miscfiles_read_localization(postgrey_t)
+
+sysnet_read_config(postgrey_t)
+
+userdom_dontaudit_use_unpriv_user_fds(postgrey_t)
+userdom_dontaudit_search_sysadm_home_dirs(postgrey_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(postgrey_t)
+	term_dontaudit_use_generic_ptys(postgrey_t)
+	files_dontaudit_read_root_files(postgrey_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(postgrey_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(postgrey_t)
+')
+
+optional_policy(`
+	udev_read_db(postgrey_t)
+')
