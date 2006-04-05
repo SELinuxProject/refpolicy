@@ -1,0 +1,209 @@
+## <summary>Qmail Mail Server</summary>
+
+#######################################
+## <summary>
+##      The per user domain template for qmail
+## </summary>
+## <desc>
+##      <p>
+##      This template is invoked automatically for each user, and
+##      generally does not need to be invoked directly
+##      by policy writers.
+##      </p>
+## </desc>
+## <param name="userdomain_prefix">
+##      <summary>
+##      The prefix of the user domain (e.g., user
+##      is the prefix for user_t).
+##      </summary>
+## </param>
+## <param name="user_domain">
+##      <summary>
+##      The type of the user domain.
+##      </summary>
+## </param>
+## <param name="user_role">
+##      <summary>
+##      The role associated with the user domain.
+##      </summary>
+## </param>
+#
+template(`qmail_per_userdomain_template',`
+	gen_require(`
+		attribute qmail_user_domains;
+	')
+
+	role $3 types qmail_user_domains;
+
+	qmail_domtrans_inject($2)
+
+	allow qmail_user_domains $2:process sigchld;
+	allow qmail_user_domains $2:fifo_file { write getattr };
+	allow qmail_user_domains $2:fd use;
+
+')
+
+########################################
+## <summary>
+##	Template for qmail parent/sub-domain pairs
+## </summary>
+## <param name="child_prefix">
+##	<summary>
+##	The prefix of the child domain
+##	</summary>
+## </param>
+## <param name="parent_domain">
+##	<summary>
+##	The name of the parent domain.
+##	</summary>
+## </param>
+#
+template(`qmail_child_domain_template',`
+	type $1_t;
+	domain_type($1_t)
+	type $1_exec_t;
+	domain_entry_file($1_t,$1_exec_t)
+	domain_auto_trans($2, $1_exec_t, $1_t)
+	role system_r types $1_t;
+
+	allow $1_t self:process signal_perms;
+
+	allow $1_t $2:fd use;
+	allow $1_t $2:fifo_file rw_file_perms;
+	allow $1_t $2:process sigchld;
+
+	allow $1_t qmail_etc_t:dir { getattr read search };
+	allow $1_t qmail_etc_t:file { getattr read };
+	allow $1_t qmail_etc_t:lnk_file { getattr read };
+
+	allow $1_t qmail_start_t:fd use;
+
+	kernel_list_proc($2)
+	kernel_read_proc_symlinks($2)
+
+	corecmd_search_bin($1_t)
+
+	files_search_var($1_t)
+
+	fs_getattr_xattr_fs($1_t)
+
+	libs_use_ld_so($1_t)
+	libs_use_shared_libs($1_t)
+
+	miscfiles_read_localization($1_t)
+')
+
+########################################
+## <summary>
+##	Transition to qmail_inject_t
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`qmail_domtrans_inject',`
+	gen_require(`
+		type qmail_inject_t;
+		type qmail_inject_exec_t;
+	')
+
+	domain_auto_trans($1, qmail_inject_exec_t, qmail_inject_t)
+	allow qmail_inject_t $1:fd use;
+	allow qmail_inject_t $1:fifo_file { read write };
+	allow qmail_inject_t $1:process sigchld;
+
+	ifdef(`distro_debian',`
+		files_search_usr($1)
+		corecmd_search_sbin($1)
+	',`
+		files_search_var($1)
+		corecmd_search_bin($1)
+	')
+')
+
+########################################
+## <summary>
+##	Transition to qmail_queue_t
+## </summary>
+## <param name="domain">
+##	<summary>
+##		Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`qmail_domtrans_queue',`
+	gen_require(`
+		type qmail_queue_t;
+		type qmail_queue_exec_t;
+	')
+
+	domain_auto_trans($1, qmail_queue_exec_t, qmail_queue_t)
+
+	allow qmail_queue_t $1:fd use;
+	allow qmail_queue_t $1:fifo_file { read write };
+	allow qmail_queue_t $1:process sigchld;
+
+	ifdef(`distro_debian',`
+		files_search_usr($1)
+		corecmd_search_sbin($1)
+	',`
+		files_search_var($1)
+		corecmd_search_bin($1)
+	')
+')
+
+########################################
+## <summary>
+##	Read qmail configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`qmail_read_config',`
+	gen_require(`
+		type qmail_etc_t;
+	')
+
+	allow $1 qmail_etc_t:dir { getattr read search };
+	allow $1 qmail_etc_t:file { getattr read };
+	allow $1 qmail_etc_t:lnk_file { getattr read };
+	files_search_var($1)
+
+	ifdef(`distro_debian',`
+		# handle /etc/qmail
+		files_search_etc($1)
+	')
+')
+
+########################################
+## <summary>
+##	Define the specified domain as a qmail-smtp service. 
+##	Needed by antivirus/antispam filters.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+## <param name="entrypoint">
+##	<summary>
+##	The type associated with the process program.
+##	</summary>
+## </param>
+#
+interface(`qmail_smtpd_service_domain',`
+	gen_require(`
+		type qmail_smtpd_t;
+	')
+
+        domain_auto_trans(qmail_smtpd_t, $2, $1)
+
+	allow $1 qmail_smtpd_t:fd use;
+	allow $1 qmail_smtpd_t:fifo_file { read write };
+	allow $1 qmail_smtpd_t:process sigchld;
+')
