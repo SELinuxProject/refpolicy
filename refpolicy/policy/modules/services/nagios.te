@@ -1,0 +1,183 @@
+
+policy_module(nagios,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type nagios_t;
+type nagios_exec_t;
+init_daemon_domain(nagios_t,nagios_exec_t)
+
+type nagios_cgi_t;
+type nagios_cgi_exec_t;
+init_system_domain(nagios_cgi_t,nagios_cgi_exec_t)
+
+type nagios_etc_t;
+files_config_file(nagios_etc_t)
+
+type nagios_log_t;
+logging_log_file(nagios_log_t)
+
+type nagios_tmp_t;
+files_tmp_file(nagios_tmp_t)
+
+type nagios_var_run_t;
+files_pid_file(nagios_var_run_t)
+
+########################################
+#
+# Nagios local policy
+#
+
+allow nagios_t self:capability { dac_override setgid setuid };
+dontaudit nagios_t self:capability sys_tty_config;
+allow nagios_t self:process { setpgid signal_perms };
+allow nagios_t self:fifo_file rw_file_perms;
+allow nagios_t self:tcp_socket create_stream_socket_perms;
+allow nagios_t self:udp_socket create_socket_perms;
+
+allow nagios_t nagios_etc_t:file r_file_perms;
+allow nagios_t nagios_etc_t:dir r_dir_perms;
+allow nagios_t nagios_etc_t:lnk_file { getattr read };
+
+allow nagios_t nagios_log_t:file manage_file_perms;
+allow nagios_t nagios_log_t:fifo_file manage_file_perms;
+allow nagios_t nagios_log_t:dir rw_dir_perms;
+logging_log_filetrans(nagios_t,nagios_log_t,{ file dir })
+
+allow nagios_t nagios_tmp_t:dir create_dir_perms;
+allow nagios_t nagios_tmp_t:file create_file_perms;
+files_tmp_filetrans(nagios_t, nagios_tmp_t, { file dir })
+
+allow nagios_t nagios_var_run_t:file create_file_perms;
+allow nagios_t nagios_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(nagios_t,nagios_var_run_t,file)
+
+kernel_read_system_state(nagios_t)
+kernel_read_kernel_sysctls(nagios_t)
+
+corecmd_exec_bin(nagios_t)
+corecmd_exec_shell(nagios_t)
+
+corenet_tcp_sendrecv_generic_if(nagios_t)
+corenet_udp_sendrecv_generic_if(nagios_t)
+corenet_raw_sendrecv_generic_if(nagios_t)
+corenet_tcp_sendrecv_all_nodes(nagios_t)
+corenet_udp_sendrecv_all_nodes(nagios_t)
+corenet_raw_sendrecv_all_nodes(nagios_t)
+corenet_tcp_sendrecv_all_ports(nagios_t)
+corenet_udp_sendrecv_all_ports(nagios_t)
+corenet_non_ipsec_sendrecv(nagios_t)
+corenet_tcp_bind_all_nodes(nagios_t)
+corenet_udp_bind_all_nodes(nagios_t)
+
+dev_read_sysfs(nagios_t)
+
+domain_use_interactive_fds(nagios_t)
+# for ps
+domain_read_all_domains_state(nagios_t)
+
+files_read_etc_files(nagios_t)
+files_read_etc_runtime_files(nagios_t)
+files_read_kernel_symbol_table(nagios_t)
+
+fs_getattr_all_fs(nagios_t)
+fs_search_auto_mountpoints(nagios_t)
+
+term_dontaudit_use_console(nagios_t)
+
+init_use_fds(nagios_t)
+init_use_script_ptys(nagios_t)
+# for who
+init_read_utmp(nagios_t)
+
+libs_use_ld_so(nagios_t)
+libs_use_shared_libs(nagios_t)
+
+logging_send_syslog_msg(nagios_t)
+
+miscfiles_read_localization(nagios_t)
+
+sysnet_read_config(nagios_t)
+
+userdom_dontaudit_use_unpriv_user_fds(nagios_t)
+userdom_dontaudit_search_sysadm_home_dirs(nagios_t)
+
+mta_send_mail(nagios_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(nagios_t)
+	term_dontaudit_use_generic_ptys(nagios_t)
+	files_dontaudit_read_root_files(nagios_t)
+')
+
+optional_policy(`
+	netutils_domtrans_ping(nagios_t)
+	netutils_signal_ping(nagios_t)
+	netutils_kill_ping(nagios_t)
+
+	# cjp: leaked file descriptors:
+	#dontaudit ping_t nagios_etc_t:file read;
+	#dontaudit ping_t nagios_log_t:fifo_file read;
+')
+
+optional_policy(`
+	nis_use_ypbind(nagios_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(nagios_t)
+')
+
+optional_policy(`
+	udev_read_db(nagios_t)
+')
+
+# cjp: leaked file descriptors:
+# for open file handles
+#dontaudit system_mail_t nagios_etc_t:file read;
+#dontaudit system_mail_t nagios_log_t:fifo_file read;
+
+########################################
+#
+# Nagios CGI local policy
+#
+
+allow nagios_cgi_t self:process { fork signal_perms };
+allow nagios_cgi_t self:fifo_file rw_file_perms;
+
+allow nagios_cgi_t nagios_t:dir r_dir_perms;
+allow nagios_cgi_t nagios_t:file r_file_perms;
+allow nagios_cgi_t nagios_t:lnk_file { getattr read };
+
+allow nagios_cgi_t nagios_etc_t:dir r_dir_perms;
+allow nagios_cgi_t nagios_etc_t:file r_file_perms;
+allow nagios_cgi_t nagios_etc_t:lnk_file { getattr read };
+
+allow nagios_cgi_t nagios_log_t:dir r_dir_perms;
+allow nagios_cgi_t nagios_log_t:file r_file_perms;
+allow nagios_cgi_t nagios_log_t:lnk_file { getattr read };
+
+kernel_read_system_state(nagios_cgi_t)
+
+corecmd_exec_bin(nagios_cgi_t)
+
+domain_dontaudit_read_all_domains_state(nagios_cgi_t)
+
+files_read_etc_files(nagios_cgi_t)
+files_read_etc_runtime_files(nagios_cgi_t)
+files_read_kernel_symbol_table(nagios_cgi_t)
+
+libs_use_ld_so(nagios_cgi_t)
+libs_use_shared_libs(nagios_cgi_t)
+
+logging_send_syslog_msg(nagios_cgi_t)
+logging_search_logs(nagios_cgi_t)
+
+miscfiles_read_localization(nagios_cgi_t)
+
+optional_policy(`
+	apache_append_log(nagios_cgi_t)
+')
