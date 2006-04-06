@@ -90,9 +90,9 @@ rolemap = $(HEADERDIR)/rolemap
 
 detected_layers =  $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
 3rd_party_mods = $(wildcard *.te)
-3rd_party_ifs = $(3rd_party_mods:.te=.if)
 detected_mods = $(3rd_party_mods) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.te))
-detected_ifs = $(3rd_party_ifs) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.if))
+detected_ifs = $(detected_mods:.te=.if)
+detected_fcs = $(detected_mods:.te=.fc)
 all_packages = $(notdir $(detected_mods:.te=.pp))
 
 vpath %.te $(detected_layers)
@@ -100,7 +100,7 @@ vpath %.if $(detected_layers)
 vpath %.fc $(detected_layers)
 
 # if there are modules in the current directory, add them into the third party layer
-ifneq "$(3rd_party_ifs)" ""
+ifneq "$(3rd_party_mods)" ""
         genxml += -3 .
 endif
 
@@ -125,6 +125,7 @@ endef
 .PHONY: clean all xml
 .SUFFIXES:
 .SUFFIXES: .pp
+.SECONDARY:
 
 ########################################
 #
@@ -140,7 +141,7 @@ xml: $(polxml)
 # Build module packages
 #
 tmp/%.mod: $(m4support) tmp/all_interfaces.conf %.te
-	@$(EINFO) "Compliling $(NAME) $(basename $(@F)) module"
+	@$(EINFO) "Compiling $(NAME) $(basename $(@F)) module"
 	@test -d tmp || mkdir -p tmp
 	$(call peruser-expansion,$(basename $(@F)),$@.role)
 	$(verbose) $(M4) $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
@@ -157,6 +158,9 @@ tmp/all_interfaces.conf: $(m4support) $(all_interfaces) $(detected_ifs)
 	@test -d tmp || mkdir -p tmp
 	$(verbose) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
 
+# so users dont have to make empty .fc and .if files
+$(detected_ifs) $(detected_fcs):
+	@touch $@
 
 ########################################
 #
