@@ -1,0 +1,102 @@
+
+policy_module(uwimap,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type imapd_t;
+type imapd_exec_t;
+init_daemon_domain(imapd_t,imapd_exec_t)
+inetd_tcp_service_domain(imapd_t,imapd_exec_t)
+
+type imapd_tmp_t;
+files_tmp_file(imapd_tmp_t)
+
+type imapd_var_run_t;
+files_pid_file(imapd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow imapd_t self:capability { dac_override net_bind_service setgid setuid sys_resource };
+dontaudit imapd_t self:capability sys_tty_config;
+allow imapd_t self:process signal_perms;
+allow imapd_t self:fifo_file rw_file_perms;
+allow imapd_t self:tcp_socket create_stream_socket_perms;
+
+allow imapd_t imapd_tmp_t:dir create_dir_perms;
+allow imapd_t imapd_tmp_t:file create_file_perms;
+files_tmp_filetrans(imapd_t, imapd_tmp_t, { file dir })
+
+allow imapd_t imapd_var_run_t:file create_file_perms;
+allow imapd_t imapd_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(imapd_t,imapd_var_run_t,file)
+
+kernel_read_kernel_sysctls(imapd_t)
+kernel_list_proc(imapd_t)
+kernel_read_proc_symlinks(imapd_t)
+
+corenet_non_ipsec_sendrecv(imapd_t)
+corenet_tcp_sendrecv_generic_if(imapd_t)
+corenet_raw_sendrecv_generic_if(imapd_t)
+corenet_tcp_sendrecv_all_nodes(imapd_t)
+corenet_raw_sendrecv_all_nodes(imapd_t)
+corenet_tcp_sendrecv_all_ports(imapd_t)
+corenet_tcp_bind_all_nodes(imapd_t)
+corenet_tcp_bind_pop_port(imapd_t)
+corenet_tcp_connect_all_ports(imapd_t)
+
+dev_read_sysfs(imapd_t)
+#urandom, for ssl
+dev_read_rand(imapd_t)
+dev_read_urand(imapd_t)
+
+domain_use_interactive_fds(imapd_t)
+
+#read /etc/ for hostname nsswitch.conf
+files_read_etc_files(imapd_t)
+
+fs_getattr_all_fs(imapd_t)
+fs_search_auto_mountpoints(imapd_t)
+
+term_dontaudit_use_console(imapd_t)
+
+auth_domtrans_chk_passwd(imapd_t)
+
+init_use_fds(imapd_t)
+init_use_script_ptys(imapd_t)
+
+libs_use_ld_so(imapd_t)
+libs_use_shared_libs(imapd_t)
+
+logging_send_syslog_msg(imapd_t)
+
+miscfiles_read_localization(imapd_t)
+
+sysnet_read_config(imapd_t)
+
+userdom_dontaudit_use_unpriv_user_fds(imapd_t)
+userdom_dontaudit_search_sysadm_home_dirs(imapd_t)
+# cjp: this is excessive, should be limited to the
+# mail directories
+userdom_priveleged_home_dir_manager(imapd_t)
+
+mta_rw_spool(imapd_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(imapd_t)
+	term_dontaudit_use_generic_ptys(imapd_t)
+	files_dontaudit_read_root_files(imapd_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(imapd_t)
+')
+
+optional_policy(`
+	udev_read_db(imapd_t)
+')
