@@ -171,8 +171,20 @@ enableaudit: $(POLICY_CONF)
 #
 $(FC): $(TMPDIR)/$(notdir $(FC)).tmp $(FCSORT)
 	$(verbose) $(FCSORT) $< $@
+ifeq "$(DISTRO)" "rhel4"
+# the old genhomedircon used in RHEL4 makes assumptions on
+# the directory strucure of the policy.  need to set up a mini
+# environment with this structure for correct functioning.
+	@ mkdir -p $(TMPDIR)/rhel4/file_contexts
+	@ cp $@ $(TMPDIR)/rhel4/file_contexts
+	@ $(M4) $(M4PARAM) $(M4SUPPORT) $(USER_FILES) > $(TMPDIR)/rhel4/users
+	$(verbose) $(GREP) -v "^/root" $< $(TMPDIR)/rhel4/$(@F).root
+	$(verbose) ( cd $(TMPDIR)/rhel4/users ; $(GENHOMEDIRCON) . $(@F).root > $@ )
+	$(verbose) $(GREP) "^/root" $< >> $@
+else
 	$(verbose) $(GREP) -e HOME -e ROLE $@ > $(HOMEDIR_TEMPLATE)
 	$(verbose) $(SED) -i -e /HOME/d -e /ROLE/d $@
+endif
 
 $(TMPDIR)/$(notdir $(FC)).tmp: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(ALL_FC_FILES)
 ifeq ($(ALL_FC_FILES),)
@@ -191,9 +203,13 @@ $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 	$(verbose) $(SETFILES) -q -c $(LOADPATH) $(FC)
 	@echo "Installing file_contexts."
 	@mkdir -p $(CONTEXTPATH)/files
+ifeq "$(DISTRO)" "rhel4"
+	$(verbose) install -m $(FC) $@
+else
 	$(verbose) install -m 644 $(FC) $(FCPATH)
 	$(verbose) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
 	$(verbose) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(NAME) $(USEPWD)
+endif
 
 ########################################
 #
