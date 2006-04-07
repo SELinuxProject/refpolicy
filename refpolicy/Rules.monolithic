@@ -170,18 +170,19 @@ enableaudit: $(POLICY_CONF)
 # Construct file_contexts
 #
 $(FC): $(TMPDIR)/$(notdir $(FC)).tmp $(FCSORT)
-	$(verbose) $(FCSORT) $< $@
 ifeq "$(DISTRO)" "rhel4"
 # the old genhomedircon used in RHEL4 makes assumptions on
 # the directory strucure of the policy.  need to set up a mini
 # environment with this structure for correct functioning.
 	@ mkdir -p $(TMPDIR)/rhel4
-	@ cp $@ $(TMPDIR)/rhel4
-	@ $(M4) $(M4PARAM) $(M4SUPPORT) $(USER_FILES) > $(TMPDIR)/rhel4/users
-	$(verbose) $(GREP) -v "^/root" $< > $(TMPDIR)/rhel4/$(@F).root
-	$(verbose) ( cd $(TMPDIR)/rhel4/users ; $(GENHOMEDIRCON) . $(@F).root > $@ )
-	$(verbose) $(GREP) "^/root" $< >> $@
+	$(verbose) $(FCSORT) $< > $(TMPDIR)/rhel4/$(@F).tmp
+	$(verbose) $(M4) $(M4PARAM) $(M4SUPPORT) $(USER_FILES) > $(TMPDIR)/rhel4/users
+	$(verbose) $(GREP) -v "^/root" $(TMPDIR)/rhel4/$(@F).tmp > $(TMPDIR)/rhel4/$(@F).root
+	$(verbose) ( cd $(TMPDIR)/rhel4 ; $(GENHOMEDIRCON) . $(@F).root > $(@F) )
+	$(verbose) $(GREP) "^/root" $(TMPDIR)/rhel4/$(@F).tmp >> $(TMPDIR)/rhel4/file_contexts
+	$(verpose) cp $(TMPDIR)/rhel4/file_contexts $@
 else
+	$(verbose) $(FCSORT) $< $@
 	$(verbose) $(GREP) -e HOME -e ROLE $@ > $(HOMEDIR_TEMPLATE)
 	$(verbose) $(SED) -i -e /HOME/d -e /ROLE/d $@
 endif
@@ -204,7 +205,7 @@ $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 	@echo "Installing file_contexts."
 	@mkdir -p $(CONTEXTPATH)/files
 ifeq "$(DISTRO)" "rhel4"
-	$(verbose) install -m $(FC) $@
+	$(verbose) install -m 644 $(FC) $@
 else
 	$(verbose) install -m 644 $(FC) $(FCPATH)
 	$(verbose) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
