@@ -1,5 +1,5 @@
 
-policy_module(kernel,1.3.3)
+policy_module(kernel,1.3.4)
 
 ########################################
 #
@@ -10,7 +10,7 @@ policy_module(kernel,1.3.3)
 attribute can_load_kernmodule;
 attribute can_receive_kernel_messages;
 
-neverallow ~can_load_kernmodule self:capability sys_module;
+neverallow ~{ can_load_kernmodule kern_unconfined } self:capability sys_module;
 
 # domains with unconfined access to kernel resources
 attribute kern_unconfined;
@@ -62,11 +62,11 @@ genfscon proc /sysvipc gen_context(system_u:object_r:proc_t,s0)
 # kernel message interface
 type proc_kmsg_t, proc_type;
 genfscon proc /kmsg gen_context(system_u:object_r:proc_kmsg_t,s15:c0.c255)
-neverallow ~can_receive_kernel_messages proc_kmsg_t:file ~getattr;
+neverallow ~{ can_receive_kernel_messages kern_unconfined } proc_kmsg_t:file ~getattr;
 
 # /proc kcore: inaccessible
 type proc_kcore_t, proc_type;
-neverallow { domain -kern_unconfined } proc_kcore_t:file ~getattr;
+neverallow ~kern_unconfined proc_kcore_t:file ~getattr;
 genfscon proc /kcore gen_context(system_u:object_r:proc_kcore_t,s15:c0.c255)
 
 type proc_mdstat_t, proc_type;
@@ -142,8 +142,8 @@ sid any_socket		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
 sid file_labels		gen_context(system_u:object_r:unlabeled_t,s0)
 sid icmp_socket		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
 sid igmp_packet		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
-sid init			gen_context(system_u:object_r:unlabeled_t,s0)
-sid kmod			gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
+sid init		gen_context(system_u:object_r:unlabeled_t,s0)
+sid kmod		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
 sid netmsg		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
 sid policy		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
 sid scmp_packet		gen_context(system_u:object_r:unlabeled_t,s15:c0.c255)
@@ -340,3 +340,20 @@ optional_policy(`
 	# since you may have compromised system security.
 	init_sigchld(unlabeled_t)
 ')
+
+########################################
+#
+# Rules for unconfined acccess to this module
+#
+
+allow kern_unconfined proc_type:{ dir file } *;
+
+allow kern_unconfined sysctl_t:{ dir file } *;
+
+allow kern_unconfined kernel_t:system *;
+
+allow kern_unconfined unlabeled_t:dir_file_class_set *;
+allow kern_unconfined unlabeled_t:filesystem *;
+allow kern_unconfined unlabeled_t:association *;
+
+kernel_rw_all_sysctls(kern_unconfined)
