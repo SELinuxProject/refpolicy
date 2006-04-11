@@ -217,7 +217,10 @@ ifeq ($(KV),)
 	KV := $(PV)
 endif
 
-M4SUPPORT = $(wildcard $(POLDIR)/support/*.spt $(LOCAL_POLDIR)/support/*.spt)
+M4SUPPORT := $(wildcard $(POLDIR)/support/*.spt)
+ifdef LOCAL_ROOT
+M4SUPPORT += $(wildcard $(LOCAL_POLDIR)/support/*.spt)
+endif
 
 APPCONF := config/appconfig-$(TYPE)
 SEUSERS := $(APPCONF)/seusers
@@ -254,18 +257,26 @@ ifneq ($(strip $(MOD_TEST)),)
         $(error Applications must be base, module, or off, and not in more than one list! $(strip $(MOD_TEST)) found in multiple lists!)
 endif
 
-# extract settings from modules.conf
-BASE_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
-MOD_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
-OFF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+# add on suffix to modules specified on command line
+CMDLINE_BASE := $(addsuffix .te,$(APPS_BASE))
+CMDLINE_MODS := $(addsuffix .te,$(APPS_MODS))
+CMDLINE_OFF := $(addsuffix .te,$(APPS_OFF))
 
-# add module overrides from command line
-BASE_MODS += $(APPS_BASE)
-MOD_MODS += $(APPS_MODS)
-OFF_MODS += $(APPS_OFF)
+# extract settings from modules.conf
+MOD_CONF_BASE := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+MOD_CONF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+MOD_CONF_OFF := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+
+BASE_MODS := $(CMDLINE_BASE)
+MOD_MODS := $(CMDLINE_MODS)
+OFF_MODS := $(CMDLINE_OFF)
+
+BASE_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_BASE))
+MOD_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_MODS))
+OFF_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_OFF))
 
 # add modules not in modules.conf to the off list
-OFF_MODS += $(filter-out $(BASE_MODS) $(MOD_MODS),$(notdir $(DETECTED_MODS)))
+OFF_MODS += $(filter-out $(BASE_MODS) $(MOD_MODS) $(OFF_MODS),$(notdir $(DETECTED_MODS)))
 
 # filesystems to be used in labeling targets
 FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
