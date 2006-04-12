@@ -1,5 +1,5 @@
 
-policy_module(bluetooth,1.2.3)
+policy_module(bluetooth,1.2.4)
 
 ########################################
 #
@@ -41,7 +41,7 @@ files_pid_file(bluetooth_var_run_t)
 # Bluetooth services local policy
 #
 
-allow bluetooth_t self:capability { net_admin net_raw sys_tty_config };
+allow bluetooth_t self:capability { net_admin net_raw sys_tty_config ipc_lock };
 dontaudit bluetooth_t self:capability sys_tty_config;
 allow bluetooth_t self:process { getsched signal_perms };
 allow bluetooth_t self:fifo_file rw_file_perms;
@@ -176,9 +176,10 @@ allow bluetooth_helper_t self:tcp_socket create_socket_perms;
 
 allow bluetooth_helper_t bluetooth_t:socket { read write };
 
-allow bluetooth_helper_t bluetooth_helper_tmp_t:dir create_dir_perms;
-allow bluetooth_helper_t bluetooth_helper_tmp_t:file create_file_perms;
-files_tmp_filetrans(bluetooth_helper_t, bluetooth_helper_tmp_t, { file dir })
+allow bluetooth_helper_t bluetooth_helper_tmp_t:dir manage_dir_perms;
+allow bluetooth_helper_t bluetooth_helper_tmp_t:file manage_file_perms;
+allow bluetooth_helper_t bluetooth_helper_tmp_t:sock_file manage_file_perms;
+files_tmp_filetrans(bluetooth_helper_t, bluetooth_helper_tmp_t, { file dir sock_file })
 
 kernel_read_system_state(bluetooth_helper_t)
 kernel_read_kernel_sysctls(bluetooth_helper_t)
@@ -213,6 +214,8 @@ ifdef(`targeted_policy',`
 
 	fs_rw_tmpfs_files(bluetooth_helper_t)
 
+	term_dontaudit_use_generic_ptys(bluetooth_helper_t)
+
 	unconfined_stream_connect(bluetooth_helper_t)
 
 	userdom_read_all_users_home_content_files(bluetooth_helper_t)
@@ -223,6 +226,7 @@ ifdef(`targeted_policy',`
 ')
 
 optional_policy(`
+	bluetooth_dbus_chat(bluetooth_helper_t)
 	dbus_system_bus_client_template(bluetooth_helper,bluetooth_helper_t)
 	dbus_connect_system_bus(bluetooth_helper_t)
 	dbus_send_system_bus(bluetooth_helper_t)
