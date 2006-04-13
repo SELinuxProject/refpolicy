@@ -1,21 +1,34 @@
 <h1>Getting Started</h1>
 <p>
-This guide will walk you through the basics of creating a new reference policy module. This will also serve as an introduction to the basics concepts and philosophy of refpolicy.
-To install and use a targeted Reference Policy on a Fedora Core 4 system, see the
-<a href="index.php?page=switch">switching guide</a>.
+This guide will walk you through the basics of creating a new reference policy
+module. This will also serve as an introduction to the basics concepts and
+philosophy of refpolicy.  
 </p>
 <h2>Creating A Module</h2>
 <p>
-Modules are the principal organizing component in refpolicy. They are conceptually similar to the source modules in the current strict and targeted policy, but have additional meaning. A module contains the policy for an application or related group of applications, private and shared resources, labeling information, and interfaces that allow other modules access to the modules resources. The majority of the global policy has been eliminated in refpolicy. Certain policy components, like users and object classes, are still global in refpolicy, but almost all TE policy is now contained within a module. 
+Modules are the principal organizing component in refpolicy.  A module contains
+the policy for an application or related group of applications, private and shared
+resources, labeling information, and interfaces that allow other modules access
+to the modules resources. The majority of the global policy has been eliminated
+in refpolicy. Certain policy components, like users and object classes, are
+still global in refpolicy, but almost all TE policy is now contained within a
+module. 
 </p>
 <p>
-Modules should be placed in refpolicy/policy/LAYER, where LAYER is the name of the appropriate layer. The current layers can be seen in the <A href="api-docs/">interface documentation</A>. Let's create a new module in the services layer called myapp. This is done by creating three files: myapp.te, mayapp.fc, and myapp.if, all in directory refpolicy/policy/services. The file myapp.te file will contain all of the policy private to this module, including any types or attributes. The file myapp.fc file will contain the file context labeling statement for this module. Finally, the file myapp.if will contain the interfaces for this module (interfaces will be explained below).
+Let's create a new module called myapp.  This is done by creating three files:
+myapp.te, mayapp.fc, and myapp.if. The file myapp.te file will contain all of
+the policy private to this module, including any types or attributes. The file
+myapp.fc file will contain the file context labeling statement for this module.
+Finally, the file myapp.if will contain the interfaces for this module (interfaces
+will be explained below).
 </p>
 <h3>Module TE Policy</h3>
 <p>
 First create myapp.te and add the following:
 <div id="codeblock">
 <pre>
+policy_module(myapp,1.0)
+
 # Private type declarations
 type myapp_t;
 type myapp_exec_t;
@@ -30,10 +43,22 @@ files_tmp_file(myapp_tmp_t)
 </div>
 </p>
 <p>
-This creates all of the types needed for this module, including a type for the process, executables, log files, and temporary files. The first thing to notice is that there are no attributes applied to any of these types. In refpolicy all types and attributes can only be referred to in the module that declares them. This means that it is not possible, for example, to directly refer to the domain attribute. Instead, macros in other modules are used to declare that a type will be used for a certain purpose. These macros will likely use attributes (but not necessarily), but it allows the module that declared the attribute to strictly control how it can be used. In this example interfaces are used to transform the types into a domain, entry file, log file, and temporary file.
+This creates all of the types needed for this module, including a type for the
+process, executables, log files, and temporary files. The first thing to notice
+is that there are no attributes applied to any of these types. In refpolicy all
+types and attributes can only be referred to in the module that declares them.
+This means that it is not possible, for example, to directly refer to the domain
+attribute. Instead, macros in other modules are used to declare that a type will
+be used for a certain purpose. These macros will likely use attributes (but not
+necessarily), but it allows the module that declared the attribute to strictly
+control how it can be used. In this example interfaces are used to transform the
+types into a domain, entry file, log file, and temporary file.
 </p>
 <p>
-Let's expand this example further by allowing some access for these types. My application needs access between it's own types and access to read random numbers. The access between private types is written exactly the same way current policy rules are written, i.e.:
+Let's expand this example further by allowing some access for these types. My
+application needs access between it's own types and access to read random numbers.
+The access between private types is written exactly the same way current policy
+rules are written, i.e.:
 <div id="codeblock">
 <pre>
 allow myapp_t myapp_log_t:file ra_file_perms;
@@ -44,12 +69,26 @@ allow myapp_t myapp_tmp_t:file create_file_perms;
 create its temporary files in /tmp.  This requires a call to the files module.</p>
 <div id="codeblock">
 <pre>
-files_create_tmp_files(myapp_t,myapp_tmp_t,file)
+files_tmp_filetrans(myapp_t,myapp_tmp_t,file)
 </pre>
 </div>
 <p>
 This call to the files module allows myapp_t to create myapp_tmp_t files in
 the /tmp directory.
+</p>
+<h3>Module FC Policy</h3>
+<p>
+The file contexts file lists files and the labels they should have.  Create
+myapp.fc and add the following:
+<div id="codeblock">
+<pre>
+/usr/bin/myapp	--	gen_context(system_u:object_r:myapp_exec_t,s0)
+</pre>
+</div>
+<p>
+The gen_context() macro has three parameters, the base SELinux label,
+the MLS sensitivity, and the MCS category set (optional).  When compiling a
+module, the macro will add the appropriate MLS/MCS part to the label when needed.
 </p>
 <h3>Module IF Policy</h3>
 <p>
@@ -76,6 +115,7 @@ documentation. Create myapp.if and add the following:
 ##	&lt;/p&gt;
 ## &lt;/desc&gt;
 
+########################################
 ## &lt;summary&gt;
 ##	Execute a domain transition to run myapp.
 ## &lt;/summary&gt;
@@ -90,11 +130,11 @@ interface(`myapp_domtrans',`
 	domain_auto_trans($1,myapp_exec_t,myapp_t)
 
 	allow $1 myapp_t:fd use;
-	allow myapp_t $1:fd use;
 	allow $1 myapp_t:fifo_file rw_file_perms;
 	allow $1 myapp_t:process sigchld;
 ')
 
+########################################
 ## &lt;summary&gt;
 ##	Read myapp log files.
 ## &lt;/summary&gt;
@@ -123,3 +163,84 @@ support loadable policy modules, and must explicitly list the type and attribute
 used by this interface.  If object classes of a userland object manager are used,
 the class and the permissions used by the interface must also be listed.
 </p>
+<p>
+<h2>Compiling Modules</h2>
+Two methods of building modules are supported,
+<a href="#headers">headers</a> and complete source.
+Current systems, such as Fedora Core 5, which support loadable policy modules
+should compile modules using headers.  Using the complete source for building
+modules is only needed if loadable modules are not supported on the system or
+if when doing other modifications to the base policy.  Genereally this is only
+suggested for experts.
+</p>
+<a name="headers">
+<h2>Building Using Policy Headers</h2>
+<p>
+When building a loadable policy module, the three module source files need not
+be in a specific directory.  A development directory in the user's home directory
+would be sufficient.  In this example, lets place it in the policy directory
+in the home directory.  The example Makefile should be copied to this directory.
+It is usually located in the /usr/share/doc/PKGNAME directory, where PKGNAME
+is the name of the policy package that has the policy headers.
+</p>
+<div id="codeblock">
+<pre>
+$ <b>cp /usr/share/doc/refpolicy-20060307/Makefile.example ~/policy/Makefile</b>
+</pre>
+</div>
+<p>
+Alternatively, this can be copied from the Reference Policy source, from the doc
+directory.  The Makefile is not required, but will simplify the process.
+</p>
+<p>
+Now the policy directory should have the three module source files and Makefile.
+all that needs to be done is to run make, and the policy will be compiled.
+<p>
+<div id="codeblock">
+<pre>
+$ <b>make</b>
+Compiling targeted myapp module
+/usr/bin/checkmodule:  loading policy configuration from tmp/myapp.tmp
+/usr/bin/checkmodule:  policy configuration loaded
+/usr/bin/checkmodule:  writing binary representation (version 5) to tmp/myapp.mod
+Creating targeted myapp.pp policy package
+</pre>
+</div>
+<p>
+If you do not have the example Makefile, you must tell make where to find the
+policy header's Makefile, by using the -f option.  The Makefile for the base
+policy provided by the Linux distribution should be found in the
+/usr/share/selinux/NAME/include directory, where NAME is the name
+of the policy, for example, strict or targeted.
+</p>
+<div id="codeblock">
+<pre>
+$ <b>make -f /usr/share/selinux/targeted/include/Makefile</b>
+Compiling targeted myapp module
+/usr/bin/checkmodule:  loading policy configuration from tmp/myapp.tmp
+/usr/bin/checkmodule:  policy configuration loaded
+/usr/bin/checkmodule:  writing binary representation (version 5) to tmp/myapp.mod
+Creating targeted myapp.pp policy package
+</pre>
+</div>
+<p>
+When this succeeds, there will be a myapp.pp policy package that can be inserted
+into the running policy  To load the module, you must be running as root, in a
+role allowed to run semodule.  Then run semodule -i to insert the module into
+the running policy.
+</p>
+<div id="codeblock">
+<pre>
+# <b>semodule -i myapp.pp</b>
+</pre>
+</div>
+<p>
+The semodule command will only have messages if there is an error inserting the
+module.  If it succeeds, semodule -l should list the myapp module, and the version.
+</p>
+<div id="codeblock">
+<pre>
+# <b>semodule -l</b>
+myapp   1.0
+</pre>
+</div>
