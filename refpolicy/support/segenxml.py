@@ -214,7 +214,9 @@ def getLayerXML (layerName, directories):
 	
 	# For each module file in the layer, add its XML.
 	for directory in directories:
-		for module in glob.glob("%s/*.if" % directory):
+		modules = glob.glob("%s/*.if" % directory)
+		modules.sort()
+		for module in modules:
 			layer_buf += getModuleXML(module)
 
 	layer_buf.append("</layer>\n")
