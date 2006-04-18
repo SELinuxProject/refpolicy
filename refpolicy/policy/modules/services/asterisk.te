@@ -1,0 +1,160 @@
+
+policy_module(asterisk,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type asterisk_t;
+type asterisk_exec_t;
+init_daemon_domain(asterisk_t,asterisk_exec_t)
+
+type asterisk_etc_t;
+files_config_file(asterisk_etc_t)
+
+type asterisk_log_t;
+logging_log_file(asterisk_log_t)
+
+type asterisk_spool_t;
+files_type(asterisk_spool_t)
+
+type asterisk_tmp_t;
+files_tmp_file(asterisk_tmp_t)
+
+type asterisk_tmpfs_t;
+files_tmpfs_file(asterisk_tmpfs_t)
+
+type asterisk_var_lib_t;
+files_type(asterisk_var_lib_t)
+
+type asterisk_var_run_t;
+files_pid_file(asterisk_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+# dac_override for /var/run/asterisk
+allow asterisk_t self:capability { dac_override setgid setuid sys_nice };
+dontaudit asterisk_t self:capability sys_tty_config;
+allow asterisk_t self:process { setsched signal_perms };
+allow asterisk_t self:fifo_file rw_file_perms;
+allow asterisk_t self:sem create_sem_perms;
+allow asterisk_t self:shm create_shm_perms;
+allow asterisk_t self:tcp_socket create_stream_socket_perms;
+allow asterisk_t self:udp_socket create_socket_perms;
+
+allow asterisk_t asterisk_etc_t:file r_file_perms;
+allow asterisk_t asterisk_etc_t:dir r_dir_perms;
+allow asterisk_t asterisk_etc_t:lnk_file { getattr read };
+files_search_etc(asterisk_t)
+
+allow asterisk_t asterisk_log_t:file manage_file_perms;
+allow asterisk_t asterisk_log_t:dir rw_dir_perms;
+logging_log_filetrans(asterisk_t,asterisk_log_t,{ file dir })
+
+allow asterisk_t asterisk_spool_t:dir manage_dir_perms;
+allow asterisk_t asterisk_spool_t:file manage_file_perms;
+allow asterisk_t asterisk_spool_t:lnk_file create_lnk_perms;
+
+allow asterisk_t asterisk_tmp_t:dir create_dir_perms;
+allow asterisk_t asterisk_tmp_t:file create_file_perms;
+files_tmp_filetrans(asterisk_t, asterisk_tmp_t, { file dir })
+
+allow asterisk_t asterisk_tmpfs_t:dir rw_dir_perms;
+allow asterisk_t asterisk_tmpfs_t:file manage_file_perms;
+allow asterisk_t asterisk_tmpfs_t:lnk_file create_lnk_perms;
+allow asterisk_t asterisk_tmpfs_t:sock_file manage_file_perms;
+allow asterisk_t asterisk_tmpfs_t:fifo_file manage_file_perms;
+fs_tmpfs_filetrans(asterisk_t,asterisk_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+allow asterisk_t asterisk_var_lib_t:file manage_file_perms;
+allow asterisk_t asterisk_var_lib_t:dir rw_dir_perms;
+files_var_lib_filetrans(asterisk_t,asterisk_var_lib_t,file)
+
+allow asterisk_t asterisk_var_run_t:sock_file manage_file_perms;
+allow asterisk_t asterisk_var_run_t:fifo_file manage_file_perms;
+allow asterisk_t asterisk_var_run_t:file manage_file_perms;
+allow asterisk_t asterisk_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(asterisk_t,asterisk_var_run_t,file)
+
+kernel_read_system_state(asterisk_t)
+kernel_read_kernel_sysctls(asterisk_t)
+
+corecmd_exec_bin(asterisk_t)
+corecmd_search_sbin(asterisk_t)
+
+corenet_non_ipsec_sendrecv(asterisk_t)
+corenet_tcp_sendrecv_generic_if(asterisk_t)
+corenet_udp_sendrecv_generic_if(asterisk_t)
+corenet_raw_sendrecv_generic_if(asterisk_t)
+corenet_tcp_sendrecv_all_nodes(asterisk_t)
+corenet_udp_sendrecv_all_nodes(asterisk_t)
+corenet_raw_sendrecv_all_nodes(asterisk_t)
+corenet_tcp_sendrecv_all_ports(asterisk_t)
+corenet_udp_sendrecv_all_ports(asterisk_t)
+corenet_tcp_bind_all_nodes(asterisk_t)
+corenet_udp_bind_all_nodes(asterisk_t)
+corenet_tcp_bind_asterisk_port(asterisk_t)
+corenet_udp_bind_asterisk_port(asterisk_t)
+# for VOIP voice channels.
+corenet_tcp_bind_generic_port(asterisk_t)
+corenet_udp_bind_generic_port(asterisk_t)
+
+dev_read_sysfs(asterisk_t)
+dev_read_sound(asterisk_t)
+dev_write_sound(asterisk_t)
+
+domain_use_interactive_fds(asterisk_t)
+
+files_read_etc_files(asterisk_t)
+files_search_spool(asterisk_t)
+# demo files installed in /usr/share/asterisk/sounds/demo-instruct.gsm
+# are labeled usr_t
+files_read_usr_files(asterisk_t)
+
+fs_getattr_all_fs(asterisk_t)
+fs_search_auto_mountpoints(asterisk_t)
+
+term_dontaudit_use_console(asterisk_t)
+
+init_use_fds(asterisk_t)
+init_use_script_ptys(asterisk_t)
+
+libs_use_ld_so(asterisk_t)
+libs_use_shared_libs(asterisk_t)
+
+logging_send_syslog_msg(asterisk_t)
+
+miscfiles_read_localization(asterisk_t)
+
+sysnet_read_config(asterisk_t)
+
+userdom_dontaudit_use_unpriv_user_fds(asterisk_t)
+userdom_dontaudit_search_sysadm_home_dirs(asterisk_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(asterisk_t)
+	term_dontaudit_use_generic_ptys(asterisk_t)
+	files_dontaudit_read_root_files(asterisk_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(asterisk_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(asterisk_t)
+')
+
+optional_policy(`
+	udev_read_db(asterisk_t)
+')
+
+ifdef(`TODO',`
+allow initrc_t asterisk_var_run_t:fifo_file unlink;
+allow sysadm_t asterisk_t:unix_stream_socket { connectto rw_stream_socket_perms };
+')
+
