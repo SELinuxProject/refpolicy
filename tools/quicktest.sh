@@ -1,7 +1,6 @@
 #!/bin/bash
 
-DISTROS="rhel4 gentoo debian"
-TYPES="strict targeted strict-mcs targeted-mcs strict-mls targeted-mls"
+TYPES="strict targeted-mcs strict-mls"
 POLVER="`checkpolicy -V |cut -f 1 -d ' '`"
 SETFILES="/usr/sbin/setfiles"
 SE_LINK="/usr/bin/semodule_link"
