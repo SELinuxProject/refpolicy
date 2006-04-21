@@ -27,7 +27,7 @@ interface(`portage_domtrans',`
 	allow portage_t $1:fifo_file rw_file_perms;
 	allow portage_t $1:process sigchld;
 
-	# main portage process
+	# transition to portage
 	domain_auto_trans($1,portage_exec_t,portage_t.merge)
 	allow portage_t.merge $1:fd use;
 	allow portage_t.merge $1:fifo_file rw_file_perms;
@@ -131,11 +131,11 @@ interface(`portage_compile_domain',`
 	allow $1 portage_tmp_t:sock_file manage_file_perms;
 	files_tmp_filetrans($1,portage_tmp_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow $1 portage_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1 portage_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1 portage_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-	allow $1 portage_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1 portage_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
+	allow $1 portage_tmpfs_t:dir rw_dir_perms;
+	allow $1 portage_tmpfs_t:file manage_file_perms;
+	allow $1 portage_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1 portage_tmpfs_t:sock_file manage_file_perms;
+	allow $1 portage_tmpfs_t:fifo_file manage_file_perms;
 	fs_tmpfs_filetrans($1,portage_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	kernel_read_system_state($1)
@@ -147,7 +147,9 @@ interface(`portage_compile_domain',`
 
 	corecmd_exec_all_executables($1)
 
-	# really shouldnt need this
+	# really shouldnt need this but some packages test
+	# network access, such as during configure
+	# also distcc--need to reinvestigate confining distcc client
 	corenet_non_ipsec_sendrecv($1)
 	corenet_tcp_sendrecv_generic_if($1)
 	corenet_udp_sendrecv_generic_if($1)
@@ -216,17 +218,18 @@ interface(`portage_fetch_domain',`
 
 	allow $1 self:capability dac_override;
 	dontaudit $1 self:capability { fowner fsetid };
+	allow $1 self:process signal;
 	allow $1 self:unix_stream_socket create_socket_perms;
 	allow $1 self:tcp_socket create_stream_socket_perms;
 
 	allow $1 portage_conf_t:dir list_dir_perms;
-	allow $1 portage_conf_t:file r_file_perms;
+	allow $1 portage_conf_t:file read_file_perms;
 
 	allow $1 portage_ebuild_t:dir manage_dir_perms;
 	allow $1 portage_ebuild_t:file manage_file_perms;
 
-	allow $1 portage_fetch_tmp_t:dir create_dir_perms;
-	allow $1 portage_fetch_tmp_t:file create_file_perms;
+	allow $1 portage_fetch_tmp_t:dir manage_dir_perms;
+	allow $1 portage_fetch_tmp_t:file manage_file_perms;
 
 	# portage makes home dir the portage tmp dir, so
 	# wget looks for .wgetrc there
