@@ -1,0 +1,208 @@
+## <summary>giFT peer to peer file sharing tool</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the gift module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for gift client sessions and gift daemons.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`gift_per_userdomain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_gift_t;
+	domain_type($1_gift_t)
+	domain_entry_file($1_gift_t,gift_exec_t)
+	role $3 types $1_gift_t;
+
+	type $1_gift_home_t alias $1_gift_rw_t;
+	files_poly_member($1_gift_home_t)
+	userdom_user_home_content($1,$1_gift_home_t)
+
+	type $1_gift_tmpfs_t;
+	files_tmpfs_file($1_gift_tmpfs_t)
+
+	type $1_giftd_t;
+	domain_type($1_giftd_t)
+	domain_entry_file($1_giftd_t,giftd_exec_t)
+	role $3 types $1_giftd_t;
+
+	##############################
+	#
+	# giFT user interface local policy
+	#
+
+	allow $1_gift_t self:tcp_socket create_socket_perms;
+
+	allow $1_gift_t $1_gift_tmpfs_t:dir rw_dir_perms;
+	allow $1_gift_t $1_gift_tmpfs_t:file manage_file_perms;
+	allow $1_gift_t $1_gift_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_gift_t $1_gift_tmpfs_t:sock_file manage_file_perms;
+	allow $1_gift_t $1_gift_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_gift_t,$1_gift_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	allow $1_gift_t $1_gift_home_t:dir manage_dir_perms;
+	allow $1_gift_t $1_gift_home_t:file manage_file_perms;
+	allow $1_gift_t $1_gift_home_t:lnk_file create_lnk_perms;
+	userdom_user_home_dir_filetrans($1,$1_gift_t,$1_gift_home_t,dir)
+
+	# Launch gift daemon
+	domain_auto_trans($1_gift_t, giftd_exec_t, $1_giftd_t)
+	allow $1_giftd_t $1_gift_t:fd use;
+	allow $1_giftd_t $1_gift_t:fifo_file rw_file_perms;
+	allow $1_giftd_t $1_gift_t:process sigchld;
+
+	# transition from user domain
+	domain_auto_trans($2, gift_exec_t, $1_gift_t)
+	allow $1_gift_t $2:fd use;
+	allow $1_gift_t $2:fifo_file rw_file_perms;
+	allow $1_gift_t $2:process sigchld;
+
+	# user managed content
+	allow $2 $1_gift_home_t:dir manage_dir_perms;
+	allow $2 $1_gift_home_t:file manage_file_perms;
+	allow $2 $1_gift_home_t:lnk_file create_lnk_perms;
+	allow $2 $1_gift_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+
+	# Allow the user domain to signal/ps.
+	allow $2 $1_gift_t:dir { search getattr read };
+	allow $2 $1_gift_t:{ file lnk_file } { read getattr };
+	allow $2 $1_gift_t:process { getattr signal_perms };
+
+	# Read /proc/meminfo
+	kernel_read_system_state($1_giftd_t)
+
+	# Connect to gift daemon
+	corenet_non_ipsec_sendrecv($1_gift_t)
+	corenet_tcp_sendrecv_generic_if($1_gift_t)
+	corenet_raw_sendrecv_generic_if($1_gift_t)
+	corenet_tcp_sendrecv_all_nodes($1_gift_t)
+	corenet_raw_sendrecv_all_nodes($1_gift_t)
+	corenet_tcp_sendrecv_giftd_port($1_gift_t)
+	corenet_tcp_bind_all_nodes($1_gift_t)
+	corenet_tcp_connect_giftd_port($1_gift_t)
+
+	fs_search_auto_mountpoints($1_gift_t)
+
+	sysnet_read_config($1_gift_t)
+
+	# giftui looks in .icons, .themes.
+	userdom_dontaudit_read_user_home_content_files($1,$1_gift_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_gift_t)
+		fs_manage_nfs_files($1_gift_t)
+		fs_manage_nfs_symlinks($1_gift_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_gift_t)
+		fs_manage_cifs_files($1_gift_t)
+		fs_manage_cifs_symlinks($1_gift_t)
+	')
+
+#	optional_policy(`
+#		gnome_user_application($1,$1_gift,$1_gift_t)
+#	')
+
+	optional_policy(`
+		nscd_socket_use($1_gift_t)
+	')
+
+	optional_policy(`
+		xserver_user_client_template($1,$1_gift_t,$1_gift_tmpfs_t)
+	')
+
+	##############################
+	#
+	# giFT server local policy
+	#
+
+	allow $1_giftd_t self:process { signal setsched };
+	allow $1_giftd_t self:unix_stream_socket create_socket_perms;
+	allow $1_giftd_t self:tcp_socket create_stream_socket_perms;
+	allow $1_giftd_t self:udp_socket create_socket_perms;
+
+	allow $1_giftd_t $1_gift_home_t:dir manage_dir_perms;
+	allow $1_giftd_t $1_gift_home_t:file manage_file_perms;
+	allow $1_giftd_t $1_gift_home_t:lnk_file create_lnk_perms;
+	userdom_user_home_dir_filetrans($1,$1_giftd_t,$1_gift_home_t,dir)
+
+	domain_auto_trans($2, giftd_exec_t, $1_giftd_t)
+	allow $1_giftd_t $2:fd use;
+	allow $1_giftd_t $2:fifo_file rw_file_perms;
+	allow $1_giftd_t $2:process sigchld;
+
+	kernel_read_system_state($1_giftd_t)
+	kernel_read_kernel_sysctls($1_giftd_t)
+
+	# Serve content on various p2p networks. Ports can be random.
+	corenet_non_ipsec_sendrecv($1_giftd_t)
+	corenet_tcp_sendrecv_generic_if($1_giftd_t)
+	corenet_udp_sendrecv_generic_if($1_giftd_t)
+	corenet_raw_sendrecv_generic_if($1_giftd_t)
+	corenet_tcp_sendrecv_all_nodes($1_giftd_t)
+	corenet_udp_sendrecv_all_nodes($1_giftd_t)
+	corenet_raw_sendrecv_all_nodes($1_giftd_t)
+	corenet_tcp_sendrecv_all_ports($1_giftd_t)
+	corenet_udp_sendrecv_all_ports($1_giftd_t)
+	corenet_tcp_bind_all_nodes($1_giftd_t)
+	corenet_udp_bind_all_nodes($1_giftd_t)
+	corenet_tcp_bind_all_ports($1_giftd_t)
+	corenet_udp_bind_all_ports($1_giftd_t)
+	corenet_tcp_connect_all_ports($1_giftd_t)
+
+	files_read_usr_files($1_giftd_t)
+	# Read /etc/mtab
+	files_read_etc_runtime_files($1_giftd_t)
+
+	libs_use_ld_so($1_giftd_t)
+	libs_use_shared_libs($1_giftd_t)
+
+	miscfiles_read_localization($1_giftd_t)
+
+	sysnet_read_config($1_giftd_t)
+
+	userdom_use_user_terminals($1,$1_giftd_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_giftd_t)
+		fs_manage_nfs_files($1_giftd_t)
+		fs_manage_nfs_symlinks($1_giftd_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_giftd_t)
+		fs_manage_cifs_files($1_giftd_t)
+		fs_manage_cifs_symlinks($1_giftd_t)
+	')
+')
