@@ -1,0 +1,143 @@
+## <summary>Restricted (scp/sftp) only shell</summary>
+
+#######################################
+## <summary>
+##	The per user domain template for the rssh module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for rssh client sessions.  Derived types are also created
+##	for read-only and read-write file access.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
+template(`rssh_per_userdomain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_rssh_t alias rssh_$1_t, rssh_domain_type;
+	domain_type($1_rssh_t)
+	domain_entry_file($1_rssh_t,rssh_exec_t)
+	domain_user_exemption_target($1_t)
+	domain_interactive_fd($1_rssh_t)
+	role system_r types $1_rssh_t;
+
+	type $1_rssh_devpts_t alias rssh_$1_devpts_t;
+	term_user_pty($1_rssh_t,$1_rssh_devpts_t)
+
+	type $1_rssh_ro_t alias rssh_$1_ro_t, rssh_ro_content_type;
+	userdom_user_home_content($1,$1_rssh_ro_t)
+
+	type $1_rssh_rw_t alias rssh_$1_rw_t;
+	userdom_user_home_content($1,$1_rssh_rw_t)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	allow $1_rssh_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_rssh_t self:fd use;
+	allow $1_rssh_t self:fifo_file rw_file_perms;
+	allow $1_rssh_t self:unix_dgram_socket create_socket_perms;
+	allow $1_rssh_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_rssh_t self:unix_dgram_socket sendto;
+	allow $1_rssh_t self:unix_stream_socket connectto;
+	allow $1_rssh_t self:shm create_shm_perms;
+	allow $1_rssh_t self:sem create_sem_perms;
+	allow $1_rssh_t self:msgq create_msgq_perms;
+	allow $1_rssh_t self:msg { send receive };
+
+	allow $1_rssh_t $1_rssh_devpts_t:chr_file { rw_file_perms setattr };
+	term_create_pty($1_rssh_t,$1_rssh_devpts_t)
+
+	allow $1_rssh_t $1_rssh_ro_t:dir list_dir_perms;
+	allow $1_rssh_t $1_rssh_ro_t:file read_file_perms;
+
+	allow $1_rssh_t $1_rssh_rw_t:dir manage_dir_perms;
+	allow $1_rssh_t $1_rssh_rw_t:file manage_file_perms;
+
+	kernel_read_system_state($1_rssh_t)
+	kernel_read_kernel_sysctls($1_rssh_t)
+
+	files_read_etc_files($1_rssh_t)
+	files_read_etc_runtime_files($1_rssh_t)
+	files_list_home($1_rssh_t)
+	files_read_usr_files($1_rssh_t)
+	files_list_var($1_rssh_t)
+
+	fs_search_auto_mountpoints($1_rssh_t)
+
+	libs_use_ld_so($1_rssh_t)
+	libs_use_shared_libs($1_rssh_t)
+
+	logging_send_syslog_msg($1_rssh_t)
+
+	miscfiles_read_localization($1_rssh_t)
+
+	userdom_use_unpriv_users_fds($1_rssh_t)
+
+	ssh_rw_tcp_sockets($1_rssh_t)
+	ssh_rw_stream_sockets($1_rssh_t)
+
+	optional_policy(`
+		nis_use_ypbind($1_rssh_t)
+	')
+')
+
+########################################
+## <summary>
+##	Transition to all user rssh domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rssh_spec_domtrans_all_users',`
+	gen_require(`
+		attribute rssh_domain_type;
+		type rssh_exec_t;
+	')
+
+	domain_trans($1,rssh_exec_t,rssh_domain_type)
+	allow rssh_domain_type $1:fd use;
+	allow rssh_domain_type $1:fifo_file rw_file_perms;
+	allow rssh_domain_type $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read all users rssh read-only content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rssh_read_all_users_ro_content',`
+	gen_require(`
+		attribute rssh_ro_content_type;
+	')
+
+	allow $1 rssh_ro_content_type:dir r_dir_perms;
+	allow $1 rssh_ro_content_type:file r_file_perms;
+	allow $1 rssh_ro_content_type:lnk_file { getattr read };
+')
