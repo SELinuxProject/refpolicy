@@ -1,0 +1,152 @@
+## <summary>VMWare Workstation virtual machines</summary>
+
+template(`vmware_per_userdomain_template',`
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_vmware_t;
+	domain_type($1_vmware_t)
+	domain_entry_file($1_vmware_t,vmware_exec_t)
+	role $3 types $1_vmware_t;
+
+	type $1_vmware_conf_t;
+	userdom_user_home_content($1,$1_vmware_conf_t)
+
+	type $1_vmware_file_t;
+	userdom_user_home_content($1,$1_vmware_file_t)
+
+	type $1_vmware_tmp_t;
+	files_tmp_file($1_vmware_tmp_t)
+
+	type $1_vmware_tmpfs_t;
+	files_tmpfs_file($1_vmware_tmpfs_t)
+
+	type $1_vmware_var_run_t;
+	files_pid_file($1_vmware_var_run_t)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	domain_auto_trans($2, vmware_exec_t, $1_vmware_t)
+	allow $1_vmware_t $2:fd use;
+	allow $1_vmware_t $2:fifo_file rw_file_perms;
+	allow $1_vmware_t $2:process sigchld;
+
+	allow $1_vmware_t self:capability { dac_override setgid sys_nice sys_resource setuid sys_admin sys_rawio };
+	allow $1_vmware_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_vmware_t self:fd use;
+	allow $1_vmware_t self:fifo_file rw_file_perms;
+	allow $1_vmware_t self:unix_dgram_socket create_socket_perms;
+	allow $1_vmware_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_vmware_t self:unix_dgram_socket sendto;
+	allow $1_vmware_t self:unix_stream_socket connectto;
+	allow $1_vmware_t self:shm create_shm_perms;
+	allow $1_vmware_t self:sem create_sem_perms;
+	allow $1_vmware_t self:msgq create_msgq_perms;
+	allow $1_vmware_t self:msg { send receive };
+
+	can_exec($1_vmware_t, vmware_exec_t)
+
+	# User configuration files
+	allow $1_vmware_t $1_vmware_conf_t:file manage_file_perms;
+
+	# VMWare disks
+	allow $1_vmware_t $1_vmware_file_t:dir rw_dir_perms;
+	allow $1_vmware_t $1_vmware_file_t:file manage_file_perms;
+	allow $1_vmware_t $1_vmware_file_t:lnk_file create_lnk_perms;
+
+	allow $1_vmware_t $1_vmware_tmp_t:dir manage_dir_perms;
+	allow $1_vmware_t $1_vmware_tmp_t:file manage_file_perms;
+	files_tmp_filetrans($1_vmware_t, $1_vmware_tmp_t, { file dir })
+
+	allow $1_vmware_t $1_vmware_tmpfs_t:dir rw_dir_perms;
+	allow $1_vmware_t $1_vmware_tmpfs_t:file manage_file_perms;
+	allow $1_vmware_t $1_vmware_tmpfs_t:lnk_file create_lnk_perms;
+	allow $1_vmware_t $1_vmware_tmpfs_t:sock_file manage_file_perms;
+	allow $1_vmware_t $1_vmware_tmpfs_t:fifo_file manage_file_perms;
+	fs_tmpfs_filetrans($1_vmware_t,$1_vmware_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+	# Read clobal configuration files
+	allow $1_vmware_t vmware_sys_conf_t:dir r_dir_perms;
+	allow $1_vmware_t vmware_sys_conf_t:file r_file_perms;
+	allow $1_vmware_t vmware_sys_conf_t:lnk_file { getattr read };
+
+	allow $1_vmware_t $1_vmware_var_run_t:file manage_file_perms;
+	allow $1_vmware_t $1_vmware_var_run_t:dir rw_dir_perms;
+	files_pid_filetrans($1_vmware_t,$1_vmware_var_run_t,file)
+
+	kernel_read_system_state($1_vmware_t)
+	kernel_read_network_state($1_vmware_t)
+
+	corecmd_list_bin($1_vmware_t)
+
+	dev_read_raw_memory($1_vmware_t)
+	dev_write_raw_memory($1_vmware_t)
+	dev_read_mouse($1_vmware_t)
+	dev_write_sound($1_vmware_t)
+	dev_read_realtime_clock($1_vmware_t)
+	dev_rw_vmware($1_vmware_t)
+
+	domain_use_interactive_fds($1_vmware_t)
+
+	files_read_etc_files($1_vmware_t)
+	files_read_etc_runtime_files($1_vmware_t)
+
+	fs_getattr_xattr_fs($1_vmware_t)
+	fs_search_auto_mountpoints($1_vmware_t)
+
+	storage_raw_read_removable_device($1_vmware_t)
+
+	libs_use_ld_so($1_vmware_t)
+	libs_use_shared_libs($1_vmware_t)
+	# Access X11 config files
+	libs_read_lib_files($1_vmware_t)
+
+	userdom_use_user_terminals($1,$1_vmware_t)
+	userdom_use_unpriv_users_fds($1_vmware_t)
+	# cjp: why?
+	userdom_read_user_home_content_files($1,$1_vmware_t)
+
+	xserver_user_client_template($1,$1_vmware_t,$1_vmware_tmpfs_t)
+')
+
+########################################
+## <summary>
+##	Read VMWare system configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vmware_read_system_config',`
+	gen_require(`
+		type vmware_sys_conf_t;
+	')
+
+	allow $1 vmware_sys_conf_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Append to VMWare system configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vmware_append_system_config',`
+	gen_require(`
+		type vmware_sys_conf_t;
+	')
+
+	allow $1 vmware_sys_conf_t:file append;
+')

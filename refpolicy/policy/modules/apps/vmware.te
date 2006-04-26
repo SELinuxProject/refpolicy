@@ -1,0 +1,89 @@
+
+policy_module(vmware,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+# VMWare user program
+type vmware_exec_t;
+corecmd_executable_file(vmware_exec_t)
+
+# VMWare host programs
+type vmware_host_t;
+type vmware_host_exec_t;
+init_daemon_domain(vmware_host_t,vmware_host_exec_t)
+
+# Systemwide configuration files
+type vmware_sys_conf_t;
+files_type(vmware_sys_conf_t)
+
+type vmware_var_run_t;
+files_pid_file(vmware_var_run_t)
+
+########################################
+#
+# VMWare host local policy
+#
+
+dontaudit vmware_host_t self:capability sys_tty_config;
+allow vmware_host_t self:process signal_perms;
+
+allow vmware_host_t vmware_var_run_t:file create_file_perms;
+allow vmware_host_t vmware_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(vmware_host_t,vmware_var_run_t,file)
+
+kernel_read_kernel_sysctls(vmware_host_t)
+kernel_list_proc(vmware_host_t)
+kernel_read_proc_symlinks(vmware_host_t)
+
+dev_read_sysfs(vmware_host_t)
+
+domain_use_interactive_fds(vmware_host_t)
+
+fs_getattr_all_fs(vmware_host_t)
+fs_search_auto_mountpoints(vmware_host_t)
+
+term_dontaudit_use_console(vmware_host_t)
+
+init_use_fds(vmware_host_t)
+init_use_script_ptys(vmware_host_t)
+
+libs_use_ld_so(vmware_host_t)
+libs_use_shared_libs(vmware_host_t)
+
+logging_send_syslog_msg(vmware_host_t)
+
+miscfiles_read_localization(vmware_host_t)
+
+userdom_dontaudit_use_unpriv_user_fds(vmware_host_t)
+userdom_dontaudit_search_sysadm_home_dirs(vmware_host_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(vmware_host_t)
+	term_dontaudit_use_generic_ptys(vmware_host_t)
+	files_dontaudit_read_root_files(vmware_host_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(vmware_host_t)
+
+')
+
+optional_policy(`
+	udev_read_db(vmware_host_t)
+')
+
+
+ifdef(`TODO',`
+# VMWare need access to pcmcia devices for network
+optional_policy(`
+allow kernel_t cardmgr_var_lib_t:dir { getattr search };
+allow kernel_t cardmgr_var_lib_t:file { getattr ioctl read };
+')
+# Vmware create network devices
+allow kernel_t self:capability net_admin;
+allow kernel_t self:netlink_route_socket { bind create getattr nlmsg_read nlmsg_write read write };
+allow kernel_t self:socket create;
+')
