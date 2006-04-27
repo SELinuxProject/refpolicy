@@ -1,5 +1,5 @@
 
-policy_module(nagios,1.0.0)
+policy_module(nagios,1.0.1)
 
 ########################################
 #
@@ -25,6 +25,13 @@ files_tmp_file(nagios_tmp_t)
 
 type nagios_var_run_t;
 files_pid_file(nagios_var_run_t)
+
+type nrpe_t;
+type nrpe_exec_t;
+init_daemon_domain(nrpe_t,nrpe_exec_t)
+
+type nrpe_etc_t;
+files_config_file(nrpe_etc_t)
 
 ########################################
 #
@@ -180,4 +187,64 @@ miscfiles_read_localization(nagios_cgi_t)
 
 optional_policy(`
 	apache_append_log(nagios_cgi_t)
+')
+
+########################################
+#
+# Nagios remote plugin executor local policy
+#
+
+dontaudit nrpe_t self:capability sys_tty_config;
+allow nrpe_t self:process { setpgid signal_perms };
+allow nrpe_t self:fifo_file rw_file_perms;
+
+allow nrpe_t nrpe_etc_t:file { getattr read };
+files_search_etc(nrpe_t)
+
+kernel_read_system_state(nrpe_t)
+kernel_read_kernel_sysctls(nrpe_t)
+
+corecmd_exec_bin(nrpe_t)
+corecmd_exec_shell(nrpe_t)
+corecmd_exec_ls(nrpe_t)
+
+dev_read_sysfs(nrpe_t)
+dev_read_urand(nrpe_t)
+
+domain_use_interactive_fds(nrpe_t)
+
+files_read_etc_runtime_files(nrpe_t)
+
+fs_search_auto_mountpoints(nrpe_t)
+
+term_dontaudit_use_console(nrpe_t)
+
+init_use_fds(nrpe_t)
+init_use_script_ptys(nrpe_t)
+
+libs_use_ld_so(nrpe_t)
+libs_use_shared_libs(nrpe_t)
+
+logging_send_syslog_msg(nrpe_t)
+
+miscfiles_read_localization(nrpe_t)
+
+userdom_dontaudit_use_unpriv_user_fds(nrpe_t)
+
+ifdef(`targeted_policy',`
+        term_dontaudit_use_unallocated_ttys(nrpe_t)
+        term_dontaudit_use_generic_ptys(nrpe_t)
+        files_dontaudit_read_root_files(nrpe_t)
+')
+
+optional_policy(`
+	inetd_tcp_service_domain(nrpe_t,nrpe_exec_t)
+')
+
+optional_policy(`
+        seutil_sigchld_newrole(nrpe_t)
+')
+
+optional_policy(`
+        udev_read_db(nrpe_t)
 ')
