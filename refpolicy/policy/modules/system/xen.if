@@ -48,11 +48,12 @@ interface(`xen_append_log',`
 ########################################
 ## <summary>
 ##	Do not audit attempts to read and write
-##	Xen unix domain stream sockets.
+##	Xen unix domain stream sockets.  These
+##	are leaked file descriptors.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
-##	Domain to don't audit.
+##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
@@ -83,4 +84,46 @@ interface(`xen_stream_connect_xenstore',`
 	allow $1 xenstored_var_run_t:dir search;
 	allow $1 xenstored_var_run_t:sock_file { getattr write };
 	allow $1 xenstored_t:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Connect to xend over an unix domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xen_stream_connect',`
+	gen_require(`
+		type xend_t, xend_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 xend_var_run_t:dir search;
+	allow $1 xend_var_run_t:sock_file { getattr write };
+	allow $1 xend_t:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run xm.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`xen_domtrans_xm',`
+	gen_requires(`
+		type xm_t, xm_exec_t;
+	')
+
+	domain_auto_trans($1,xm_exec_t,xm_t)
+	allow xm_t $1:fd use;
+	allow xm_t:$1:fifo_file rw_file_perms;
+	allow xm_t $1:process sigchld;
 ')

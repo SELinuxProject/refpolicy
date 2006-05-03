@@ -1,0 +1,116 @@
+
+policy_module(pyzor,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type pyzor_t;
+type pyzor_exec_t;
+domain_type(pyzor_t)
+domain_entry_file(pyzor_t,pyzor_exec_t)
+role system_r types pyzor_t;
+
+type pyzord_t;
+type pyzord_exec_t;
+domain_type(pyzord_t)
+init_daemon_domain(pyzord_t,pyzord_exec_t)
+
+type pyzor_etc_t;
+files_type(pyzor_etc_t)
+
+type pyzord_log_t;
+logging_log_file(pyzord_log_t)
+
+type pyzor_var_lib_t;
+files_type(pyzor_var_lib_t)
+
+########################################
+#
+# Pyzor local policy
+#
+
+allow pyzor_t pyzor_var_lib_t:dir r_dir_perms;
+allow pyzor_t pyzor_var_lib_t:file r_file_perms;
+files_search_var_lib(pyzor_t)
+
+files_read_etc_files(pyzor_t)
+
+auth_use_nsswitch(pyzor_t)
+
+libs_use_ld_so(pyzor_t)
+libs_use_shared_libs(pyzor_t)
+
+miscfiles_read_localization(pyzor_t)
+
+optional_policy(`
+	amavis_manage_lib_files(pyzor_t)
+')
+
+optional_policy(`
+	spamassassin_read_spamd_tmp_files(pyzor_t)
+')
+
+########################################
+#
+# Pyzord local policy
+#
+
+allow pyzord_t self:udp_socket create_socket_perms;
+
+allow pyzord_t pyzor_var_lib_t:file create_file_perms;
+allow pyzord_t pyzor_var_lib_t:dir { rw_dir_perms setattr };
+files_var_lib_filetrans(pyzord_t,pyzor_var_lib_t,{ file dir })
+
+allow pyzord_t pyzor_etc_t:file create_file_perms;
+allow pyzord_t pyzor_etc_t:dir r_dir_perms;
+
+can_exec(pyzord_t,pyzor_exec_t)
+
+allow pyzord_t pyzord_log_t:file create_file_perms;
+allow pyzord_t pyzord_log_t:dir { rw_dir_perms setattr };
+logging_log_filetrans(pyzord_t,pyzord_log_t, { file dir } )
+
+kernel_read_kernel_sysctls(pyzord_t)
+kernel_read_system_state(pyzord_t)
+
+dev_read_urand(pyzord_t)
+
+corecmd_exec_bin(pyzord_t)
+
+corenet_raw_sendrecv_all_if(pyzord_t)
+corenet_udp_sendrecv_all_if(pyzord_t)
+corenet_udp_sendrecv_all_nodes(pyzord_t)
+corenet_raw_sendrecv_all_nodes(pyzord_t)
+corenet_udp_sendrecv_all_ports(pyzord_t)
+corenet_non_ipsec_sendrecv(pyzord_t)
+corenet_udp_bind_all_nodes(pyzord_t)
+corenet_udp_bind_pyzor_port(pyzord_t)
+
+files_read_etc_files(pyzord_t)
+
+term_dontaudit_use_generic_ptys(pyzord_t)
+
+auth_use_nsswitch(pyzord_t)
+
+libs_use_ld_so(pyzord_t)
+libs_use_shared_libs(pyzord_t)
+
+miscfiles_read_localization(pyzord_t)
+
+# only works until we define a different type for maildir
+userdom_priveleged_home_dir_manager(pyzord_t)
+# Do not audit attempts to access /root.
+userdom_dontaudit_search_sysadm_home_dirs(pyzord_t)
+userdom_dontaudit_search_staff_home_dirs(pyzord_t)
+
+mta_manage_spool(pyzord_t)
+
+optional_policy(`
+	logging_send_syslog_msg(pyzord_t)
+')
+
+optional_policy(`
+	nscd_socket_use(pyzord_t)
+')

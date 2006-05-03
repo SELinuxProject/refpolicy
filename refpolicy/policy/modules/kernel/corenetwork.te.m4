@@ -46,7 +46,11 @@ ifelse($4,`',`',`determine_reserved_capability_depend(shiftn(3,$*))')dnl end inn
 ') dnl end determine reserved capability depend
 
 define(`declare_ports',`dnl
-ifelse(eval($3 < 1024),1,`typeattribute $1 reserved_port_type;',`dnl')
+ifelse(eval($3 < 1024),1,`
+typeattribute $1 reserved_port_type;
+#bindresvport in glibc starts searching for reserved ports at 600
+ifelse(eval($3 >= 600),1,`typeattribute $1 rpc_port_type;',`dnl')
+',`dnl')
 portcon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 ')
