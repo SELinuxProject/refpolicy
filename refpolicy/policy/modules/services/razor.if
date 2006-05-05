@@ -1,0 +1,218 @@
+## <summary>A distributed, collaborative, spam detection and filtering network.</summary>
+## <desc>
+##	<p>
+##	A distributed, collaborative, spam detection and filtering network.
+##	</p>
+##	<p>
+##	This policy will work with either the ATrpms provided config
+##	file in /etc/razor, or with the default of dumping everything into
+##	$HOME/.razor.
+##	</p>
+## </desc>
+
+#######################################
+## <summary>
+##	Template to create types and rules common to
+##	all razor domains.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
+template(`razor_common_domain_template',`
+
+	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_t self:fd use;
+	allow $1_t self:fifo_file rw_file_perms;
+	allow $1_t self:unix_dgram_socket create_socket_perms;
+	allow $1_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_t self:unix_dgram_socket sendto;
+	allow $1_t self:unix_stream_socket connectto;
+	allow $1_t self:shm create_shm_perms;
+	allow $1_t self:sem create_sem_perms;
+	allow $1_t self:msgq create_msgq_perms;
+	allow $1_t self:msg { send receive };
+	allow $1_t self:tcp_socket create_socket_perms;
+
+	# Read system config file
+	allow $1_t razor_etc_t:dir list_dir_perms;
+	allow $1_t razor_etc_t:file read_file_perms;
+	allow $1_t razor_etc_t:lnk_file { getattr read };
+
+	allow $1_t razor_log_t:dir manage_dir_perms;
+	allow $1_t razor_log_t:file manage_file_perms;
+	allow $1_t razor_log_t:lnk_file create_lnk_perms;
+	logging_log_filetrans($1_t,razor_log_t,file)
+
+	allow $1_t razor_var_lib_t:dir manage_dir_perms;
+	allow $1_t razor_var_lib_t:file manage_file_perms;
+	allow $1_t razor_var_lib_t:lnk_file create_lnk_perms;
+	files_search_var_lib($1_t)
+
+	# Razor is one executable and several symlinks
+	allow $1_t razor_exec_t:{ file lnk_file } { getattr read };
+
+	kernel_read_system_state($1_t)
+	kernel_read_network_state($1_t)
+	kernel_read_software_raid_state($1_t)
+	kernel_getattr_core_if($1_t)
+	kernel_getattr_message_if($1_t)
+	kernel_read_kernel_sysctls($1_t)
+
+	corecmd_exec_bin($1_t)
+
+	corenet_tcp_sendrecv_generic_if($1_t)
+	corenet_raw_sendrecv_generic_if($1_t)
+	corenet_tcp_sendrecv_all_nodes($1_t)
+	corenet_raw_sendrecv_all_nodes($1_t)
+	corenet_tcp_sendrecv_razor_port($1_t)
+	corenet_non_ipsec_sendrecv($1_t)
+	corenet_tcp_bind_all_nodes($1_t)
+
+	# mktemp and other randoms
+	dev_read_rand($1_t)
+	dev_read_urand($1_t)
+
+	files_search_pids($1_t)
+	# Allow access to various files in the /etc/directory including mtab
+	# and nsswitch
+	files_read_etc_files($1_t)
+	files_read_etc_runtime_files($1_t)
+
+	fs_search_auto_mountpoints($1_t)
+
+	libs_use_ld_so($1_t)
+	libs_use_shared_libs($1_t)
+	libs_read_lib_files($1_t)
+
+	miscfiles_read_localization($1_t)
+
+	sysnet_read_config($1_t)
+	sysnet_dns_name_resolve($1_t)
+
+	userdom_use_unpriv_users_fds($1_t)
+
+	optional_policy(`
+		nis_use_ypbind($1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	The per user domain template for the razor module.
+## </summary>
+## <desc>
+##	<p>
+##	The per user domain template for the razor module.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`razor_per_userdomain_template',`
+
+	type $1_razor_t;
+	domain_type($1_razor_t)
+	domain_entry_file($1_razor_t,razor_exec_t)
+	razor_common_domain_template($1_razor)
+	role $3 types $1_razor_t;
+
+	type $1_razor_home_t alias $1_razor_rw_t;
+	files_poly_member($1_razor_home_t)
+	userdom_user_home_content($1,$1_razor_home_t)
+
+	type $1_razor_tmp_t;
+	files_tmp_file($1_razor_tmp_t)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	allow $1_razor_t self:unix_stream_socket create_stream_socket_perms;
+
+	allow $1_razor_t $1_razor_home_t:dir manage_dir_perms;
+	allow $1_razor_t $1_razor_home_t:file manage_file_perms;
+	allow $1_razor_t $1_razor_home_t:lnk_file create_lnk_perms;
+	userdom_user_home_dir_filetrans($1,$1_razor_t,$1_razor_home_t,dir)
+
+	allow $1_razor_t $1_razor_tmp_t:dir create_dir_perms;
+	allow $1_razor_t $1_razor_tmp_t:file create_file_perms;
+	files_tmp_filetrans($1_razor_t, $1_razor_tmp_t, { file dir })
+
+	domain_auto_trans($2, razor_exec_t, $1_razor_t)
+	allow $1_razor_t $2:fd use;
+	allow $1_razor_t $2:fifo_file rw_file_perms;
+	allow $1_razor_t $2:process sigchld;	
+
+	allow $2 $1_razor_home_t:dir manage_dir_perms;
+	allow $2 $1_razor_home_t:file manage_file_perms;
+	allow $2 $1_razor_home_t:lnk_file create_lnk_perms;
+	allow $2 $1_razor_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+
+	logging_send_syslog_msg($1_razor_t)
+
+	userdom_search_user_home_dirs($1,$1_razor_t)
+	# Allow razor to be run by hand.  Needed by any action other than
+	# invocation from a spam filter.
+	userdom_use_user_terminals($1,$1_razor_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_dirs($1_razor_t)
+		fs_manage_nfs_files($1_razor_t)
+		fs_manage_nfs_symlinks($1_razor_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_dirs($1_razor_t)
+		fs_manage_cifs_files($1_razor_t)
+		fs_manage_cifs_symlinks($1_razor_t)
+	')
+
+	optional_policy(`
+		nscd_socket_use($1_razor_t)
+	')
+')
+
+########################################
+## <summary>
+##	Execute razor in the system razor domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`razor_domtrans',`
+	gen_require(`
+		type razor_t, razor_exec_t;
+	')
+
+	domain_auto_trans($1, razor_exec_t, razor_t)
+	allow razor_t $1:fd use;
+	allow razor_t $1:fifo_file rw_file_perms;
+	allow razor_t $1:process sigchld;	
+')
