@@ -371,7 +371,7 @@ $(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXM
 	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(verbose) $(GENXML) -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(DOCS) $(ALL_LAYERS) >> $@
+	$(verbose) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(DOCS) $(ALL_LAYERS) >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
 		$(XMLLINT) --noout --path $(dir $(XMLDTD)) --dtdvalid $(XMLDTD) $@ ;\
 	fi
