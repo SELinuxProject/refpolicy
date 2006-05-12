@@ -1,5 +1,5 @@
 
-policy_module(apache,1.3.8)
+policy_module(apache,1.3.9)
 
 #
 # NOTES: 
@@ -141,17 +141,11 @@ allow httpd_t self:shm create_shm_perms;
 allow httpd_t self:sem create_sem_perms;
 allow httpd_t self:msgq create_msgq_perms;
 allow httpd_t self:msg { send receive };
-allow httpd_t self:unix_dgram_socket create_socket_perms;
-allow httpd_t self:unix_stream_socket create_stream_socket_perms;
-allow httpd_t self:unix_dgram_socket sendto;
-allow httpd_t self:unix_stream_socket connectto;
+allow httpd_t self:unix_dgram_socket { create_socket_perms sendto };
+allow httpd_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow httpd_t self:netlink_route_socket { bind create getattr nlmsg_read read write };
-allow httpd_t self:tcp_socket { acceptfrom connectto recvfrom };
-
-allow httpd_t self:tcp_socket create_stream_socket_perms;
-allow httpd_t self:udp_socket { connect };
-allow httpd_t self:tcp_socket connected_socket_perms;
-allow httpd_t self:udp_socket connected_socket_perms;
+allow httpd_t self:tcp_socket { create_stream_socket_perms acceptfrom connectto recvfrom };
+allow httpd_t self:udp_socket create_socket_perms;
 
 # Allow httpd_t to put files in /var/cache/httpd etc
 allow httpd_t httpd_cache_t:dir create_dir_perms;
@@ -218,15 +212,13 @@ kernel_tcp_recvfrom(httpd_t)
 # for modules that want to access /proc/meminfo
 kernel_read_system_state(httpd_t)
 
+corenet_non_ipsec_sendrecv(httpd_t)
 corenet_tcp_sendrecv_all_if(httpd_t)
 corenet_udp_sendrecv_all_if(httpd_t)
-corenet_raw_sendrecv_all_if(httpd_t)
 corenet_tcp_sendrecv_all_nodes(httpd_t)
 corenet_udp_sendrecv_all_nodes(httpd_t)
-corenet_raw_sendrecv_all_nodes(httpd_t)
 corenet_tcp_sendrecv_all_ports(httpd_t)
 corenet_udp_sendrecv_all_ports(httpd_t)
-corenet_non_ipsec_sendrecv(httpd_t)
 corenet_tcp_bind_all_nodes(httpd_t)
 corenet_udp_bind_all_nodes(httpd_t)
 corenet_tcp_bind_http_port(httpd_t)
@@ -302,23 +294,7 @@ tunable_policy(`allow_httpd_anon_write',`
 ') 
 
 tunable_policy(`httpd_can_network_connect',`
-	allow httpd_t self:tcp_socket create_socket_perms;
-	allow httpd_t self:udp_socket create_socket_perms;
-
-	corenet_tcp_sendrecv_all_if(httpd_t)
-	corenet_udp_sendrecv_all_if(httpd_t)
-	corenet_raw_sendrecv_all_if(httpd_t)
-	corenet_tcp_sendrecv_all_nodes(httpd_t)
-	corenet_udp_sendrecv_all_nodes(httpd_t)
-	corenet_raw_sendrecv_all_nodes(httpd_t)
-	corenet_tcp_sendrecv_all_ports(httpd_t)
-	corenet_udp_sendrecv_all_ports(httpd_t)
-	corenet_non_ipsec_sendrecv(httpd_t)
-	corenet_tcp_bind_all_nodes(httpd_t)
-	corenet_udp_bind_all_nodes(httpd_t)
 	corenet_tcp_connect_all_ports(httpd_t)
-
-	sysnet_read_config(httpd_t)
 ')
 
 tunable_policy(`httpd_can_network_connect_db',`
@@ -597,17 +573,13 @@ tunable_policy(`httpd_can_network_connect',`
 	allow httpd_suexec_t self:tcp_socket create_stream_socket_perms;
 	allow httpd_suexec_t self:udp_socket create_socket_perms;
 
+	corenet_non_ipsec_sendrecv(httpd_suexec_t)
 	corenet_tcp_sendrecv_all_if(httpd_suexec_t)
 	corenet_udp_sendrecv_all_if(httpd_suexec_t)
-	corenet_raw_sendrecv_all_if(httpd_suexec_t)
 	corenet_tcp_sendrecv_all_nodes(httpd_suexec_t)
 	corenet_udp_sendrecv_all_nodes(httpd_suexec_t)
-	corenet_raw_sendrecv_all_nodes(httpd_suexec_t)
 	corenet_tcp_sendrecv_all_ports(httpd_suexec_t)
 	corenet_udp_sendrecv_all_ports(httpd_suexec_t)
-	corenet_non_ipsec_sendrecv(httpd_suexec_t)
-	corenet_tcp_bind_all_nodes(httpd_suexec_t)
-	corenet_udp_bind_all_nodes(httpd_suexec_t)
 	corenet_tcp_connect_all_ports(httpd_suexec_t)
 
 	sysnet_read_config(httpd_suexec_t)
@@ -650,12 +622,6 @@ tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
 
 optional_policy(`
 	mailman_domtrans_cgi(httpd_suexec_t)
-')
-
-optional_policy(`
-	tunable_policy(`httpd_can_network_connect',`
-		mount_send_nfs_client_request(httpd_suexec_t)
-	')
 ')
 
 optional_policy(`
