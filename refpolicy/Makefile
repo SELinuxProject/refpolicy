@@ -54,7 +54,6 @@ SEMOD_LNK := $(BINDIR)/semodule_link
 SEMOD_EXP := $(BINDIR)/semodule_expand
 LOADPOLICY := $(SBINDIR)/load_policy
 SETFILES := $(SBINDIR)/setfiles
-GENHOMEDIRCON := $(SBINDIR)/genhomedircon
 XMLLINT := $(BINDIR)/xmllint
 SECHECK := $(BINDIR)/sechecker
 
@@ -91,6 +90,9 @@ FCSORT := $(TMPDIR)/fc_sort
 SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(SUPPORT)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(SUPPORT)/comment_move_decl.sed
+# use our own genhomedircon to make sure we have a known usable one,
+# so policycoreutils updates are not required (RHEL4)
+genhomedircon := $(PYTHON) $(SUPPORT)/genhomedircon
 
 # documentation paths
 DOCS := doc

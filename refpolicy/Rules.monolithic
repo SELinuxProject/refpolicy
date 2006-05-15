@@ -172,22 +172,9 @@ enableaudit: $(POLICY_CONF)
 # Construct file_contexts
 #
 $(FC): $(TMPDIR)/$(notdir $(FC)).tmp $(FCSORT)
-ifeq "$(DISTRO)" "rhel4"
-# the old genhomedircon used in RHEL4 makes assumptions on
-# the directory strucure of the policy.  need to set up a mini
-# environment with this structure for correct functioning.
-	@ mkdir -p $(TMPDIR)/rhel4
-	$(verbose) $(FCSORT) $< $(TMPDIR)/rhel4/$(@F).tmp
-	$(verbose) $(M4) $(M4PARAM) $(M4SUPPORT) $(USER_FILES) > $(TMPDIR)/rhel4/users
-	$(verbose) $(GREP) -v "^/root" $(TMPDIR)/rhel4/$(@F).tmp > $(TMPDIR)/rhel4/$(@F).root
-	$(verbose) ( cd $(TMPDIR)/rhel4 ; $(GENHOMEDIRCON) . $(@F).root > $(@F) )
-	$(verbose) $(GREP) "^/root" $(TMPDIR)/rhel4/$(@F).tmp >> $(TMPDIR)/rhel4/file_contexts
-	$(verpose) cp $(TMPDIR)/rhel4/file_contexts $@
-else
 	$(verbose) $(FCSORT) $< $@
 	$(verbose) $(GREP) -e HOME -e ROLE $@ > $(HOMEDIR_TEMPLATE)
 	$(verbose) $(SED) -i -e /HOME/d -e /ROLE/d $@
-endif
 
 $(TMPDIR)/$(notdir $(FC)).tmp: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(ALL_FC_FILES)
 ifeq ($(ALL_FC_FILES),)
@@ -196,6 +183,8 @@ endif
 	@echo "Creating $(NAME) file_contexts."
 	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
 	$(verbose) $(M4) $(M4PARAM) $^ > $@
+
+$(HOMEDIR_TEMPLATE): $(FC)
 
 ########################################
 #
@@ -206,12 +195,15 @@ $(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
 	$(verbose) $(SETFILES) -q -c $(LOADPATH) $(FC)
 	@echo "Installing file_contexts."
 	@mkdir -p $(CONTEXTPATH)/files
-ifeq "$(DISTRO)" "rhel4"
-	$(verbose) install -m 644 $(FC) $@
-else
 	$(verbose) install -m 644 $(FC) $(FCPATH)
 	$(verbose) install -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
-	$(verbose) $(GENHOMEDIRCON) -d $(TOPDIR) -t $(NAME) $(USEPWD)
+	$(verbose) $(genhomedircon) -d $(TOPDIR) -t $(NAME) $(USEPWD)
+ifeq "$(DISTRO)" "rhel4"
+# Setfiles in RHEL4 does not look at file_contexts.homedirs.
+	$(verbose) cat $@.homedirs >> $@
+# Delete the file_contexts.homedirs in case the toolchain has
+# been updated, to prevent duplicate match errors.
+	$(verbose) rm -f $@.homedirs
 endif
 
 ########################################
