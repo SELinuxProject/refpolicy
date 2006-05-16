@@ -31,7 +31,7 @@ auth_domtrans_chk_passwd($1)
 # daemon: complete
 #
 optional_policy(`nscd',`
-	nscd_use_socket($1)
+	nscd_socket_use($1)
 ')
 
 #
@@ -43,6 +43,11 @@ domain_type($1)
 # etc_writer: complete
 #
 # handled by appropriate interfaces
+
+#
+# exec_type: complete
+#
+corecmd_executable_file($1)
 
 #
 # file_type: complete
@@ -119,19 +124,19 @@ optional_policy(`arpwatch',`
 		dontaudit mta_user_agent arpwatch_t:packet_socket { read write };
 	')
 ')
-optional_policy(`cron',`
+optional_policy(`
 	cron_sigchld($1)
 	cron_read_system_job_tmp_files($1)
 ')
-optional_policy(`logrotate',`
+optional_policy(`
 	logrotate_read_tmp_files($1)
 ')
 
 #
 # nscd_client_domain: complete
 #
-optional_policy(`nscd',`
-	nscd_use_socket($1)
+optional_policy(`
+	nscd_socket_use($1)
 ')
 
 #
@@ -142,9 +147,7 @@ domain_interactive_fd($1)
 #
 # privlog: complete
 #
-optional_policy(`logging',`
-	logging_send_syslog_msg($1)
-')
+logging_send_syslog_msg($1)
 
 #
 # privmail: complete
@@ -367,9 +370,7 @@ term_create_pty($1_t,$1_devpts_t)
 #
 # can_exec_any(): complete
 #
-corecmd_exec_bin($1)
-corecmd_exec_sbin($1)
-domain_exec_all_entry_files($1)
+corecmd_exec_all_executables($1)
 files_exec_etc_files($1)
 libs_use_ld_so($1)
 libs_use_shared_libs($1)
@@ -643,11 +644,6 @@ sysnet_read_config($1)
 allow $1 $2:dir { search getattr read };
 allow $1 $2:{ file lnk_file } { read getattr };
 allow $1 $2:process getattr;
-# We need to suppress this denial because procps tries to access
-# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-# running in a privileged domain.
-dontaudit $1 $2:process ptrace;
 
 #
 # can_ptrace():
@@ -787,24 +783,24 @@ kernel_list_proc($1_t)
 kernel_read_proc_symlinks($1_t)
 kernel_read_kernel_sysctls($1_t)
 dev_read_sysfs($1_t)
+domain_use_interactive_fds($1_t)
 fs_search_auto_mountpoints($1_t)
 term_dontaudit_use_console($1_t)
-domain_use_interactive_fds($1_t)
 init_use_fds($1_t)
-init_use_script_pty($1_t)
+init_use_script_ptys($1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
 userdom_dontaudit_use_unpriv_user_fds($1_t)
 ifdef(`targeted_policy',`
-	term_dontaudit_use_unallocated_tty($1_t)
-	term_dontaudit_use_generic_pty($1_t)
+	term_dontaudit_use_unallocated_ttys($1_t)
+	term_dontaudit_use_generic_ptys($1_t)
 	files_dontaudit_read_root_files($1_t)
 ')
-optional_policy(`selinuxutil',`
+optional_policy(`
 	seutil_sigchld_newrole($1_t)
 ')
-optional_policy(`udev',`
+optional_policy(`
 	udev_read_db($1_t)
 ')
 
@@ -820,32 +816,32 @@ dontaudit $1_t self:capability sys_tty_config;
 allow $1_t self:process signal_perms;
 allow $1_t $1_var_run_t:file create_file_perms;
 allow $1_t $1_var_run_t:dir rw_dir_perms;
-files_pid_filetrans($1_t,$1_var_run_t)
+files_pid_filetrans($1_t,$1_var_run_t,file)
 kernel_read_kernel_sysctls($1_t)
 kernel_list_proc($1_t)
 kernel_read_proc_symlinks($1_t)
 dev_read_sysfs($1_t)
+domain_use_interactive_fds($1_t)
 fs_getattr_all_fs($1_t)
 fs_search_auto_mountpoints($1_t)
 term_dontaudit_use_console($1_t)
-domain_use_interactive_fds($1_t)
 init_use_fds($1_t)
-init_use_script_pty($1_t)
+init_use_script_ptys($1_t)
 libs_use_ld_so($1_t)
 libs_use_shared_libs($1_t)
 logging_send_syslog_msg($1_t)
 miscfiles_read_localization($1_t)
 userdom_dontaudit_use_unpriv_user_fds($1_t)
 userdom_dontaudit_search_sysadm_home_dirs($1_t)
-ifdef(`targeted_policy', `
-	term_dontaudit_use_unallocated_tty($1_t)
-	term_dontaudit_use_generic_pty($1_t)
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys($1_t)
+	term_dontaudit_use_generic_ptys($1_t)
 	files_dontaudit_read_root_files($1_t)
 ')
-optional_policy(`selinuxutil',`
+optional_policy(`
 	seutil_sigchld_newrole($1_t)
 ')
-optional_policy(`udev',`
+optional_policy(`
 	udev_read_db($1_t)
 ')
 
@@ -1044,7 +1040,7 @@ optional_policy(`nis',`
 	nis_use_ypbind($1_t)
 ')
 optional_policy(`nscd',`
-	nscd_use_socket($1_t)
+	nscd_socket_use($1_t)
 ')
 
 #
@@ -1060,7 +1056,7 @@ libs_legacy_use_ld_so($1_t)
 type $1_lock_t;
 files_lock_file($1_lock_t)
 allow $1_t $1_lock_t:file create_file_perms;
-files_lock_filetrans($1_t,$1_lock_t)
+files_lock_filetrans($1_t,$1_lock_t,file)
 
 #
 # log_domain(): complete
@@ -1068,7 +1064,7 @@ files_lock_filetrans($1_t,$1_lock_t)
 type $1_log_t;
 logging_log_file($1_log_t)
 allow $1_t $1_log_t:file create_file_perms;
-logging_log_filetrans($1_t,$1_log_t)
+logging_log_filetrans($1_t,$1_log_t,file)
 
 #
 # logdir_domain(): complete
@@ -1230,7 +1226,7 @@ type $1_var_lib_t;
 files_type($1_var_lib_t)
 allow $1_t $1_var_lib_t:file create_file_perms;
 allow $1_t $1_var_lib_t:dir rw_dir_perms;
-files_var_lib_filetrans($1_t,$1_var_lib_t)
+files_var_lib_filetrans($1_t,$1_var_lib_t,file)
 
 #
 # var_run_domain($1): complete
@@ -1239,7 +1235,7 @@ type $1_var_run_t;
 files_pid_file($1_var_run_t)
 allow $1_t $1_var_run_t:file create_file_perms;
 allow $1_t $1_var_run_t:dir rw_dir_perms;
-files_pid_filetrans($1_t,$1_var_run_t)
+files_pid_filetrans($1_t,$1_var_run_t,file)
 
 #
 # var_run_domain($1,$2): complete
