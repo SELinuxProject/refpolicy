@@ -102,10 +102,6 @@ interface(`corenet_raw_send_$1_if',`
 	')
 
 	allow dollarsone $1_$2:netif rawip_send;
-
-	# cjp: comment out until raw access is
-	# is fixed for network users
-	#allow dollarsone self:capability net_raw;
 ')
 
 ########################################
