@@ -35,6 +35,10 @@ files_type(clamd_var_lib_t)
 type clamd_var_run_t;
 files_pid_file(clamd_var_run_t)
 
+type clamscan_t;
+type clamscan_exec_t;
+init_daemon_domain(clamscan_t, clamscan_exec_t)
+
 type freshclam_t;
 type freshclam_exec_t;
 init_daemon_domain(freshclam_t, freshclam_exec_t)
@@ -193,3 +197,42 @@ clamav_stream_connect(freshclam_t)
 cron_use_fds(freshclam_t)
 cron_use_system_job_fds(freshclam_t)
 cron_rw_pipes(freshclam_t)
+
+########################################
+#
+# clamscam local policy
+#
+
+allow clamscan_t self:capability { setgid setuid dac_override };
+allow clamscan_t self:fifo_file rw_file_perms;
+allow clamscan_t self:unix_stream_socket create_stream_socket_perms;
+allow clamscan_t self:unix_dgram_socket create_socket_perms;
+allow clamscan_t self:tcp_socket { listen accept };
+
+# configuration files
+allow clamscan_t clamd_etc_t:dir r_dir_perms;
+allow clamscan_t clamd_etc_t:file r_file_perms;
+allow clamscan_t clamd_etc_t:lnk_file { getattr read };
+
+# var/lib files together with clamd
+allow clamscan_t clamd_var_lib_t:file r_file_perms;
+allow clamscan_t clamd_var_lib_t:sock_file rw_file_perms;
+allow clamscan_t clamd_var_lib_t:dir r_dir_perms;
+
+kernel_read_kernel_sysctls(clamscan_t)
+
+files_read_etc_files(clamscan_t)
+files_read_etc_runtime_files(clamscan_t)
+files_search_var_lib(clamscan_t)
+
+libs_use_ld_so(clamscan_t)
+libs_use_shared_libs(clamscan_t)
+
+miscfiles_read_localization(clamscan_t)
+miscfiles_read_public_files(clamscan_t)
+
+clamav_stream_connect(clamscan_t)
+
+optional_policy(`
+	apache_read_sys_content(clamscan_t)
+')
