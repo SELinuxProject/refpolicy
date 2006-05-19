@@ -1,5 +1,5 @@
 
-policy_module(selinux,1.1.0)
+policy_module(selinux,1.1.1)
 
 ########################################
 #
@@ -9,6 +9,7 @@ policy_module(selinux,1.1.0)
 attribute can_load_policy;
 attribute can_setenforce;
 attribute can_setsecparam;
+attribute selinux_unconfined_type;
 
 # 
 # security_t is the target type when checking
@@ -21,6 +22,23 @@ mls_trusted_object(security_t)
 sid security gen_context(system_u:object_r:security_t,s15:c0.c255)
 genfscon selinuxfs / gen_context(system_u:object_r:security_t,s0)
 
-neverallow ~can_load_policy security_t:security load_policy;
-neverallow ~can_setenforce security_t:security setenforce;
-neverallow ~can_setsecparam security_t:security setsecparam;
+neverallow ~{ selinux_unconfined_type can_load_policy } security_t:security load_policy;
+neverallow ~{ selinux_unconfined_type can_setenforce } security_t:security setenforce;
+neverallow ~{ selinux_unconfined_type can_setsecparam } security_t:security setsecparam;
+
+########################################
+#
+# Unconfined access to this module
+#
+
+# use SELinuxfs
+allow selinux_unconfined_type security_t:dir { getattr search read };
+allow selinux_unconfined_type security_t:file { getattr read write };
+
+# Access the security API.
+allow selinux_unconfined_type security_t:security ~{ load_policy setenforce setbool };
+
+if(!secure_mode_policyload) {
+	allow selinux_unconfined_type security_t:security { load_policy setenforce setbool };
+	auditallow selinux_unconfined_type security_t:security { load_policy setenforce setbool };
+}
