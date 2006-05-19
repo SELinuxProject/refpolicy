@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.2.6)
+policy_module(selinuxutil,1.2.7)
 
 gen_require(`
 	bool secure_mode;
@@ -92,7 +92,11 @@ role system_r types restorecond_t;
 type restorecond_var_run_t;
 files_pid_file(restorecond_var_run_t)
 
-type run_init_t;
+# real declaration moved to mls until
+# range transitions work in modules
+gen_require(`
+	type run_init_t;
+')
 type run_init_exec_t;
 domain_type(run_init_t)
 domain_entry_file(run_init_t,run_init_exec_t)
@@ -447,7 +451,7 @@ libs_use_shared_libs(restorecond_t)
 
 logging_send_syslog_msg(restorecond_t)
 
-miscfiles_read_localization(run_init_t)
+miscfiles_read_localization(restorecond_t)
 
 #################################
 #
@@ -460,6 +464,8 @@ selinux_compute_access_vector(run_init_t)
 selinux_compute_create_context(run_init_t)
 selinux_compute_relabel_context(run_init_t)
 selinux_compute_user_contexts(run_init_t)
+
+mls_rangetrans_source(run_init_t)
 
 ifdef(`direct_sysadm_daemon',`',`
 	ifdef(`distro_gentoo',`
@@ -526,6 +532,8 @@ ifdef(`targeted_policy',`',`
 #
 
 allow semanage_t self:unix_stream_socket create_stream_socket_perms;
+allow semanage_t self:unix_dgram_socket create_socket_perms;
+allow semanage_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 
 allow semanage_t policy_config_t:file { read write };
 
@@ -534,6 +542,8 @@ kernel_read_kernel_sysctls(semanage_t)
 
 corecmd_exec_bin(semanage_t)
 corecmd_exec_sbin(semanage_t)
+
+dev_read_urand(semanage_t)
 
 files_read_etc_files(semanage_t)
 files_read_usr_files(semanage_t)
@@ -544,12 +554,16 @@ mls_rangetrans_target(semanage_t)
 mls_file_read_up(semanage_t)
 
 selinux_get_enforce_mode(semanage_t)
+# for setsebool:
+selinux_set_boolean(semanage_t)
 
 term_use_all_terms(semanage_t)
 
 libs_use_ld_so(semanage_t)
 libs_use_shared_libs(semanage_t)
 libs_use_lib_files(semanage_t)
+
+logging_send_syslog_msg(semanage_t)
 
 miscfiles_read_localization(semanage_t)
 
@@ -564,6 +578,8 @@ seutil_use_newrole_fds(semanage_t)
 seutil_manage_module_store(semanage_t)
 seutil_get_semanage_trans_lock(semanage_t)
 seutil_get_semanage_read_lock(semanage_t)
+
+userdom_search_sysadm_home_dirs(semanage_t)
 
 ifdef(`targeted_policy',`
 # Handle pp files created in homedir and /tmp
