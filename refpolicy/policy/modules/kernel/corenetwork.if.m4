@@ -466,7 +466,7 @@ define(`create_packet_interfaces',``
 #
 interface(`corenet_send_$1_packets',`
 	gen_require(`
-		type $1_t;
+		type $1_packet_t;
 	')
 
 	allow dollarsone $1_packet_t:packet send;
@@ -485,7 +485,7 @@ interface(`corenet_send_$1_packets',`
 #
 interface(`corenet_receive_$1_packets',`
 	gen_require(`
-		type $1_t;
+		type $1_packet_t;
 	')
 
 	allow dollarsone $1_packet_t:packet recv;
@@ -519,7 +519,7 @@ interface(`corenet_sendrecv_$1_packets',`
 #
 interface(`corenet_relabelto_$1_packets',`
 	gen_require(`
-		type $1_t;
+		type $1_packet_t;
 	')
 
 	allow dollarsone $1_packet_t:packet relabelto;
