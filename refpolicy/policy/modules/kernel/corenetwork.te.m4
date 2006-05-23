@@ -62,3 +62,11 @@ define(`network_port',`
 type $1_port_t, port_type;
 declare_ports($1_port_t,shift($*))
 ')
+
+#
+# network_packet(packet_name)
+#
+define(`network_packet',`
+type $1_client_packet_t, packet_type;
+type $1_server_packet_t, packet_type;
+')
