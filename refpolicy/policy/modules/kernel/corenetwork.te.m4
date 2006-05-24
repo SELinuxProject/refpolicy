@@ -60,6 +60,8 @@ ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 #
 define(`network_port',`
 type $1_port_t, port_type;
+type $1_client_packet_t, packet_type;
+type $1_server_packet_t, packet_type;
 declare_ports($1_port_t,shift($*))
 ')
 

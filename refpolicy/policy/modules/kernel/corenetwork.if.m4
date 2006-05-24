@@ -580,6 +580,8 @@ define(`create_port_attrib_interfaces',`create_port_interfaces($1,port,attribute
 #
 define(`network_port',`
 create_port_type_interfaces($*)
+create_packet_interfaces($1_client)
+create_packet_interfaces($1_server)
 ')
 
 #
