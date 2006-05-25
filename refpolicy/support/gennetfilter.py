@@ -1,6 +1,15 @@
-import sys,getopt,re
+#!/usr/bin/python
 
-NETPORT = re.compile("^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*$")
+# Author: Chris PeBenito <cpebenito@tresys.com>
+#
+# Copyright (C) 2006 Tresys Technology, LLC
+#      This program is free software; you can redistribute it and/or modify
+#      it under the terms of the GNU General Public License as published by
+#      the Free Software Foundation, version 2.
+
+import sys,string,getopt,re
+
+NETPORT = re.compile("^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
 
 DEFAULT_PACKET = "packet_t"
 DEFAULT_MCS = "s0"
@@ -89,7 +98,10 @@ def parse_corenet(file_name):
 			corenet_line = corenet_line.strip();
 
 			# parse out the parameters
-			parms = re.split('\W+',corenet_line[13:-1])
+			openparen = string.find(corenet_line,'(')+1
+			closeparen = string.find(corenet_line,')',openparen)
+			print corenet_line[openparen:closeparen]
+			parms = re.split('\W+',corenet_line[openparen:closeparen])
 			name = parms[0]
 			del parms[0];
 
@@ -105,7 +117,7 @@ def parse_corenet(file_name):
 
 	return packets
 
-def write_netfilter_config(packets,mls,mcs):
+def print_netfilter_config(packets,mls,mcs):
 	print "*mangle"
 	print ":PREROUTING ACCEPT [0:0]"
 	print ":INPUT ACCEPT [0:0]"
@@ -148,4 +160,4 @@ elif len(paths) > 1:
 	sys.stderr.write("Ignoring extra specified paths\n")
 
 packets=parse_corenet(paths[0])
-write_netfilter_config(packets,mls,mcs)
+print_netfilter_config(packets,mls,mcs)
