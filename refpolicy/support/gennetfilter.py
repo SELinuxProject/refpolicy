@@ -100,7 +100,6 @@ def parse_corenet(file_name):
 			# parse out the parameters
 			openparen = string.find(corenet_line,'(')+1
 			closeparen = string.find(corenet_line,')',openparen)
-			print corenet_line[openparen:closeparen]
 			parms = re.split('\W+',corenet_line[openparen:closeparen])
 			name = parms[0]
 			del parms[0];
