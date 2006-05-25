@@ -90,6 +90,7 @@ FCSORT := $(TMPDIR)/fc_sort
 SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(SUPPORT)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(SUPPORT)/comment_move_decl.sed
+gennetfilter := $(PYTHON) $(SUPPORT)/gennetfilter.py
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) $(SUPPORT)/genhomedircon
@@ -158,6 +159,7 @@ ifneq ($(findstring -mls,$(TYPE)),)
 	M4PARAM += -D enable_mls
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
+	gennetfilter += -m
 endif
 
 # enable MLS if MCS requested.
@@ -165,6 +167,7 @@ ifneq ($(findstring -mcs,$(TYPE)),)
 	M4PARAM += -D enable_mcs
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
+	gennetfilter += -c
 endif
 
 # enable distribution-specific policy
@@ -231,6 +234,7 @@ SEUSERS := $(APPCONF)/seusers
 APPDIR := $(CONTEXTPATH)
 APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
 CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
+net_contexts := $(BUILDDIR)net_contexts
 
 ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
 ifdef LOCAL_ROOT
@@ -339,6 +343,14 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 	@echo "#" >> $@
 	$(verbose) m4 -D self_contained_policy $(M4PARAM) $^ \
 		| sed -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
+
+########################################
+#
+# Network packet labeling
+#
+$(net_contexts): $(MODDIR)/kernel/corenetwork.te.in
+	@echo "Creating netfilter network labeling rules"
+	$(verbose) $(gennetfilter) $^ > $@
 
 ########################################
 #
