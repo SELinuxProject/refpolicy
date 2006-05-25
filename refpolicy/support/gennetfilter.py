@@ -1,12 +1,13 @@
-import re
+import sys,getopt,re
 
 NETPORT = re.compile("^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*$")
 
 DEFAULT_PACKET = "packet_t"
+DEFAULT_MCS = "s0"
+DEFAULT_MLS = "s0"
+
 PACKET_INPUT = "_server_packet_t"
 PACKET_OUTPUT = "_client_packet_t"
-
-packets = []
 
 class Port:
 	def __init__(self, proto, num, mls_sens, mcs_cats=""):
@@ -21,10 +22,7 @@ class Port:
 
 		# MCS categories
 		# not currently supported, so we always get s0
-		if mcs_cats == "":
-			self.mcs_cats = "s0"
-		else
-			self.mcs_cats = "s0:"+mcs_cats
+		self.mcs_cats = DEFAULT_MCS
 
 class Packet:
 	def __init__(self, prefix, ports):
@@ -34,25 +32,50 @@ class Packet:
 		# A list of Ports
 		self.ports = ports
 
-def print_input_rules():
-	print "-A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+def print_input_rules(packets,mls,mcs):
+	line = "-A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
+
+	print line
+
 	for i in packets:
 		for j in i.ports:
-			output_line="-A selinux_new_input -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
+			line="-A selinux_new_input -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
+			if mls:
+				line += ":"+j.mls_sens
+			elif mcs:
+				line += ":"+j.mcs_cats
+			print line
 
 	print "-A selinux_new_input -j CONNSECMARK --save"
 	print "-A selinux_new_input -j RETURN"
 
-def print_output_rules():
-	print "-A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+def print_output_rules(packets,mls,mcs):
+	line = "-A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
+	print line
+
 	for i in packets:
 		for j in i.ports:
-			print "-A selinux_new_output -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
+			line = "-A selinux_new_output -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
+			if mls:
+				line += ":"+j.mls_sens
+			elif mcs:
+				line += ":"+j.mcs_cats
+			print line
 
 	print "-A selinux_new_output -j CONNSECMARK --save"
 	print "-A selinux_new_output -j RETURN"
 
 def parse_corenet(file_name):
+	packets = []
+
 	corenet_te_in = open(file_name, "r")
 
 	while True:
@@ -80,7 +103,9 @@ def parse_corenet(file_name):
 		
 	corenet_te_in.close()
 
-def write_netfilter_config():
+	return packets
+
+def write_netfilter_config(packets,mls,mcs):
 	print "*mangle"
 	print ":PREROUTING ACCEPT [0:0]"
 	print ":INPUT ACCEPT [0:0]"
@@ -97,9 +122,30 @@ def write_netfilter_config():
 	print "-A selinux_input -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
 	print "-A selinux_output -m state --state NEW -j selinux_new_output"
 	print "-A selinux_output -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
-	print_input_rules()
-	print_output_rules()
+	print_input_rules(packets,mls,mcs)
+	print_output_rules(packets,mls,mcs)
 	print "COMMIT"
 
-parse_corenet("policy/modules/kernel/corenetwork.te.in")
-write_netfilter_config()
+mls = False
+mcs = False
+
+try:
+	opts, paths = getopt.getopt(sys.argv[1:],'mc',['mls','mcs'])
+except getopt.GetoptError, error:
+	print "Invalid options."
+	sys.exit(1)
+
+for o, a in opts:
+	if o in ("-c","--mcs"):
+		mcs = True
+	if o in ("-m","--mls"):
+		mls = True
+
+if len(paths) == 0:
+	sys.stderr.write("Need a path for corenetwork.te.in!\n")
+	sys.exit(1)
+elif len(paths) > 1:
+	sys.stderr.write("Ignoring extra specified paths\n")
+
+packets=parse_corenet(paths[0])
+write_netfilter_config(packets,mls,mcs)
