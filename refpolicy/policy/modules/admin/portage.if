@@ -15,7 +15,7 @@
 #
 interface(`portage_domtrans',`
 	gen_require(`
-		type portage_t, portage_exec_t;
+		type portage_t, portage_t.merge, portage_exec_t;
 	')
 
 	files_search_usr($1)
@@ -321,6 +321,8 @@ interface(`portage_main_domain',`
 	# run setfiles -r
 	seutil_domtrans_setfiles($1)
 
+	portage_domtrans_gcc_config($1)
+
 	optional_policy(`
 		bootloader_domtrans($1)
 	')
@@ -342,4 +344,61 @@ interface(`portage_main_domain',`
 	dontaudit portage_t proc_t:dir setattr;
 	dontaudit portage_t device_type:{ chr_file blk_file } r_file_perms;
 	')
+')
+
+########################################
+## <summary>
+##	Execute gcc-config in the gcc_config domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`portage_domtrans_gcc_config',`
+	gen_require(`
+		type gcc_config_t, gcc_config_exec_t;
+	')
+
+	files_search_usr($1)
+	corecmd_search_bin($1)
+
+	domain_auto_trans($1,gcc_config_exec_t,gcc_config_t)
+	allow gcc_config_t $1:fd use;
+	allow gcc_config_t $1:fifo_file rw_file_perms;
+	allow gcc_config_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute gcc-config in the gcc_config domain, and
+##	allow the specified role the gcc_config domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to allow the gcc_config domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow for gcc_config to use.
+##	</summary>
+## </param>
+#
+interface(`portage_run_gcc_config',`
+	gen_require(`
+		type gcc_config_t;
+	')
+
+	portage_domtrans_gcc_config($1)
+
+	# constraining access
+	role $2 types gcc_config_t;
+	allow gcc_config_t $3:chr_file rw_term_perms;
 ')
