@@ -11,7 +11,8 @@ import sys,string,getopt,re
 
 NETPORT = re.compile("^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
 
-DEFAULT_PACKET = "packet_t"
+DEFAULT_INPUT_PACKET = "server_packet_t"
+DEFAULT_OUTPUT_PACKET = "client_packet_t"
 DEFAULT_MCS = "s0"
 DEFAULT_MLS = "s0"
 
@@ -42,7 +43,7 @@ class Packet:
 		self.ports = ports
 
 def print_input_rules(packets,mls,mcs):
-	line = "-A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+	line = "-A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_INPUT_PACKET
 	if mls:
 		line += ":"+DEFAULT_MLS
 	elif mcs:
@@ -63,7 +64,7 @@ def print_input_rules(packets,mls,mcs):
 	print "-A selinux_new_input -j RETURN"
 
 def print_output_rules(packets,mls,mcs):
-	line = "-A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_PACKET
+	line = "-A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_OUTPUT_PACKET
 	if mls:
 		line += ":"+DEFAULT_MLS
 	elif mcs:
