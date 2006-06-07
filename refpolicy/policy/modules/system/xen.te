@@ -1,5 +1,5 @@
 
-policy_module(xen,1.0.5)
+policy_module(xen,1.0.6)
 
 ########################################
 #
@@ -10,6 +10,10 @@ policy_module(xen,1.0.5)
 type xen_devpts_t;
 term_pty(xen_devpts_t);
 files_type(xen_devpts_t);
+
+# Xen Image files
+type xen_image_t; # customizable
+files_type(xen_image_t)
 
 type xend_t;
 type xend_exec_t;
@@ -74,6 +78,9 @@ allow xend_t self:netlink_route_socket r_netlink_socket_perms;
 allow xend_t self:tcp_socket create_stream_socket_perms;
 allow xend_t self:packet_socket create_socket_perms;
 
+allow xend_t xen_image_t:dir r_dir_perms;
+allow xend_t xen_image_t:file r_file_perms;
+
 # pid file
 allow xend_t xend_var_run_t:file manage_file_perms;
 allow xend_t xend_var_run_t:sock_file manage_file_perms;
@@ -89,8 +96,9 @@ logging_log_filetrans(xend_t,xend_var_log_t,{ sock_file file dir })
 # var/lib files for xend
 allow xend_t xend_var_lib_t:file create_file_perms;
 allow xend_t xend_var_lib_t:sock_file create_file_perms;
+allow xend_t xend_var_lib_t:fifo_file create_file_perms;
 allow xend_t xend_var_lib_t:dir create_dir_perms;
-files_var_lib_filetrans(xend_t,xend_var_lib_t,{ file dir sock_file })
+files_var_lib_filetrans(xend_t,xend_var_lib_t,{ file dir })
 
 # transition to store
 domain_auto_trans(xend_t, xenstored_exec_t, xenstored_t)
@@ -117,6 +125,7 @@ corenet_non_ipsec_sendrecv(xend_t)
 corenet_tcp_sendrecv_all_if(xend_t)
 corenet_tcp_sendrecv_all_nodes(xend_t)
 corenet_tcp_sendrecv_all_ports(xend_t)
+corenet_tcp_bind_all_nodes(xend_t)
 corenet_tcp_bind_xen_port(xend_t)
 corenet_tcp_bind_soundd_port(xend_t)
 corenet_sendrecv_xen_server_packets(xend_t)
@@ -133,6 +142,8 @@ domain_dontaudit_read_all_domains_state(xend_t)
 files_read_etc_files(xend_t)
 files_read_kernel_symbol_table(xend_t)
 files_read_kernel_img(xend_t)
+files_manage_etc_runtime_files(xend_t)
+files_etc_filetrans_etc_runtime(xend_t,file)
 
 storage_raw_read_fixed_disk(xend_t)
 
@@ -244,10 +255,15 @@ xen_append_log(xenstored_t)
 # xm local policy
 #
 
-allow xm_t self:capability dac_override;
+allow xm_t self:capability { dac_override ipc_lock };
 # internal communication is often done using fifo and unix sockets.
 allow xm_t self:fifo_file { read write };
 allow xm_t self:unix_stream_socket create_stream_socket_perms;
+
+allow xm_t xend_var_lib_t:dir rw_dir_perms;
+allow xm_t xend_var_lib_t:fifo_file create_file_perms;
+allow xm_t xend_var_lib_t:file create_file_perms;
+files_search_var_lib(xm_t)
 
 kernel_read_system_state(xm_t)
 kernel_read_kernel_sysctls(xm_t)
@@ -259,10 +275,15 @@ corecmd_exec_sbin(xm_t)
 
 dev_read_urand(xm_t)
 
+files_read_etc_runtime_files(xm_t)
+files_read_usr_files(xm_t)
+files_list_mnt(xm_t)
 # Some common macros (you might be able to remove some)
 files_read_etc_files(xm_t)
 
 term_use_all_terms(xm_t)
+
+init_rw_script_stream_sockets(xm_t)
 
 libs_use_ld_so(xm_t)
 libs_use_shared_libs(xm_t)

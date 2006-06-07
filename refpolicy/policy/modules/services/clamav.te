@@ -1,5 +1,5 @@
 
-policy_module(clamav,1.0.2)
+policy_module(clamav,1.0.3)
 
 ########################################
 #
@@ -38,6 +38,10 @@ files_pid_file(clamd_var_run_t)
 type clamscan_t;
 type clamscan_exec_t;
 init_daemon_domain(clamscan_t, clamscan_exec_t)
+
+# tmp files
+type clamscan_tmp_t;
+files_tmp_file(clamscan_tmp_t)
 
 type freshclam_t;
 type freshclam_exec_t;
@@ -111,12 +115,15 @@ domain_use_interactive_fds(clamd_t)
 
 files_read_etc_files(clamd_t)
 files_read_etc_runtime_files(clamd_t)
+files_search_spool(clamd_t)
 
 init_use_fds(clamd_t)
 init_use_script_ptys(clamd_t)
 
 libs_use_ld_so(clamd_t)
 libs_use_shared_libs(clamd_t)
+
+logging_send_syslog_msg(clamd_t)
 
 miscfiles_read_localization(clamd_t)
 
@@ -126,8 +133,14 @@ cron_use_fds(clamd_t)
 cron_use_system_job_fds(clamd_t)
 cron_rw_pipes(clamd_t)
 
+ifdef(`targeted_policy',`
+	term_dontaudit_use_generic_ptys(clamd_t)
+')
+
 optional_policy(`
 	amavis_read_lib_files(clamd_t)
+	amavis_read_spool_files(clamd_t)
+	amavis_spool_filetrans(clamd_t,clamd_var_run_t,sock_file)
 ')
 
 ########################################
@@ -213,6 +226,11 @@ allow clamscan_t self:tcp_socket { listen accept };
 allow clamscan_t clamd_etc_t:dir r_dir_perms;
 allow clamscan_t clamd_etc_t:file r_file_perms;
 allow clamscan_t clamd_etc_t:lnk_file { getattr read };
+
+# tmp files
+allow clamscan_t clamscan_tmp_t:file manage_file_perms;
+allow clamscan_t clamscan_tmp_t:dir manage_dir_perms;
+files_tmp_filetrans(clamscan_t,clamscan_tmp_t,{ file dir })
 
 # var/lib files together with clamd
 allow clamscan_t clamd_var_lib_t:file r_file_perms;
