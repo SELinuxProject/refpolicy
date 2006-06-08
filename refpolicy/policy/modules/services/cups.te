@@ -1,5 +1,5 @@
 
-policy_module(cups,1.3.6)
+policy_module(cups,1.3.7)
 
 ########################################
 #
@@ -156,6 +156,7 @@ fs_search_auto_mountpoints(cupsd_t)
 
 term_dontaudit_use_console(cupsd_t)
 term_write_unallocated_ttys(cupsd_t)
+term_search_ptys(cupsd_t)
 
 auth_domtrans_chk_passwd(cupsd_t)
 auth_dontaudit_read_pam_pid(cupsd_t)
@@ -176,6 +177,11 @@ files_search_var_lib(cupsd_t)
 files_list_world_readable(cupsd_t)
 files_read_world_readable_files(cupsd_t)
 files_read_world_readable_symlinks(cupsd_t)
+# Satisfy readahead
+files_read_var_files(cupsd_t)
+files_read_var_symlinks(cupsd_t)
+# for /etc/printcap
+files_dontaudit_write_etc_files(cupsd_t)
 
 init_use_fds(cupsd_t)
 init_use_script_ptys(cupsd_t)
@@ -203,9 +209,22 @@ userdom_dontaudit_search_all_users_home_content(cupsd_t)
 lpd_manage_spool(cupsd_t)
 
 ifdef(`targeted_policy',`
+	files_dontaudit_read_root_files(cupsd_t)
+
 	term_dontaudit_use_unallocated_ttys(cupsd_t)
 	term_dontaudit_use_generic_ptys(cupsd_t)
-	files_dontaudit_read_root_files(cupsd_t)
+
+	init_stream_connect_script(cupsd_t)
+
+	unconfined_read_pipes(cupsd_t)
+
+	optional_policy(`
+		init_dbus_chat_script(cupsd_t)
+
+		unconfined_dbus_send(cupsd_t)
+
+		dbus_stub(cupsd_t)
+	')
 ')
 
 optional_policy(`
@@ -266,23 +285,6 @@ allow web_client_domain kernel_t:tcp_socket recvfrom;
 allow cupsd_t usercanread:dir r_dir_perms;
 allow cupsd_t usercanread:file r_file_perms;
 allow cupsd_t usercanread:lnk_file { getattr read };
-
-allow cupsd_t devpts_t:dir search;
-
-dontaudit cupsd_t random_device_t:chr_file ioctl;
-
-# temporary solution, we need something better
-#allow cupsd_t serial_device:chr_file rw_file_perms;
-
-# for /etc/printcap
-dontaudit cupsd_t etc_t:file write;
-
-#
-# Satisfy readahead
-#
-allow cupsd_t var_t:dir { getattr read search };
-allow cupsd_t var_t:file r_file_perms;
-allow cupsd_t var_t:lnk_file { getattr read };
 
 ########################################
 #
@@ -364,9 +366,12 @@ domain_dontaudit_search_all_domains_state(cupsd_config_t)
 files_read_usr_files(cupsd_config_t)
 files_read_etc_files(cupsd_config_t)
 files_read_etc_runtime_files(cupsd_config_t)
+files_read_var_symlinks(cupsd_config_t)
 
 init_use_fds(cupsd_config_t)
 init_use_script_ptys(cupsd_config_t)
+# Alternatives asks for this
+init_getattr_script_files(cupsd_config_t)
 
 libs_use_ld_so(cupsd_config_t)
 libs_use_shared_libs(cupsd_config_t)
@@ -382,6 +387,8 @@ sysnet_read_config(cupsd_config_t)
 userdom_dontaudit_use_unpriv_user_fds(cupsd_config_t)
 userdom_dontaudit_search_sysadm_home_dirs(cupsd_config_t)
 
+lpd_read_config(cupsd_config_t)
+
 ifdef(`distro_redhat',`
 	init_getattr_script_files(cupsd_config_t)
 
@@ -391,9 +398,12 @@ ifdef(`distro_redhat',`
 ')
 
 ifdef(`targeted_policy', `
-	term_dontaudit_use_unallocated_ttys(cupsd_config_t)
-	term_dontaudit_use_generic_ptys(cupsd_config_t)
 	files_dontaudit_read_root_files(cupsd_config_t)
+
+	term_dontaudit_use_unallocated_ttys(cupsd_config_t)
+	term_use_generic_ptys(cupsd_config_t)
+
+	unconfined_rw_pipes(cupsd_config_t)
 ')
 
 optional_policy(`
@@ -440,33 +450,6 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(cupsd_config_t)
-')
-
-allow cupsd_config_t var_t:lnk_file read;
-
-allow cupsd_config_t printconf_t:file { getattr read };
-
-# Alternatives asks for this
-allow cupsd_config_t initrc_exec_t:file getattr;
-
-ifdef(`targeted_policy', `
-	init_stream_connect_script(cupsd_t)
-
-	unconfined_read_pipes(cupsd_t)
-
-	optional_policy(`
-		init_dbus_chat_script(cupsd_t)
-
-		unconfined_dbus_send(cupsd_t)
-
-		dbus_stub(cupsd_t)
-	')
-')
-
-ifdef(`targeted_policy',`
-	term_use_generic_ptys(cupsd_config_t)
-
-	unconfined_rw_pipes(cupsd_config_t)
 ')
 
 ########################################
@@ -658,7 +641,6 @@ optional_policy(`
 	udev_read_db(hplip_t)
 ')
 
-allow hplip_t devpts_t:dir search;
 allow hplip_t devpts_t:chr_file { getattr ioctl };
 
 ########################################
@@ -744,9 +726,3 @@ optional_policy(`
 optional_policy(`
 	udev_read_db(ptal_t)
 ')
-
-allow initrc_t printer_device_t:chr_file getattr;
-
-allow initrc_t ptal_var_run_t:dir rmdir;
-allow initrc_t ptal_var_run_t:fifo_file unlink;
-allow initrc_t cupsd_rw_etc_t:file r_file_perms;
