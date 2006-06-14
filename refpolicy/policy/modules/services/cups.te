@@ -1,5 +1,5 @@
 
-policy_module(cups,1.3.8)
+policy_module(cups,1.3.9)
 
 ########################################
 #
@@ -131,8 +131,10 @@ kernel_tcp_recvfrom(cupsd_t)
 corenet_non_ipsec_sendrecv(cupsd_t)
 corenet_tcp_sendrecv_all_if(cupsd_t)
 corenet_udp_sendrecv_all_if(cupsd_t)
+corenet_raw_sendrecv_all_if(cupsd_t)
 corenet_tcp_sendrecv_all_nodes(cupsd_t)
 corenet_udp_sendrecv_all_nodes(cupsd_t)
+corenet_raw_sendrecv_all_nodes(cupsd_t)
 corenet_tcp_sendrecv_all_ports(cupsd_t)
 corenet_udp_sendrecv_all_ports(cupsd_t)
 corenet_tcp_bind_all_nodes(cupsd_t)
@@ -153,6 +155,8 @@ dev_read_usbfs(cupsd_t)
 
 fs_getattr_all_fs(cupsd_t)
 fs_search_auto_mountpoints(cupsd_t)
+# from old usercanread attrib:
+fs_read_removable_files(cupsd_t)
 
 term_dontaudit_use_console(cupsd_t)
 term_write_unallocated_ttys(cupsd_t)
@@ -251,10 +255,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	mount_send_nfs_client_request(cupsd_t)
-')
-
-optional_policy(`
 	nscd_socket_use(cupsd_t)
 ')
 
@@ -263,8 +263,13 @@ optional_policy(`
 ')
 
 optional_policy(`
+	# from old usercanread attrib:
+	rpc_read_nfs_content(cupsd_t)
+	rpc_read_nfs_state_data(cupsd_t)
+')
+
+optional_policy(`
 	samba_rw_var_files(cupsd_t)
-	# cjp: rw_dir_perms was here, but doesnt make sense
 ')
 
 optional_policy(`
@@ -273,6 +278,16 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(cupsd_t)
+')
+
+optional_policy(`
+	# from old usercanread attrib:
+	usermanage_read_crack_db(cupsd_t)
+')
+
+optional_policy(`
+	# from old usercanread attrib:
+	xserver_read_xkb_libs(cupsd_t)
 ')
 
 ifdef(`TODO',`
@@ -308,11 +323,6 @@ allow cupsd_config_t cupsd_t:{ file lnk_file } { getattr read };
 allow cupsd_config_t cupsd_t:dir { search getattr read };
 allow cupsd_config_t cupsd_t:{ file lnk_file } { read getattr };
 allow cupsd_config_t cupsd_t:process getattr;
-# We need to suppress this denial because procps tries to access
-# /proc/pid/environ and this now triggers a ptrace check in recent kernels
-# (2.4 and 2.6).  Might want to change procps to not do this, or only if
-# running in a privileged domain.
-dontaudit cupsd_config_t cupsd_t:process ptrace;
 
 allow cupsd_config_t cupsd_config_var_run_t:file create_file_perms;
 allow cupsd_config_t cupsd_config_var_run_t:dir rw_dir_perms;
@@ -338,14 +348,12 @@ kernel_read_system_state(cupsd_config_t)
 kernel_read_kernel_sysctls(cupsd_config_t)
 kernel_tcp_recvfrom(cupsd_config_t)
 
-corenet_tcp_sendrecv_all_if(cupsd_config_t)
-corenet_raw_sendrecv_all_if(cupsd_config_t)
-corenet_tcp_sendrecv_all_nodes(cupsd_config_t)
-corenet_raw_sendrecv_all_nodes(cupsd_config_t)
-corenet_tcp_sendrecv_all_ports(cupsd_config_t)
 corenet_non_ipsec_sendrecv(cupsd_config_t)
-corenet_tcp_bind_all_nodes(cupsd_config_t)
+corenet_tcp_sendrecv_all_if(cupsd_config_t)
+corenet_tcp_sendrecv_all_nodes(cupsd_config_t)
+corenet_tcp_sendrecv_all_ports(cupsd_config_t)
 corenet_tcp_connect_all_ports(cupsd_config_t)
+corenet_sendrecv_all_client_packets(cupsd_config_t)
 
 dev_read_sysfs(cupsd_config_t)
 dev_read_urand(cupsd_config_t)
@@ -493,15 +501,13 @@ kernel_read_kernel_sysctls(cupsd_lpd_t)
 kernel_read_system_state(cupsd_lpd_t)
 kernel_read_network_state(cupsd_lpd_t)
 
+corenet_non_ipsec_sendrecv(cupsd_lpd_t)
 corenet_tcp_sendrecv_all_if(cupsd_lpd_t)
 corenet_udp_sendrecv_all_if(cupsd_lpd_t)
-corenet_raw_sendrecv_all_if(cupsd_lpd_t)
 corenet_tcp_sendrecv_all_nodes(cupsd_lpd_t)
 corenet_udp_sendrecv_all_nodes(cupsd_lpd_t)
-corenet_raw_sendrecv_all_nodes(cupsd_lpd_t)
 corenet_tcp_sendrecv_all_ports(cupsd_lpd_t)
 corenet_udp_sendrecv_all_ports(cupsd_lpd_t)
-corenet_non_ipsec_sendrecv(cupsd_lpd_t)
 corenet_tcp_bind_all_nodes(cupsd_lpd_t)
 corenet_udp_bind_all_nodes(cupsd_lpd_t)
 corenet_tcp_connect_ipp_port(cupsd_lpd_t)
@@ -546,10 +552,9 @@ allow hplip_t self:fifo_file rw_file_perms;
 allow hplip_t self:process signal_perms;
 allow hplip_t self:unix_dgram_socket create_socket_perms;
 allow hplip_t self:unix_stream_socket create_socket_perms;
+allow hplip_t self:netlink_route_socket r_netlink_socket_perms;
 allow hplip_t self:tcp_socket create_stream_socket_perms;
 allow hplip_t self:udp_socket create_socket_perms;
-allow hplip_t self:netlink_route_socket r_netlink_socket_perms;
-# cjp: raw?
 allow hplip_t self:rawip_socket create_socket_perms;
 
 allow hplip_t cupsd_etc_t:dir search;
@@ -568,6 +573,7 @@ files_pid_filetrans(hplip_t,hplip_var_run_t,file)
 kernel_read_system_state(hplip_t)
 kernel_read_kernel_sysctls(hplip_t)
 
+corenet_non_ipsec_sendrecv(hplip_t)
 corenet_tcp_sendrecv_all_if(hplip_t)
 corenet_udp_sendrecv_all_if(hplip_t)
 corenet_raw_sendrecv_all_if(hplip_t)
@@ -576,7 +582,6 @@ corenet_udp_sendrecv_all_nodes(hplip_t)
 corenet_raw_sendrecv_all_nodes(hplip_t)
 corenet_tcp_sendrecv_all_ports(hplip_t)
 corenet_udp_sendrecv_all_ports(hplip_t)
-corenet_non_ipsec_sendrecv(hplip_t)
 corenet_tcp_bind_all_nodes(hplip_t)
 corenet_udp_bind_all_nodes(hplip_t)
 corenet_tcp_bind_hplip_port(hplip_t)
@@ -641,8 +646,6 @@ optional_policy(`
 	udev_read_db(hplip_t)
 ')
 
-allow hplip_t devpts_t:chr_file { getattr ioctl };
-
 ########################################
 #
 # PTAL local policy
@@ -675,12 +678,10 @@ kernel_read_kernel_sysctls(ptal_t)
 kernel_list_proc(ptal_t)
 kernel_read_proc_symlinks(ptal_t)
 
-corenet_tcp_sendrecv_all_if(ptal_t)
-corenet_raw_sendrecv_all_if(ptal_t)
-corenet_tcp_sendrecv_all_nodes(ptal_t)
-corenet_raw_sendrecv_all_nodes(ptal_t)
-corenet_tcp_sendrecv_all_ports(ptal_t)
 corenet_non_ipsec_sendrecv(ptal_t)
+corenet_tcp_sendrecv_all_if(ptal_t)
+corenet_tcp_sendrecv_all_nodes(ptal_t)
+corenet_tcp_sendrecv_all_ports(ptal_t)
 corenet_tcp_bind_all_nodes(ptal_t)
 corenet_tcp_bind_ptal_port(ptal_t)
 
