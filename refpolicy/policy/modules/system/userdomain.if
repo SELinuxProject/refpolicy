@@ -165,10 +165,8 @@ template(`base_user_template',`
 
 	corenet_non_ipsec_sendrecv($1_t)
 	corenet_tcp_sendrecv_all_if($1_t)
-	corenet_raw_sendrecv_all_if($1_t)
 	corenet_udp_sendrecv_all_if($1_t)
 	corenet_tcp_sendrecv_all_nodes($1_t)
-	corenet_raw_sendrecv_all_nodes($1_t)
 	corenet_udp_sendrecv_all_nodes($1_t)
 	corenet_tcp_sendrecv_all_ports($1_t)
 	corenet_udp_sendrecv_all_ports($1_t)
@@ -255,8 +253,6 @@ template(`base_user_template',`
 	seutil_read_file_contexts($1_t)
 	seutil_read_default_contexts($1_t)
 	seutil_run_newrole($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-
-	mta_rw_spool($1_t)
 
 	tunable_policy(`allow_execmem',`
 		# Allow loading DSOs that require executable stack.
@@ -382,6 +378,10 @@ template(`base_user_template',`
 
 	optional_policy(`
 		jabber_tcp_connect($1_t)
+	')
+
+	optional_policy(`
+		mta_rw_spool($1_t)
 	')
 
 	optional_policy(`
@@ -643,7 +643,7 @@ template(`unpriv_user_template', `
 	')
 
 	ifdef(`TODO',`
-	ifdef(`enable_mls',`',`
+	ifndef(`enable_mls',`
 		fs_exec_noxattr($1_t)
 
 		tunable_policy(`user_rw_noexattrfile',`
@@ -654,8 +654,8 @@ template(`unpriv_user_template', `
 			# cjp: what does this have to do with removable devices?
 			allow $1_t usbtty_device_t:chr_file write;
 		',`
+			fs_read_noxattr_files($1_t)
 			r_dir_file($1_t, noexattrfile)
-			r_dir_file($1_t, removable_t)
 			allow $1_t removable_device_t:blk_file r_file_perms;
 		')
 	')
@@ -702,14 +702,6 @@ template(`unpriv_user_template', `
 	dontaudit $1_t ld_so_cache_t:file write;
 
 	dontaudit $1_t sysadm_home_t:file { read append };
-
-	ifdef(`syslogd.te', `
-		# Some programs that are left in $1_t will try to connect
-		# to syslogd, but we do not want to let them generate log messages.
-		# Do not audit.
-		dontaudit $1_t devlog_t:sock_file { read write };
-		dontaudit $1_t syslogd_t:unix_dgram_socket sendto;
-	')
 
 	allow $1_t initrc_t:fifo_file write;
 	') dnl end TODO
@@ -923,12 +915,6 @@ template(`admin_user_template',`
 		can_pipe_xdm($1_t)
 	')
 
-	# Connect data port to ftpd.
-	ifdef(`ftpd.te', `can_tcp_connect(ftpd_t, $1_t)')
-
-	# Connect second port to rshd.
-	ifdef(`rshd.te', `can_tcp_connect(rshd_t, $1_t)')
-
 	# Allow MAKEDEV to work
 	allow $1_t device_t:dir rw_dir_perms;
 	allow $1_t device_type:{ blk_file chr_file } { create unlink rename };
@@ -960,11 +946,8 @@ template(`admin_user_template',`
 		allow $1_t usbtty_device_t:chr_file write;
 	',`
 		r_dir_file($1_t, noexattrfile)
-		r_dir_file($1_t, removable_t)
-		allow $1_t removable_device_t:blk_file r_file_perms;
+		storage_raw_read_removable_device($1_t)
 	')
-	allow $1 removable_t:filesystem getattr;
-
 	') dnl endif TODO
 ')
 
