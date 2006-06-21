@@ -1,5 +1,5 @@
 
-policy_module(apache,1.3.13)
+policy_module(apache,1.3.14)
 
 #
 # NOTES: 
@@ -24,6 +24,8 @@ attribute httpdcontent;
 
 # domains that can exec all users scripts
 attribute httpd_exec_scripts;
+
+attribute httpd_script_exec_type;
 
 # user script domains
 attribute httpd_script_domains;
@@ -68,6 +70,10 @@ role system_r types httpd_php_t;
 type httpd_php_tmp_t;
 files_tmp_file(httpd_php_tmp_t)
 
+type httpd_rotatelogs_t;
+type httpd_rotatelogs_exec_t;
+init_daemon_domain(httpd_rotatelogs_t, httpd_rotatelogs_exec_t)
+
 type httpd_squirrelmail_t;
 files_type(httpd_squirrelmail_t)
 
@@ -108,14 +114,6 @@ files_pid_file(httpd_var_run_t)
 # File Type of squirrelmail attachments
 type squirrelmail_spool_t;
 files_tmp_file(squirrelmail_spool_t)
-
-# mod_jk2 creates /var/log/httpd/jk2.shm to communicate with tomcat
-# This is a bug but it still exists in FC2
-# cjp: probably can remove this
-ifdef(`distro_redhat',`
-	typealias httpd_log_t alias httpd_runtime_t;
-	dontaudit httpd_t httpd_runtime_t:file ioctl;
-')
 
 ifdef(`targeted_policy',`
 	typealias httpd_sys_content_t alias httpd_user_content_t;
@@ -292,6 +290,15 @@ ifdef(`targeted_policy',`
 tunable_policy(`allow_httpd_anon_write',`
 	miscfiles_manage_public_files(httpd_t)
 ') 
+
+ifdef(`TODO', `
+#
+# We need optionals to be able to be within booleans to make this work
+#
+tunable_policy(`allow_httpd_mod_auth_pam',`
+	auth_domtrans_chk_passwd(httpd_t)
+')
+')
 
 tunable_policy(`httpd_can_network_connect',`
 	corenet_tcp_connect_all_ports(httpd_t)
@@ -655,6 +662,9 @@ kernel_read_kernel_sysctls(httpd_sys_script_t)
 files_search_var_lib(httpd_sys_script_t)
 files_search_spool(httpd_sys_script_t)
 
+# Should we add a boolean?
+apache_domtrans_rotatelogs(httpd_sys_script_t)
+
 ifdef(`distro_redhat',`
 	allow httpd_sys_script_t httpd_log_t:file { getattr append };
 ')
@@ -687,4 +697,27 @@ optional_policy(`
 
 optional_policy(`
 	nscd_socket_use(httpd_unconfined_script_t)
+')
+
+########################################
+#
+# httpd_rotatelogs local policy
+#
+
+allow httpd_rotatelogs_t httpd_log_t:dir rw_dir_perms;
+allow httpd_rotatelogs_t httpd_log_t:file manage_file_perms;
+
+kernel_read_kernel_sysctls(httpd_rotatelogs_t)
+kernel_dontaudit_list_proc(httpd_rotatelogs_t)
+kernel_dontaudit_read_proc_symlinks(httpd_rotatelogs_t)
+
+files_read_etc_files(httpd_rotatelogs_t)
+
+libs_use_ld_so(httpd_rotatelogs_t)
+libs_use_shared_libs(httpd_rotatelogs_t)
+
+miscfiles_read_localization(httpd_rotatelogs_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_generic_ptys(httpd_rotatelogs_t)
 ')

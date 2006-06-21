@@ -15,6 +15,7 @@ template(`apache_content_template',`
 	gen_require(`
 		attribute httpdcontent;
 		attribute httpd_exec_scripts;
+		attribute httpd_script_exec_type;
 		type httpd_t, httpd_suexec_t, httpd_log_t;
 	')
 	# allow write access to public file transfer
@@ -35,7 +36,7 @@ template(`apache_content_template',`
 	role system_r types httpd_$1_script_t;
 
 	# This type is used for executable scripts files
-	type httpd_$1_script_exec_t; # customizable;
+	type httpd_$1_script_exec_t, httpd_script_exec_type; # customizable;
 	corecmd_shell_entry_type(httpd_$1_script_t)
 	domain_entry_file(httpd_$1_script_t,httpd_$1_script_exec_t)
 
@@ -338,6 +339,58 @@ template(`apache_per_userdomain_template', `
 
 ########################################
 ## <summary>
+##	Read httpd user scripts executables.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Prefix of the domain. Example, user would be
+##	the prefix for the uder_t domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`apache_read_user_scripts',`
+	gen_require(`
+		type httpd_$1_script_exec_t;
+	')
+
+	allow $2 httpd_$1_script_exec_t:dir r_dir_perms;
+	allow $2 httpd_$1_script_exec_t:file r_file_perms;
+	allow $2 httpd_$1_script_exec_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Read user web content.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Prefix of the domain. Example, user would be
+##	the prefix for the uder_t domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`apache_read_user_content',`
+	gen_require(`
+		type httpd_$1_content_t;
+	')
+
+	allow $2 httpd_$1_content_t:dir r_dir_perms;
+	allow $2 httpd_$1_content_t:file r_file_perms;
+	allow $2 httpd_$1_content_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
 ##	Transition to apache.
 ## </summary>
 ## <param name="domain">
@@ -464,12 +517,17 @@ interface(`apache_dontaudit_rw_tcp_sockets',`
 #
 interface(`apache_manage_all_content',`
 	gen_require(`
-		attribute httpdcontent;
+		attribute httpdcontent, httpd_script_exec_type;
 	')
 
 	allow $1 httpdcontent:dir manage_dir_perms;
 	allow $1 httpdcontent:file manage_file_perms;
 	allow $1 httpdcontent:lnk_file create_lnk_perms;
+
+	allow $1 httpd_script_exec_type:dir manage_dir_perms;
+	allow $1 httpd_script_exec_type:file manage_file_perms;
+	allow $1 httpd_script_exec_type:lnk_file create_lnk_perms;
+
 ')
 
 ########################################
@@ -510,6 +568,28 @@ interface(`apache_read_config',`
 	files_search_etc($1)
 	allow $1 httpd_config_t:dir r_dir_perms;
 	allow $1 httpd_config_t:file r_file_perms;
+	allow $1 httpd_config_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	apache configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_manage_config',`
+	gen_require(`
+		type httpd_config_t;
+	')
+
+	files_search_etc($1)
+	allow $1 httpd_config_t:dir manage_dir_perms;
+	allow $1 httpd_config_t:file manage_file_perms;
 	allow $1 httpd_config_t:lnk_file { getattr read };
 ')
 
@@ -634,6 +714,28 @@ interface(`apache_dontaudit_append_log',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to manage
+##	to apache log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_manage_log',`
+	gen_require(`
+		type httpd_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 httpd_log_t:dir manage_dir_perms;
+	allow $1 httpd_log_t:file manage_file_perms;
+	allow $1 httpd_log_t:lnk_file { getattr read };
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to search Apache
 ##	module directories.
 ## </summary>
@@ -690,6 +792,28 @@ interface(`apache_exec_modules',`
 	allow $1 httpd_modules_t:dir r_dir_perms;
 	allow $1 httpd_modules_t:lnk_file r_file_perms;
 	can_exec($1,httpd_modules_t)
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run httpd_rotatelogs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_domtrans_rotatelogs',`
+	gen_require(`
+		type httpd_rotatelogs_t, httpd_rotatelogs_exec_t;
+	')
+
+	domain_auto_trans($1,httpd_rotatelogs_exec_t,httpd_rotatelogs_t)
+
+	allow httpd_rotatelogs_t $1:fd use;
+	allow httpd_rotatelogs_t $1:fifo_file rw_file_perms;
+	allow httpd_rotatelogs_t $1:process sigchld;
 ')
 
 ########################################
@@ -902,56 +1026,4 @@ interface(`apache_search_sys_script_state',`
 	')
 
 	allow $1 httpd_sys_script_t:dir search;
-')
-
-########################################
-## <summary>
-##	Read httpd user scripts executables.
-## </summary>
-## <param name="domain_prefix">
-##	<summary>
-##	Prefix of the domain. Example, user would be
-##	the prefix for the uder_t domain.
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`apache_read_user_scripts',`
-	gen_require(`
-		type httpd_$1_script_exec_t;
-	')
-
-	allow $2 httpd_$1_script_exec_t:dir r_dir_perms;
-	allow $2 httpd_$1_script_exec_t:file r_file_perms;
-	allow $2 httpd_$1_script_exec_t:lnk_file { getattr read };
-')
-
-########################################
-## <summary>
-##	Read user web content.
-## </summary>
-## <param name="domain_prefix">
-##	<summary>
-##	Prefix of the domain. Example, user would be
-##	the prefix for the uder_t domain.
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`apache_read_user_content',`
-	gen_require(`
-		type httpd_$1_content_t;
-	')
-
-	allow $2 httpd_$1_content_t:dir r_dir_perms;
-	allow $2 httpd_$1_content_t:file r_file_perms;
-	allow $2 httpd_$1_content_t:lnk_file { getattr read };
 ')
