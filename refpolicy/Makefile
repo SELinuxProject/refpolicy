@@ -44,18 +44,18 @@ TAGS := tags
 endif
 
 # executable paths
-BINDIR := /usr/bin
-SBINDIR := /usr/sbin
-CHECKPOLICY := $(BINDIR)/checkpolicy
-CHECKMODULE := $(BINDIR)/checkmodule
-SEMODULE := $(SBINDIR)/semodule
-SEMOD_PKG := $(BINDIR)/semodule_package
-SEMOD_LNK := $(BINDIR)/semodule_link
-SEMOD_EXP := $(BINDIR)/semodule_expand
-LOADPOLICY := $(SBINDIR)/load_policy
-SETFILES := $(SBINDIR)/setfiles
-XMLLINT := $(BINDIR)/xmllint
-SECHECK := $(BINDIR)/sechecker
+BINDIR ?= /usr/bin
+SBINDIR ?= /usr/sbin
+CHECKPOLICY ?= $(BINDIR)/checkpolicy
+CHECKMODULE ?= $(BINDIR)/checkmodule
+SEMODULE ?= $(SBINDIR)/semodule
+SEMOD_PKG ?= $(BINDIR)/semodule_package
+SEMOD_LNK ?= $(BINDIR)/semodule_link
+SEMOD_EXP ?= $(BINDIR)/semodule_expand
+LOADPOLICY ?= $(SBINDIR)/load_policy
+SETFILES ?= $(SBINDIR)/setfiles
+XMLLINT ?= $(BINDIR)/xmllint
+SECHECK ?= $(BINDIR)/sechecker
 
 # interpreters and aux tools
 AWK ?= gawk
