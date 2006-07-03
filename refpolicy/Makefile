@@ -46,14 +46,21 @@ endif
 # executable paths
 BINDIR ?= /usr/bin
 SBINDIR ?= /usr/sbin
-CHECKPOLICY ?= $(BINDIR)/checkpolicy
-CHECKMODULE ?= $(BINDIR)/checkmodule
-SEMODULE ?= $(SBINDIR)/semodule
-SEMOD_PKG ?= $(BINDIR)/semodule_package
-SEMOD_LNK ?= $(BINDIR)/semodule_link
-SEMOD_EXP ?= $(BINDIR)/semodule_expand
-LOADPOLICY ?= $(SBINDIR)/load_policy
-SETFILES ?= $(SBINDIR)/setfiles
+ifdef TEST_TOOLCHAIN
+tc_bindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(BINDIR)
+tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
+else
+tc_bindir := $(BINDIR)
+tc_sbindir := $(SBINDIR)
+endif
+CHECKPOLICY ?= $(tc_bindir)/checkpolicy
+CHECKMODULE ?= $(tc_bindir)/checkmodule
+SEMODULE ?= $(tc_sbindir)/semodule
+SEMOD_PKG ?= $(tc_bindir)/semodule_package
+SEMOD_LNK ?= $(tc_bindir)/semodule_link
+SEMOD_EXP ?= $(tc_bindir)/semodule_expand
+LOADPOLICY ?= $(tc_sbindir)/load_policy
+SETFILES ?= $(tc_sbindir)/setfiles
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
 
