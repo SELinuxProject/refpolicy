@@ -47,10 +47,7 @@ do_test() {
 		make $OPTS conf || die "$?" "$OPTS"
 		make $OPTS base || die "$?" "$OPTS"
 		make $OPTS -j2 modules || die "$?" "$OPTS"
-		mv base.pp tmp
-		############# FIXME
-		rm dmesg.pp
-		$SE_LINK tmp/base.pp *.pp || die "$?" "$OPTS"
+		make $OPTS validate || die "$?" "$OPTS"
 		cleanup_mod
 	done
 }
