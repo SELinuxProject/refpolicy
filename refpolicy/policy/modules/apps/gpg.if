@@ -76,14 +76,6 @@ template(`gpg_per_userdomain_template',`
 	# GPG local policy
 	#
 
-	# transition from the userdomain to the derived domain
-	domain_auto_trans($2,gpg_exec_t,$1_gpg_t)
-
-	allow $2 $1_gpg_t:fd use;
-	allow $1_gpg_t $2:fd use;
-	allow $1_gpg_t $2:fifo_file rw_file_perms;
-	allow $1_gpg_t $2:process sigchld;
-
 	allow $1_gpg_t self:capability { ipc_lock setuid };
 	allow { $2 $1_gpg_t } $1_gpg_t:process signal;
 	# setrlimit is for ulimit -c 0
@@ -95,6 +87,17 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_t $1_gpg_secret_t:dir rw_dir_perms;
 	allow $1_gpg_t $1_gpg_secret_t:file create_file_perms;
 	allow $1_gpg_t $1_gpg_secret_t:lnk_file create_lnk_perms;
+
+	# transition from the userdomain to the derived domain
+	domain_auto_trans($2,gpg_exec_t,$1_gpg_t)
+	allow $1_gpg_t $2:fd use;
+	allow $1_gpg_t $2:fifo_file rw_file_perms;
+	allow $1_gpg_t $2:process sigchld;
+
+	# allow ps to show gpg
+	allow $2 $1_gpg_t:dir { search getattr read };
+	allow $2 $1_gpg_t:{ file lnk_file } { read getattr };
+	allow $2 $1_gpg_t:process getattr;
 
 	corenet_non_ipsec_sendrecv($1_gpg_t)
 	corenet_tcp_sendrecv_all_if($1_gpg_t)
@@ -138,12 +141,6 @@ template(`gpg_per_userdomain_template',`
 
 	# Write content to encrypt/decrypt/sign
 	write_trusted($1_gpg_t, $1)
-
-	ifdef(`gnome-pty-helper.te', `allow $1_gpg_t $1_gph_t:fd use;')
-
-	# allow ps to show gpg
-	can_ps($1_t, $1_gpg_t)
-
 	') dnl end TODO
 
 	########################################
@@ -161,8 +158,6 @@ template(`gpg_per_userdomain_template',`
 
 	# transition from the gpg domain to the helper domain
 	domain_auto_trans($1_gpg_t,gpg_helper_exec_t,$1_gpg_helper_t)
-
-	allow $1_gpg_t $1_gpg_helper_t:fd use;
 	allow $1_gpg_helper_t $1_gpg_t:fd use;
 	allow $1_gpg_helper_t $1_gpg_t:fifo_file rw_file_perms;
 	allow $1_gpg_helper_t $1_gpg_t:process sigchld;
@@ -206,12 +201,10 @@ template(`gpg_per_userdomain_template',`
 		fs_dontaudit_rw_cifs_files($1_gpg_helper_t)
 	')
 
-	ifdef(`TODO',`
-
-	ifdef(`xdm.te',`
-		can_pipe_xdm($1_gpg_t)
+	optional_policy(`
+		xserver_use_xdm_fds($1_gpg_t)
+		xserver_rw_xdm_pipes($1_gpg_t)
 	')
-	') dnl end TODO
 
 	########################################
 	#
@@ -234,6 +227,11 @@ template(`gpg_per_userdomain_template',`
 	allow $1_gpg_t $1_gpg_agent_tmp_t:sock_file write;
 	allow $1_gpg_t $1_gpg_agent_t:unix_stream_socket connectto;
 
+	# allow ps to show gpg-agent
+	allow $2 $1_gpg_agent_t:dir { search getattr read };
+	allow $2 $1_gpg_agent_t:{ file lnk_file } { read getattr };
+	allow $2 $1_gpg_agent_t:process getattr;
+
 	# Allow the user shell to signal the gpg-agent program.
 	allow $2 $1_gpg_agent_t:process { signal sigkill };
 
@@ -242,10 +240,13 @@ template(`gpg_per_userdomain_template',`
 	allow $2 $1_gpg_agent_tmp_t:sock_file create_file_perms;
 	files_tmp_filetrans($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
 
-	corecmd_search_bin($1_gpg_agent_t)
-
 	# Transition from the user domain to the derived domain.
 	domain_auto_trans($2, gpg_agent_exec_t, $1_gpg_agent_t)
+	allow $1_gpg_agent_t $2:fd use;
+	allow $1_gpg_agent_t $2:fifo_file rw_file_perms;
+	allow $1_gpg_agent_t $2:process sigchld;
+
+	corecmd_search_bin($1_gpg_agent_t)
 
 	domain_use_interactive_fds($1_gpg_agent_t)
 
@@ -256,6 +257,8 @@ template(`gpg_per_userdomain_template',`
 
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_gpg_agent_t)
+	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
+	userdom_search_user_home_dirs($1,$1_gpg_agent_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_dirs($1_gpg_agent_t)
@@ -269,19 +272,6 @@ template(`gpg_per_userdomain_template',`
 		fs_manage_cifs_symlinks($1_gpg_agent_t)
 	')
 
-	ifdef(`TODO',`
-
-	# allow ps to show gpg-agent
-	can_ps($1_t, $1_gpg_agent_t)
-
-	allow $1_gpg_agent_t proc_t:dir search;
-	allow $1_gpg_agent_t proc_t:lnk_file read;
-
-	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
-	allow $1_gpg_agent_t { home_root_t $1_home_dir_t }:dir search;
-
-	') dnl endif TODO
-
 	##############################
 	#
 	# Pinentry local policy
@@ -290,8 +280,6 @@ template(`gpg_per_userdomain_template',`
 	# we need to allow gpg-agent to call pinentry so it can get the passphrase 
 	# from the user.
 	domain_auto_trans($1_gpg_agent_t,pinentry_exec_t,$1_gpg_pinentry_t)
-
-	allow $1_gpg_pinentry_t $1_gpg_agent_t:fd use;
 	allow $1_gpg_agent_t $1_gpg_pinentry_t:fd use;
 	allow $1_gpg_agent_t $1_gpg_pinentry_t:fifo_file rw_file_perms;
 	allow $1_gpg_agent_t $1_gpg_pinentry_t:process sigchld;
@@ -312,6 +300,9 @@ template(`gpg_per_userdomain_template',`
 	miscfiles_read_fonts($1_gpg_pinentry_t)
 	miscfiles_read_localization($1_gpg_pinentry_t)
 
+	# for .Xauthority
+	userdom_read_user_home_content_files($1,$1_gpg_pinentry_t)
+
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_read_nfs_files($1_gpg_pinentry_t)
 	')
@@ -320,19 +311,13 @@ template(`gpg_per_userdomain_template',`
 		fs_read_cifs_files($1_gpg_pinentry_t)
 	')
 
-	ifdef(`TODO',`
-
-	ifdef(`xdm.te', `
-		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:dir search;
-		allow $1_gpg_pinentry_t xdm_xserver_tmp_t:sock_file { read write };
-		allow $1_gpg_pinentry_t xdm_xserver_t:unix_stream_socket connectto;
+	optional_policy(`
+		xserver_stream_connect_xdm_xserver($1_gpg_pinentry_t)
 	')
 
-	allow $1_gpg_pinentry_t { tmp_t home_root_t }:dir { getattr search };
+	ifdef(`TODO',`
+	allow $1_gpg_pinentry_t tmp_t:dir { getattr search };
 
-	# for .Xauthority
-	allow $1_gpg_pinentry_t $1_home_dir_t:dir { getattr search };
-	allow $1_gpg_pinentry_t $1_home_t:file r_file_perms;
 	# wants to put some lock files into the user home dir, seems to work fine without
 	dontaudit $1_gpg_pinentry_t $1_home_t:dir { read write };
 	dontaudit $1_gpg_pinentry_t $1_home_t:file write;
