@@ -234,6 +234,9 @@ template(`ssh_per_userdomain_template',`
 	domain_entry_file($1_ssh_agent_t,ssh_agent_exec_t)
 	role $3 types $1_ssh_agent_t;
 
+	type $1_ssh_agent_tmp_t;
+	files_tmp_file($1_ssh_agent_tmp_t)
+
 	type $1_ssh_keysign_t;
 	domain_type($1_ssh_keysign_t)
 	domain_entry_file($1_ssh_keysign_t,ssh_keysign_exec_t)
@@ -258,11 +261,21 @@ template(`ssh_per_userdomain_template',`
 	allow $1_ssh_t $1_home_ssh_t:sock_file manage_file_perms;
 	userdom_user_home_dir_filetrans($1,$1_ssh_t,$1_home_ssh_t,{ dir sock_file })
 
+	# Allow the ssh program to communicate with ssh-agent.
+	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
+
 	userdom_use_unpriv_users_fds($1_ssh_t)
 	userdom_dontaudit_list_user_home_dirs($1,$1_ssh_t)
 	userdom_search_user_home_dirs($1,$1_ssh_t)
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_ssh_t)
+
+	tunable_policy(`allow_ssh_keysign',`
+		domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
+		allow $1_ssh_keysign_t $1_ssh_t:fd use;
+		allow $1_ssh_keysign_t $1_ssh_t:process sigchld;
+		allow $1_ssh_keysign_t $1_ssh_t:fifo_file rw_file_perms;
+	')
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_dirs($1_ssh_t)
@@ -295,22 +308,6 @@ template(`ssh_per_userdomain_template',`
 	files_search_mnt($1_ssh_t)
 	r_dir_file($1_ssh_t, removable_t) 
 
-	if (allow_ssh_keysign) {
-	domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
-	allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
-	allow $1_ssh_keysign_t self:capability { setgid setuid };
-	allow $1_ssh_keysign_t urandom_device_t:chr_file r_file_perms;
-	uses_shlib($1_ssh_keysign_t)
-	dontaudit $1_ssh_keysign_t selinux_config_t:dir search;
-	dontaudit $1_ssh_keysign_t proc_t:dir search;
-	dontaudit $1_ssh_keysign_t proc_t:{ lnk_file file } { getattr read };
-	allow $1_ssh_keysign_t usr_t:dir search;
-	allow $1_ssh_keysign_t etc_t:file { getattr read };
-	allow $1_ssh_keysign_t self:dir search;
-	allow $1_ssh_keysign_t self:file { getattr read };
-	allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
-	}
-
 	') dnl endif TODO
 
 	##############################
@@ -327,20 +324,20 @@ template(`ssh_per_userdomain_template',`
 
 	allow $1_ssh_t $1_ssh_agent_t:unix_stream_socket connectto;
 
+	allow $1_ssh_agent_t $1_ssh_agent_tmp_t:dir manage_dir_perms;
+	allow $1_ssh_agent_t $1_ssh_agent_tmp_t:sock_file manage_file_perms;
+	files_tmp_filetrans($1_ssh_agent_t,$1_ssh_agent_tmp_t,{ dir sock_file })
+
 	# for ssh-add
 	allow $2 $1_ssh_agent_t:unix_stream_socket connectto;
 
 	# Allow the user shell to signal the ssh program.
 	allow $2 $1_ssh_agent_t:process signal;
 
-	# for the transition back to normal privs upon exec
-	allow $1_ssh_agent_t $2:fd use;
-	allow $2 $1_ssh_agent_t:fd use;
-	allow $2 $1_ssh_agent_t:fifo_file rw_file_perms;
-	allow $2 $1_ssh_agent_t:process sigchld;
-
-	# Allow the ssh program to communicate with ssh-agent.
-	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
+	# allow ps to show ssh
+	allow $2 $1_ssh_agent_t:dir { search getattr read };
+	allow $2 $1_ssh_agent_t:{ file lnk_file } { read getattr };
+	allow $2 $1_ssh_agent_t:process getattr;
 
 	domain_auto_trans($2, ssh_agent_exec_t, $1_ssh_agent_t)
 	allow $2 $1_ssh_agent_t:fd use;
@@ -378,6 +375,12 @@ template(`ssh_per_userdomain_template',`
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_ssh_agent_t)
 
+	# for the transition back to normal privs upon exec
+	userdom_user_home_domtrans($1,$1_ssh_agent_t,$2)
+	allow $2 $1_ssh_agent_t:fd use;
+	allow $2 $1_ssh_agent_t:fifo_file rw_file_perms;
+	allow $2 $1_ssh_agent_t:process sigchld;
+
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_files($1_ssh_agent_t)
 
@@ -396,37 +399,14 @@ template(`ssh_per_userdomain_template',`
 		nis_use_ypbind($1_ssh_agent_t)
 	')
 
-#	optional_policy(`
-#		# KDM:
-#		xdm_sigchld($1_ssh_agent_t)
-#	')
-
 	ifdef(`TODO',`
 	ifdef(`xdm.te',`
 	can_pipe_xdm($1_ssh_agent_t)
 	')
 
-	# allow ps to show ssh
-	can_ps($1_t, $1_ssh_agent_t)
-
 	dontaudit $1_ssh_agent_t proc_t:{ lnk_file file } { getattr read };
 
-	# Access the ssh temporary files. Should we have an own type here
-	# to which only ssh, ssh-agent and ssh-add have access?
-	allow $1_ssh_agent_t $1_tmp_t:dir r_dir_perms;
-	file_type_auto_trans($1_ssh_agent_t, tmp_t, $1_tmp_t)
-
-	# transition back to normal privs upon exec
-	domain_auto_trans($1_ssh_agent_t, $1_home_t, $1_t)
-	allow $1_ssh_agent_t $1_home_dir_t:dir search;
-
 	allow $1_ssh_t $1_tmp_t:sock_file write;
-
-	#
-	# Allow command to ssh-agent > ~/.ssh_agent
-	#
-	allow $1_ssh_agent_t $1_home_t:file rw_file_perms;
-	allow $1_ssh_agent_t $1_tmp_t:file rw_file_perms;
 
 	# Allow the ssh program to communicate with ssh-agent.
 	allow $1_ssh_t $1_tmp_t:sock_file write;
@@ -438,8 +418,24 @@ template(`ssh_per_userdomain_template',`
 	# $1_ssh_keysign_t local policy
 	#
 
+	tunable_policy(`allow_ssh_keysign',`
+		allow $1_ssh_keysign_t self:capability { setgid setuid };
+		allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
+
+		allow $1_ssh_keysign_t sshd_key_t:file { getattr read };
+
+		dev_read_urand($1_ssh_keysign_t)
+
+		files_read_etc_files($1_ssh_keysign_t)
+
+		libs_use_ld_so($1_ssh_keysign_t)
+		libs_use_shared_libs($1_ssh_keysign_t)
+	')
+
 	optional_policy(`
-		nscd_socket_use($1_ssh_keysign_t)
+		tunable_policy(`allow_ssh_keysign',`
+			nscd_socket_use($1_ssh_keysign_t)
+		')
 	')
 ')
 
