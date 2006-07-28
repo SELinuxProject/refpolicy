@@ -1,8 +1,10 @@
 
-policy_module(selinuxutil,1.2.9)
+policy_module(selinuxutil,1.2.10)
 
-gen_require(`
-	bool secure_mode;
+ifdef(`strict_policy',`
+	gen_require(`
+		bool secure_mode;
+	')
 ')
 
 ########################################
@@ -104,6 +106,7 @@ domain_system_change_exemption(run_init_t)
 
 type semanage_t;
 domain_type(semanage_t)
+domain_interactive_fd(semanage_t)
 
 type semanage_exec_t;
 domain_entry_file(semanage_t, semanage_exec_t)
@@ -423,18 +426,17 @@ optional_policy(`
 
 allow restorecond_t self:capability { dac_override dac_read_search fowner };
 allow restorecond_t self:fifo_file rw_file_perms;
+allow restorecond_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow restorecond_t restorecond_var_run_t:file create_file_perms;
 files_pid_filetrans(restorecond_t,restorecond_var_run_t, file)
-
-auth_relabel_all_files_except_shadow(restorecond_t )
-auth_read_all_files_except_shadow(restorecond_t)
-fs_relabelfrom_noxattr_fs(restorecond_t)
 
 kernel_use_fds(restorecond_t)
 kernel_rw_pipes(restorecond_t)
 kernel_read_system_state(restorecond_t)
 
+fs_relabelfrom_noxattr_fs(restorecond_t)
+fs_dontaudit_list_nfs(restorecond_t)
 fs_getattr_xattr_fs(restorecond_t)
 fs_list_inotifyfs(restorecond_t)
 
@@ -447,7 +449,11 @@ selinux_compute_user_contexts(restorecond_t)
 
 term_dontaudit_use_generic_ptys(restorecond_t)
 
+auth_relabel_all_files_except_shadow(restorecond_t )
+auth_read_all_files_except_shadow(restorecond_t)
+
 init_use_fds(restorecond_t)
+init_dontaudit_use_script_ptys(restorecond_t)
 
 libs_use_ld_so(restorecond_t)
 libs_use_shared_libs(restorecond_t)
@@ -455,6 +461,12 @@ libs_use_shared_libs(restorecond_t)
 logging_send_syslog_msg(restorecond_t)
 
 miscfiles_read_localization(restorecond_t)
+
+optional_policy(`
+	# restorecond watches for users logging in, 
+	# so it getspwnam when a user logs in to find his homedir
+	nis_use_ypbind(restorecond_t)
+')
 
 #################################
 #
@@ -538,6 +550,7 @@ allow semanage_t self:capability { dac_override audit_write };
 allow semanage_t self:unix_stream_socket create_stream_socket_perms;
 allow semanage_t self:unix_dgram_socket create_socket_perms;
 allow semanage_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+allow semanage_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow semanage_t policy_config_t:file { read write };
 
@@ -567,9 +580,14 @@ selinux_set_boolean(semanage_t)
 
 term_use_all_terms(semanage_t)
 
+# Running genhomedircon requires this for finding all users
+auth_use_nsswitch(semanage_t)
+
 libs_use_ld_so(semanage_t)
 libs_use_shared_libs(semanage_t)
 libs_use_lib_files(semanage_t)
+
+locallogin_use_fds(semanage_t)
 
 logging_send_syslog_msg(semanage_t)
 
@@ -590,7 +608,7 @@ seutil_get_semanage_read_lock(semanage_t)
 userdom_search_sysadm_home_dirs(semanage_t)
 
 ifdef(`targeted_policy',`
-# Handle pp files created in homedir and /tmp
+	# Handle pp files created in homedir and /tmp
 	files_read_generic_tmp_files(semanage_t)
 	userdom_read_generic_user_home_content_files(semanage_t)
 ')
