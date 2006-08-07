@@ -1,5 +1,5 @@
 
-policy_module(mrtg,1.0.1)
+policy_module(mrtg,1.0.2)
 
 ########################################
 #
@@ -22,12 +22,15 @@ logging_log_file(mrtg_log_t)
 type mrtg_var_lib_t;
 files_type(mrtg_var_lib_t)
 
+type mrtg_var_run_t;
+files_pid_file(mrtg_var_run_t)
+
 ########################################
 #
 # Local policy
 #
 
-allow mrtg_t self:capability { setgid setuid };
+allow mrtg_t self:capability { setgid setuid chown };
 dontaudit mrtg_t self:capability sys_tty_config;
 allow mrtg_t self:process signal_perms;
 allow mrtg_t self:fifo_file { getattr read write ioctl };
@@ -51,6 +54,9 @@ logging_log_filetrans(mrtg_t,mrtg_log_t,{ file dir })
 allow mrtg_t mrtg_var_lib_t:dir rw_dir_perms;
 allow mrtg_t mrtg_var_lib_t:file create_file_perms;
 allow mrtg_t mrtg_var_lib_t:lnk_file create_lnk_perms;
+
+allow mrtg_t mrtg_var_run_t:file manage_file_perms;
+files_pid_filetrans(mrtg_t,mrtg_var_run_t,file)
 
 # read config files
 dontaudit mrtg_t mrtg_etc_t:dir write;
@@ -116,6 +122,10 @@ sysnet_read_config(mrtg_t)
 userdom_dontaudit_use_unpriv_user_fds(mrtg_t)
 userdom_use_sysadm_terms(mrtg_t)
 
+ifdef(`enable_mls',`
+	corenet_udp_sendrecv_lo_if(mrtg_t)
+')
+
 ifdef(`distro_redhat',`
 	allow mrtg_t mrtg_etc_t:dir rw_dir_perms;
 	allow mrtg_t mrtg_lock_t:file create_file_perms;
@@ -142,6 +152,10 @@ optional_policy(`
 
 optional_policy(`
 	nis_use_ypbind(mrtg_t)
+')
+
+optional_policy(`
+	nscd_dontaudit_search_pid(mrtg_t)
 ')
 
 optional_policy(`
