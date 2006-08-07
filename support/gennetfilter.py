@@ -43,7 +43,7 @@ class Packet:
 		self.ports = ports
 
 def print_input_rules(packets,mls,mcs):
-	line = "-A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_INPUT_PACKET
+	line = "base -A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_INPUT_PACKET
 	if mls:
 		line += ":"+DEFAULT_MLS
 	elif mcs:
@@ -53,18 +53,18 @@ def print_input_rules(packets,mls,mcs):
 
 	for i in packets:
 		for j in i.ports:
-			line="-A selinux_new_input -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
+			line="base -A selinux_new_input -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
 			if mls:
 				line += ":"+j.mls_sens
 			elif mcs:
 				line += ":"+j.mcs_cats
 			print line
 
-	print "-A selinux_new_input -j CONNSECMARK --save"
-	print "-A selinux_new_input -j RETURN"
+	print "post -A selinux_new_input -j CONNSECMARK --save"
+	print "post -A selinux_new_input -j RETURN"
 
 def print_output_rules(packets,mls,mcs):
-	line = "-A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_OUTPUT_PACKET
+	line = "base -A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_OUTPUT_PACKET
 	if mls:
 		line += ":"+DEFAULT_MLS
 	elif mcs:
@@ -73,15 +73,15 @@ def print_output_rules(packets,mls,mcs):
 
 	for i in packets:
 		for j in i.ports:
-			line = "-A selinux_new_output -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
+			line = "base -A selinux_new_output -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
 			if mls:
 				line += ":"+j.mls_sens
 			elif mcs:
 				line += ":"+j.mcs_cats
 			print line
 
-	print "-A selinux_new_output -j CONNSECMARK --save"
-	print "-A selinux_new_output -j RETURN"
+	print "post -A selinux_new_output -j CONNSECMARK --save"
+	print "post -A selinux_new_output -j RETURN"
 
 def parse_corenet(file_name):
 	packets = []
@@ -118,25 +118,25 @@ def parse_corenet(file_name):
 	return packets
 
 def print_netfilter_config(packets,mls,mcs):
-	print "*mangle"
-	print ":PREROUTING ACCEPT [0:0]"
-	print ":INPUT ACCEPT [0:0]"
-	print ":FORWARD ACCEPT [0:0]"
-	print ":OUTPUT ACCEPT [0:0]"
-	print ":POSTROUTING ACCEPT [0:0]"
-	print ":selinux_input - [0:0]"
-	print ":selinux_output - [0:0]"
-	print ":selinux_new_input - [0:0]"
-	print ":selinux_new_output - [0:0]"
-	print "-A INPUT -j selinux_input"
-	print "-A OUTPUT -j selinux_output"
-	print "-A selinux_input -m state --state NEW -j selinux_new_input"
-	print "-A selinux_input -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
-	print "-A selinux_output -m state --state NEW -j selinux_new_output"
-	print "-A selinux_output -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
+	print "pre *mangle"
+	print "pre :PREROUTING ACCEPT [0:0]"
+	print "pre :INPUT ACCEPT [0:0]"
+	print "pre :FORWARD ACCEPT [0:0]"
+	print "pre :OUTPUT ACCEPT [0:0]"
+	print "pre :POSTROUTING ACCEPT [0:0]"
+	print "pre :selinux_input - [0:0]"
+	print "pre :selinux_output - [0:0]"
+	print "pre :selinux_new_input - [0:0]"
+	print "pre :selinux_new_output - [0:0]"
+	print "pre -A INPUT -j selinux_input"
+	print "pre -A OUTPUT -j selinux_output"
+	print "pre -A selinux_input -m state --state NEW -j selinux_new_input"
+	print "pre -A selinux_input -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
+	print "pre -A selinux_output -m state --state NEW -j selinux_new_output"
+	print "pre -A selinux_output -m state --state RELATED,ESTABLISHED -j CONNSECMARK --restore"
 	print_input_rules(packets,mls,mcs)
 	print_output_rules(packets,mls,mcs)
-	print "COMMIT"
+	print "post COMMIT"
 
 mls = False
 mcs = False

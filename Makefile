@@ -146,6 +146,7 @@ SRCPATH = $(INSTALLDIR)/src
 USERPATH = $(INSTALLDIR)/users
 CONTEXTPATH = $(INSTALLDIR)/contexts
 FCPATH = $(CONTEXTPATH)/files/file_contexts
+NCPATH = $(CONTEXTPATH)/netfilter_contexts
 SHAREDIR = $(PREFIX)/share/selinux
 MODPKGDIR = $(SHAREDIR)/$(NAME)
 HEADERDIR = $(MODPKGDIR)/include
