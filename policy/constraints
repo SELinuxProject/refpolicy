@@ -28,65 +28,79 @@
 #
 # SELinux process identity change constraint:
 #
-constrain process transition
-	( u1 == u2
+ifdef(`strict_policy',`
+	constrain process transition
+	(
+		u1 == u2
+
+		or ( t1 == can_change_process_identity and t2 == process_user_target )
+
+	       	or ( t1 == cron_source_domain and ( t2 == cron_job_domain or u2 == system_u ) )
+
+		or ( t1 == can_system_change and u2 == system_u )
+
+		or ( t1 == process_uncond_exempt )
+	);
+')
 
 ifdef(`targeted_policy',`
-	or t1 == can_change_process_identity
-',`
-	or ( t1 == can_change_process_identity and t2 == process_user_target )
+	constrain process transition
+	(
+		u1 == u2
 
-       	or ( t1 == cron_source_domain
-		and ( t2 == cron_job_domain or u2 == system_u )
-	   )
-
-	or (t1 == process_uncond_exempt)
-
-	or (t1 == can_system_change and u2 == system_u )
+		or t1 == can_change_process_identity
+	);
 ')
-);
 
 #
 # SELinux process role change constraint:
 #
-constrain process transition 
-	( r1 == r2
+
+ifdef(`strict_policy',`
+	constrain process transition 
+	(
+		r1 == r2 
+
+		or ( t1 == can_change_process_role and t2 == process_user_target )
+
+       		or ( t1 == cron_source_domain and t2 == cron_job_domain )
+
+		or ( t1 == can_system_change and r2 == system_r )
+
+		or ( t1 == process_uncond_exempt )
+	);
+')
 
 ifdef(`targeted_policy',`
-	or t1 == can_change_process_role
-',`
-	or ( t1 == can_change_process_role and t2 == process_user_target )
+	constrain process transition 
+	(
+		r1 == r2 
 
-       	or ( t1 == cron_source_domain and t2 == cron_job_domain )
-
-	or ( t1 == process_uncond_exempt )
-
-	# FIXME:
-	ifdef(`postfix.te',`
-		ifdef(`direct_sysadm_daemon',`
-			or (
-				t1 == sysadm_mail_t
-				and t2 == system_mail_t
-				and r2 == system_r
-			)
-		')
-	')
-
-	or (t1 == can_system_change and r2 == system_r )
+		or t1 == can_change_process_role
+	);
 ')
-);
 
 #
 # SELinux dynamic transition constraint:
 #
 constrain process dyntransition
-	( u1 == u2 and r1 == r2 );
+(
+	u1 == u2 and r1 == r2
+);
 
 #
 # SElinux object identity change constraint:
 #
 constrain dir_file_class_set { create relabelto relabelfrom } 
-	( u1 == u2 or t1 == can_change_object_identity );
+(
+	u1 == u2
+
+	or t1 == can_change_object_identity
+);
 
 constrain socket_class_set { create relabelto relabelfrom } 
-	( u1 == u2 or t1 == can_change_object_identity );
+(
+	u1 == u2
+
+	or t1 == can_change_object_identity
+);
