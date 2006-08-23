@@ -1,5 +1,5 @@
 
-policy_module(init,1.3.20)
+policy_module(init,1.3.21)
 
 gen_require(`
 	class passwd rootok;
@@ -172,6 +172,10 @@ mls_rangetrans_target(init_t)
 seutil_read_config(init_t)
 
 miscfiles_read_localization(init_t)
+
+ifdef(`distro_gentoo',`
+	allow init_t self:process { getcap setcap };
+')
 
 ifdef(`distro_redhat',`
 	fs_rw_tmpfs_chr_files(init_t)
@@ -397,6 +401,15 @@ ifdef(`distro_debian',`
 ')
 
 ifdef(`distro_gentoo',`
+	kernel_dontaudit_getattr_core_if(initrc_t)
+
+	# seed udev /dev
+	allow initrc_t self:process setfscreate;
+	dev_create_null_dev(initrc_t)
+	dev_create_zero_dev(initrc_t)
+	dev_create_generic_dirs(initrc_t)
+	term_create_console_dev(initrc_t)
+
 	# needed until baselayout is fixed to have the
 	# restorecon on /dev to again be immediately after
 	# mounting tmpfs on /dev
@@ -487,7 +500,7 @@ ifdef(`targeted_policy',`
 		mono_domtrans(initrc_t)
 	')
 ',`
-	# cjp: require doesnt work in optionals :\
+	# cjp: require doesnt work in the else of optionals :\
 	# this also would result in a type transition
 	# conflict if sendmail is enabled
 #	optional_policy(`',`
