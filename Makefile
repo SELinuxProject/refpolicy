@@ -32,15 +32,15 @@ ifdef LOCAL_ROOT
 endif
 
 # refpolicy version
-VERSION = $(shell cat VERSION)
+version = $(shell cat VERSION)
 
 ifdef LOCAL_ROOT
-BUILDDIR := $(LOCAL_ROOT)/
-TMPDIR := $(LOCAL_ROOT)/tmp
-TAGS := $(LOCAL_ROOT)/tags
+builddir := $(LOCAL_ROOT)/
+tmpdir := $(LOCAL_ROOT)/tmp
+tags := $(LOCAL_ROOT)/tags
 else
-TMPDIR := tmp
-TAGS := tags
+tmpdir := tmp
+tags := tags
 endif
 
 # executable paths
@@ -76,82 +76,83 @@ SORT ?= LC_ALL=C sort
 CFLAGS += -Wall
 
 # policy source layout
-POLDIR := policy
-MODDIR := $(POLDIR)/modules
-FLASKDIR := $(POLDIR)/flask
-SECCLASS := $(FLASKDIR)/security_classes
-ISIDS := $(FLASKDIR)/initial_sids
-AVS := $(FLASKDIR)/access_vectors
+poldir := policy
+moddir := $(poldir)/modules
+flaskdir := $(poldir)/flask
+secclass := $(flaskdir)/security_classes
+isids := $(flaskdir)/initial_sids
+avs := $(flaskdir)/access_vectors
 
 # local source layout
 ifdef LOCAL_ROOT
-LOCAL_POLDIR := $(LOCAL_ROOT)/policy
-LOCAL_MODDIR := $(LOCAL_POLDIR)/modules
+local_poldir := $(LOCAL_ROOT)/policy
+local_moddir := $(local_poldir)/modules
 endif
 
 # policy building support tools
-SUPPORT := support
-GENXML := $(PYTHON) $(SUPPORT)/segenxml.py
-GENDOC := $(PYTHON) $(SUPPORT)/sedoctool.py
-GENPERM := $(PYTHON) $(SUPPORT)/genclassperms.py
-FCSORT := $(TMPDIR)/fc_sort
-SETBOOLS := $(AWK) -f $(SUPPORT)/set_bools_tuns.awk
-get_type_attr_decl := $(SED) -r -f $(SUPPORT)/get_type_attr_decl.sed
-comment_move_decl := $(SED) -r -f $(SUPPORT)/comment_move_decl.sed
-gennetfilter := $(PYTHON) $(SUPPORT)/gennetfilter.py
+support := support
+genxml := $(PYTHON) $(support)/segenxml.py
+gendoc := $(PYTHON) $(support)/sedoctool.py
+genperm := $(PYTHON) $(support)/genclassperms.py
+fcsort := $(tmpdir)/fc_sort
+setbools := $(AWK) -f $(support)/set_bools_tuns.awk
+get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
+comment_move_decl := $(SED) -r -f $(support)/comment_move_decl.sed
+gennetfilter := $(PYTHON) $(support)/gennetfilter.py
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
-genhomedircon := $(PYTHON) $(SUPPORT)/genhomedircon
+genhomedircon := $(PYTHON) $(support)/genhomedircon
 
 # documentation paths
-DOCS := doc
-XMLDTD = $(DOCS)/policy.dtd
-LAYERXML = metadata.xml
-DOCTEMPLATE = $(DOCS)/templates
-DOCFILES = $(DOCS)/Makefile.example $(addprefix $(DOCS)/,example.te example.if example.fc)
+docs := doc
+xmldtd = $(docs)/policy.dtd
+layerxml = metadata.xml
+doctemplate = $(docs)/templates
+docfiles = $(docs)/Makefile.example $(addprefix $(docs)/,example.te example.if example.fc)
 
 ifndef LOCAL_ROOT
-POLXML = $(DOCS)/policy.xml
-TUNXML = $(DOCS)/global_tunables.xml
-BOOLXML = $(DOCS)/global_booleans.xml
-HTMLDIR = $(DOCS)/html
+polxml = $(docs)/policy.xml
+tunxml = $(docs)/global_tunables.xml
+boolxml = $(docs)/global_booleans.xml
+htmldir = $(docs)/html
 else
-POLXML = $(LOCAL_ROOT)/doc/policy.xml
-TUNXML = $(LOCAL_ROOT)/doc/global_tunables.xml
-BOOLXML = $(LOCAL_ROOT)/doc/global_booleans.xml
-HTMLDIR = $(LOCAL_ROOT)/doc/html
+polxml = $(LOCAL_ROOT)/doc/policy.xml
+tunxml = $(LOCAL_ROOT)/doc/global_tunables.xml
+boolxml = $(LOCAL_ROOT)/doc/global_booleans.xml
+htmldir = $(LOCAL_ROOT)/doc/html
 endif
 
 # config file paths
-GLOBALTUN = $(POLDIR)/global_tunables
-GLOBALBOOL = $(POLDIR)/global_booleans
-TUNABLES = $(POLDIR)/tunables.conf
-ROLEMAP = $(POLDIR)/rolemap
-USER_FILES := $(POLDIR)/users
+globaltun = $(poldir)/global_tunables
+globalbool = $(poldir)/global_booleans
+rolemap = $(poldir)/rolemap
+user_files := $(poldir)/users
 
 # local config file paths
 ifndef LOCAL_ROOT
-MOD_CONF = $(POLDIR)/modules.conf
-BOOLEANS = $(POLDIR)/booleans.conf
+mod_conf = $(poldir)/modules.conf
+booleans = $(poldir)/booleans.conf
+tunables = $(poldir)/tunables.conf
 else
-MOD_CONF = $(LOCAL_POLDIR)/modules.conf
-BOOLEANS = $(LOCAL_POLDIR)/booleans.conf
+mod_conf = $(local_poldir)/modules.conf
+booleans = $(local_poldir)/booleans.conf
+tunables = $(local_poldir)/tunables.conf
 endif
 
 # install paths
-PKGNAME ?= refpolicy-$(VERSION)
-PREFIX = $(DESTDIR)/usr
-TOPDIR = $(DESTDIR)/etc/selinux
-INSTALLDIR = $(TOPDIR)/$(NAME)
-SRCPATH = $(INSTALLDIR)/src
-USERPATH = $(INSTALLDIR)/users
-CONTEXTPATH = $(INSTALLDIR)/contexts
-FCPATH = $(CONTEXTPATH)/files/file_contexts
-NCPATH = $(CONTEXTPATH)/netfilter_contexts
-SHAREDIR = $(PREFIX)/share/selinux
-MODPKGDIR = $(SHAREDIR)/$(NAME)
-HEADERDIR = $(MODPKGDIR)/include
-DOCSDIR = $(PREFIX)/share/doc/$(PKGNAME)
+PKGNAME ?= refpolicy-$(version)
+prefix = $(DESTDIR)/usr
+topdir = $(DESTDIR)/etc/selinux
+installdir = $(topdir)/$(strip $(NAME))
+srcpath = $(installdir)/src
+userpath = $(installdir)/users
+contextpath = $(installdir)/contexts
+fcpath = $(contextpath)/files/file_contexts
+ncpath = $(contextpath)/netfilter_contexts
+sharedir = $(prefix)/share/selinux
+modpkgdir = $(sharedir)/$(strip $(NAME))
+headerdir = $(modpkgdir)/include
+docsdir = $(prefix)/share/doc/$(PKGNAME)
 
 # compile strict policy if requested.
 ifneq ($(findstring strict,$(TYPE)),)
@@ -223,80 +224,69 @@ endif
 
 CTAGS ?= ctags
 
-# determine the policy version and current kernel version if possible
-PV := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
-KV := $(shell cat /selinux/policyvers)
-
-# dont print version warnings if we are unable to determine
-# the currently running kernel's policy version
-ifeq ($(KV),)
-	KV := $(PV)
-endif
-
-M4SUPPORT := $(wildcard $(POLDIR)/support/*.spt)
+m4support := $(wildcard $(poldir)/support/*.spt)
 ifdef LOCAL_ROOT
-M4SUPPORT += $(wildcard $(LOCAL_POLDIR)/support/*.spt)
+m4support += $(wildcard $(local_poldir)/support/*.spt)
 endif
 
-APPCONF := config/appconfig-$(TYPE)
-SEUSERS := $(APPCONF)/seusers
-APPDIR := $(CONTEXTPATH)
-APPFILES := $(addprefix $(APPDIR)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(CONTEXTPATH)/files/media
-CONTEXTFILES += $(wildcard $(APPCONF)/*_context*) $(APPCONF)/media
-net_contexts := $(BUILDDIR)net_contexts
+appconf := config/appconfig-$(TYPE)
+seusers := $(appconf)/seusers
+appdir := $(contextpath)
+appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(contextpath)/files/media
+net_contexts := $(builddir)net_contexts
 
-ALL_LAYERS := $(filter-out $(MODDIR)/CVS,$(shell find $(wildcard $(MODDIR)/*) -maxdepth 0 -type d))
+all_layers := $(filter-out $(moddir)/CVS,$(shell find $(wildcard $(moddir)/*) -maxdepth 0 -type d))
 ifdef LOCAL_ROOT
-ALL_LAYERS += $(filter-out $(LOCAL_MODDIR)/CVS,$(shell find $(wildcard $(LOCAL_MODDIR)/*) -maxdepth 0 -type d))
+all_layers += $(filter-out $(local_moddir)/CVS,$(shell find $(wildcard $(local_moddir)/*) -maxdepth 0 -type d))
 endif
 
-GENERATED_TE := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te.in)))
-GENERATED_IF := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.if.in)))
-GENERATED_FC := $(basename $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.fc.in)))
+generated_te := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te.in)))
+generated_if := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.if.in)))
+generated_fc := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.fc.in)))
 
 # sort here since it removes duplicates, which can happen
 # when a generated file is already generated
-DETECTED_MODS := $(sort $(foreach dir,$(ALL_LAYERS),$(wildcard $(dir)/*.te)) $(GENERATED_TE))
+detected_mods := $(sort $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te)) $(generated_te))
 
 # modules.conf setting for base module
-MODBASE := base
+configbase := base
 
 # modules.conf setting for loadable module
-MODMOD := module
+configmod := module
 
 # modules.conf setting for unused module
-MODUNUSED := off
+configoff := off
 
 # test for module overrides from command line
-MOD_TEST = $(filter $(APPS_OFF), $(APPS_BASE) $(APPS_MODS))
-MOD_TEST += $(filter $(APPS_MODS), $(APPS_BASE))
-ifneq ($(strip $(MOD_TEST)),)
-        $(error Applications must be base, module, or off, and not in more than one list! $(strip $(MOD_TEST)) found in multiple lists!)
+mod_test = $(filter $(APPS_OFF), $(APPS_BASE) $(APPS_MODS))
+mod_test += $(filter $(APPS_MODS), $(APPS_BASE))
+ifneq "$(strip $(mod_test))" ""
+        $(error Applications must be base, module, or off, and not in more than one list! $(strip $(mod_test)) found in multiple lists!)
 endif
 
 # add on suffix to modules specified on command line
-CMDLINE_BASE := $(addsuffix .te,$(APPS_BASE))
-CMDLINE_MODS := $(addsuffix .te,$(APPS_MODS))
-CMDLINE_OFF := $(addsuffix .te,$(APPS_OFF))
+cmdline_base := $(addsuffix .te,$(APPS_BASE))
+cmdline_mods := $(addsuffix .te,$(APPS_MODS))
+cmdline_off := $(addsuffix .te,$(APPS_OFF))
 
 # extract settings from modules.conf
-MOD_CONF_BASE := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODBASE)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
-MOD_CONF_MODS := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODMOD)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
-MOD_CONF_OFF := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(MODUNUSED)") print $$1 }' $(MOD_CONF) 2> /dev/null)))
+mod_conf_base := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(configbase)") print $$1 }' $(mod_conf) 2> /dev/null)))
+mod_conf_mods := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(configmod)") print $$1 }' $(mod_conf) 2> /dev/null)))
+mod_conf_off := $(addsuffix .te,$(sort $(shell awk '/^[[:blank:]]*[[:alpha:]]/{ if ($$3 == "$(configoff)") print $$1 }' $(mod_conf) 2> /dev/null)))
 
-BASE_MODS := $(CMDLINE_BASE)
-MOD_MODS := $(CMDLINE_MODS)
-OFF_MODS := $(CMDLINE_OFF)
+base_mods := $(cmdline_base)
+mod_mods := $(cmdline_mods)
+off_mods := $(cmdline_off)
 
-BASE_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_BASE))
-MOD_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_MODS))
-OFF_MODS += $(filter-out $(CMDLINE_OFF) $(CMDLINE_BASE) $(CMDLINE_MODS), $(MOD_CONF_OFF))
+base_mods += $(filter-out $(cmdline_off) $(cmdline_base) $(cmdline_mods), $(mod_conf_base))
+mod_mods += $(filter-out $(cmdline_off) $(cmdline_base) $(cmdline_mods), $(mod_conf_mods))
+off_mods += $(filter-out $(cmdline_off) $(cmdline_base) $(cmdline_mods), $(mod_conf_off))
 
 # add modules not in modules.conf to the off list
-OFF_MODS += $(filter-out $(BASE_MODS) $(MOD_MODS) $(OFF_MODS),$(notdir $(DETECTED_MODS)))
+off_mods += $(filter-out $(base_mods) $(mod_mods) $(off_mods),$(notdir $(detected_mods)))
 
 # filesystems to be used in labeling targets
-FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
+filesystems = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
 
 ########################################
 #
@@ -305,7 +295,7 @@ FILESYSTEMS = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\
 
 # parse-rolemap modulename,outputfile
 define parse-rolemap
-	$(verbose) $(M4) $(M4PARAM) $(ROLEMAP) | \
+	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
 		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
 endef
 
@@ -333,19 +323,19 @@ endif
 #
 # NOTE: There is no "local" version of these files.
 #
-generate: $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
+generate: $(generated_te) $(generated_if) $(generated_fc)
 
-$(MODDIR)/kernel/corenetwork.if: $(MODDIR)/kernel/corenetwork.if.m4 $(MODDIR)/kernel/corenetwork.if.in
+$(moddir)/kernel/corenetwork.if: $(moddir)/kernel/corenetwork.if.m4 $(moddir)/kernel/corenetwork.if.in
 	@echo "#" > $@
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(verbose) cat $(MODDIR)/kernel/corenetwork.if.in >> $@
+	$(verbose) cat $(moddir)/kernel/corenetwork.if.in >> $@
 	$(verbose) $(GREP) "^[[:blank:]]*network_(interface|node|port|packet)\(.*\)" $(@:.if=.te).in \
-		| $(M4) -D self_contained_policy $(M4PARAM) $(MODDIR)/kernel/corenetwork.if.m4 - \
+		| $(M4) -D self_contained_policy $(M4PARAM) $(moddir)/kernel/corenetwork.if.m4 - \
 		| $(SED) -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
-$(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/kernel/corenetwork.te.in
+$(moddir)/kernel/corenetwork.te: $(moddir)/kernel/corenetwork.te.m4 $(moddir)/kernel/corenetwork.te.in
 	@echo "#" > $@
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
@@ -357,7 +347,7 @@ $(MODDIR)/kernel/corenetwork.te: $(MODDIR)/kernel/corenetwork.te.m4 $(MODDIR)/ke
 #
 # Network packet labeling
 #
-$(net_contexts): $(MODDIR)/kernel/corenetwork.te.in
+$(net_contexts): $(moddir)/kernel/corenetwork.te.in
 	@echo "Creating netfilter network labeling rules"
 	$(verbose) $(gennetfilter) $^ > $@
 
@@ -365,18 +355,18 @@ $(net_contexts): $(MODDIR)/kernel/corenetwork.te.in
 #
 # Create config files
 #
-conf: $(MOD_CONF) $(BOOLEANS) $(GENERATED_TE) $(GENERATED_IF) $(GENERATED_FC)
+conf: $(mod_conf) $(booleans) $(generated_te) $(generated_if) $(generated_fc)
 
-$(MOD_CONF) $(BOOLEANS): $(POLXML)
-	@echo "Updating $(MOD_CONF) and $(BOOLEANS)"
-	$(verbose) $(GENDOC) -b $(BOOLEANS) -m $(MOD_CONF) -x $(POLXML)
+$(mod_conf) $(booleans): $(polxml)
+	@echo "Updating $(mod_conf) and $(booleans)"
+	$(verbose) $(gendoc) -b $(booleans) -m $(mod_conf) -x $(polxml)
 
 ########################################
 #
 # Generate the fc_sort program
 #
-$(FCSORT) : $(SUPPORT)/fc_sort.c
-	$(verbose) $(CC) $(CFLAGS) $(SUPPORT)/fc_sort.c -o $(FCSORT)
+$(fcsort) : $(support)/fc_sort.c
+	$(verbose) $(CC) $(CFLAGS) $(support)/fc_sort.c -o $(fcsort)
 
 ########################################
 #
@@ -387,47 +377,47 @@ $(FCSORT) : $(SUPPORT)/fc_sort.c
 # this and its dependents every time the dependencies
 # change.  Also use all .if files here, rather then just the
 # enabled modules.
-xml: $(POLXML)
-$(POLXML): $(DETECTED_MODS:.te=.if) $(foreach dir,$(ALL_LAYERS),$(dir)/$(LAYERXML))
+xml: $(polxml)
+$(polxml): $(detected_mods:.te=.if) $(foreach dir,$(all_layers),$(dir)/$(layerxml))
 	@echo "Creating $(@F)"
-	@test -d $(dir $(POLXML)) || mkdir -p $(dir $(POLXML))
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	@test -d $(dir $(polxml)) || mkdir -p $(dir $(polxml))
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(XMLDTD))">' >> $@
-	$(verbose) $(GENXML) -w -m $(LAYERXML) -t $(GLOBALTUN) -b $(GLOBALBOOL) -o $(DOCS) $(ALL_LAYERS) >> $@
-	$(verbose) if test -x $(XMLLINT) && test -f $(XMLDTD); then \
-		$(XMLLINT) --noout --path $(dir $(XMLDTD)) --dtdvalid $(XMLDTD) $@ ;\
+	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
+	$(verbose) $(genxml) -w -m $(layerxml) -t $(globaltun) -b $(globalbool) -o $(docs) $(all_layers) >> $@
+	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
+		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
 	fi
 
-$(TUNXML) $(BOOLXML): $(POLXML)
+$(tunxml) $(boolxml): $(polxml)
 
-html $(TMPDIR)/html: $(POLXML)
-	@echo "Building html interface reference documentation in $(HTMLDIR)"
-	@test -d $(HTMLDIR) || mkdir -p $(HTMLDIR)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
-	$(verbose) $(GENDOC) -d $(HTMLDIR) -T $(DOCTEMPLATE) -x $(POLXML)
-	$(verbose) cp $(DOCTEMPLATE)/*.css $(HTMLDIR)
-	@touch $(TMPDIR)/html
+html $(tmpdir)/html: $(polxml)
+	@echo "Building html interface reference documentation in $(htmldir)"
+	@test -d $(htmldir) || mkdir -p $(htmldir)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
+	$(verbose) $(gendoc) -d $(htmldir) -T $(doctemplate) -x $(polxml)
+	$(verbose) cp $(doctemplate)/*.css $(htmldir)
+	@touch $(tmpdir)/html
 
 ########################################
 #
 # Runtime binary policy patching of users
 #
-$(USERPATH)/system.users: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(USER_FILES)
-	@mkdir -p $(TMPDIR)
-	@mkdir -p $(USERPATH)
+$(userpath)/system.users: $(m4support) $(tmpdir)/generated_definitions.conf $(user_files)
+	@mkdir -p $(tmpdir)
+	@mkdir -p $(userpath)
 	@echo "Installing system.users"
-	@echo "# " > $(TMPDIR)/system.users
-	@echo "# Do not edit this file. " >> $(TMPDIR)/system.users
-	@echo "# This file is replaced on reinstalls of this policy." >> $(TMPDIR)/system.users
-	@echo "# Please edit local.users to make local changes." >> $(TMPDIR)/system.users
-	@echo "#" >> $(TMPDIR)/system.users
+	@echo "# " > $(tmpdir)/system.users
+	@echo "# Do not edit this file. " >> $(tmpdir)/system.users
+	@echo "# This file is replaced on reinstalls of this policy." >> $(tmpdir)/system.users
+	@echo "# Please edit local.users to make local changes." >> $(tmpdir)/system.users
+	@echo "#" >> $(tmpdir)/system.users
 	$(verbose) $(M4) -D self_contained_policy $(M4PARAM) $^ | $(SED) -r -e 's/^[[:blank:]]+//' \
-		-e '/^[[:blank:]]*($$|#)/d' >> $(TMPDIR)/system.users
-	$(verbose) $(INSTALL) -m 644 $(TMPDIR)/system.users $@
+		-e '/^[[:blank:]]*($$|#)/d' >> $(tmpdir)/system.users
+	$(verbose) $(INSTALL) -m 644 $(tmpdir)/system.users $@
 
-$(USERPATH)/local.users: config/local.users
-	@mkdir -p $(USERPATH)
+$(userpath)/local.users: config/local.users
+	@mkdir -p $(userpath)
 	@echo "Installing local.users"
 	$(verbose) $(INSTALL) -b -m 644 $< $@
 
@@ -435,107 +425,107 @@ $(USERPATH)/local.users: config/local.users
 #
 # Appconfig files
 #
-install-appconfig: $(APPFILES)
+install-appconfig: $(appfiles)
 
-$(INSTALLDIR)/booleans: $(BOOLEANS)
-	@mkdir -p $(TMPDIR)
-	@mkdir -p $(INSTALLDIR)
+$(installdir)/booleans: $(booleans)
+	@mkdir -p $(tmpdir)
+	@mkdir -p $(installdir)
 	$(verbose) $(SED) -r -e 's/false/0/g' -e 's/true/1/g' \
-		-e '/^[[:blank:]]*($$|#)/d' $(BOOLEANS) | $(SORT) > $(TMPDIR)/booleans
-	$(verbose) $(INSTALL) -m 644 $(TMPDIR)/booleans $@
+		-e '/^[[:blank:]]*($$|#)/d' $(booleans) | $(SORT) > $(tmpdir)/booleans
+	$(verbose) $(INSTALL) -m 644 $(tmpdir)/booleans $@
 
-$(CONTEXTPATH)/files/media: $(APPCONF)/media
-	@mkdir -p $(CONTEXTPATH)/files/
+$(contextpath)/files/media: $(appconf)/media
+	@mkdir -p $(contextpath)/files/
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/default_contexts: $(APPCONF)/default_contexts
-	@mkdir -p $(APPDIR)
+$(appdir)/default_contexts: $(appconf)/default_contexts
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/removable_context: $(APPCONF)/removable_context
-	@mkdir -p $(APPDIR)
+$(appdir)/removable_context: $(appconf)/removable_context
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/default_type: $(APPCONF)/default_type
-	@mkdir -p $(APPDIR)
+$(appdir)/default_type: $(appconf)/default_type
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/userhelper_context: $(APPCONF)/userhelper_context
-	@mkdir -p $(APPDIR)
+$(appdir)/userhelper_context: $(appconf)/userhelper_context
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/initrc_context: $(APPCONF)/initrc_context
-	@mkdir -p $(APPDIR)
+$(appdir)/initrc_context: $(appconf)/initrc_context
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/failsafe_context: $(APPCONF)/failsafe_context
-	@mkdir -p $(APPDIR)
+$(appdir)/failsafe_context: $(appconf)/failsafe_context
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/dbus_contexts: $(APPCONF)/dbus_contexts
-	@mkdir -p $(APPDIR)
+$(appdir)/dbus_contexts: $(appconf)/dbus_contexts
+	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(APPDIR)/users/root: $(APPCONF)/root_default_contexts
-	@mkdir -p $(APPDIR)/users
+$(appdir)/users/root: $(appconf)/root_default_contexts
+	@mkdir -p $(appdir)/users
 	$(verbose) $(INSTALL) -m 644 $< $@
 
 ########################################
 #
 # Install policy headers
 #
-install-headers: $(TUNXML) $(BOOLXML)
-	@mkdir -p $(HEADERDIR)
+install-headers: $(tunxml) $(boolxml)
+	@mkdir -p $(headerdir)
 	@echo "Installing $(TYPE) policy headers."
-	$(verbose) $(INSTALL) -m 644 $(TUNXML) $(BOOLXML) $(HEADERDIR)
-	$(verbose) $(M4) $(M4PARAM) $(ROLEMAP) > $(HEADERDIR)/$(notdir $(ROLEMAP))
-	$(verbose) mkdir -p $(HEADERDIR)/support
-	$(verbose) $(INSTALL) -m 644 $(M4SUPPORT) $(word $(words $(GENXML)),$(GENXML)) $(XMLDTD) $(HEADERDIR)/support
-	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $(HEADERDIR)/support/all_perms.spt
-	$(verbose) for i in $(notdir $(ALL_LAYERS)); do \
-		mkdir -p $(HEADERDIR)/$$i ;\
-		$(INSTALL) -m 644 $(MODDIR)/$$i/*.if \
-			$(MODDIR)/$$i/metadata.xml \
-			$(HEADERDIR)/$$i ;\
+	$(verbose) $(INSTALL) -m 644 $(tunxml) $(boolxml) $(headerdir)
+	$(verbose) $(M4) $(M4PARAM) $(rolemap) > $(headerdir)/$(notdir $(rolemap))
+	$(verbose) mkdir -p $(headerdir)/support
+	$(verbose) $(INSTALL) -m 644 $(m4support) $(word $(words $(genxml)),$(genxml)) $(xmldtd) $(headerdir)/support
+	$(verbose) $(genperm) $(avs) $(secclass) > $(headerdir)/support/all_perms.spt
+	$(verbose) for i in $(notdir $(all_layers)); do \
+		mkdir -p $(headerdir)/$$i ;\
+		$(INSTALL) -m 644 $(moddir)/$$i/*.if \
+			$(moddir)/$$i/metadata.xml \
+			$(headerdir)/$$i ;\
 	done
-	$(verbose) echo "TYPE ?= $(TYPE)" > $(HEADERDIR)/build.conf
-	$(verbose) echo "NAME ?= $(NAME)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "TYPE ?= $(TYPE)" > $(headerdir)/build.conf
+	$(verbose) echo "NAME ?= $(NAME)" >> $(headerdir)/build.conf
 ifneq "$(DISTRO)" ""
-	$(verbose) echo "DISTRO ?= $(DISTRO)" >> $(HEADERDIR)/build.conf
+	$(verbose) echo "DISTRO ?= $(DISTRO)" >> $(headerdir)/build.conf
 endif
-	$(verbose) echo "MONOLITHIC ?= n" >> $(HEADERDIR)/build.conf
-	$(verbose) echo "DIRECT_INITRC ?= $(DIRECT_INITRC)" >> $(HEADERDIR)/build.conf
-	$(verbose) echo "POLY ?= $(POLY)" >> $(HEADERDIR)/build.conf
-	$(verbose) $(INSTALL) -m 644 $(SUPPORT)/Makefile.devel $(HEADERDIR)/Makefile
+	$(verbose) echo "MONOLITHIC ?= n" >> $(headerdir)/build.conf
+	$(verbose) echo "DIRECT_INITRC ?= $(DIRECT_INITRC)" >> $(headerdir)/build.conf
+	$(verbose) echo "POLY ?= $(POLY)" >> $(headerdir)/build.conf
+	$(verbose) $(INSTALL) -m 644 $(support)/Makefile.devel $(headerdir)/Makefile
 
 ########################################
 #
 # Install policy documentation
 #
-install-docs: $(TMPDIR)/html
-	@mkdir -p $(DOCSDIR)/html
+install-docs: $(tmpdir)/html
+	@mkdir -p $(docsdir)/html
 	@echo "Installing policy documentation"
-	$(verbose) $(INSTALL) -m 644 $(DOCFILES) $(DOCSDIR)
-	$(verbose) $(INSTALL) -m 644 $(wildcard $(HTMLDIR)/*) $(DOCSDIR)/html
+	$(verbose) $(INSTALL) -m 644 $(docfiles) $(docsdir)
+	$(verbose) $(INSTALL) -m 644 $(wildcard $(htmldir)/*) $(docsdir)/html
 
 ########################################
 #
 # Install policy sources
 #
 install-src:
-	rm -rf $(SRCPATH)/policy.old
-	-mv $(SRCPATH)/policy $(SRCPATH)/policy.old
-	mkdir -p $(SRCPATH)/policy
-	cp -R . $(SRCPATH)/policy
+	rm -rf $(srcpath)/policy.old
+	-mv $(srcpath)/policy $(srcpath)/policy.old
+	mkdir -p $(srcpath)/policy
+	cp -R . $(srcpath)/policy
 
 ########################################
 #
 # Generate tags file
 #
-tags: $(TAGS)
-$(TAGS):
+tags: $(tags)
+$(tags):
 	@($(CTAGS) --version | grep -q Exuberant) || (echo ERROR: Need exuberant-ctags to function!; exit 1)
-	@LC_ALL=C $(CTAGS) -f $(TAGS) --langdef=te --langmap=te:..te.if.spt \
+	@LC_ALL=C $(CTAGS) -f $(tags) --langdef=te --langmap=te:..te.if.spt \
 	 --regex-te='/^type[ \t]+(\w+)(,|;)/\1/t,type/' \
 	 --regex-te='/^typealias[ \t]+\w+[ \t+]+alias[ \t]+(\w+);/\1/t,type/' \
 	 --regex-te='/^attribute[ \t]+(\w+);/\1/a,attribute/' \
@@ -549,60 +539,60 @@ $(TAGS):
 #
 checklabels:
 	@echo "Checking labels on filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
+	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -v -n $(FCPATH) $(FILESYSTEMS)
+	$(verbose) $(SETFILES) -v -n $(fcpath) $(filesystems)
 
 restorelabels:
 	@echo "Restoring labels on filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
+	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -v $(FCPATH) $(FILESYSTEMS)
+	$(verbose) $(SETFILES) -v $(fcpath) $(filesystems)
 
 relabel:
 	@echo "Relabeling filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
+	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) $(FCPATH) $(FILESYSTEMS)
+	$(verbose) $(SETFILES) $(fcpath) $(filesystems)
 
 resetlabels:
 	@echo "Resetting labels on filesystem types: ext2 ext3 xfs jfs"
-	@if test -z "$(FILESYSTEMS)"; then \
+	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -F $(FCPATH) $(FILESYSTEMS)
+	$(verbose) $(SETFILES) -F $(fcpath) $(filesystems)
 
 ########################################
 #
 # Clean everything
 #
 bare: clean
-	rm -f $(POLXML)
-	rm -f $(TUNXML)
-	rm -f $(BOOLXML)
-	rm -f $(MOD_CONF)
-	rm -f $(BOOLEANS)
-	rm -fR $(HTMLDIR)
-	rm -f $(TAGS)
+	rm -f $(polxml)
+	rm -f $(tunxml)
+	rm -f $(boolxml)
+	rm -f $(mod_conf)
+	rm -f $(booleans)
+	rm -fR $(htmldir)
+	rm -f $(tags)
 # don't remove these files if we're given a local root
 ifndef LOCAL_ROOT
-	rm -f $(FCSORT)
-	rm -f $(SUPPORT)/*.pyc
-ifneq ($(GENERATED_TE),)
-	rm -f $(GENERATED_TE)
+	rm -f $(fcsort)
+	rm -f $(support)/*.pyc
+ifneq ($(generated_te),)
+	rm -f $(generated_te)
 endif
-ifneq ($(GENERATED_IF),)
-	rm -f $(GENERATED_IF)
+ifneq ($(generated_if),)
+	rm -f $(generated_if)
 endif
-ifneq ($(GENERATED_FC),)
-	rm -f $(GENERATED_FC)
+ifneq ($(generated_fc),)
+	rm -f $(generated_fc)
 endif
 endif
 

@@ -3,36 +3,46 @@
 # Rules and Targets for building monolithic policies
 #
 
-POLICY_CONF = $(BUILDDIR)policy.conf
-FC = $(BUILDDIR)file_contexts
-POLVER = $(BUILDDIR)policy.$(PV)
-HOMEDIR_TEMPLATE = $(BUILDDIR)homedir_template
+# determine the policy version and current kernel version if possible
+pv := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
+kv := $(shell cat /selinux/policyvers)
+
+# dont print version warnings if we are unable to determine
+# the currently running kernel's policy version
+ifeq "$(kv)" ""
+	kv := $(pv)
+endif
+
+policy_conf = $(builddir)policy.conf
+fc = $(builddir)file_contexts
+polver = $(builddir)policy.$(pv)
+homedir_template = $(builddir)homedir_template
 
 M4PARAM += -D self_contained_policy
 
 # install paths
-POLICYPATH = $(INSTALLDIR)/policy
-LOADPATH = $(POLICYPATH)/$(notdir $(POLVER))
-HOMEDIRPATH = $(CONTEXTPATH)/files/homedir_template
+policypath = $(installdir)/policy
+loadpath = $(policypath)/$(notdir $(polver))
+homedirpath = $(contextpath)/files/homedir_template
 
-APPFILES += $(INSTALLDIR)/booleans $(USERPATH)/local.users
+appfiles += $(installdir)/booleans $(userpath)/local.users
 
 # for monolithic policy use all base and module to create policy
-ALL_MODULES := $(strip $(BASE_MODS) $(MOD_MODS))
+all_modules := $(strip $(base_mods) $(mod_mods))
 # off module interfaces included to make sure all interfaces are expanded.
-ALL_INTERFACES := $(ALL_MODULES:.te=.if) $(OFF_MODS:.te=.if)
-ALL_TE_FILES := $(ALL_MODULES)
-ALL_FC_FILES := $(ALL_MODULES:.te=.fc)
+all_interfaces := $(all_modules:.te=.if) $(off_mods:.te=.if)
+all_te_files := $(all_modules)
+all_fc_files := $(all_modules:.te=.fc)
 
-PRE_TE_FILES := $(SECCLASS) $(ISIDS) $(AVS) $(M4SUPPORT) $(POLDIR)/mls $(POLDIR)/mcs
-POST_TE_FILES := $(USER_FILES) $(POLDIR)/constraints
+pre_te_files := $(secclass) $(isids) $(avs) $(m4support) $(poldir)/mls $(poldir)/mcs
+post_te_files := $(user_files) $(poldir)/constraints
 
-POLICY_SECTIONS := $(TMPDIR)/pre_te_files.conf $(TMPDIR)/all_attrs_types.conf $(TMPDIR)/global_bools.conf $(TMPDIR)/only_te_rules.conf $(TMPDIR)/all_post.conf
+policy_sections := $(tmpdir)/pre_te_files.conf $(tmpdir)/all_attrs_types.conf $(tmpdir)/global_bools.conf $(tmpdir)/only_te_rules.conf $(tmpdir)/all_post.conf
 
 # search layer dirs for source files
-vpath %.te $(ALL_LAYERS)
-vpath %.if $(ALL_LAYERS)
-vpath %.fc $(ALL_LAYERS)
+vpath %.te $(all_layers)
+vpath %.if $(all_layers)
+vpath %.fc $(all_layers)
 
 ########################################
 #
@@ -40,24 +50,24 @@ vpath %.fc $(ALL_LAYERS)
 #
 default: policy
 
-policy: $(POLVER)
+policy: $(polver)
 
-install: $(LOADPATH) $(FCPATH) $(NCPATH) $(APPFILES)
+install: $(loadpath) $(fcpath) $(ncpath) $(appfiles)
 
-load: $(TMPDIR)/load
+load: $(tmpdir)/load
 
-checklabels: $(FCPATH)
-restorelabels: $(FCPATH)
-relabel:  $(FCPATH)
-resetlabels:  $(FCPATH)
+checklabels: $(fcpath)
+restorelabels: $(fcpath)
+relabel:  $(fcpath)
+resetlabels:  $(fcpath)
 
 ########################################
 #
 # Build a binary policy locally
 #
-$(POLVER): $(POLICY_CONF)
-	@echo "Compiling $(NAME) $(POLVER)"
-ifneq ($(PV),$(KV))
+$(polver): $(policy_conf)
+	@echo "Compiling $(NAME) $(polver)"
+ifneq ($(pv),$(kv))
 	@echo
 	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
@@ -68,10 +78,10 @@ endif
 #
 # Install a binary policy
 #
-$(LOADPATH): $(POLICY_CONF)
-	@mkdir -p $(POLICYPATH)
-	@echo "Compiling and installing $(NAME) $(LOADPATH)"
-ifneq ($(PV),$(KV))
+$(loadpath): $(policy_conf)
+	@mkdir -p $(policypath)
+	@echo "Compiling and installing $(NAME) $(loadpath)"
+ifneq ($(pv),$(kv))
 	@echo
 	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
@@ -82,115 +92,115 @@ endif
 #
 # Load the binary policy
 #
-reload $(TMPDIR)/load: $(LOADPATH) $(FCPATH) $(NCPATH) $(APPFILES)
-	@echo "Loading $(NAME) $(LOADPATH)"
-	$(verbose) $(LOADPOLICY) -q $(LOADPATH)
-	@touch $(TMPDIR)/load
+reload $(tmpdir)/load: $(loadpath) $(fcpath) $(ncpath) $(appfiles)
+	@echo "Loading $(NAME) $(loadpath)"
+	$(verbose) $(LOADPOLICY) -q $(loadpath)
+	@touch $(tmpdir)/load
 
 ########################################
 #
 # Construct a monolithic policy.conf
 #
-$(POLICY_CONF): $(POLICY_SECTIONS)
+$(policy_conf): $(policy_sections)
 	@echo "Creating $(NAME) $(@F)"
 	@test -d $(@D) || mkdir -p $(@D)
 	$(verbose) cat $^ > $@
 
-$(TMPDIR)/pre_te_files.conf: $(PRE_TE_FILES)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+$(tmpdir)/pre_te_files.conf: $(pre_te_files)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) $(M4) $(M4PARAM) $^ > $@
 
-$(TMPDIR)/generated_definitions.conf: $(ALL_TE_FILES)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+$(tmpdir)/generated_definitions.conf: $(all_te_files)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 # define all available object classes
-	$(verbose) $(GENPERM) $(AVS) $(SECCLASS) > $@
+	$(verbose) $(genperm) $(avs) $(secclass) > $@
 # per-userdomain templates:
 	$(verbose) echo "define(\`base_per_userdomain_template',\`" >> $@
-	$(verbose) $(foreach mod,$(basename $(notdir $(ALL_MODULES))), \
+	$(verbose) $(foreach mod,$(basename $(notdir $(all_modules))), \
 		echo "ifdef(\`""$(mod)""_per_userdomain_template',\`""$(mod)""_per_userdomain_template("'$$*'")')" >> $@ ;)
 	$(verbose) echo "')" >> $@
-	$(verbose) test -f $(BOOLEANS) && $(SETBOOLS) $(BOOLEANS) >> $@ || true
+	$(verbose) test -f $(booleans) && $(setbools) $(booleans) >> $@ || true
 
-$(TMPDIR)/global_bools.conf: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(GLOBALBOOL) $(GLOBALTUN)
+$(tmpdir)/global_bools.conf: $(m4support) $(tmpdir)/generated_definitions.conf $(globalbool) $(globaltun)
 	$(verbose) $(M4) $(M4PARAM) $^ > $@
 
-$(TMPDIR)/all_interfaces.conf: $(M4SUPPORT) $(ALL_INTERFACES)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
-	@echo "ifdef(\`__if_error',\`m4exit(1)')" > $(TMPDIR)/iferror.m4
+$(tmpdir)/all_interfaces.conf: $(m4support) $(all_interfaces)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
+	@echo "ifdef(\`__if_error',\`m4exit(1)')" > $(tmpdir)/iferror.m4
 	@echo "divert(-1)" > $@
-	$(verbose) $(M4) $^ $(TMPDIR)/iferror.m4 >> $(TMPDIR)/$(@F).tmp
-	$(verbose) $(SED) -e s/dollarsstar/\$$\*/g $(TMPDIR)/$(@F).tmp >> $@
+	$(verbose) $(M4) $^ $(tmpdir)/iferror.m4 >> $(tmpdir)/$(@F).tmp
+	$(verbose) $(SED) -e s/dollarsstar/\$$\*/g $(tmpdir)/$(@F).tmp >> $@
 	@echo "divert" >> $@
 
-$(TMPDIR)/rolemap.conf: $(ROLEMAP)
+$(tmpdir)/rolemap.conf: $(rolemap)
 	$(call parse-rolemap,base,$@)
 
-$(TMPDIR)/all_te_files.conf: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(TMPDIR)/all_interfaces.conf $(ALL_TE_FILES) $(TMPDIR)/rolemap.conf
-ifeq "$(strip $(ALL_TE_FILES))" ""
-	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
+$(tmpdir)/all_te_files.conf: $(m4support) $(tmpdir)/generated_definitions.conf $(tmpdir)/all_interfaces.conf $(all_te_files) $(tmpdir)/rolemap.conf
+ifeq "$(strip $(all_te_files))" ""
+	$(error No enabled modules! $(notdir $(mod_conf)) may need to be generated by using "make conf")
 endif
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) $(M4) $(M4PARAM) -s $^ > $@
 
-$(TMPDIR)/post_te_files.conf: $(M4SUPPORT) $(POST_TE_FILES)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+$(tmpdir)/post_te_files.conf: $(m4support) $(post_te_files)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) $(M4) $(M4PARAM) $^ > $@
 
 # extract attributes and put them first. extract post te stuff
 # like genfscon and put last.
-$(TMPDIR)/all_attrs_types.conf $(TMPDIR)/only_te_rules.conf $(TMPDIR)/all_post.conf: $(TMPDIR)/all_te_files.conf $(TMPDIR)/post_te_files.conf
-	$(verbose) $(get_type_attr_decl) $(TMPDIR)/all_te_files.conf | $(SORT) > $(TMPDIR)/all_attrs_types.conf
-	$(verbose) cat $(TMPDIR)/post_te_files.conf > $(TMPDIR)/all_post.conf
+$(tmpdir)/all_attrs_types.conf $(tmpdir)/only_te_rules.conf $(tmpdir)/all_post.conf: $(tmpdir)/all_te_files.conf $(tmpdir)/post_te_files.conf
+	$(verbose) $(get_type_attr_decl) $(tmpdir)/all_te_files.conf | $(SORT) > $(tmpdir)/all_attrs_types.conf
+	$(verbose) cat $(tmpdir)/post_te_files.conf > $(tmpdir)/all_post.conf
 # these have to run individually because order matters:
-	$(verbose) $(GREP) '^sid ' $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(GREP) '^fs_use_(xattr|task|trans)' $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(GREP) ^genfscon $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(GREP) ^portcon $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(GREP) ^netifcon $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(GREP) ^nodecon $(TMPDIR)/all_te_files.conf >> $(TMPDIR)/all_post.conf || true
-	$(verbose) $(comment_move_decl) $(TMPDIR)/all_te_files.conf > $(TMPDIR)/only_te_rules.conf
+	$(verbose) $(GREP) '^sid ' $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(GREP) '^fs_use_(xattr|task|trans)' $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(GREP) ^genfscon $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(GREP) ^portcon $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(GREP) ^netifcon $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(GREP) ^nodecon $(tmpdir)/all_te_files.conf >> $(tmpdir)/all_post.conf || true
+	$(verbose) $(comment_move_decl) $(tmpdir)/all_te_files.conf > $(tmpdir)/only_te_rules.conf
 
 ########################################
 #
 # Remove the dontaudit rules from the policy.conf
 #
-enableaudit: $(POLICY_CONF)
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
-	@echo "Removing dontaudit rules from $(notdir $(POLICY_CONF))"
-	$(verbose) $(GREP) -v dontaudit $^ > $(TMPDIR)/policy.audit
-	$(verbose) mv $(TMPDIR)/policy.audit $(POLICY_CONF)
+enableaudit: $(policy_conf)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
+	@echo "Removing dontaudit rules from $(notdir $(policy_conf))"
+	$(verbose) $(GREP) -v dontaudit $^ > $(tmpdir)/policy.audit
+	$(verbose) mv $(tmpdir)/policy.audit $(policy_conf)
 
 ########################################
 #
 # Construct file_contexts
 #
-$(FC): $(TMPDIR)/$(notdir $(FC)).tmp $(FCSORT)
-	$(verbose) $(FCSORT) $< $@
-	$(verbose) $(GREP) -e HOME -e ROLE $@ > $(HOMEDIR_TEMPLATE)
+$(fc): $(tmpdir)/$(notdir $(fc)).tmp $(fcsort)
+	$(verbose) $(fcsort) $< $@
+	$(verbose) $(GREP) -e HOME -e ROLE $@ > $(homedir_template)
 	$(verbose) $(SED) -i -e /HOME/d -e /ROLE/d $@
 
-$(TMPDIR)/$(notdir $(FC)).tmp: $(M4SUPPORT) $(TMPDIR)/generated_definitions.conf $(ALL_FC_FILES)
-ifeq ($(ALL_FC_FILES),)
-	$(error No enabled modules! $(notdir $(MOD_CONF)) may need to be generated by using "make conf")
+$(tmpdir)/$(notdir $(fc)).tmp: $(m4support) $(tmpdir)/generated_definitions.conf $(all_fc_files)
+ifeq ($(all_fc_files),)
+	$(error No enabled modules! $(notdir $(mod_conf)) may need to be generated by using "make conf")
 endif
 	@echo "Creating $(NAME) file_contexts."
-	@test -d $(TMPDIR) || mkdir -p $(TMPDIR)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) $(M4) $(M4PARAM) $^ > $@
 
-$(HOMEDIR_TEMPLATE): $(FC)
+$(homedir_template): $(fc)
 
 ########################################
 #
 # Install file_contexts
 #
-$(FCPATH): $(FC) $(LOADPATH) $(USERPATH)/system.users
+$(fcpath): $(fc) $(loadpath) $(userpath)/system.users
 	@echo "Validating $(NAME) file_contexts."
-	$(verbose) $(SETFILES) -q -c $(LOADPATH) $(FC)
+	$(verbose) $(SETFILES) -q -c $(loadpath) $(fc)
 	@echo "Installing file_contexts."
-	@mkdir -p $(CONTEXTPATH)/files
-	$(verbose) $(INSTALL) -m 644 $(FC) $(FCPATH)
-	$(verbose) $(INSTALL) -m 644 $(HOMEDIR_TEMPLATE) $(HOMEDIRPATH)
-	$(verbose) $(genhomedircon) -d $(TOPDIR) -t $(NAME) $(USEPWD)
+	@mkdir -p $(contextpath)/files
+	$(verbose) $(INSTALL) -m 644 $(fc) $(fcpath)
+	$(verbose) $(INSTALL) -m 644 $(homedir_template) $(homedirpath)
+	$(verbose) $(genhomedircon) -d $(topdir) -t $(NAME) $(USEPWD)
 ifeq "$(DISTRO)" "rhel4"
 # Setfiles in RHEL4 does not look at file_contexts.homedirs.
 	$(verbose) cat $@.homedirs >> $@
@@ -203,7 +213,7 @@ endif
 #
 # Intall netfilter_contexts
 #
-$(NCPATH): $(net_contexts)
+$(ncpath): $(net_contexts)
 	@echo "Installing $(NAME) netfilter_contexts."
 	$(verbose) $(INSTALL) -m 0644 $^ $@
 
@@ -211,34 +221,34 @@ $(NCPATH): $(net_contexts)
 #
 # Run policy source checks
 #
-check: $(BUILDDIR)check.res
-$(BUILDDIR)check.res: $(POLICY_CONF) $(FC)
-	$(SECHECK) -s --profile=development --policy=$(POLICY_CONF) --fcfile=$(FC) > $@
+check: $(builddir)check.res
+$(builddir)check.res: $(policy_conf) $(fc)
+	$(SECHECK) -s --profile=development --policy=$(policy_conf) --fcfile=$(fc) > $@
 
-longcheck: $(BUILDDIR)longcheck.res
-$(BUILDDIR)longcheck.res: $(POLICY_CONF) $(FC)
-	$(SECHECK) -s --profile=all --policy=$(POLICY_CONF) --fcfile=$(FC) > $@
+longcheck: $(builddir)longcheck.res
+$(builddir)longcheck.res: $(policy_conf) $(fc)
+	$(SECHECK) -s --profile=all --policy=$(policy_conf) --fcfile=$(fc) > $@
 
 ########################################
 #
 # Appconfig files
 #
-$(APPDIR)/customizable_types: $(POLICY_CONF)
-	@mkdir -p $(APPDIR)
-	$(verbose) $(GREP) '^[[:blank:]]*type .*customizable' $< | cut -d';' -f1 | cut -d',' -f1 | cut -d' ' -f2 | $(SORT) -u > $(TMPDIR)/customizable_types
-	$(verbose) $(INSTALL) -m 644 $(TMPDIR)/customizable_types $@ 
+$(appdir)/customizable_types: $(policy_conf)
+	@mkdir -p $(appdir)
+	$(verbose) $(GREP) '^[[:blank:]]*type .*customizable' $< | cut -d';' -f1 | cut -d',' -f1 | cut -d' ' -f2 | $(SORT) -u > $(tmpdir)/customizable_types
+	$(verbose) $(INSTALL) -m 644 $(tmpdir)/customizable_types $@ 
 
 ########################################
 #
 # Clean the sources
 #
 clean:
-	rm -f $(POLICY_CONF)
-	rm -f $(POLVER)
-	rm -f $(FC)
-	rm -f $(HOMEDIR_TEMPLATE)
+	rm -f $(policy_conf)
+	rm -f $(polver)
+	rm -f $(fc)
+	rm -f $(homedir_template)
 	rm -f $(net_contexts)
 	rm -f *.res
-	rm -fR $(TMPDIR)
+	rm -fR $(tmpdir)
 
 .PHONY: default policy install load reload enableaudit checklabels restorelabels relabel check longcheck clean
