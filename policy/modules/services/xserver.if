@@ -45,7 +45,6 @@ template(`xserver_common_domain_template',`
 	allow $1_xserver_t self:capability { dac_override fsetid setgid setuid ipc_owner sys_rawio sys_admin sys_nice sys_tty_config mknod net_bind_service };
 	dontaudit $1_xserver_t self:capability chown;
 	allow $1_xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_xserver_t self:process { execmem execheap execstack setsched };
 	allow $1_xserver_t self:fd use;
 	allow $1_xserver_t self:fifo_file rw_file_perms;
 	allow $1_xserver_t self:sock_file r_file_perms;
@@ -158,6 +157,14 @@ template(`xserver_common_domain_template',`
 	seutil_dontaudit_search_config($1_xserver_t)
 
 	sysnet_read_config($1_xserver_t)
+
+	ifndef(`distro_redhat',`
+		allow $1_xserver_t self:process { execmem execheap execstack };
+	')
+
+	ifdef(`distro_rhel4',`
+		allow $1_xserver_t self:process { execmem execheap execstack };
+	')
 
 	optional_policy(`
 		apm_stream_connect($1_xserver_t)
@@ -770,9 +777,12 @@ interface(`xserver_rw_xdm_pipes',`
 #
 interface(`xserver_stream_connect_xdm',`
 	gen_require(`
-		type xdm_t;
+		type xdm_t, xdm_tmp_t;
 	')
 
+	files_search_tmp($1)
+	allow $1 xdm_tmp_t:dir search_dir_perms;
+	allow $1 xdm_tmp_t:sock_file write;
 	allow $1 xdm_t:unix_stream_socket connectto;
 ')
 
@@ -1045,6 +1055,24 @@ interface(`xserver_read_xdm_xserver_tmp_files',`
 	')
 
 	allow $1 xdm_xserver_tmp_t:file { getattr read };
+')
+
+########################################
+## <summary>
+##	Read xdm temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`xserver_read_xdm_tmp_files',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	allow $1 xdm_tmp_t:file { getattr read };
 ')
 
 ########################################
