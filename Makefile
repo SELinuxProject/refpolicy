@@ -325,14 +325,14 @@ endif
 #
 generate: $(generated_te) $(generated_if) $(generated_fc)
 
-$(moddir)/kernel/corenetwork.if: $(moddir)/kernel/corenetwork.if.m4 $(moddir)/kernel/corenetwork.if.in
+$(moddir)/kernel/corenetwork.if: $(moddir)/kernel/corenetwork.te.in $(moddir)/kernel/corenetwork.if.m4 $(moddir)/kernel/corenetwork.if.in
 	@echo "#" > $@
 	@echo "# This is a generated file!  Instead of modifying this file, the" >> $@
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
-	$(verbose) cat $(moddir)/kernel/corenetwork.if.in >> $@
-	$(verbose) $(GREP) "^[[:blank:]]*network_(interface|node|port|packet)\(.*\)" $(@:.if=.te).in \
-		| $(M4) -D self_contained_policy $(M4PARAM) $(moddir)/kernel/corenetwork.if.m4 - \
+	$(verbose) cat $@.in >> $@
+	$(verbose) $(GREP) "^[[:blank:]]*network_(interface|node|port|packet)\(.*\)" $< \
+		| $(M4) -D self_contained_policy $(M4PARAM) $@.m4 - \
 		| $(SED) -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 
 $(moddir)/kernel/corenetwork.te: $(moddir)/kernel/corenetwork.te.m4 $(moddir)/kernel/corenetwork.te.in
