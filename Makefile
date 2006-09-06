@@ -295,17 +295,46 @@ filesystems = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\
 # Functions
 #
 
-# parse-rolemap modulename,outputfile
-define parse-rolemap
+# parse-rolemap-compat modulename,outputfile
+define parse-rolemap-compat
 	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
 		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
 endef
 
-# peruser-expansion modulename,outputfile
-define peruser-expansion
-	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
+# parse-rolemap modulename,outputfile
+define parse-rolemap
+	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
+		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_role_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
+endef
+
+# perrole-expansion modulename,outputfile
+define perrole-expansion
+	$(verbose) echo "ifdef(\`""$1""_per_role_template',\`" > $2
 	$(call parse-rolemap,$1,$2)
 	$(verbose) echo "')" >> $2
+
+	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" >> $2
+	$(verbose) echo "errprint(\`Warning: per_userdomain_templates have been renamed to per_role_templates (""$1""_per_userdomain_template)'__endline__)" >> $2
+	$(call parse-rolemap-compat,$1,$2)
+	$(verbose) echo "')" >> $2
+endef
+
+# create-base-per-role-tmpl modulenames,outputfile
+define create-base-per-role-tmpl
+	$(verbose) echo "define(\`base_per_role_template',\`" >> $2
+
+	$(verbose) for i in $1; do \
+		echo "ifdef(\`""$$i""_per_role_template',\`""$$i""_per_role_template("'$$*'")')" \
+			>> $2 ;\
+	done
+
+	$(verbose) for i in $1; do \
+		echo "ifdef(\`""$$i""_per_userdomain_template',\`" >> $2 ;\
+		echo "errprint(\`Warning: per_userdomain_templates have been renamed to per_role_templates (""$$i""_per_userdomain_template)'__endline__)" >> $2 ;\
+		echo """$$i""_per_userdomain_template("'$$*'")')"  >> $2 ;\
+	done
+	$(verbose) echo "')" >> $@
+
 endef
 
 ########################################

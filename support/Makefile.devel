@@ -109,16 +109,27 @@ endif
 # Functions
 #
 
-# parse-rolemap modulename,outputfile
-define parse-rolemap
+# parse-rolemap-compat modulename,outputfile
+define parse-rolemap-compat
 	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
 		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
 endef
 
+# parse-rolemap modulename,outputfile
+define parse-rolemap
+	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
+		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_role_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
+endef
+
 # peruser-expansion modulename,outputfile
 define peruser-expansion
-	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" > $2
+	$(verbose) echo "ifdef(\`""$1""_per_role_template',\`" > $2
 	$(call parse-rolemap,$1,$2)
+	$(verbose) echo "')" >> $2
+
+	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" >> $2
+	$(verbose) echo "errprint(\`Warning: per_userdomain_templates have been renamed to per_role_templates (""$1""_per_userdomain_template)'__endline__)" >> $2
+	$(call parse-rolemap-compat,$1,$2)
 	$(verbose) echo "')" >> $2
 endef
 

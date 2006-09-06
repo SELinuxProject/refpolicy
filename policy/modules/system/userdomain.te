@@ -1,5 +1,5 @@
 
-policy_module(userdomain,1.3.30)
+policy_module(userdomain,1.3.31)
 
 gen_require(`
 	role sysadm_r, staff_r, user_r;
@@ -56,105 +56,42 @@ attribute untrusted_content_tmp_type;
 # Local policy
 #
 
-define(`role_change',`
-	allow $1_r $2_r;
-	type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
-	type_change $2_t $1_tty_device_t:chr_file $2_tty_device_t;
-	# avoid annoying messages on terminal hangup
-	dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
-')
-
-ifdef(`targeted_policy',`
-	# Define some type aliases to help with compatibility with
-	# macros and domains from the "strict" policy.
-	unconfined_alias_domain(secadm_t)
-	unconfined_alias_domain(auditadm_t)
-	unconfined_alias_domain(sysadm_t)
-
-	# User home directory type.
-	type user_home_t alias { staff_home_t sysadm_home_t }, home_type, user_home_type;
-	files_type(user_home_t)
-	files_associate_tmp(user_home_t)
-	fs_associate_tmpfs(user_home_t)
-
-	type user_home_dir_t alias { staff_home_dir_t sysadm_home_dir_t }, home_dir_type, home_type, user_home_dir_type;
-	files_type(user_home_dir_t)
-	files_associate_tmp(user_home_dir_t)
-	fs_associate_tmpfs(user_home_dir_t)
-
-	# compatibility for switching from strict
-#	dominance { role secadm_r { role system_r; }}
-#	dominance { role auditadm_r { role system_r; }}
-#	dominance { role sysadm_r { role system_r; }}
-#	dominance { role user_r { role system_r; }}
-#	dominance { role staff_r { role system_r; }}
-
-	# dont need to use the full role_change()
-	allow sysadm_r system_r;
-	allow sysadm_r user_r;
-	allow user_r system_r;
-	allow user_r sysadm_r;
-	allow system_r sysadm_r;
-	allow system_r sysadm_r;
-
-	allow privhome user_home_t:dir manage_dir_perms;
-	allow privhome user_home_t:file create_file_perms;
-	allow privhome user_home_t:lnk_file create_lnk_perms;
-	allow privhome user_home_t:fifo_file create_file_perms;
-	allow privhome user_home_t:sock_file create_file_perms;
-	allow privhome user_home_dir_t:dir rw_dir_perms;
-	type_transition privhome user_home_dir_t:{ dir file lnk_file fifo_file sock_file } user_home_t;
-	files_search_home(privhome)
-
-	ifdef(`enable_mls',`
-		allow secadm_r system_r;
-		allow auditadm_r system_r;
-		allow secadm_r user_r;
-		allow staff_r secadm_r;
-		allow staff_r auditadm_r;
-	')
-
-	optional_policy(`
-		samba_per_userdomain_template(user)
-	')
-',`
-	admin_user_template(sysadm)
-	unpriv_user_template(staff)
-	unpriv_user_template(user)
+ifdef(`strict_policy',`
+	userdom_admin_user_template(sysadm)
+	userdom_unpriv_user_template(staff)
+	userdom_unpriv_user_template(user)
 
 	# user role change rules:
 	# sysadm_r can change to user roles
-	role_change(sysadm, user)
-	role_change(sysadm, staff)
+	userdom_role_change_template(sysadm, user)
+	userdom_role_change_template(sysadm, staff)
 
 	# only staff_r can change to sysadm_r
-	role_change(staff, sysadm)
+	userdom_role_change_template(staff, sysadm)
 
 	ifdef(`enable_mls',`
-		unpriv_user_template(secadm)
-		unpriv_user_template(auditadm)
+		userdom_unpriv_user_template(secadm)
+		userdom_unpriv_user_template(auditadm)
 
-		role_change(staff,auditadm)
-		role_change(staff,secadm)
+		userdom_role_change_template(staff,auditadm)
+		userdom_role_change_template(staff,secadm)
 
-		role_change(sysadm,secadm)
-		role_change(sysadm,auditadm)
+		userdom_role_change_template(sysadm,secadm)
+		userdom_role_change_template(sysadm,auditadm)
 
-		role_change(auditadm,secadm)
-		role_change(auditadm,sysadm)
+		userdom_role_change_template(auditadm,secadm)
+		userdom_role_change_template(auditadm,sysadm)
 
-		role_change(secadm,auditadm)
-		role_change(secadm,sysadm)
+		userdom_role_change_template(secadm,auditadm)
+		userdom_role_change_template(secadm,sysadm)
 	')
 
 	# this should be tunable_policy, but
 	# currently type_change and RBAC allow
 	# do not work in conditionals
 	ifdef(`user_canbe_sysadm',`
-		role_change(user,sysadm)
+		userdom_role_change_template(user,sysadm)
 	')
-
-	allow privhome home_root_t:dir { getattr search };
 
 	########################################
 	#
@@ -211,7 +148,7 @@ ifdef(`targeted_policy',`
 		logging_read_audit_log(secadm_t)
 	        logging_read_generic_logs(secadm_t)
 		userdom_dontaudit_append_staff_home_content_files(secadm_t)
-	', `
+	',`
 		logging_manage_audit_log(sysadm_t)
 		logging_manage_audit_config(sysadm_t)
 		logging_run_auditctl(sysadm_t,sysadm_r,admin_terminal)
@@ -493,5 +430,60 @@ ifdef(`targeted_policy',`
 
 	optional_policy(`
 		yam_run(sysadm_t,sysadm_r,admin_terminal)
+	')
+')
+
+ifdef(`targeted_policy',`
+	# Define some type aliases to help with compatibility with
+	# strict policy.
+	unconfined_alias_domain(secadm_t)
+	unconfined_alias_domain(auditadm_t)
+	unconfined_alias_domain(sysadm_t)
+
+	# User home directory type.
+	type user_home_t alias { staff_home_t sysadm_home_t }, home_type, user_home_type;
+	files_type(user_home_t)
+	files_associate_tmp(user_home_t)
+	fs_associate_tmpfs(user_home_t)
+
+	type user_home_dir_t alias { staff_home_dir_t sysadm_home_dir_t }, home_dir_type, home_type, user_home_dir_type;
+	files_type(user_home_dir_t)
+	files_associate_tmp(user_home_dir_t)
+	fs_associate_tmpfs(user_home_dir_t)
+
+	# compatibility for switching from strict
+#	dominance { role secadm_r { role system_r; }}
+#	dominance { role auditadm_r { role system_r; }}
+#	dominance { role sysadm_r { role system_r; }}
+#	dominance { role user_r { role system_r; }}
+#	dominance { role staff_r { role system_r; }}
+
+	# dont need to use the full role_change()
+	allow sysadm_r system_r;
+	allow sysadm_r user_r;
+	allow user_r system_r;
+	allow user_r sysadm_r;
+	allow system_r sysadm_r;
+	allow system_r sysadm_r;
+
+	allow privhome user_home_t:dir manage_dir_perms;
+	allow privhome user_home_t:file create_file_perms;
+	allow privhome user_home_t:lnk_file create_lnk_perms;
+	allow privhome user_home_t:fifo_file create_file_perms;
+	allow privhome user_home_t:sock_file create_file_perms;
+	allow privhome user_home_dir_t:dir rw_dir_perms;
+	type_transition privhome user_home_dir_t:{ dir file lnk_file fifo_file sock_file } user_home_t;
+	files_search_home(privhome)
+
+	ifdef(`enable_mls',`
+		allow secadm_r system_r;
+		allow auditadm_r system_r;
+		allow secadm_r user_r;
+		allow staff_r secadm_r;
+		allow staff_r auditadm_r;
+	')
+
+	optional_policy(`
+		samba_per_role_template(user)
 	')
 ')

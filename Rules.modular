@@ -71,7 +71,7 @@ $(modpkgdir)/%.pp: $(builddir)%.pp
 $(tmpdir)/%.mod: $(m4support) $(tmpdir)/generated_definitions.conf $(tmpdir)/all_interfaces.conf %.te
 	@echo "Compliling $(NAME) $(@F) module"
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
-	$(call peruser-expansion,$(basename $(@F)),$@.role)
+	$(call perrole-expansion,$(basename $(@F)),$@.role)
 	$(verbose) $(M4) $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
 	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
@@ -120,13 +120,7 @@ $(tmpdir)/generated_definitions.conf: $(base_te_files)
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 # define all available object classes
 	$(verbose) $(genperm) $(avs) $(secclass) > $@
-# per-userdomain templates
-	$(verbose) echo "define(\`base_per_userdomain_template',\`" >> $@
-	$(verbose) for i in $(patsubst %.te,%,$(base_mods)); do \
-		echo "ifdef(\`""$$i""_per_userdomain_template',\`""$$i""_per_userdomain_template("'$$*'")')" \
-			>> $@ ;\
-	done
-	$(verbose) echo "')" >> $@
+	$(verbose) $(call create-base-per-role-tmpl,$(patsubst %.te,%,$(base_mods)),$@)
 	$(verbose) test -f $(booleans) && $(setbools) $(booleans) >> $@ || true
 
 $(tmpdir)/global_bools.conf: M4PARAM += -D self_contained_policy
