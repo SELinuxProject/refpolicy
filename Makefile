@@ -47,19 +47,21 @@ endif
 BINDIR ?= /usr/bin
 SBINDIR ?= /usr/sbin
 ifdef TEST_TOOLCHAIN
-tc_bindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(BINDIR)
-tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
+tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(BINDIR)
+tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
+tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)/sbin
 else
-tc_bindir := $(BINDIR)
-tc_sbindir := $(SBINDIR)
+tc_usrbindir := $(BINDIR)
+tc_usrsbindir := $(SBINDIR)
+tc_sbindir := /sbin
 endif
-CHECKPOLICY ?= $(tc_bindir)/checkpolicy
-CHECKMODULE ?= $(tc_bindir)/checkmodule
-SEMODULE ?= $(tc_sbindir)/semodule
-SEMOD_PKG ?= $(tc_bindir)/semodule_package
-SEMOD_LNK ?= $(tc_bindir)/semodule_link
-SEMOD_EXP ?= $(tc_bindir)/semodule_expand
-LOADPOLICY ?= $(tc_sbindir)/load_policy
+CHECKPOLICY ?= $(tc_usrbindir)/checkpolicy
+CHECKMODULE ?= $(tc_usrbindir)/checkmodule
+SEMODULE ?= $(tc_usrsbindir)/semodule
+SEMOD_PKG ?= $(tc_usrbindir)/semodule_package
+SEMOD_LNK ?= $(tc_usrbindir)/semodule_link
+SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
+LOADPOLICY ?= $(tc_usrsbindir)/load_policy
 SETFILES ?= $(tc_sbindir)/setfiles
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
