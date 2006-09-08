@@ -32,19 +32,6 @@ type $1_node_t alias node_$1_t, node_type;
 declare_nodes($1_node_t,shift($*))
 ')
 
-# These next three macros have formatting, and should not me indented
-define(`determine_reserved_capability',`dnl
-ifelse(eval($2 < 1024),1,``allow' dollarsone self:capability net_bind_service;',`dnl
-ifelse($4,`',`',`determine_reserved_capability(shiftn(3,$*))')dnl end inner ifelse
-')dnl end outer ifelse
-') dnl end determine reserved capability
-
-define(`determine_reserved_capability_depend',`dnl
-ifelse(eval($2 < 1024),1,`class capability net_bind_service;',`dnl
-ifelse($4,`',`',`determine_reserved_capability_depend(shiftn(3,$*))')dnl end inner ifelse
-')dnl end outer ifelse
-') dnl end determine reserved capability depend
-
 define(`declare_ports',`dnl
 ifelse(eval($3 < 1024),1,`
 typeattribute $1 reserved_port_type;
