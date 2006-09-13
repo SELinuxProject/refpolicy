@@ -93,17 +93,17 @@ endif
 
 # policy building support tools
 support := support
-genxml := $(PYTHON) $(support)/segenxml.py
-gendoc := $(PYTHON) $(support)/sedoctool.py
-genperm := $(PYTHON) $(support)/genclassperms.py
+genxml := $(PYTHON) -E $(support)/segenxml.py
+gendoc := $(PYTHON) -E $(support)/sedoctool.py
+genperm := $(PYTHON) -E $(support)/genclassperms.py
 fcsort := $(tmpdir)/fc_sort
 setbools := $(AWK) -f $(support)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(support)/comment_move_decl.sed
-gennetfilter := $(PYTHON) $(support)/gennetfilter.py
+gennetfilter := $(PYTHON) -E $(support)/gennetfilter.py
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
-genhomedircon := $(PYTHON) $(support)/genhomedircon
+genhomedircon := $(PYTHON) -E $(support)/genhomedircon
 
 # documentation paths
 docs := doc
