@@ -360,6 +360,25 @@ interface(`corenet_udp_send_$1_port',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to send UDP traffic on the $1 port.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_udp_send_$1_port',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	dontaudit dollarsone $1_$2:udp_socket send_msg;
+')
+
+########################################
+## <summary>
 ##	Receive UDP traffic on the $1 port.
 ## </summary>
 ## <param name="domain">
@@ -379,6 +398,25 @@ interface(`corenet_udp_receive_$1_port',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to receive UDP traffic on the $1 port.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_udp_receive_$1_port',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	dontaudit dollarsone $1_$2:udp_socket recv_msg;
+')
+
+########################################
+## <summary>
 ##	Send and receive UDP traffic on the $1 port.
 ## </summary>
 ## <param name="domain">
@@ -391,6 +429,23 @@ interface(`corenet_udp_receive_$1_port',`
 interface(`corenet_udp_sendrecv_$1_port',`
 	corenet_udp_send_$1_port(dollarsone)
 	corenet_udp_receive_$1_port(dollarsone)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to send and receive
+##	UDP traffic on the $1 port.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_udp_sendrecv_$1_port',`
+	corenet_dontaudit_udp_send_$1_port(dollarsone)
+	corenet_dontaudit_udp_receive_$1_port(dollarsone)
 ')
 
 ########################################
@@ -474,6 +529,25 @@ interface(`corenet_send_$1_packets',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to send $1 packets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_send_$1_packets',`
+	gen_require(`
+		type $1_packet_t;
+	')
+
+	dontaudit dollarsone $1_packet_t:packet send;
+')
+
+########################################
+## <summary>
 ##	Receive $1 packets.
 ## </summary>
 ## <param name="domain">
@@ -493,6 +567,25 @@ interface(`corenet_receive_$1_packets',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to receive $1 packets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_receive_$1_packets',`
+	gen_require(`
+		type $1_packet_t;
+	')
+
+	dontaudit dollarsone $1_packet_t:packet recv;
+')
+
+########################################
+## <summary>
 ##	Send and receive $1 packets.
 ## </summary>
 ## <param name="domain">
@@ -505,6 +598,22 @@ interface(`corenet_receive_$1_packets',`
 interface(`corenet_sendrecv_$1_packets',`
 	corenet_send_$1_packets(dollarsone)
 	corenet_receive_$1_packets(dollarsone)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to send and receive $1 packets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`corenet_dontaudit_sendrecv_$1_packets',`
+	corenet_dontaudit_send_$1_packets(dollarsone)
+	corenet_dontaudit_receive_$1_packets(dollarsone)
 ')
 
 ########################################
