@@ -118,7 +118,6 @@ $1 == "inherits" {
 					printf(" ") > outfile; 
 				printf("0x%08xUL\n", ind[i]) > outfile; 
 			}
-			printf("\n") > outfile;
                         for (i in ind) delete ind[i];
                         for (i in inherited_perms) delete inherited_perms[i];
 
@@ -213,8 +212,6 @@ $1 == "}"	{
 				common_base[common_name] = permission;
 				printf("TE_(common_%s_perm_to_string)\n\n", common_name) > cpermfile; 
 			}
-
-			printf("\n") > outfile;
 
 			nextstate = "COMMON_OR_AV";
 		}

@@ -1,5 +1,5 @@
 
-policy_module(ppp,1.2.4)
+policy_module(ppp,1.2.5)
 
 ########################################
 #
@@ -64,7 +64,7 @@ allow pppd_t self:fifo_file rw_file_perms;
 allow pppd_t self:socket create_socket_perms;
 allow pppd_t self:unix_dgram_socket create_socket_perms;
 allow pppd_t self:unix_stream_socket create_socket_perms;
-allow pppd_t self:netlink_route_socket r_netlink_socket_perms;
+allow pppd_t self:netlink_route_socket rw_netlink_socket_perms;
 allow pppd_t self:tcp_socket create_stream_socket_perms;
 allow pppd_t self:udp_socket { connect connected_socket_perms };
 allow pppd_t self:packet_socket create_socket_perms;
@@ -80,9 +80,11 @@ allow pppd_t pppd_devpts_t:chr_file { rw_file_perms setattr };
 allow pppd_t pppd_etc_t:dir rw_dir_perms;
 allow pppd_t pppd_etc_t:file r_file_perms;
 allow pppd_t pppd_etc_t:lnk_file { getattr read };
-files_etc_filetrans(pppd_t,pppd_etc_t,file)
 
+allow pppd_t pppd_etc_rw_t:dir rw_dir_perms;
 allow pppd_t pppd_etc_rw_t:file create_file_perms;
+# Automatically label newly created files under /etc/ppp with this type
+type_transition pppd_t pppd_etc_t:file pppd_etc_rw_t;
 
 allow pppd_t pppd_lock_t:file create_file_perms;
 files_lock_filetrans(pppd_t,pppd_lock_t,file)
@@ -103,9 +105,6 @@ allow pppd_t pptp_t:process signal;
 # for SSP
 # Access secret files
 allow pppd_t pppd_secret_t:file r_file_perms;
-
-# Automatically label newly created files under /etc/ppp with this type
-type_transition pppd_t pppd_etc_t:file pppd_etc_rw_t;
 
 kernel_read_kernel_sysctls(pppd_t)
 kernel_read_system_state(pppd_t)
@@ -147,7 +146,10 @@ corecmd_exec_shell(pppd_t)
 domain_use_interactive_fds(pppd_t)
 
 files_exec_etc_files(pppd_t)
-files_read_etc_runtime_files(pppd_t)
+files_manage_etc_runtime_files(pppd_t)
+files_etc_filetrans_etc_runtime(pppd_t, { dir file })
+files_dontaudit_write_etc_files(pppd_t)
+
 # for scripts
 files_read_etc_files(pppd_t)
 
@@ -173,6 +175,8 @@ userdom_dontaudit_search_sysadm_home_dirs(pppd_t)
 #allow pppd_t { sysadm_home_dir_t home_root_t user_home_dir_type }:dir search;
 userdom_search_sysadm_home_dirs(pppd_t)
 userdom_search_unpriv_users_home_dirs(pppd_t)
+
+ppp_exec(pppd_t)
 
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_ttys(pppd_t)
@@ -303,6 +307,10 @@ ifdef(`targeted_policy',`
         term_dontaudit_use_unallocated_ttys(pptp_t)
         term_dontaudit_use_generic_ptys(pptp_t)
         files_dontaudit_read_root_files(pptp_t)
+')
+
+optional_policy(`
+	consoletype_exec(pppd_t)
 ')
 
 optional_policy(`
