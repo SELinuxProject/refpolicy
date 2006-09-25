@@ -1,5 +1,5 @@
 
-policy_module(init,1.3.25)
+policy_module(init,1.3.26)
 
 gen_require(`
 	class passwd rootok;
@@ -15,6 +15,9 @@ gen_require(`
 attribute direct_run_init;
 attribute direct_init;
 attribute direct_init_entry;
+
+# Mark process types as daemons
+attribute daemon;
 
 #
 # init_t is the domain of the init process.
@@ -206,6 +209,7 @@ optional_policy(`
 
 allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability ~{ sys_admin sys_module };
+dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
 allow initrc_t self:passwd rootok;
 
 # Allow IPC with self
@@ -512,6 +516,11 @@ ifdef(`targeted_policy',`
 
 	optional_policy(`
 		mono_domtrans(initrc_t)
+	')
+
+	tunable_policy(`allow_daemons_use_tty',`
+		term_use_unallocated_ttys(daemon)
+		term_use_generic_ptys(daemon)
 	')
 ',`
 	# cjp: require doesnt work in the else of optionals :\

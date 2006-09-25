@@ -1,5 +1,5 @@
 
-policy_module(userdomain,1.3.34)
+policy_module(userdomain,1.3.35)
 
 gen_require(`
 	role sysadm_r, staff_r, user_r;
@@ -111,6 +111,10 @@ ifdef(`strict_policy',`
 
 	init_exec(sysadm_t)
 
+	# Following for sending reboot and wall messages
+	userdom_use_unpriv_users_ptys(sysadm_t)
+	userdom_use_unpriv_users_ttys(sysadm_t)
+
 	ifdef(`direct_sysadm_daemon',`
 		optional_policy(`
 			init_run_daemon(sysadm_t,sysadm_r,admin_terminal)
@@ -128,11 +132,13 @@ ifdef(`strict_policy',`
 		domain_kill_all_domains(auditadm_t)
 	        seutil_read_bin_policy(auditadm_t)
 		corecmd_exec_shell(auditadm_t)
+		logging_send_syslog_msg(auditadm_t)
 	        logging_read_generic_logs(auditadm_t)
 		logging_manage_audit_log(auditadm_t)
 		logging_manage_audit_config(auditadm_t)
 		logging_run_auditctl(auditadm_t,auditadm_r,{ auditadm_tty_device_t auditadm_devpts_t })
 		logging_run_auditd(auditadm_t, auditadm_r, { auditadm_tty_device_t auditadm_devpts_t })
+		userdom_dontaudit_read_sysadm_home_content_files(auditadm_t)
 
 		allow secadm_t self:capability dac_override;
 		corecmd_exec_shell(secadm_t)
@@ -148,6 +154,7 @@ ifdef(`strict_policy',`
 		logging_read_audit_log(secadm_t)
 	        logging_read_generic_logs(secadm_t)
 		userdom_dontaudit_append_staff_home_content_files(secadm_t)
+		userdom_dontaudit_read_sysadm_home_content_files(secadm_t)
 	',`
 		logging_manage_audit_log(sysadm_t)
 		logging_manage_audit_config(sysadm_t)
@@ -376,11 +383,12 @@ ifdef(`strict_policy',`
 			selinux_set_parameters(secadm_t)
 
 			seutil_manage_bin_policy(secadm_t)
-			seutil_run_checkpolicy(secadm_t,secadm_r,admin_terminal)
-			seutil_run_loadpolicy(secadm_t,secadm_r,admin_terminal)
-			seutil_run_semanage(secadm_t,secadm_r,admin_terminal)
-			seutil_run_setfiles(secadm_t,secadm_r,admin_terminal)
-			seutil_run_restorecon(secadm_t,secadm_r,admin_terminal)
+			seutil_run_checkpolicy(secadm_t,secadm_r,{ secadm_tty_device_t sysadm_devpts_t })
+			seutil_run_loadpolicy(secadm_t,secadm_r,{ secadm_tty_device_t sysadm_devpts_t })
+			seutil_run_semanage(secadm_t,secadm_r,{ secadm_tty_device_t sysadm_devpts_t })
+			seutil_run_setfiles(secadm_t,secadm_r,{ secadm_tty_device_t sysadm_devpts_t })
+			seutil_run_restorecon(secadm_t,secadm_r,{ secadm_tty_device_t sysadm_devpts_t })
+			logging_send_syslog_msg(secadm_t)
 		', `
 			selinux_set_enforce_mode(sysadm_t)
 			selinux_set_boolean(sysadm_t)
