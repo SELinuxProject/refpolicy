@@ -1,0 +1,85 @@
+
+policy_module(oddjob,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type oddjob_t;
+type oddjob_exec_t;
+domain_type(oddjob_t)
+init_daemon_domain(oddjob_t, oddjob_exec_t)
+
+type oddjob_mkhomedir_t;
+type oddjob_mkhomedir_exec_t;
+domain_type(oddjob_mkhomedir_t)
+init_daemon_domain(oddjob_mkhomedir_t, oddjob_mkhomedir_exec_t)
+oddjob_system_entry(oddjob_mkhomedir_t, oddjob_mkhomedir_exec_t)
+
+# pid files
+type oddjob_var_run_t;
+files_pid_file(oddjob_var_run_t)
+
+########################################
+#
+# oddjob local policy
+#
+
+allow oddjob_t self:capability { audit_write setgid } ;
+allow oddjob_t self:process setexec;
+allow oddjob_t self:fifo_file { read write };
+allow oddjob_t self:unix_stream_socket create_stream_socket_perms;
+
+allow oddjob_t oddjob_var_run_t:file manage_file_perms;
+allow oddjob_t oddjob_var_run_t:sock_file manage_file_perms;
+allow oddjob_t oddjob_var_run_t:dir rw_dir_perms;
+files_pid_filetrans(oddjob_t,oddjob_var_run_t, { file sock_file })
+
+kernel_read_system_state(oddjob_t)
+
+corecmd_search_sbin(oddjob_t)
+corecmd_exec_shell(oddjob_t)
+
+selinux_compute_create_context(oddjob_t)
+
+files_read_etc_files(oddjob_t)
+
+libs_use_ld_so(oddjob_t)
+libs_use_shared_libs(oddjob_t)
+
+miscfiles_read_localization(oddjob_t)
+
+init_dontaudit_use_fds(oddjob_t)
+
+locallogin_dontaudit_use_fds(oddjob_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_generic_ptys(oddjob_t)
+	term_dontaudit_use_unallocated_ttys(oddjob_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client_template(oddjob,oddjob_t)
+	dbus_send_system_bus(oddjob_t)
+	dbus_connect_system_bus(oddjob_t)
+')
+
+optional_policy(`
+	unconfined_domtrans(oddjob_t)
+')
+
+########################################
+#
+# oddjob_mkhomedir local policy
+#
+
+allow oddjob_mkhomedir_t self:fifo_file { read write };
+allow oddjob_mkhomedir_t self:unix_stream_socket create_stream_socket_perms;
+
+files_read_etc_files(oddjob_mkhomedir_t)
+
+libs_use_ld_so(oddjob_mkhomedir_t)
+libs_use_shared_libs(oddjob_mkhomedir_t)
+
+miscfiles_read_localization(oddjob_mkhomedir_t)
