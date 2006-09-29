@@ -5,6 +5,26 @@
 #
 define(`shiftn',`ifelse($1,0,`shift($*)',`shiftn(decr($1),shift(shift($*)))')')
 
+#
+# build_option(option_name,true,[false])
+#
+# makes an ifdef.  hacky quoting changes because with
+# regular quoting, the macros in $2 and $3 will not be expanded
+#
+define(`build_option',`dnl
+changequote([,])dnl
+[ifdef(`$1',`]
+changequote(`,')dnl
+$2
+changequote([,])dnl
+[',`]
+changequote(`,')dnl
+$3
+changequote([,])dnl
+[')]
+changequote(`,')dnl
+')
+
 define(`declare_netifs',`dnl
 netifcon $2 gen_context(system_u:object_r:$1,$3) gen_context(system_u:object_r:unlabeled_t,$3)
 ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
@@ -14,7 +34,7 @@ ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
 # network_interface(if_name,linux_interface,mls_sensitivity)
 #
 define(`network_interface',`
-gen_require(`type unlabeled_t')
+gen_require(``type unlabeled_t;'')
 type $1_netif_t alias netif_$1_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
