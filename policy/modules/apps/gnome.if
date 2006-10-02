@@ -1,0 +1,129 @@
+## <summary>GNU network object model environment (GNOME)</summary>
+
+########################################
+## <summary>
+##	The per role template for the gnome module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is used
+##	for gconf sessions.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each role, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+#
+template(`gnome_per_role_template',`
+	gen_require(`
+		type gconfd_exec_t;
+	')
+
+	##############################
+	#
+	# Declarations
+	#
+	type $1_gconfd_t;
+	domain_type($1_gconfd_t)
+	domain_entry_file($1_gconfd_t, gconfd_exec_t)
+	role $3 types $1_gconfd_t;
+
+	type $1_gconf_home_t;
+	files_type($1_gconf_home_t)
+
+	type $1_gconf_tmp_t;
+	files_tmp_file($1_gconf_tmp_t)
+
+	##############################
+	#
+	# Local Policy
+	#
+
+	allow $1_gconfd_t self:process getsched;
+
+	allow $1_gconfd_t $1_gconf_home_t:dir manage_dir_perms;
+	allow $1_gconfd_t $1_gconf_home_t:file manage_file_perms;
+	userdom_user_home_dir_filetrans($1, $1_gconfd_t, $1_gconf_home_t, dir)
+
+	allow $1_gconfd_t $1_gconf_tmp_t:dir manage_dir_perms;
+	allow $1_gconfd_t $1_gconf_tmp_t:file manage_file_perms;
+	userdom_user_tmp_filetrans($1,$1_gconfd_t,$1_gconf_tmp_t,{ dir file })
+
+	domain_auto_trans($2, gconfd_exec_t, $1_gconfd_t)
+	allow $1_gconfd_t $2:fd use;
+	allow $1_gconfd_t $2:fifo_file write;
+	allow $1_gconfd_t $2:unix_stream_socket connectto;
+
+	allow $1_gconfd_t gconf_etc_t:dir list_dir_perms;
+	allow $1_gconfd_t gconf_etc_t:file read_file_perms;
+
+	dev_read_urand($1_gconfd_t)
+
+	files_read_etc_files($1_gconfd_t)
+
+	libs_use_ld_so($1_gconfd_t)
+	libs_use_shared_libs($1_gconfd_t)
+
+	miscfiles_read_localization($1_gconfd_t)
+
+	logging_send_syslog_msg($1_gconfd_t)
+
+	userdom_manage_user_tmp_sockets($1, $1_gconfd_t)
+	userdom_manage_user_tmp_dirs($1,$1_gconfd_t)
+	userdom_tmp_filetrans_user_tmp($1,$1_gconfd_t,dir)
+
+	gnome_stream_connect_gconf_template($1,$2)
+
+	optional_policy(`
+		nscd_dontaudit_search_pid($1_gconfd_t)
+	')
+
+	optional_policy(`
+		xserver_use_xdm_fds($1_gconfd_t)
+		xserver_rw_xdm_pipes($1_gconfd_t)
+	')
+')
+	
+########################################
+## <summary>
+##	gconf connection template.
+## </summary>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`gnome_stream_connect_gconf_template',`
+	gen_require(`
+		type $1_gconfd_t;
+		type $1_gconf_tmp_t;
+	')
+
+	allow $2 $1_gconfd_t:unix_stream_socket connectto;
+	allow $2 $1_gconf_tmp_t:file r_file_perms;
+')
