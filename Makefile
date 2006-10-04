@@ -208,11 +208,16 @@ ifeq ($(DIRECT_INITRC),y)
 	M4PARAM += -D direct_sysadm_daemon
 endif
 
+# default MLS/MCS sensitivity and category settings.
+MLS_SENS ?= 16
+MLS_CATS ?= 256
+MCS_CATS ?= 256
+
 ifeq ($(QUIET),y)
 	verbose = @
 endif
 
-M4PARAM += -D hide_broken_symptoms
+M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS) -D hide_broken_symptoms
 
 # we need exuberant ctags; unfortunately it is named
 # differently on different distros
@@ -454,7 +459,15 @@ $(userpath)/local.users: config/local.users
 
 ########################################
 #
-# Appconfig files
+# Build Appconfig files
+#
+$(tmpdir)/initrc_context: $(appconf)/initrc_context
+	@mkdir -p $(tmpdir)
+	$(verbose) $(M4) $(M4PARAM) $(m4support) $^ | $(GREP) '^[a-z]' > $@
+
+########################################
+#
+# Install Appconfig files
 #
 install-appconfig: $(appfiles)
 
@@ -485,7 +498,7 @@ $(appdir)/userhelper_context: $(appconf)/userhelper_context
 	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(appdir)/initrc_context: $(appconf)/initrc_context
+$(appdir)/initrc_context: $(tmpdir)/initrc_context
 	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
@@ -527,6 +540,9 @@ endif
 	$(verbose) echo "MONOLITHIC ?= n" >> $(headerdir)/build.conf
 	$(verbose) echo "DIRECT_INITRC ?= $(DIRECT_INITRC)" >> $(headerdir)/build.conf
 	$(verbose) echo "POLY ?= $(POLY)" >> $(headerdir)/build.conf
+	$(verbose) echo "override MLS_SENS := $(MLS_SENS)" >> $(headerdir)/build.conf
+	$(verbose) echo "override MLS_CATS := $(MLS_CATS)" >> $(headerdir)/build.conf
+	$(verbose) echo "override MCS_CATS := $(MCS_CATS)" >> $(headerdir)/build.conf
 	$(verbose) $(INSTALL) -m 644 $(support)/Makefile.devel $(headerdir)/Makefile
 
 ########################################
