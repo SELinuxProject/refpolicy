@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.2.16)
+policy_module(selinuxutil,1.2.17)
 
 ifdef(`strict_policy',`
 	gen_require(`
@@ -480,6 +480,33 @@ optional_policy(`
 # Run_init local policy
 #
 
+allow run_init_t self:process setexec;
+allow run_init_t self:capability setuid;
+allow run_init_t self:fifo_file rw_file_perms;
+allow run_init_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
+# often the administrator runs such programs from a directory that is owned
+# by a different user or has restrictive SE permissions, do not want to audit
+# the failed access to the current directory
+dontaudit run_init_t self:capability { dac_override dac_read_search };
+
+fs_getattr_xattr_fs(run_init_t)
+
+dev_dontaudit_list_all_dev_nodes(run_init_t)
+
+term_dontaudit_list_ptys(run_init_t)
+
+auth_domtrans_chk_passwd(run_init_t)
+auth_dontaudit_read_shadow(run_init_t)
+
+corecmd_exec_bin(run_init_t)
+corecmd_exec_shell(run_init_t)
+
+domain_use_interactive_fds(run_init_t)
+
+files_read_etc_files(run_init_t)
+files_dontaudit_search_all_dirs(run_init_t)
+
 selinux_get_fs_mount(run_init_t)
 selinux_validate_context(run_init_t)
 selinux_compute_access_vector(run_init_t)
@@ -489,64 +516,34 @@ selinux_compute_user_contexts(run_init_t)
 
 mls_rangetrans_source(run_init_t)
 
-ifdef(`direct_sysadm_daemon',`',`
+init_spec_domtrans_script(run_init_t)
+# for utmp
+init_rw_utmp(run_init_t)
+
+libs_use_ld_so(run_init_t)
+libs_use_shared_libs(run_init_t)
+
+seutil_read_config(run_init_t)
+seutil_read_default_contexts(run_init_t)
+
+miscfiles_read_localization(run_init_t)
+
+logging_send_syslog_msg(run_init_t)
+
+ifndef(`direct_sysadm_daemon',`
 	ifdef(`distro_gentoo',`
 		# Gentoo integrated run_init:
 		init_script_file_entry_type(run_init_t)
 	')
 ')
 
-ifdef(`targeted_policy',`',`
-	allow run_init_t self:process setexec;
-	allow run_init_t self:capability setuid;
-	allow run_init_t self:fifo_file rw_file_perms;
-	allow run_init_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+optional_policy(`
+	daemontools_domtrans_start(run_init_t)
+')
 
-	# often the administrator runs such programs from a directory that is owned
-	# by a different user or has restrictive SE permissions, do not want to audit
-	# the failed access to the current directory
-	dontaudit run_init_t self:capability { dac_override dac_read_search };
-
-	fs_getattr_xattr_fs(run_init_t)
-
-	dev_dontaudit_list_all_dev_nodes(run_init_t)
-
-	term_dontaudit_list_ptys(run_init_t)
-
-	auth_domtrans_chk_passwd(run_init_t)
-	auth_dontaudit_read_shadow(run_init_t)
-
-	corecmd_exec_bin(run_init_t)
-	corecmd_exec_shell(run_init_t)
-
-	domain_use_interactive_fds(run_init_t)
-
-	files_read_etc_files(run_init_t)
-	files_dontaudit_search_all_dirs(run_init_t)
-
-	init_domtrans_script(run_init_t)
-	# for utmp
-	init_rw_utmp(run_init_t)
-
-	libs_use_ld_so(run_init_t)
-	libs_use_shared_libs(run_init_t)
-
-	seutil_read_config(run_init_t)
-	seutil_read_default_contexts(run_init_t)
-
-	miscfiles_read_localization(run_init_t)
-
-	logging_send_syslog_msg(run_init_t)
-
-	optional_policy(`
-		daemontools_domtrans_start(run_init_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use(run_init_t)
-	')	
-
-') dnl end ifdef targeted policy
+optional_policy(`
+	nscd_socket_use(run_init_t)
+')	
 
 ########################################
 #
