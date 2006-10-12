@@ -241,7 +241,9 @@ endif
 appconf := config/appconfig-$(TYPE)
 seusers := $(appconf)/seusers
 appdir := $(contextpath)
-appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(contextpath)/files/media
+user_default_contexts := $(wildcard config/appconfig-$(TYPE)/*_default_contexts)
+user_default_contexts_names := $(addprefix $(contextpath)/users/,$(subst _default_contexts,,$(notdir $(user_default_contexts))))
+appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(contextpath)/files/media $(user_default_contexts_names)
 net_contexts := $(builddir)net_contexts
 
 all_layers := $(filter-out $(moddir)/CVS,$(shell find $(wildcard $(moddir)/*) -maxdepth 0 -type d))
@@ -512,9 +514,9 @@ $(appdir)/dbus_contexts: $(appconf)/dbus_contexts
 	@mkdir -p $(appdir)
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(appdir)/users/root: $(appconf)/root_default_contexts
+$(contextpath)/users/%: $(appconf)/%_default_contexts
 	@mkdir -p $(appdir)/users
-	$(verbose) $(INSTALL) -m 644 $< $@
+	$(verbose) $(INSTALL) -m 644 $^ $@
 
 ########################################
 #
