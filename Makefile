@@ -194,11 +194,6 @@ ifeq "$(DISTRO)" "rhel4"
 	M4PARAM += -D distro_redhat
 endif
 
-# enable polyinstantiation
-ifeq ($(POLY),y)
-	M4PARAM += -D enable_polyinstantiation
-endif
-
 ifneq ($(OUTPUT_POLICY),)
 	CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
@@ -543,7 +538,6 @@ ifneq "$(DISTRO)" ""
 endif
 	$(verbose) echo "MONOLITHIC ?= n" >> $(headerdir)/build.conf
 	$(verbose) echo "DIRECT_INITRC ?= $(DIRECT_INITRC)" >> $(headerdir)/build.conf
-	$(verbose) echo "POLY ?= $(POLY)" >> $(headerdir)/build.conf
 	$(verbose) echo "override MLS_SENS := $(MLS_SENS)" >> $(headerdir)/build.conf
 	$(verbose) echo "override MLS_CATS := $(MLS_CATS)" >> $(headerdir)/build.conf
 	$(verbose) echo "override MCS_CATS := $(MCS_CATS)" >> $(headerdir)/build.conf

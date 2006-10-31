@@ -1,5 +1,5 @@
 
-policy_module(xen,1.1.0)
+policy_module(xen,1.1.1)
 
 ########################################
 #
@@ -14,6 +14,12 @@ files_type(xen_devpts_t);
 # Xen Image files
 type xen_image_t; # customizable
 files_type(xen_image_t)
+# xen_image_t can be assigned to blk devices
+dev_node(xen_image_t)
+
+type xenctl_t;
+files_type(xenctl_t)
+
 
 type xend_t;
 type xend_exec_t;
@@ -68,7 +74,7 @@ init_daemon_domain(xm_t, xm_exec_t)
 # xend local policy
 #
 
-allow xend_t self:capability { dac_override ipc_lock net_admin setuid sys_nice sys_ptrace sys_tty_config net_raw };
+allow xend_t self:capability { mknod dac_override ipc_lock net_admin setuid sys_nice sys_ptrace sys_tty_config net_raw };
 dontaudit xend_t self:capability { sys_ptrace };
 allow xend_t self:process { signal sigkill };
 dontaudit xend_t self:process ptrace;
@@ -82,6 +88,10 @@ allow xend_t self:packet_socket create_socket_perms;
 
 allow xend_t xen_image_t:dir r_dir_perms;
 allow xend_t xen_image_t:file rw_file_perms;
+allow xend_t xen_image_t:blk_file rw_file_perms;
+
+allow xend_t xenctl_t:fifo_file create_file_perms;
+dev_filetrans(xend_t, xenctl_t, fifo_file)
 
 # pid file
 allow xend_t xend_var_run_t:file manage_file_perms;
@@ -132,6 +142,8 @@ corenet_tcp_bind_xen_port(xend_t)
 corenet_tcp_bind_soundd_port(xend_t)
 corenet_tcp_bind_generic_port(xend_t)
 corenet_tcp_bind_vnc_port(xend_t)
+corenet_tcp_connect_xserver_port(xend_t)
+corenet_sendrecv_xserver_client_packets(xend_t)
 corenet_sendrecv_xen_server_packets(xend_t)
 corenet_sendrecv_soundd_server_packets(xend_t)
 corenet_rw_tun_tap_dev(xend_t)
@@ -166,6 +178,8 @@ init_use_script_ptys(xend_t)
 libs_use_ld_so(xend_t)
 libs_use_shared_libs(xend_t)
 
+locallogin_dontaudit_use_fds(xend_t)
+
 logging_send_syslog_msg(xend_t)
 
 miscfiles_read_localization(xend_t)
@@ -176,6 +190,7 @@ sysnet_domtrans_ifconfig(xend_t)
 sysnet_dns_name_resolve(xend_t)
 sysnet_delete_dhcpc_pid(xend_t)
 sysnet_read_dhcpc_pid(xend_t)
+sysnet_rw_dhcp_config(xend_t)
 
 userdom_dontaudit_search_sysadm_home_dirs(xend_t)
 
@@ -185,6 +200,15 @@ netutils_domtrans(xend_t)
 
 optional_policy(`
 	consoletype_exec(xend_t)
+')
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(xend_t)
+	term_dontaudit_use_generic_ptys(xend_t)
+
+	optional_policy(`
+		unconfined_rw_pipes(xend_t)
+	')
 ')
 
 ########################################
@@ -209,6 +233,8 @@ kernel_write_xen_state(xenconsoled_t)
 kernel_read_xen_state(xenconsoled_t)
 
 domain_dontaudit_ptrace_all_domains(xenconsoled_t)
+
+files_read_usr_files(xenconsoled_t)
 
 term_create_pty(xenconsoled_t,xen_devpts_t);
 term_use_generic_ptys(xenconsoled_t)
@@ -250,9 +276,12 @@ kernel_write_xen_state(xenstored_t)
 kernel_read_xen_state(xenstored_t)
 
 dev_create_generic_dirs(xenstored_t)
-dev_manage_xen(xenconsoled_t)
+dev_manage_xen(xenstored_t)
 dev_filetrans_xen(xenstored_t)
 dev_rw_xen(xenstored_t)
+dev_read_sysfs(xenstored_t)
+
+files_read_usr_files(xenstored_t)
 
 term_use_generic_ptys(xenstored_t)
 term_use_console(xenconsoled_t)
@@ -278,7 +307,8 @@ allow xm_t self:capability { dac_override ipc_lock sys_tty_config };
 
 # internal communication is often done using fifo and unix sockets.
 allow xm_t self:fifo_file { read write };
-allow xm_t self:unix_stream_socket create_stream_socket_perms;
+allow xm_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow xm_t self:tcp_socket create_stream_socket_perms;
 
 allow xm_t xend_var_lib_t:dir rw_dir_perms;
 allow xm_t xend_var_lib_t:fifo_file create_file_perms;
@@ -295,6 +325,10 @@ kernel_write_xen_state(xm_t)
 
 corecmd_exec_bin(xm_t)
 corecmd_exec_sbin(xm_t)
+
+corenet_tcp_sendrecv_generic_if(xm_t)
+corenet_tcp_sendrecv_all_nodes(xm_t)
+corenet_tcp_connect_soundd_port(xm_t)
 
 dev_read_urand(xm_t)
 
@@ -313,6 +347,8 @@ libs_use_ld_so(xm_t)
 libs_use_shared_libs(xm_t)
 
 miscfiles_read_localization(xm_t)
+
+sysnet_read_config(xm_t)
 
 xen_append_log(xm_t)
 xen_stream_connect(xm_t)

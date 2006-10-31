@@ -1,5 +1,5 @@
 
-policy_module(cups,1.4.0)
+policy_module(cups,1.4.1)
 
 ########################################
 #
@@ -68,6 +68,12 @@ ifdef(`enable_mcs',`
 	init_ranged_daemon_domain(cupsd_t,cupsd_exec_t,s0 - mcs_systemhigh)
 ')
 
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(cupsd_t,cupsd_exec_t,mls_systemhigh)
+
+	mls_trusted_object(cupsd_var_run_t)
+')
+
 ########################################
 #
 # Cups local policy
@@ -118,6 +124,9 @@ allow cupsd_t cupsd_var_run_t:dir { setattr rw_dir_perms };
 allow cupsd_t cupsd_var_run_t:sock_file create_file_perms;
 files_pid_filetrans(cupsd_t,cupsd_var_run_t,file)
 
+allow cupsd_t hplip_etc_t:file r_file_perms;
+allow cupsd_t hplip_etc_t:dir r_dir_perms;
+
 allow cupsd_t hplip_var_run_t:file { read getattr };
 
 allow cupsd_t ptal_var_run_t:dir search;
@@ -157,6 +166,13 @@ domain_read_all_domains_state(cupsd_t)
 
 fs_getattr_all_fs(cupsd_t)
 fs_search_auto_mountpoints(cupsd_t)
+
+mls_fd_use_all_levels(cupsd_t)
+mls_file_downgrade(cupsd_t)
+mls_file_write_down(cupsd_t)
+mls_file_read_up(cupsd_t)
+mls_rangetrans_target(cupsd_t)
+mls_socket_write_all_levels(cupsd_t)
 
 term_dontaudit_use_console(cupsd_t)
 term_use_unallocated_ttys(cupsd_t)
@@ -214,6 +230,10 @@ userdom_dontaudit_search_all_users_home_content(cupsd_t)
 # Write to /var/spool/cups.
 lpd_manage_spool(cupsd_t)
 
+ifdef(`enable_mls',`
+	lpd_relabel_spool(cupsd_t)
+')
+
 ifdef(`targeted_policy',`
 	files_dontaudit_read_root_files(cupsd_t)
 
@@ -269,6 +289,7 @@ optional_policy(`
 ')
 
 optional_policy(`
+	# cups execs smbtool which reads samba_etc_t files
 	samba_read_config(cupsd_t)
 	samba_rw_var_files(cupsd_t)
 ')
