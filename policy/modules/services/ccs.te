@@ -1,0 +1,98 @@
+
+policy_module(ccs,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type ccs_t;
+type ccs_exec_t;
+init_daemon_domain(ccs_t, ccs_exec_t)
+
+# pid files
+type cluster_conf_t;
+files_type(cluster_conf_t)
+
+# log files
+type ccs_var_log_t;
+logging_log_file(ccs_var_log_t)
+
+# pid files
+type ccs_var_run_t;
+files_pid_file(ccs_var_run_t)
+
+########################################
+#
+# ccs local policy
+#
+
+allow ccs_t self:capability { ipc_lock sys_nice sys_resource };
+allow ccs_t self:process { signal setrlimit setsched };
+allow ccs_t self:fifo_file { read write };
+allow ccs_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow ccs_t self:unix_dgram_socket create_socket_perms;
+allow ccs_t self:netlink_route_socket r_netlink_socket_perms;
+allow ccs_t self:tcp_socket create_stream_socket_perms;
+allow ccs_t self:udp_socket { create_socket_perms listen recv_msg send_msg };
+# cjp: this needs to be fixed to be specific
+allow ccs_t self:socket create_socket_perms;
+
+allow ccs_t cluster_conf_t:dir rw_dir_perms;
+allow ccs_t cluster_conf_t:file manage_file_perms;
+
+# log files
+allow ccs_t ccs_var_log_t:file create_file_perms;
+allow ccs_t ccs_var_log_t:sock_file create_file_perms;
+allow ccs_t ccs_var_log_t:dir { rw_dir_perms setattr };
+logging_log_filetrans(ccs_t,ccs_var_log_t,{ sock_file file dir })
+
+# pid file
+allow ccs_t ccs_var_run_t:file manage_file_perms;
+allow ccs_t ccs_var_run_t:sock_file manage_file_perms;
+allow ccs_t ccs_var_run_t:dir manage_dir_perms;
+files_pid_filetrans(ccs_t,ccs_var_run_t, { dir file sock_file })
+
+kernel_read_kernel_sysctls(ccs_t)
+
+corecmd_list_sbin(ccs_t)
+corecmd_exec_bin(ccs_t)
+
+corenet_non_ipsec_sendrecv(ccs_t)
+corenet_tcp_sendrecv_all_if(ccs_t)
+corenet_udp_sendrecv_all_if(ccs_t)
+corenet_tcp_sendrecv_all_nodes(ccs_t)
+corenet_udp_sendrecv_all_nodes(ccs_t)
+corenet_tcp_sendrecv_all_ports(ccs_t)
+corenet_udp_sendrecv_all_ports(ccs_t)
+corenet_tcp_bind_all_nodes(ccs_t)
+corenet_udp_bind_all_nodes(ccs_t)
+corenet_tcp_bind_cluster_port(ccs_t)
+corenet_udp_bind_cluster_port(ccs_t)
+corenet_udp_bind_netsupport_port(ccs_t)
+
+dev_read_urand(ccs_t)
+
+files_read_etc_files(ccs_t)
+files_read_etc_runtime_files(ccs_t)
+
+init_dontaudit_use_fds(ccs_t)
+init_rw_script_tmp_files(ccs_t)
+
+libs_use_ld_so(ccs_t)
+libs_use_shared_libs(ccs_t)
+
+logging_send_syslog_msg(ccs_t)
+
+miscfiles_read_localization(ccs_t)
+
+sysnet_dns_name_resolve(ccs_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_generic_ptys(ccs_t)
+	term_dontaudit_use_unallocated_ttys(ccs_t)
+')
+
+optional_policy(`
+	unconfined_use_fds(ccs_t)
+')
