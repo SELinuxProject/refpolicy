@@ -1,5 +1,5 @@
 
-policy_module(apache,1.4.2)
+policy_module(apache,1.4.3)
 
 #
 # NOTES: 
@@ -170,6 +170,10 @@ allow httpd_t httpd_modules_t:file rx_file_perms;
 allow httpd_t httpd_modules_t:dir r_dir_perms;
 allow httpd_t httpd_modules_t:lnk_file r_file_perms;
 
+apache_domtrans_rotatelogs(httpd_t)
+# Apache-httpd needs to be able to send signals to the log rotate procs.
+allow httpd_t httpd_rotatelogs_t:process signal_perms;
+
 allow httpd_t httpd_squirrelmail_t:dir create_dir_perms;
 allow httpd_t httpd_squirrelmail_t:lnk_file create_lnk_perms;
 allow httpd_t httpd_squirrelmail_t:file create_file_perms;
@@ -219,6 +223,8 @@ corenet_tcp_bind_all_nodes(httpd_t)
 corenet_tcp_bind_http_port(httpd_t)
 corenet_tcp_bind_http_cache_port(httpd_t)
 corenet_sendrecv_http_server_packets(httpd_t)
+# Signal self for shutdown
+corenet_tcp_connect_http_port(httpd_t)
 
 dev_read_sysfs(httpd_t)
 dev_read_rand(httpd_t)
@@ -235,7 +241,7 @@ auth_use_nsswitch(httpd_t)
 # execute perl
 corecmd_exec_bin(httpd_t)
 corecmd_exec_sbin(httpd_t)
-corecmd_check_exec_shell(httpd_t)
+corecmd_exec_shell(httpd_t)
 
 domain_use_interactive_fds(httpd_t)
 
@@ -251,6 +257,8 @@ files_read_etc_runtime_files(httpd_t)
 files_read_etc_files(httpd_t)
 # for tomcat
 files_read_var_lib_symlinks(httpd_t)
+
+fs_search_auto_mountpoints(httpd_sys_script_t)
 
 init_use_fds(httpd_t)
 init_use_script_ptys(httpd_t)
@@ -669,6 +677,16 @@ ifdef(`targeted_policy',`
 	')
 ')
 
+tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
+	fs_read_nfs_files(httpd_sys_script_t)
+	fs_read_nfs_symlinks(httpd_sys_script_t)
+')
+
+tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
+	fs_read_cifs_files(httpd_sys_script_t)
+	fs_read_cifs_symlinks(httpd_sys_script_t)
+')
+
 optional_policy(`
 	clamav_domtrans_clamscan(httpd_sys_script_t)
 ')
@@ -713,6 +731,8 @@ files_read_etc_files(httpd_rotatelogs_t)
 
 libs_use_ld_so(httpd_rotatelogs_t)
 libs_use_shared_libs(httpd_rotatelogs_t)
+
+logging_search_logs(httpd_rotatelogs_t)
 
 miscfiles_read_localization(httpd_rotatelogs_t)
 

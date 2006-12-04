@@ -24,6 +24,7 @@
 template(`userdom_base_user_template',`
 
 	gen_require(`
+		attribute userdomain;
 		class context contains;
 	')
 
@@ -136,6 +137,10 @@ template(`userdom_base_user_template',`
 ## <rolebase/>
 #
 template(`userdom_ro_home_template',`
+	gen_require(`
+		attribute home_type, home_dir_type, $1_file_type;
+	')
+
 	# type for contents of home directory
 	type $1_home_t, $1_file_type, home_type;
 	files_type($1_home_t)
@@ -220,6 +225,10 @@ template(`userdom_ro_home_template',`
 ## <rolebase/>
 #
 template(`userdom_manage_home_template',`
+	gen_require(`
+		attribute home_type, home_dir_type, $1_file_type;
+	')
+
 	# type for contents of home directory
 	type $1_home_t, $1_file_type, home_type;
 	files_type($1_home_t)
@@ -347,6 +356,10 @@ template(`userdom_poly_home_template',`
 ## <rolebase/>
 #
 template(`userdom_manage_tmp_template',`
+	gen_require(`
+		attribute $1_file_type;
+	')
+
 	type $1_tmp_t, $1_file_type;
 	files_tmp_file($1_tmp_t)
 
@@ -415,6 +428,10 @@ template(`userdom_poly_tmp_template',`
 ## <rolebase/>
 #
 template(`userdom_manage_tmpfs_template',`
+	gen_require(`
+		attribute $1_file_type;
+	')
+
 	type $1_tmpfs_t, $1_file_type;
 	files_tmpfs_file($1_tmpfs_t)
 
@@ -672,6 +689,8 @@ template(`userdom_common_user_template',`
 	dontaudit $1_t self:capability { sys_nice fsetid };
 	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_t self:process { ptrace setfscreate };
+
+	allow $1_t self:context contains;
 
 	# evolution and gnome-session try to create a netlink socket
 	dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
@@ -1859,7 +1878,7 @@ template(`userdom_read_user_home_content_files',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
 	allow $2 $1_home_t:dir search_dir_perms;
 	allow $2 $1_home_t:file r_file_perms;
 ')
@@ -1962,8 +1981,8 @@ template(`userdom_read_user_home_content_symlinks',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
-	allow $2 $1_home_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
+	allow $2 $1_home_t:dir search_dir_perms;
 	allow $2 $1_home_t:lnk_file r_file_perms;
 ')
 
@@ -1998,8 +2017,8 @@ template(`userdom_exec_user_home_content_files',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
-	allow $2 $1_home_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
+	allow $2 $1_home_t:dir search_dir_perms;
 	can_exec($2,$1_home_t)
 ')
 
@@ -2069,7 +2088,7 @@ template(`userdom_manage_user_home_content_files',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
 	allow $2 $1_home_t:dir rw_dir_perms;
 	allow $2 $1_home_t:file create_file_perms;
 ')
@@ -2142,7 +2161,7 @@ template(`userdom_manage_user_home_content_symlinks',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
 	allow $2 $1_home_t:dir rw_dir_perms;
 	allow $2 $1_home_t:lnk_file create_lnk_perms;
 ')
@@ -2180,7 +2199,7 @@ template(`userdom_manage_user_home_content_pipes',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
 	allow $2 $1_home_t:dir rw_dir_perms;
 	allow $2 $1_home_t:fifo_file create_file_perms;
 ')
@@ -2218,7 +2237,7 @@ template(`userdom_manage_user_home_content_sockets',`
 	')
 
 	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search;
+	allow $2 $1_home_dir_t:dir search_dir_perms;
 	allow $2 $1_home_t:dir rw_dir_perms;
 	allow $2 $1_home_t:sock_file create_file_perms;
 ')
@@ -3977,7 +3996,7 @@ interface(`userdom_search_staff_home_dirs',`
 	')
 
 	files_search_home($1)
-	allow $1 staff_home_dir_t:dir search;
+	allow $1 staff_home_dir_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -3996,7 +4015,7 @@ interface(`userdom_dontaudit_search_staff_home_dirs',`
 		type staff_home_dir_t;
 	')
 
-	dontaudit $1 staff_home_dir_t:dir search;
+	dontaudit $1 staff_home_dir_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -4020,6 +4039,29 @@ interface(`userdom_manage_staff_home_dirs',`
 
 		files_search_home($1)
 		allow $1 staff_home_dir_t:dir manage_dir_perms;
+	')
+')
+
+########################################
+## <summary>
+##	Relabel to staff home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_relabelto_staff_home_dirs',`
+	ifdef(`targeted_policy',`
+		userdom_relabelto_generic_user_home_dirs($1)
+	',`
+		gen_require(`
+			type staff_home_dir_t;
+		')
+
+		files_search_home($1)
+		allow $1 staff_home_dir_t:dir relabelto;
 	')
 ')
 
@@ -4343,7 +4385,7 @@ interface(`userdom_search_sysadm_home_dirs',`
 		type sysadm_home_dir_t;
 	')
 
-	allow $1 sysadm_home_dir_t:dir search;
+	allow $1 sysadm_home_dir_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -4858,7 +4900,7 @@ interface(`userdom_dontaudit_search_generic_user_home_dirs',`
 		type user_home_t;
 	')
 
-	dontaudit $1 user_home_t:dir search;
+	dontaudit $1 user_home_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -4905,6 +4947,25 @@ interface(`userdom_manage_generic_user_home_content_dirs',`
 
 ########################################
 ## <summary>
+##	Relabel to staff home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_relabelto_generic_user_home_dirs',`
+	gen_require(`
+		type staff_home_dir_t;
+	')
+
+	files_search_home($1)
+	allow $1 user_home_dir_t:dir relabelto;
+')
+
+########################################
+## <summary>
 ##	Read files in generic user home directories.
 ## </summary>
 ## <param name="domain">
@@ -4922,6 +4983,26 @@ interface(`userdom_read_generic_user_home_content_files',`
 	allow $1 user_home_dir_t:dir search_dir_perms;
 	allow $1 user_home_t:dir r_dir_perms;
 	allow $1 user_home_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Mmap of generic user
+##	home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_mmap_generic_user_home_content_files',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	files_search_home($1)
+	allow $1 user_home_t:file execute;
 ')
 
 ########################################
@@ -4944,6 +5025,25 @@ interface(`userdom_manage_generic_user_home_content_files',`
 	allow $1 user_home_dir_t:dir search_dir_perms;
 	allow $1 user_home_t:dir rw_dir_perms;
 	allow $1 user_home_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to relabel generic user
+##	home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_relabel_generic_user_home_content_files',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	dontaudit $1 user_home_t:file { relabelto relabelfrom };
 ')
 
 ########################################

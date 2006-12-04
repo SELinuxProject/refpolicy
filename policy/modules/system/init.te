@@ -1,5 +1,5 @@
 
-policy_module(init,1.4.3)
+policy_module(init,1.4.4)
 
 gen_require(`
 	class passwd rootok;
@@ -204,6 +204,9 @@ allow initrc_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow initrc_t initrc_devpts_t:chr_file rw_term_perms;
 term_create_pty(initrc_t,initrc_devpts_t)
+
+# Going to single user mode
+init_exec(initrc_t)
 
 can_exec(initrc_t,initrc_exec_t)
 
@@ -492,13 +495,18 @@ ifdef(`targeted_policy',`
 	domain_subj_id_change_exemption(initrc_t)
 	unconfined_domain(initrc_t)
 
-	optional_policy(`
-		mono_domtrans(initrc_t)
+	ifdef(`distro_redhat',`
+		# system-config-services causes avc messages that should be dontaudited
+		unconfined_dontaudit_rw_pipes(daemon)
 	')
 
 	tunable_policy(`allow_daemons_use_tty',`
 		term_use_unallocated_ttys(daemon)
 		term_use_generic_ptys(daemon)
+	')
+
+	optional_policy(`
+		mono_domtrans(initrc_t)
 	')
 ',`
 	# cjp: require doesnt work in the else of optionals :\

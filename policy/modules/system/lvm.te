@@ -1,5 +1,5 @@
 
-policy_module(lvm,1.4.1)
+policy_module(lvm,1.4.2)
 
 ########################################
 #
@@ -30,6 +30,9 @@ files_lock_file(lvm_lock_t)
 type lvm_metadata_t;
 files_type(lvm_metadata_t)
 
+type lvm_var_lib_t;
+files_type(lvm_var_lib_t)
+
 type lvm_var_run_t;
 files_pid_file(lvm_var_run_t)
 
@@ -44,7 +47,7 @@ files_tmp_file(lvm_tmp_t)
 dontaudit clvmd_t self:capability sys_tty_config;
 allow clvmd_t self:process signal_perms;
 allow clvmd_t self:socket create_socket_perms;
-allow clvmd_t self:fifo_file { read write };
+allow clvmd_t self:fifo_file rw_file_perms;
 allow clvmd_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow clvmd_t self:tcp_socket create_stream_socket_perms;
 allow clvmd_t self:udp_socket create_socket_perms;
@@ -53,9 +56,18 @@ allow clvmd_t clvmd_var_run_t:file create_file_perms;
 allow clvmd_t clvmd_var_run_t:dir rw_dir_perms;
 files_pid_filetrans(clvmd_t,clvmd_var_run_t,file)
 
+allow clvmd_t lvm_metadata_t:dir search_dir_perms;
+allow clvmd_t lvm_metadata_t:file { getattr read };
+
 kernel_read_kernel_sysctls(clvmd_t)
+kernel_read_system_state(clvmd_t)
 kernel_list_proc(clvmd_t)
 kernel_read_proc_symlinks(clvmd_t)
+kernel_search_debugfs(clvmd_t)
+
+corecmd_exec_shell(clvmd_t)
+corecmd_read_bin_symlinks(clvmd_t)
+corecmd_read_sbin_symlinks(clvmd_t)
 
 corenet_non_ipsec_sendrecv(clvmd_t)
 corenet_tcp_sendrecv_all_if(clvmd_t)
@@ -72,6 +84,10 @@ corenet_dontaudit_tcp_bind_all_reserved_ports(clvmd_t)
 corenet_sendrecv_generic_server_packets(clvmd_t)
 
 dev_read_sysfs(clvmd_t)
+dev_manage_generic_chr_files(clvmd_t)
+
+files_read_etc_files(clvmd_t)
+files_list_usr(clvmd_t)
 
 fs_getattr_all_fs(clvmd_t)
 fs_search_auto_mountpoints(clvmd_t)
@@ -80,7 +96,7 @@ term_dontaudit_use_console(clvmd_t)
 
 domain_use_interactive_fds(clvmd_t)
 
-files_list_usr(clvmd_t)
+storage_raw_read_fixed_disk(clvmd_t)
 
 init_use_fds(clvmd_t)
 init_use_script_ptys(clvmd_t)
@@ -100,6 +116,9 @@ sysnet_read_config(clvmd_t)
 userdom_dontaudit_use_unpriv_user_fds(clvmd_t)
 userdom_dontaudit_search_sysadm_home_dirs(clvmd_t)
 
+lvm_domtrans(clvmd_t)
+lvm_read_config(clvmd_t)
+
 ifdef(`targeted_policy', `
 	term_dontaudit_use_unallocated_ttys(clvmd_t)
 	term_dontaudit_use_generic_ptys(clvmd_t)
@@ -107,7 +126,16 @@ ifdef(`targeted_policy', `
 ')
 
 optional_policy(`
+	ccs_stream_connect(clvmd_t)
+')
+
+optional_policy(`
 	nis_use_ypbind(clvmd_t)
+')
+
+optional_policy(`
+	ricci_dontaudit_rw_modcluster_pipes(clvmd_t)
+	ricci_dontaudit_use_modcluster_fds(clvmd_t)
 ')
 
 optional_policy(`
@@ -146,6 +174,10 @@ can_exec(lvm_t, lvm_exec_t)
 allow lvm_t lvm_lock_t:dir rw_dir_perms;
 allow lvm_t lvm_lock_t:file create_file_perms;
 files_lock_filetrans(lvm_t,lvm_lock_t,file)
+
+allow lvm_t lvm_var_lib_t:dir manage_dir_perms;
+allow lvm_t lvm_var_lib_t:file manage_file_perms;
+files_var_lib_filetrans(lvm_t,lvm_var_lib_t,{ dir file })
 
 allow lvm_t lvm_var_run_t:file manage_file_perms;
 allow lvm_t lvm_var_run_t:sock_file manage_file_perms;
@@ -216,8 +248,7 @@ storage_manage_fixed_disk(lvm_t)
 term_dontaudit_getattr_all_user_ttys(lvm_t)
 term_dontaudit_getattr_pty_dirs(lvm_t)
 
-corecmd_search_sbin(lvm_t)
-corecmd_dontaudit_getattr_sbin_files(lvm_t)
+corecmd_exec_sbin(lvm_t)
 
 domain_use_interactive_fds(lvm_t)
 
@@ -256,6 +287,10 @@ ifdef(`targeted_policy', `
 
 optional_policy(`
 	bootloader_rw_tmp_files(lvm_t)
+')
+
+optional_policy(`
+	ccs_stream_connect(lvm_t)
 ')
 
 optional_policy(`

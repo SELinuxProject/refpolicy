@@ -1,5 +1,5 @@
 
-policy_module(uucp,1.2.0)
+policy_module(uucp,1.2.1)
 
 ########################################
 #
@@ -28,9 +28,15 @@ files_type(uucpd_spool_t)
 type uucpd_log_t;
 logging_log_file(uucpd_log_t)
 
+type uux_t;
+type uux_exec_t;
+domain_type(uux_t)
+domain_entry_file(uux_t,uux_exec_t)
+role system_r types uux_t;
+
 ########################################
 #
-# Local policy
+# UUCPd Local policy
 #
 allow uucpd_t self:capability { setuid setgid };
 allow uucpd_t self:process signal_perms;
@@ -51,9 +57,7 @@ allow uucpd_t uucpd_rw_t:dir create_dir_perms;
 allow uucpd_t uucpd_rw_t:file create_file_perms;
 allow uucpd_t uucpd_rw_t:lnk_file create_lnk_perms;
 
-allow uucpd_t uucpd_spool_t:dir create_dir_perms;
-allow uucpd_t uucpd_spool_t:file create_file_perms;
-allow uucpd_t uucpd_spool_t:lnk_file create_lnk_perms;
+uucp_manage_spool(uucpd_t)
 
 allow uucpd_t uucpd_tmp_t:dir create_dir_perms;
 allow uucpd_t uucpd_tmp_t:file create_file_perms;
@@ -104,4 +108,39 @@ optional_policy(`
 
 optional_policy(`
 	nscd_socket_use(uucpd_t)
+')
+
+########################################
+#
+# UUX Local policy
+#
+
+allow uux_t self:capability { setuid setgid };
+allow uux_t self:fifo_file { getattr write };
+
+uucp_append_log(uux_t)
+uucp_manage_spool(uux_t)
+
+corecmd_exec_sbin(uux_t)
+
+files_read_etc_files(uux_t)
+
+libs_use_ld_so(uux_t)
+libs_use_shared_libs(uux_t)
+
+logging_send_syslog_msg(uux_t)
+
+miscfiles_read_localization(uux_t)
+
+ifdef(`targeted_policy',`
+	term_use_unallocated_ttys(uux_t)
+	term_use_generic_ptys(uux_t)
+')
+
+optional_policy(`
+	mta_send_mail(uux_t)
+')
+
+optional_policy(`
+	nscd_socket_use(uux_t)
 ')
