@@ -26,12 +26,7 @@ interface(`init_domain',`
 
 	role system_r types $1;
 
-	domain_auto_trans(init_t,$2,$1)
-
-	allow $1 init_t:fd use;
-	allow init_t $1:fd use;
-	allow $1 init_t:fifo_file rw_file_perms;
-	allow $1 init_t:process sigchld;
+	domtrans_pattern(init_t,$2,$1)
 
 	ifdef(`hide_broken_symptoms',`
 		# RHEL4 systems seem to have a stray
@@ -111,13 +106,8 @@ interface(`init_daemon_domain',`
 	role system_r types $1;
 
 	ifdef(`direct_sysadm_daemon',`
-		domain_auto_trans(direct_run_init,$2,$1)
-
-		allow direct_run_init $1:fd use;
+		domtrans_pattern(direct_run_init,$2,$1)
 		allow direct_run_init $1:process { noatsecure siginh rlimitinh };
-		allow $1 direct_run_init:fd use;
-		allow $1 direct_run_init:fifo_file rw_file_perms;
-		allow $1 direct_run_init:process sigchld;
 
 		typeattribute $1 direct_init;
 		typeattribute $2 direct_init_entry;
@@ -143,20 +133,11 @@ interface(`init_daemon_domain',`
 			can_exec(initrc_t,$2)
 			can_exec(direct_run_init,$2)
 		} else {
-			domain_auto_trans(initrc_t,$2,$1)
-			allow initrc_t $1:fd use;
-			allow $1 initrc_t:fd use;
-			allow $1 initrc_t:fifo_file rw_file_perms;
-			allow $1 initrc_t:process sigchld;
+			domtrans_pattern(initrc_t,$2,$1)
 			allow initrc_t $1:process { noatsecure siginh rlimitinh };
 		}
 	',`
-		domain_auto_trans(initrc_t,$2,$1)
-		allow initrc_t $1:fd use;
-		allow $1 initrc_t:fd use;
-		allow $1 initrc_t:fifo_file rw_file_perms;
-		allow $1 initrc_t:process sigchld;
-		dontaudit initrc_t $1:process { noatsecure siginh rlimitinh };
+		domtrans_pattern(initrc_t,$2,$1)
 	')
 
 	optional_policy(`
@@ -228,12 +209,7 @@ interface(`init_system_domain',`
 
 	role system_r types $1;
 
-	domain_auto_trans(initrc_t,$2,$1)
-
-	allow initrc_t $1:fd use;
-	allow $1 initrc_t:fd use;
-	allow $1 initrc_t:fifo_file rw_file_perms;
-	allow $1 initrc_t:process sigchld;
+	domtrans_pattern(initrc_t,$2,$1)
 
 	ifdef(`hide_broken_symptoms',`
 		# RHEL4 systems seem to have a stray
@@ -296,12 +272,7 @@ interface(`init_domtrans',`
 		type init_t, init_exec_t;
 	')
 
-	domain_auto_trans($1,init_exec_t,init_t)
-
-	allow $1 init_t:fd use;
-	allow init_t $1:fd use;
-	allow init_t $1:fifo_file rw_file_perms;
-	allow init_t $1:process sigchld;
+	domtrans_pattern($1,init_exec_t,init_t)
 ')
 
 ########################################
@@ -517,7 +488,7 @@ interface(`init_telinit',`
 	')
 
 	dev_list_all_dev_nodes($1)
-	allow $1 initctl_t:fifo_file rw_file_perms;
+	allow $1 initctl_t:fifo_file rw_fifo_file_perms;
 ')
 
 ########################################
@@ -536,7 +507,7 @@ interface(`init_rw_initctl',`
 	')
 
 	dev_list_all_dev_nodes($1)
-	allow $1 initctl_t:fifo_file rw_file_perms;
+	allow $1 initctl_t:fifo_file rw_fifo_file_perms;
 ')
 
 ########################################
@@ -593,11 +564,7 @@ interface(`init_spec_domtrans_script',`
 	')
 
 	files_list_etc($1)
-	domain_trans($1,initrc_exec_t,initrc_t)
-	allow $1 self:process setexec;
-	allow initrc_t $1:fd use;
-	allow initrc_t $1:fifo_file rw_file_perms;
-	allow initrc_t $1:process sigchld;
+	spec_domtrans_pattern($1,initrc_exec_t,initrc_t)
 
 	ifdef(`enable_mcs',`
 		range_transition $1 initrc_exec_t:process s0;
@@ -624,10 +591,7 @@ interface(`init_domtrans_script',`
 	')
 
 	files_list_etc($1)
-	domain_auto_trans($1,initrc_exec_t,initrc_t)
-	allow initrc_t $1:fd use;
-	allow initrc_t $1:fifo_file rw_file_perms;
-	allow initrc_t $1:process sigchld;
+	domtrans_pattern($1,initrc_exec_t,initrc_t)
 
 	ifdef(`enable_mcs',`
 		range_transition $1 initrc_exec_t:process s0;
@@ -781,9 +745,12 @@ interface(`init_read_script_state',`
 		type initrc_t;
 	')
 
-	#FIXME: search proc dir
-	allow $1 initrc_t:dir r_dir_perms;
-	allow $1 initrc_t:{ file lnk_file } r_file_perms;
+	kernel_search_proc($1)
+	read_files_pattern($1,initrc_t,initrc_t)
+	read_lnk_files_pattern($1,initrc_t,initrc_t)
+	list_dirs_pattern($1,initrc_t,initrc_t)
+
+	# should move this to separate interface
 	allow $1 initrc_t:process getattr;
 ')
 
@@ -1069,7 +1036,7 @@ interface(`init_read_script_files',`
 	')
 
 	files_search_etc($1)
-	allow $1 initrc_exec_t:file r_file_perms;
+	allow $1 initrc_exec_t:file read_file_perms;
 ')
 
 ########################################
@@ -1088,8 +1055,7 @@ interface(`init_getattr_script_status_files',`
 		type initrc_state_t;
 	')
 
-	allow $1 initrc_state_t:dir search_dir_perms;
-	allow $1 initrc_state_t:file getattr;
+	getattr_files_pattern($1,initrc_state_t,initrc_state_t)
 ')
 
 ########################################
@@ -1158,9 +1124,7 @@ interface(`init_script_tmp_filetrans',`
 	')
 
 	files_search_tmp($1)
-
-	allow $1 initrc_tmp_t:dir rw_dir_perms;
-	type_transition $1 initrc_tmp_t:$3 $2;
+	filetrans_pattern($1,initrc_tmp_t,$2,$3)
 ')
 
 ########################################
@@ -1197,7 +1161,7 @@ interface(`init_read_utmp',`
 	')
 
 	files_list_pids($1)
-	allow $1 initrc_var_run_t:file r_file_perms;
+	allow $1 initrc_var_run_t:file read_file_perms;
 ')
 
 ########################################
@@ -1309,5 +1273,5 @@ interface(`init_manage_utmp',`
 	')
 
 	files_search_pids($1)
-	allow $1 initrc_var_run_t:file create_file_perms;
+	allow $1 initrc_var_run_t:file manage_file_perms;
 ')

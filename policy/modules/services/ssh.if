@@ -63,7 +63,7 @@ template(`ssh_basic_client_template',`
 	allow $1_ssh_t self:capability { setuid setgid dac_override dac_read_search };
 	allow $1_ssh_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_ssh_t self:fd use;
-	allow $1_ssh_t self:fifo_file rw_file_perms;
+	allow $1_ssh_t self:fifo_file rw_fifo_file_perms;
 	allow $1_ssh_t self:unix_dgram_socket { create_socket_perms sendto };
 	allow $1_ssh_t self:unix_stream_socket { create_stream_socket_perms connectto };
 	allow $1_ssh_t self:shm create_shm_perms;
@@ -78,14 +78,10 @@ template(`ssh_basic_client_template',`
 	allow $1_ssh_t $2:unix_stream_socket connectto;
 
 	# Read the ssh key file.
-	allow $1_ssh_t sshd_key_t:file r_file_perms;
+	allow $1_ssh_t sshd_key_t:file read_file_perms;
 
 	# Transition from the domain to the derived domain.
-	domain_auto_trans($2, ssh_exec_t, $1_ssh_t)
-	allow $2 $1_ssh_t:fd use;
-	allow $1_ssh_t $2:fd use;
-	allow $1_ssh_t $2:fifo_file rw_file_perms;
-	allow $1_ssh_t $2:process sigchld;
+	domtrans_pattern($2, ssh_exec_t, $1_ssh_t)
 
 	# inheriting stream sockets is needed for "ssh host command" as no pty
 	# is allocated
@@ -94,25 +90,21 @@ template(`ssh_basic_client_template',`
 	allow $2 ssh_server:unix_stream_socket rw_stream_socket_perms;
 
 	# allow ps to show ssh
-	allow $2 $1_ssh_t:dir { search getattr read };
-	allow $2 $1_ssh_t:{ file lnk_file } { read getattr };
-	allow $2 $1_ssh_t:process getattr;
+	ps_process_pattern($2,$1_ssh_t)
 
 	# user can manage the keys and config
-	allow $2 $1_home_ssh_t:dir rw_dir_perms;
-	allow $2 $1_home_ssh_t:file create_file_perms;
-	allow $2 $1_home_ssh_t:lnk_file create_lnk_perms;
-	allow $2 $1_home_ssh_t:sock_file create_file_perms;
+	manage_files_pattern($2,$1_home_ssh_t,$1_home_ssh_t)
+	manage_lnk_files_pattern($2,$1_home_ssh_t,$1_home_ssh_t)
+	manage_sock_files_pattern($2,$1_home_ssh_t,$1_home_ssh_t)
 
 	# ssh client can manage the keys and config
-	allow $1_ssh_t $1_home_ssh_t:dir r_dir_perms;
-	allow $1_ssh_t $1_home_ssh_t:file create_file_perms;
-	allow $1_ssh_t $1_home_ssh_t:lnk_file { getattr read };
+	manage_files_pattern($1_ssh_t,$1_home_ssh_t,$1_home_ssh_t)
+	read_lnk_files_pattern($1_ssh_t,$1_home_ssh_t,$1_home_ssh_t)
 
 	# ssh servers can read the user keys and config
-	allow ssh_server $1_home_ssh_t:dir r_dir_perms;
-	allow ssh_server $1_home_ssh_t:lnk_file r_file_perms;
-	allow ssh_server $1_home_ssh_t:file r_file_perms;
+	allow ssh_server $1_home_ssh_t:dir list_dir_perms;
+	read_files_pattern(ssh_server,$1_home_ssh_t,$1_home_ssh_t)
+	read_lnk_files_pattern(ssh_server,$1_home_ssh_t,$1_home_ssh_t)
 
 	kernel_read_kernel_sysctls($1_ssh_t)
 
@@ -157,8 +149,8 @@ template(`ssh_basic_client_template',`
 
 	ifdef(`strict_policy',`
 		# Access the ssh temporary files.
-		allow $1_ssh_t sshd_tmp_t:dir create_dir_perms;
-		allow $1_ssh_t sshd_tmp_t:file create_file_perms;
+		allow $1_ssh_t sshd_tmp_t:dir manage_dir_perms;
+		allow $1_ssh_t sshd_tmp_t:file manage_file_perms;
 		files_tmp_filetrans($1_ssh_t, sshd_tmp_t, { file dir })
 	')
 
@@ -251,21 +243,18 @@ template(`ssh_per_role_template',`
 	# Client local policy
 	#
 
-	allow $1_ssh_t $1_ssh_tmpfs_t:dir rw_dir_perms;
-	allow $1_ssh_t $1_ssh_tmpfs_t:file manage_file_perms;
-	allow $1_ssh_t $1_ssh_tmpfs_t:lnk_file create_lnk_perms;
-	allow $1_ssh_t $1_ssh_tmpfs_t:sock_file manage_file_perms;
-	allow $1_ssh_t $1_ssh_tmpfs_t:fifo_file manage_file_perms;
+	manage_files_pattern($1_ssh_t,$1_ssh_tmpfs_t,$1_ssh_tmpfs_t)
+	manage_lnk_files_pattern($1_ssh_t,$1_ssh_tmpfs_t,$1_ssh_tmpfs_t)
+	manage_fifo_files_pattern($1_ssh_t,$1_ssh_tmpfs_t,$1_ssh_tmpfs_t)
+	manage_sock_files_pattern($1_ssh_t,$1_ssh_tmpfs_t,$1_ssh_tmpfs_t)
 	fs_tmpfs_filetrans($1_ssh_t,$1_ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow $1_ssh_t $1_home_ssh_t:dir manage_dir_perms;
-	allow $1_ssh_t $1_home_ssh_t:sock_file manage_file_perms;
+	manage_dirs_pattern($1_ssh_t,$1_home_ssh_t,$1_home_ssh_t)
+	manage_sock_files_pattern($1_ssh_t,$1_home_ssh_t,$1_home_ssh_t)
 	userdom_user_home_dir_filetrans($1,$1_ssh_t,$1_home_ssh_t,{ dir sock_file })
 
 	# Allow the ssh program to communicate with ssh-agent.
-	allow $1_ssh_t $1_ssh_agent_t:unix_stream_socket connectto;
-	allow $1_ssh_t $1_ssh_agent_tmp_t:sock_file write;
-	allow $1_ssh_t $1_ssh_agent_tmp_t:dir search;
+	stream_connect_pattern($1_ssh_t,$1_ssh_agent_tmp_t,$1_ssh_agent_tmp_t,$1_ssh_agent_t)
 
 	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
 
@@ -327,27 +316,20 @@ template(`ssh_per_role_template',`
 
 	allow $1_ssh_agent_t self:unix_stream_socket { create_stream_socket_perms connectto };
 
-	allow $1_ssh_agent_t $1_ssh_agent_tmp_t:dir manage_dir_perms;
-	allow $1_ssh_agent_t $1_ssh_agent_tmp_t:sock_file manage_file_perms;
+	manage_dirs_pattern($1_ssh_agent_t,$1_ssh_agent_tmp_t,$1_ssh_agent_tmp_t)
+	manage_sock_files_pattern($1_ssh_agent_t,$1_ssh_agent_tmp_t,$1_ssh_agent_tmp_t)
 	files_tmp_filetrans($1_ssh_agent_t,$1_ssh_agent_tmp_t,{ dir sock_file })
 
 	# for ssh-add
-	allow $2 $1_ssh_agent_t:unix_stream_socket connectto;
-	allow $2 $1_ssh_agent_tmp_t:sock_file write;
+	stream_connect_pattern($2,$1_ssh_agent_tmp_t,$1_ssh_agent_tmp_t,$1_ssh_agent_t)
 
 	# Allow the user shell to signal the ssh program.
 	allow $2 $1_ssh_agent_t:process signal;
 
 	# allow ps to show ssh
-	allow $2 $1_ssh_agent_t:dir { search getattr read };
-	allow $2 $1_ssh_agent_t:{ file lnk_file } { read getattr };
-	allow $2 $1_ssh_agent_t:process getattr;
+	ps_process_pattern($2,$1_ssh_agent_t)
 
-	domain_auto_trans($2, ssh_agent_exec_t, $1_ssh_agent_t)
-	allow $2 $1_ssh_agent_t:fd use;
-	allow $1_ssh_agent_t $2:fd use;
-	allow $1_ssh_agent_t $2:fifo_file rw_file_perms;
-	allow $1_ssh_agent_t $2:process sigchld;
+	domtrans_pattern($2, ssh_agent_exec_t, $1_ssh_agent_t)
 
 	kernel_read_kernel_sysctls($1_ssh_agent_t)
 
@@ -468,17 +450,17 @@ template(`ssh_server_template', `
 	files_pid_file($1_var_run_t)
 
 	allow $1_t self:capability { kill sys_chroot sys_resource chown dac_override fowner fsetid setgid setuid sys_tty_config };
-	allow $1_t self:fifo_file rw_file_perms;
+	allow $1_t self:fifo_file rw_fifo_file_perms;
 	allow $1_t self:process { signal setsched setrlimit setexec };
 	allow $1_t self:tcp_socket create_stream_socket_perms;
 	allow $1_t self:udp_socket create_socket_perms;
 	# ssh agent connections:
 	allow $1_t self:unix_stream_socket create_stream_socket_perms;
 
-	allow $1_t $1_devpts_t:chr_file { rw_file_perms setattr getattr relabelfrom };
+	allow $1_t $1_devpts_t:chr_file { rw_chr_file_perms setattr getattr relabelfrom };
 	term_create_pty($1_t,$1_devpts_t)
 
-	allow $1_t $1_var_run_t:file create_file_perms;
+	allow $1_t $1_var_run_t:file manage_file_perms;
 	files_pid_filetrans($1_t,$1_var_run_t,file)
 
 	can_exec($1_t, sshd_exec_t)
@@ -711,10 +693,7 @@ interface(`ssh_domtrans_keygen',`
 		type ssh_keygen_t, ssh_keygen_exec_t;
 	')
 
-	domain_auto_trans($1,ssh_keygen_exec_t,ssh_keygen_t)
-	allow ssh_keygen_t $1:fd use;
-	allow ssh_keygen_t $1:fifo_file rw_file_perms;
-	allow ssh_keygen_t $1:process sigchld;
+	domtrans_pattern($1,ssh_keygen_exec_t,ssh_keygen_t)
 ')
 
 ########################################

@@ -81,13 +81,12 @@ ifdef(`enable_mls',`
 #
 
 # /usr/lib/cups/backend/serial needs sys_admin(?!)
-allow cupsd_t self:capability { sys_admin dac_override dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_resource sys_tty_config audit_write };
+allow cupsd_t self:capability { sys_admin dac_override dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_resource sys_tty_config };
 dontaudit cupsd_t self:capability { sys_tty_config net_admin };
 allow cupsd_t self:process { setsched signal_perms };
 allow cupsd_t self:fifo_file rw_file_perms;
 allow cupsd_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow cupsd_t self:unix_dgram_socket create_socket_perms;
-allow cupsd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow cupsd_t self:netlink_selinux_socket create_socket_perms;
 allow cupsd_t self:netlink_route_socket r_netlink_socket_perms;
 allow cupsd_t self:tcp_socket create_stream_socket_perms;
@@ -96,14 +95,16 @@ allow cupsd_t self:appletalk_socket create_socket_perms;
 # generic socket here until appletalk socket is available in kernels
 allow cupsd_t self:socket create_socket_perms;
 
-allow cupsd_t cupsd_etc_t:file { r_file_perms setattr };
-allow cupsd_t cupsd_etc_t:dir { rw_dir_perms setattr };
-allow cupsd_t cupsd_etc_t:lnk_file { getattr read };
+send_audit_msgs_pattern(cupsd_t)
+
+allow cupsd_t cupsd_etc_t:{ dir file } setattr;
+read_files_pattern(cupsd_t,cupsd_etc_t,cupsd_etc_t)
+read_lnk_files_pattern(cupsd_t,cupsd_etc_t,cupsd_etc_t)
 files_search_etc(cupsd_t)
 
-allow cupsd_t cupsd_rw_etc_t:file manage_file_perms;
-allow cupsd_t cupsd_rw_etc_t:dir manage_dir_perms;
-type_transition cupsd_t cupsd_etc_t:file cupsd_rw_etc_t;
+manage_dirs_pattern(cupsd_t,cupsd_etc_t,cupsd_rw_etc_t)
+manage_files_pattern(cupsd_t,cupsd_etc_t,cupsd_rw_etc_t)
+filetrans_pattern(cupsd_t,cupsd_etc_t,cupsd_rw_etc_t,file)
 files_var_filetrans(cupsd_t,cupsd_rw_etc_t,{ dir file })
 
 # allow cups to execute its backend scripts
@@ -111,28 +112,26 @@ can_exec(cupsd_t, cupsd_exec_t)
 allow cupsd_t cupsd_exec_t:dir search;
 allow cupsd_t cupsd_exec_t:lnk_file read;
 
-allow cupsd_t cupsd_log_t:file create_file_perms;
-allow cupsd_t cupsd_log_t:dir { setattr rw_dir_perms };
+manage_files_pattern(cupsd_t,cupsd_log_t,cupsd_log_t)
+allow cupsd_t cupsd_log_t:dir setattr;
 logging_log_filetrans(cupsd_t,cupsd_log_t,{ file dir })
 
-allow cupsd_t cupsd_tmp_t:dir create_dir_perms;
-allow cupsd_t cupsd_tmp_t:file create_file_perms;
-allow cupsd_t cupsd_tmp_t:fifo_file create_file_perms;
+manage_dirs_pattern(cupsd_t,cupsd_tmp_t,cupsd_tmp_t)
+manage_files_pattern(cupsd_t,cupsd_tmp_t,cupsd_tmp_t)
+manage_fifo_files_pattern(cupsd_t,cupsd_tmp_t,cupsd_tmp_t)
 files_tmp_filetrans(cupsd_t, cupsd_tmp_t, { file dir fifo_file })
 
-allow cupsd_t cupsd_var_run_t:file create_file_perms;
-allow cupsd_t cupsd_var_run_t:dir { setattr rw_dir_perms };
-allow cupsd_t cupsd_var_run_t:sock_file create_file_perms;
+allow cupsd_t cupsd_var_run_t:dir setattr;
+manage_files_pattern(cupsd_t,cupsd_var_run_t,cupsd_var_run_t)
+manage_sock_files_pattern(cupsd_t,cupsd_var_run_t,cupsd_var_run_t)
 files_pid_filetrans(cupsd_t,cupsd_var_run_t,file)
 
-allow cupsd_t hplip_etc_t:file r_file_perms;
-allow cupsd_t hplip_etc_t:dir r_dir_perms;
+read_files_pattern(cupsd_t,hplip_etc_t,hplip_etc_t)
 
 allow cupsd_t hplip_var_run_t:file { read getattr };
 
-allow cupsd_t ptal_var_run_t:dir search;
-allow cupsd_t ptal_var_run_t:sock_file { write setattr };
-allow cupsd_t ptal_t:unix_stream_socket connectto;
+stream_connect_pattern(cupsd_t,ptal_var_run_t,ptal_var_run_t,ptal_t)
+allow cupsd_t ptal_var_run_t : sock_file setattr;
 
 kernel_read_system_state(cupsd_t)
 kernel_read_network_state(cupsd_t)
@@ -312,41 +311,34 @@ optional_policy(`
 allow cupsd_config_t self:capability { chown sys_tty_config };
 dontaudit cupsd_config_t self:capability sys_tty_config;
 allow cupsd_config_t self:process signal_perms;
-allow cupsd_config_t self:fifo_file rw_file_perms;
+allow cupsd_config_t self:fifo_file rw_fifo_file_perms;
 allow cupsd_config_t self:unix_stream_socket create_socket_perms;
 allow cupsd_config_t self:unix_dgram_socket create_socket_perms;
 allow cupsd_config_t self:tcp_socket create_stream_socket_perms;
 allow cupsd_config_t self:netlink_route_socket r_netlink_socket_perms;
 
-# old can_ps() on cupsd_t:
-allow cupsd_config_t cupsd_t:process { signal };
-allow cupsd_config_t cupsd_t:{ file lnk_file } { getattr read };
-allow cupsd_config_t cupsd_t:dir { search getattr read };
-allow cupsd_config_t cupsd_t:{ file lnk_file } { read getattr };
-allow cupsd_config_t cupsd_t:process getattr;
+allow cupsd_config_t cupsd_t:process signal;
+ps_process_pattern(cupsd_config_t,cupsd_t)
 
-allow cupsd_config_t cupsd_config_var_run_t:file create_file_perms;
-allow cupsd_config_t cupsd_config_var_run_t:dir rw_dir_perms;
-files_pid_filetrans(cupsd_config_t,cupsd_config_var_run_t,file)
+manage_files_pattern(cupsd_config_t,cupsd_etc_t,cupsd_etc_t)
+manage_lnk_files_pattern(cupsd_config_t,cupsd_etc_t,cupsd_etc_t)
+filetrans_pattern(cupsd_config_t,cupsd_etc_t,cupsd_rw_etc_t,file)
+
+manage_files_pattern(cupsd_config_t,cupsd_rw_etc_t,cupsd_rw_etc_t)
+manage_lnk_files_pattern(cupsd_config_t,cupsd_rw_etc_t,cupsd_rw_etc_t)
+files_var_filetrans(cupsd_config_t,cupsd_rw_etc_t,file)
 
 can_exec(cupsd_config_t, cupsd_config_exec_t) 
 
-allow cupsd_config_t cupsd_etc_t:dir rw_dir_perms;
-allow cupsd_config_t cupsd_etc_t:file create_file_perms;
-allow cupsd_config_t cupsd_etc_t:lnk_file create_lnk_perms;
-type_transition cupsd_config_t cupsd_etc_t:file cupsd_rw_etc_t;
-
 allow cupsd_config_t cupsd_log_t:file rw_file_perms;
 
-allow cupsd_config_t cupsd_rw_etc_t:dir rw_dir_perms;
-allow cupsd_config_t cupsd_rw_etc_t:file manage_file_perms;
-allow cupsd_config_t cupsd_rw_etc_t:lnk_file create_lnk_perms;
-files_var_filetrans(cupsd_config_t,cupsd_rw_etc_t,file)
-
-allow cupsd_config_t cupsd_tmp_t:file create_file_perms;
+allow cupsd_config_t cupsd_tmp_t:file manage_file_perms;
 files_tmp_filetrans(cupsd_config_t, cupsd_tmp_t, { file dir })
 
 allow cupsd_config_t cupsd_var_run_t:file { getattr read };
+
+manage_files_pattern(cupsd_config_t,cupsd_config_var_run_t,cupsd_config_var_run_t)
+files_pid_filetrans(cupsd_config_t,cupsd_config_var_run_t,file)
 
 kernel_read_system_state(cupsd_config_t)
 kernel_read_kernel_sysctls(cupsd_config_t)
@@ -473,7 +465,7 @@ optional_policy(`
 #
 
 allow cupsd_lpd_t self:process signal_perms;
-allow cupsd_lpd_t self:fifo_file rw_file_perms;
+allow cupsd_lpd_t self:fifo_file rw_fifo_file_perms;
 allow cupsd_lpd_t self:tcp_socket connected_stream_socket_perms;
 allow cupsd_lpd_t self:udp_socket create_socket_perms;
 allow cupsd_lpd_t self:netlink_route_socket r_netlink_socket_perms;
@@ -489,20 +481,19 @@ optional_policy(`
 #end for identd
 
 allow cupsd_lpd_t cupsd_etc_t:dir list_dir_perms;
-allow cupsd_lpd_t cupsd_etc_t:file r_file_perms;
-allow cupsd_lpd_t cupsd_etc_t:lnk_file { getattr read };
-
-allow cupsd_lpd_t cupsd_lpd_tmp_t:dir create_dir_perms;
-allow cupsd_lpd_t cupsd_lpd_tmp_t:file create_file_perms;
-files_tmp_filetrans(cupsd_lpd_t, cupsd_lpd_tmp_t, { file dir })
-
-allow cupsd_lpd_t cupsd_lpd_var_run_t:file create_file_perms;
-allow cupsd_lpd_t cupsd_lpd_var_run_t:dir rw_dir_perms;
-files_pid_filetrans(cupsd_lpd_t,cupsd_lpd_var_run_t,file)
+read_files_pattern(cupsd_lpd_t,cupsd_etc_t,cupsd_etc_t)
+read_lnk_files_pattern(cupsd_lpd_t,cupsd_etc_t,cupsd_etc_t)
 
 allow cupsd_lpd_t cupsd_rw_etc_t:dir list_dir_perms;
-allow cupsd_lpd_t cupsd_rw_etc_t:file r_file_perms;
-allow cupsd_lpd_t cupsd_rw_etc_t:lnk_file { getattr read };
+read_files_pattern(cupsd_lpd_t,cupsd_rw_etc_t,cupsd_rw_etc_t)
+read_lnk_files_pattern(cupsd_lpd_t,cupsd_rw_etc_t,cupsd_rw_etc_t)
+
+manage_dirs_pattern(cupsd_lpd_t,cupsd_lpd_tmp_t,cupsd_lpd_tmp_t)
+manage_files_pattern(cupsd_lpd_t,cupsd_lpd_tmp_t,cupsd_lpd_tmp_t)
+files_tmp_filetrans(cupsd_lpd_t, cupsd_lpd_tmp_t, { file dir })
+
+manage_files_pattern(cupsd_lpd_t,cupsd_lpd_var_run_t,cupsd_lpd_var_run_t)
+files_pid_filetrans(cupsd_lpd_t,cupsd_lpd_var_run_t,file)
 
 kernel_read_kernel_sysctls(cupsd_lpd_t)
 kernel_read_system_state(cupsd_lpd_t)
@@ -557,7 +548,7 @@ optional_policy(`
 # Needed for USB Scanneer and xsane
 allow hplip_t self:capability { dac_override dac_read_search net_raw };
 dontaudit hplip_t self:capability sys_tty_config;
-allow hplip_t self:fifo_file rw_file_perms;
+allow hplip_t self:fifo_file rw_fifo_file_perms;
 allow hplip_t self:process signal_perms;
 allow hplip_t self:unix_dgram_socket create_socket_perms;
 allow hplip_t self:unix_stream_socket create_socket_perms;
@@ -570,13 +561,12 @@ allow hplip_t cupsd_etc_t:dir search;
 
 cups_stream_connect(hplip_t)
 
-allow hplip_t hplip_etc_t:file r_file_perms;
-allow hplip_t hplip_etc_t:dir r_dir_perms;
-allow hplip_t hplip_etc_t:lnk_file { getattr read };
+allow hplip_t hplip_etc_t:dir list_dir_perms;
+read_files_pattern(hplip_t,hplip_etc_t,hplip_etc_t)
+read_lnk_files_pattern(hplip_t,hplip_etc_t,hplip_etc_t)
 files_search_etc(hplip_t)
 
-allow hplip_t hplip_var_run_t:file create_file_perms;
-allow hplip_t hplip_var_run_t:dir rw_dir_perms;
+manage_files_pattern(hplip_t,hplip_var_run_t,hplip_var_run_t)
 files_pid_filetrans(hplip_t,hplip_var_run_t,file)
 
 kernel_read_system_state(hplip_t)
@@ -664,26 +654,22 @@ optional_policy(`
 
 allow ptal_t self:capability { chown sys_rawio };
 dontaudit ptal_t self:capability sys_tty_config;
-allow ptal_t self:fifo_file rw_file_perms;
+allow ptal_t self:fifo_file rw_fifo_file_perms;
 allow ptal_t self:unix_dgram_socket create_socket_perms;
 allow ptal_t self:unix_stream_socket create_stream_socket_perms;
 allow ptal_t self:tcp_socket create_stream_socket_perms;
 
-allow ptal_t ptal_etc_t:file r_file_perms;
-allow ptal_t ptal_etc_t:dir r_dir_perms;
-allow ptal_t ptal_etc_t:lnk_file { getattr read };
+allow ptal_t ptal_etc_t:dir list_dir_perms;
+read_files_pattern(ptal_t,ptal_etc_t,ptal_etc_t)
+read_lnk_files_pattern(ptal_t,ptal_etc_t,ptal_etc_t)
 files_search_etc(ptal_t)
 
-allow ptal_t ptal_var_run_t:dir create_dir_perms;
-allow ptal_t ptal_var_run_t:file create_file_perms;
-allow ptal_t ptal_var_run_t:lnk_file create_lnk_perms;
-allow ptal_t ptal_var_run_t:sock_file create_file_perms;
-allow ptal_t ptal_var_run_t:fifo_file create_file_perms;
+manage_dirs_pattern(ptal_t,ptal_var_run_t,ptal_var_run_t)
+manage_files_pattern(ptal_t,ptal_var_run_t,ptal_var_run_t)
+manage_lnk_files_pattern(ptal_t,ptal_var_run_t,ptal_var_run_t)
+manage_fifo_files_pattern(ptal_t,ptal_var_run_t,ptal_var_run_t)
+manage_sock_files_pattern(ptal_t,ptal_var_run_t,ptal_var_run_t)
 files_pid_filetrans(ptal_t,ptal_var_run_t,{ dir file lnk_file sock_file fifo_file })
-
-allow ptal_t ptal_var_run_t:file create_file_perms;
-allow ptal_t ptal_var_run_t:dir rw_dir_perms;
-files_pid_filetrans(ptal_t,ptal_var_run_t,file)
 
 kernel_read_kernel_sysctls(ptal_t)
 kernel_list_proc(ptal_t)

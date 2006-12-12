@@ -81,23 +81,20 @@ template(`gpg_per_role_template',`
 	# setrlimit is for ulimit -c 0
 	allow $1_gpg_t self:process { setrlimit setcap setpgid };
 
-	allow $1_gpg_t self:fifo_file rw_file_perms;
+	allow $1_gpg_t self:fifo_file rw_fifo_file_perms;
 	allow $1_gpg_t self:tcp_socket create_stream_socket_perms;
 
-	allow $1_gpg_t $1_gpg_secret_t:dir rw_dir_perms;
-	allow $1_gpg_t $1_gpg_secret_t:file create_file_perms;
-	allow $1_gpg_t $1_gpg_secret_t:lnk_file create_lnk_perms;
+	# transition from the gpg domain to the helper domain
+	domtrans_pattern($1_gpg_t,gpg_helper_exec_t,$1_gpg_helper_t)
+
+	manage_files_pattern($1_gpg_t,$1_gpg_secret_t,$1_gpg_secret_t)
+	manage_lnk_files_pattern($1_gpg_t,$1_gpg_secret_t,$1_gpg_secret_t)
 
 	# transition from the userdomain to the derived domain
-	domain_auto_trans($2,gpg_exec_t,$1_gpg_t)
-	allow $1_gpg_t $2:fd use;
-	allow $1_gpg_t $2:fifo_file rw_file_perms;
-	allow $1_gpg_t $2:process sigchld;
+	domtrans_pattern($2,gpg_exec_t,$1_gpg_t)
 
 	# allow ps to show gpg
-	allow $2 $1_gpg_t:dir { search getattr read };
-	allow $2 $1_gpg_t:{ file lnk_file } { read getattr };
-	allow $2 $1_gpg_t:process getattr;
+	ps_process_pattern($2,$1_gpg_t)
 
 	corenet_non_ipsec_sendrecv($1_gpg_t)
 	corenet_tcp_sendrecv_all_if($1_gpg_t)
@@ -152,20 +149,13 @@ template(`gpg_per_role_template',`
 	# Note: this is only tested with the hkp interface. If you use eg the 
 	# mail interface you will likely need additional permissions.
 
+	allow $1_gpg_helper_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_gpg_helper_t self:tcp_socket { connect connected_socket_perms };
+	allow $1_gpg_helper_t self:udp_socket { connect connected_socket_perms };
+
 	# communicate with the user 
 	allow $1_gpg_helper_t $2:fd use;
 	allow $1_gpg_helper_t $2:fifo_file write;
-
-	# transition from the gpg domain to the helper domain
-	domain_auto_trans($1_gpg_t,gpg_helper_exec_t,$1_gpg_helper_t)
-	allow $1_gpg_helper_t $1_gpg_t:fd use;
-	allow $1_gpg_helper_t $1_gpg_t:fifo_file rw_file_perms;
-	allow $1_gpg_helper_t $1_gpg_t:process sigchld;
-
-	allow $1_gpg_helper_t self:unix_stream_socket create_stream_socket_perms;
-
-	allow $1_gpg_helper_t self:tcp_socket { connect connected_socket_perms };
-	allow $1_gpg_helper_t self:udp_socket { connect connected_socket_perms };
 
 	dontaudit $1_gpg_helper_t $1_gpg_secret_t:file read;
 
@@ -215,36 +205,29 @@ template(`gpg_per_role_template',`
 	allow $1_gpg_agent_t self:process setrlimit;
 
 	allow $1_gpg_agent_t self:unix_stream_socket create_stream_socket_perms ;
-	allow $1_gpg_agent_t self:fifo_file rw_file_perms;
+	allow $1_gpg_agent_t self:fifo_file rw_fifo_file_perms;
 
 	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
-	allow $1_gpg_agent_t $1_gpg_secret_t:dir create_dir_perms;
-	allow $1_gpg_agent_t $1_gpg_secret_t:file create_file_perms;
-	allow $1_gpg_agent_t $1_gpg_secret_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_gpg_agent_t,$1_gpg_secret_t,$1_gpg_secret_t)
+	manage_files_pattern($1_gpg_agent_t,$1_gpg_secret_t,$1_gpg_secret_t)
+	manage_lnk_files_pattern($1_gpg_agent_t,$1_gpg_secret_t,$1_gpg_secret_t)
 
 	# allow gpg to connect to the gpg agent
-	allow $1_gpg_t $1_gpg_agent_tmp_t:dir search;
-	allow $1_gpg_t $1_gpg_agent_tmp_t:sock_file write;
-	allow $1_gpg_t $1_gpg_agent_t:unix_stream_socket connectto;
+	stream_connect_pattern($1_gpg_t,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t,$1_gpg_agent_t)
 
 	# allow ps to show gpg-agent
-	allow $2 $1_gpg_agent_t:dir { search getattr read };
-	allow $2 $1_gpg_agent_t:{ file lnk_file } { read getattr };
-	allow $2 $1_gpg_agent_t:process getattr;
+	ps_process_pattern($2,$1_gpg_agent_t)
 
 	# Allow the user shell to signal the gpg-agent program.
 	allow $2 $1_gpg_agent_t:process { signal sigkill };
 
-	allow $2 $1_gpg_agent_tmp_t:dir create_dir_perms;
-	allow $2 $1_gpg_agent_tmp_t:file create_file_perms;
-	allow $2 $1_gpg_agent_tmp_t:sock_file create_file_perms;
+	manage_dirs_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
+	manage_files_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
+	manage_sock_files_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
 	files_tmp_filetrans($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
 
 	# Transition from the user domain to the derived domain.
-	domain_auto_trans($2, gpg_agent_exec_t, $1_gpg_agent_t)
-	allow $1_gpg_agent_t $2:fd use;
-	allow $1_gpg_agent_t $2:fifo_file rw_file_perms;
-	allow $1_gpg_agent_t $2:process sigchld;
+	domtrans_pattern($2, gpg_agent_exec_t, $1_gpg_agent_t)
 
 	corecmd_search_bin($1_gpg_agent_t)
 
@@ -277,15 +260,12 @@ template(`gpg_per_role_template',`
 	# Pinentry local policy
 	#
 
+	allow $1_gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
+	allow $1_gpg_pinentry_t self:fifo_file rw_fifo_file_perms;
+
 	# we need to allow gpg-agent to call pinentry so it can get the passphrase 
 	# from the user.
-	domain_auto_trans($1_gpg_agent_t,pinentry_exec_t,$1_gpg_pinentry_t)
-	allow $1_gpg_agent_t $1_gpg_pinentry_t:fd use;
-	allow $1_gpg_agent_t $1_gpg_pinentry_t:fifo_file rw_file_perms;
-	allow $1_gpg_agent_t $1_gpg_pinentry_t:process sigchld;
-
-	allow $1_gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
-	allow $1_gpg_pinentry_t self:fifo_file rw_file_perms;
+	domtrans_pattern($1_gpg_agent_t,pinentry_exec_t,$1_gpg_pinentry_t)
 
 	# read /proc/meminfo
 	kernel_read_system_state($1_gpg_pinentry_t)
@@ -366,11 +346,7 @@ template(`gpg_domtrans_user_gpg',`
 		type $1_gpg_t, gpg_exec_t;
 	')
 
-	domain_auto_trans($2, gpg_exec_t, $1_gpg_t)
-	allow $2 $1_gpg_t:fd use;
-	allow $1_gpg_t $2:fd use;
-	allow $1_gpg_t $2:fifo_file rw_file_perms;
-	allow $1_gpg_t $2:process sigchld;
+	domtrans_pattern($2, gpg_exec_t, $1_gpg_t)
 ')
 
 ########################################

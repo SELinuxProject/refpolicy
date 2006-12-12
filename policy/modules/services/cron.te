@@ -77,7 +77,7 @@ dontaudit crond_t self:capability { sys_resource sys_tty_config };
 allow crond_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 allow crond_t self:process { setexec setfscreate };
 allow crond_t self:fd use;
-allow crond_t self:fifo_file rw_file_perms;
+allow crond_t self:fifo_file rw_fifo_file_perms;
 allow crond_t self:unix_dgram_socket create_socket_perms;
 allow crond_t self:unix_stream_socket create_stream_socket_perms;
 allow crond_t self:unix_dgram_socket sendto;
@@ -88,13 +88,14 @@ allow crond_t self:msgq create_msgq_perms;
 allow crond_t self:msg { send receive };
 allow crond_t self:key { search write link };
 
-allow crond_t crond_var_run_t:file create_file_perms;
+allow crond_t crond_var_run_t:file manage_file_perms;
 files_pid_filetrans(crond_t,crond_var_run_t,file)
 
 allow crond_t cron_spool_t:dir rw_dir_perms;
-allow crond_t cron_spool_t:file r_file_perms;
-allow crond_t system_cron_spool_t:dir r_dir_perms;
-allow crond_t system_cron_spool_t:file r_file_perms;
+allow crond_t cron_spool_t:file read_file_perms;
+
+allow crond_t system_cron_spool_t:dir list_dir_perms;
+allow crond_t system_cron_spool_t:file read_file_perms;
 
 kernel_read_kernel_sysctls(crond_t)
 kernel_search_key(crond_t)
@@ -172,11 +173,11 @@ optional_policy(`
 ')
 
 ifdef(`targeted_policy',`
-	allow crond_t system_crond_tmp_t:dir create_dir_perms;
-	allow crond_t system_crond_tmp_t:file create_file_perms;
-	allow crond_t system_crond_tmp_t:lnk_file create_lnk_perms;
-	allow crond_t system_crond_tmp_t:sock_file create_file_perms;
-	allow crond_t system_crond_tmp_t:fifo_file create_file_perms;
+	manage_dirs_pattern(crond_t,system_crond_tmp_t,system_crond_tmp_t)
+	manage_files_pattern(crond_t,system_crond_tmp_t,system_crond_tmp_t)
+	manage_lnk_files_pattern(crond_t,system_crond_tmp_t,system_crond_tmp_t)
+	manage_fifo_files_pattern(crond_t,system_crond_tmp_t,system_crond_tmp_t)
+	manage_sock_files_pattern(crond_t,system_crond_tmp_t,system_crond_tmp_t)
 	files_tmp_filetrans(crond_t,system_crond_tmp_t,{ dir file lnk_file sock_file fifo_file })
 
 	unconfined_domain(crond_t)
@@ -195,13 +196,13 @@ ifdef(`targeted_policy',`
 		mono_domtrans(crond_t)
 	')
 ',`
-	allow crond_t crond_tmp_t:dir create_dir_perms;
-	allow crond_t crond_tmp_t:file create_file_perms;
+	manage_dirs_pattern(crond_t,crond_tmp_t,crond_tmp_t)
+	manage_files_pattern(crond_t,crond_tmp_t,crond_tmp_t)
 	files_tmp_filetrans(crond_t, crond_tmp_t, { file dir })
 ')
 
 tunable_policy(`fcron_crond', `
-	allow crond_t system_cron_spool_t:file create_file_perms;
+	allow crond_t system_cron_spool_t:file manage_file_perms;
 ')
 
 optional_policy(`
@@ -265,7 +266,7 @@ ifdef(`targeted_policy',`
 ',`
 	allow system_crond_t self:capability { dac_override dac_read_search chown setgid setuid fowner net_bind_service fsetid };
 	allow system_crond_t self:process { signal_perms setsched };
-	allow system_crond_t self:fifo_file rw_file_perms;
+	allow system_crond_t self:fifo_file rw_fifo_file_perms;
 	allow system_crond_t self:passwd rootok;
 
 	# The entrypoint interface is not used as this is not
@@ -277,7 +278,7 @@ ifdef(`targeted_policy',`
 	# for this purpose.
 	allow system_crond_t system_cron_spool_t:file entrypoint;
 
-	allow system_crond_t system_cron_spool_t:file r_file_perms;
+	allow system_crond_t system_cron_spool_t:file read_file_perms;
 
 	# Permit a transition from the crond_t domain to this domain.
 	# The transition is requested explicitly by the modified crond 
@@ -291,21 +292,18 @@ ifdef(`targeted_policy',`
 	allow system_crond_t crond_t:process sigchld;
 
 	# Write /var/lock/makewhatis.lock.
-	allow system_crond_t system_crond_lock_t:file create_file_perms;
+	allow system_crond_t system_crond_lock_t:file manage_file_perms;
 	files_lock_filetrans(system_crond_t,system_crond_lock_t,file)
 
 	# write temporary files
-	allow system_crond_t system_crond_tmp_t:file manage_file_perms;
-	allow system_crond_t system_crond_tmp_t:lnk_file create_lnk_perms;
+	manage_files_pattern(system_crond_t,crond_tmp_t,system_crond_tmp_t)
+	manage_lnk_files_pattern(system_crond_t,crond_tmp_t,system_crond_tmp_t)
+	filetrans_pattern(system_crond_t,crond_tmp_t,system_crond_tmp_t,{ file lnk_file })
 	files_tmp_filetrans(system_crond_t,system_crond_tmp_t,file)
 
-	# write temporary files in crond tmp dir:
-	allow system_crond_t crond_tmp_t:dir rw_dir_perms;
-	type_transition system_crond_t crond_tmp_t:{ file lnk_file } system_crond_tmp_t;
-
 	# Read from /var/spool/cron.
-	allow system_crond_t cron_spool_t:dir r_dir_perms;
-	allow system_crond_t cron_spool_t:file r_file_perms;
+	allow system_crond_t cron_spool_t:dir list_dir_perms;
+	allow system_crond_t cron_spool_t:file read_file_perms;
 
 	kernel_read_kernel_sysctls(system_crond_t)
 	kernel_read_system_state(system_crond_t)
@@ -397,7 +395,7 @@ ifdef(`targeted_policy',`
 	')
 
 	optional_policy(`
-		# Needed	 for certwatch
+		# Needed for certwatch
 		apache_exec_modules(system_crond_t)
 		apache_read_config(system_crond_t)
 		apache_read_log(system_crond_t)

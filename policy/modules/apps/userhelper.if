@@ -57,8 +57,9 @@ template(`userhelper_per_role_template',`
 	#
 	allow $1_userhelper_t self:capability { setuid setgid net_bind_service dac_override chown sys_tty_config };
 	allow $1_userhelper_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+	allow $1_userhelper_t self:process setexec;
 	allow $1_userhelper_t self:fd use;
-	allow $1_userhelper_t self:fifo_file rw_file_perms;
+	allow $1_userhelper_t self:fifo_file rw_fifo_file_perms;
 	allow $1_userhelper_t self:shm create_shm_perms;
 	allow $1_userhelper_t self:sem create_sem_perms;
 	allow $1_userhelper_t self:msgq create_msgq_perms;
@@ -67,19 +68,13 @@ template(`userhelper_per_role_template',`
 	allow $1_userhelper_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_userhelper_t self:unix_dgram_socket sendto;
 	allow $1_userhelper_t self:unix_stream_socket connectto;
-	allow $1_userhelper_t self:sock_file r_file_perms;
+	allow $1_userhelper_t self:sock_file read_sock_file_perms;
 
 	#Transition to the derived domain.
-	domain_auto_trans($2,userhelper_exec_t,$1_userhelper_t)
-	allow $2 $1_userhelper_t:fd use;
-	allow $1_userhelper_t $2:fd use;
-	allow $1_userhelper_t $2:fifo_file rw_file_perms;
-	allow $1_userhelper_t $2:process sigchld;
+	domtrans_pattern($2,userhelper_exec_t,$1_userhelper_t)
 
-	allow $1_userhelper_t self:process setexec;
-
-	allow $1_userhelper_t userhelper_conf_t:file rw_file_perms;
 	allow $1_userhelper_t userhelper_conf_t:dir rw_dir_perms;
+	rw_files_pattern($1_userhelper_t,userhelper_conf_t,userhelper_conf_t)
 
 	can_exec($1_userhelper_t, userhelper_exec_t)
 
@@ -199,11 +194,11 @@ template(`userhelper_per_role_template',`
 			allow $1_userhelper_t gphdomain:fd use;
 		')
 		optional_policy(`
-			domain_auto_trans($1_userhelper_t, xauth_exec_t, $1_xauth_t)
+			domtrans_pattern($1_userhelper_t, xauth_exec_t, $1_xauth_t)
 			allow $1_userhelper_t $1_xauth_home_t:file { getattr read };
 		')
 		optional_policy(`
-			domain_auto_trans($1_mozilla_t, userhelper_exec_t, $1_userhelper_t)
+			domtrans_pattern($1_mozilla_t, userhelper_exec_t, $1_userhelper_t)
 		')
 		# for when the network connection is killed
 		dontaudit unpriv_userdomain $1_userhelper_t:process signal;
@@ -269,6 +264,7 @@ template(`userhelper_use_user_fd',`
 
 	allow $2 $1_userhelper_t:fd use;
 ')
+
 ########################################
 ## <summary>
 ##	Allow domain to send sigchld to userhelper.

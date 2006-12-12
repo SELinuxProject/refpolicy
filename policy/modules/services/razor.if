@@ -26,7 +26,7 @@ template(`razor_common_domain_template',`
 
 	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_t self:fd use;
-	allow $1_t self:fifo_file rw_file_perms;
+	allow $1_t self:fifo_file rw_fifo_file_perms;
 	allow $1_t self:unix_dgram_socket create_socket_perms;
 	allow $1_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_t self:unix_dgram_socket sendto;
@@ -42,14 +42,14 @@ template(`razor_common_domain_template',`
 	allow $1_t razor_etc_t:file read_file_perms;
 	allow $1_t razor_etc_t:lnk_file { getattr read };
 
-	allow $1_t razor_log_t:dir manage_dir_perms;
-	allow $1_t razor_log_t:file manage_file_perms;
-	allow $1_t razor_log_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_t,razor_log_t,razor_log_t)
+	manage_files_pattern($1_t,razor_log_t,razor_log_t)
+	manage_lnk_files_pattern($1_t,razor_log_t,razor_log_t)
 	logging_log_filetrans($1_t,razor_log_t,file)
 
-	allow $1_t razor_var_lib_t:dir manage_dir_perms;
-	allow $1_t razor_var_lib_t:file manage_file_perms;
-	allow $1_t razor_var_lib_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_t,razor_var_lib_t,razor_var_lib_t)
+	manage_files_pattern($1_t,razor_var_lib_t,razor_var_lib_t)
+	manage_lnk_files_pattern($1_t,razor_var_lib_t,razor_var_lib_t)
 	files_search_var_lib($1_t)
 
 	# Razor is one executable and several symlinks
@@ -152,24 +152,23 @@ template(`razor_per_role_template',`
 
 	allow $1_razor_t self:unix_stream_socket create_stream_socket_perms;
 
-	allow $1_razor_t $1_razor_home_t:dir manage_dir_perms;
-	allow $1_razor_t $1_razor_home_t:file manage_file_perms;
-	allow $1_razor_t $1_razor_home_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_razor_t,$1_razor_home_t,$1_razor_home_t)
+	manage_files_pattern($1_razor_t,$1_razor_home_t,$1_razor_home_t)
+	manage_lnk_files_pattern($1_razor_t,$1_razor_home_t,$1_razor_home_t)
 	userdom_user_home_dir_filetrans($1,$1_razor_t,$1_razor_home_t,dir)
 
-	allow $1_razor_t $1_razor_tmp_t:dir create_dir_perms;
-	allow $1_razor_t $1_razor_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_razor_t,$1_razor_tmp_t,$1_razor_tmp_t)
+	manage_files_pattern($1_razor_t,$1_razor_tmp_t,$1_razor_tmp_t)
 	files_tmp_filetrans($1_razor_t, $1_razor_tmp_t, { file dir })
 
-	domain_auto_trans($2, razor_exec_t, $1_razor_t)
-	allow $1_razor_t $2:fd use;
-	allow $1_razor_t $2:fifo_file rw_file_perms;
-	allow $1_razor_t $2:process sigchld;	
+	domtrans_pattern($2, razor_exec_t, $1_razor_t)
 
-	allow $2 $1_razor_home_t:dir manage_dir_perms;
-	allow $2 $1_razor_home_t:file manage_file_perms;
-	allow $2 $1_razor_home_t:lnk_file create_lnk_perms;
-	allow $2 $1_razor_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+	manage_dirs_pattern($2,$1_razor_home_t,$1_razor_home_t)
+	manage_files_pattern($2,$1_razor_home_t,$1_razor_home_t)
+	manage_lnk_files_pattern($2,$1_razor_home_t,$1_razor_home_t)
+	relabel_dirs_pattern($2,$1_razor_home_t,$1_razor_home_t)
+	relabel_files_pattern($2,$1_razor_home_t,$1_razor_home_t)
+	relabel_lnk_files_pattern($2,$1_razor_home_t,$1_razor_home_t)
 
 	logging_send_syslog_msg($1_razor_t)
 
@@ -210,8 +209,5 @@ interface(`razor_domtrans',`
 		type razor_t, razor_exec_t;
 	')
 
-	domain_auto_trans($1, razor_exec_t, razor_t)
-	allow razor_t $1:fd use;
-	allow razor_t $1:fifo_file rw_file_perms;
-	allow razor_t $1:process sigchld;	
+	domtrans_pattern($1, razor_exec_t, razor_t)
 ')

@@ -51,15 +51,11 @@ template(`apache_content_template',`
 	type httpd_$1_script_ra_t, httpdcontent; # customizable
 	files_type(httpd_$1_script_ra_t)
 
-	allow httpd_t httpd_$1_htaccess_t:file r_file_perms;
+	allow httpd_t httpd_$1_htaccess_t:file read_file_perms;
 
-	domain_auto_trans(httpd_suexec_t, httpd_$1_script_exec_t, httpd_$1_script_t)
-	allow httpd_suexec_t httpd_$1_script_t:fd use;
-	allow httpd_$1_script_t httpd_suexec_t:fd use;
-	allow httpd_$1_script_t httpd_suexec_t:fifo_file rw_file_perms;
-	allow httpd_$1_script_t httpd_suexec_t:process sigchld;
+	domtrans_pattern(httpd_suexec_t, httpd_$1_script_exec_t, httpd_$1_script_t)
 
-	allow httpd_suexec_t { httpd_$1_content_t httpd_$1_script_ro_t httpd_$1_script_rw_t httpd_$1_script_exec_t }:dir { getattr search };
+	allow httpd_suexec_t { httpd_$1_content_t httpd_$1_script_ro_t httpd_$1_script_rw_t httpd_$1_script_exec_t }:dir search_dir_perms;
 
 	allow httpd_$1_script_t self:fifo_file rw_file_perms;
 	allow httpd_$1_script_t self:unix_stream_socket connectto;
@@ -69,28 +65,28 @@ template(`apache_content_template',`
 	dontaudit httpd_$1_script_t httpd_t:unix_stream_socket { read write };
 
 	# Allow the script process to search the cgi directory, and users directory
-	allow httpd_$1_script_t httpd_$1_content_t:dir { getattr search };
+	allow httpd_$1_script_t httpd_$1_content_t:dir search_dir_perms;
 
-	allow httpd_$1_script_t httpd_log_t:file { getattr append };
-	allow httpd_$1_script_t httpd_log_t:dir search;
+	append_files_pattern(httpd_$1_script_t,httpd_log_t,httpd_log_t)
 	logging_search_logs(httpd_$1_script_t)
 
 	can_exec(httpd_$1_script_t, httpd_$1_script_exec_t)
-	allow httpd_$1_script_t httpd_$1_script_exec_t:dir { search getattr };
+	allow httpd_$1_script_t httpd_$1_script_exec_t:dir search_dir_perms;
 
-	allow httpd_$1_script_t httpd_$1_script_ra_t:dir ra_dir_perms;
-	allow httpd_$1_script_t httpd_$1_script_ra_t:file ra_file_perms;
-	allow httpd_$1_script_t httpd_$1_script_ra_t:lnk_file { getattr read };
+	allow httpd_$1_script_t httpd_$1_script_ra_t:dir { list_dir_perms add_entry_dir_perms };
+	read_files_pattern(httpd_$1_script_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	append_files_pattern(httpd_$1_script_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	read_lnk_files_pattern(httpd_$1_script_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
 
-	allow httpd_$1_script_t httpd_$1_script_ro_t:dir { getattr read search };
-	allow httpd_$1_script_t httpd_$1_script_ro_t:file { read getattr };
-	allow httpd_$1_script_t httpd_$1_script_ro_t:lnk_file { getattr read };
+	allow httpd_$1_script_t httpd_$1_script_ro_t:dir list_dir_perms;
+	read_files_pattern(httpd_$1_script_t,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	read_lnk_files_pattern(httpd_$1_script_t,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
 
-	allow httpd_$1_script_t httpd_$1_script_rw_t:dir create_dir_perms;
-	allow httpd_$1_script_t httpd_$1_script_rw_t:file create_file_perms;
-	allow httpd_$1_script_t httpd_$1_script_rw_t:lnk_file create_lnk_perms;
-	allow httpd_$1_script_t httpd_$1_script_rw_t:sock_file create_file_perms;
-	allow httpd_$1_script_t httpd_$1_script_rw_t:fifo_file create_file_perms;
+	manage_dirs_pattern(httpd_$1_script_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_files_pattern(httpd_$1_script_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_lnk_files_pattern(httpd_$1_script_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_fifo_files_pattern(httpd_$1_script_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_sock_files_pattern(httpd_$1_script_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
 	files_tmp_filetrans(httpd_$1_script_t,httpd_$1_script_rw_t,{ dir file lnk_file sock_file fifo_file })
 
 	kernel_dontaudit_search_sysctl(httpd_$1_script_t)
@@ -117,9 +113,10 @@ template(`apache_content_template',`
 
 	tunable_policy(`httpd_enable_cgi && httpd_unified',`
 		allow httpd_$1_script_t httpdcontent:file entrypoint;
-		allow httpd_$1_script_t httpdcontent:dir create_dir_perms;
-		allow httpd_$1_script_t httpdcontent:file create_file_perms;
-		allow httpd_$1_script_t httpdcontent:lnk_file create_lnk_perms;
+
+		manage_dirs_pattern(httpd_$1_script_t,httpdcontent,httpdcontent)
+		manage_files_pattern(httpd_$1_script_t,httpdcontent,httpdcontent)
+		manage_lnk_files_pattern(httpd_$1_script_t,httpdcontent,httpdcontent)
 		can_exec(httpd_$1_script_t, httpdcontent)
 	')
 
@@ -129,44 +126,36 @@ template(`apache_content_template',`
 
 	# Allow the web server to run scripts and serve pages
 	tunable_policy(`httpd_builtin_scripting',`
-		allow httpd_t httpd_$1_script_rw_t:dir create_dir_perms;
-		allow httpd_t httpd_$1_script_rw_t:file create_file_perms;
-		allow httpd_t httpd_$1_script_rw_t:lnk_file create_lnk_perms;
-		allow httpd_t httpd_$1_script_rw_t:sock_file rw_file_perms;
+		manage_dirs_pattern(httpd_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+		manage_files_pattern(httpd_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+		manage_lnk_files_pattern(httpd_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+		rw_sock_files_pattern(httpd_t,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
 
-		allow httpd_t httpd_$1_script_ra_t:dir ra_dir_perms;
-		allow httpd_t httpd_$1_script_ra_t:file ra_file_perms;
-		allow httpd_t httpd_$1_script_ra_t:lnk_file { getattr read };
+		allow httpd_t httpd_$1_script_ra_t:dir { list_dir_perms add_entry_dir_perms };
+		read_files_pattern(httpd_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+		append_files_pattern(httpd_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+		read_lnk_files_pattern(httpd_t,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
 
-		allow httpd_t httpd_$1_script_ro_t:dir r_dir_perms;
-		allow httpd_t httpd_$1_script_ro_t:file r_file_perms;
-		allow httpd_t httpd_$1_script_ro_t:lnk_file { getattr read };
+		allow httpd_t httpd_$1_script_ro_t:dir list_dir_perms;
+		read_files_pattern(httpd_t,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+		read_lnk_files_pattern(httpd_t,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
 
-		allow httpd_t httpd_$1_content_t:dir r_dir_perms;
-		allow httpd_t httpd_$1_content_t:file r_file_perms;
-		allow httpd_t httpd_$1_content_t:lnk_file { getattr read };
+		allow httpd_t httpd_$1_content_t:dir list_dir_perms;
+		read_files_pattern(httpd_t,httpd_$1_content_t,httpd_$1_content_t)
+		read_lnk_files_pattern(httpd_t,httpd_$1_content_t,httpd_$1_content_t)
 	')
 
 	tunable_policy(`httpd_enable_cgi',`
 		allow httpd_$1_script_t httpd_$1_script_exec_t:file entrypoint;
 
 		# privileged users run the script:
-		domain_auto_trans(httpd_exec_scripts, httpd_$1_script_exec_t, httpd_$1_script_t)
-		allow httpd_exec_scripts httpd_$1_script_t:fd use;
-		allow httpd_$1_script_t httpd_exec_scripts:fd use;
-		allow httpd_$1_script_t httpd_exec_scripts:fifo_file rw_file_perms;
-		allow httpd_$1_script_t httpd_exec_scripts:process sigchld;
+		domtrans_pattern(httpd_exec_scripts, httpd_$1_script_exec_t, httpd_$1_script_t)
 
 		# apache runs the script:
-		domain_auto_trans(httpd_t, httpd_$1_script_exec_t, httpd_$1_script_t)
-		allow httpd_t httpd_$1_script_t:fd use;
-		allow httpd_$1_script_t httpd_t:fd use;
-		allow httpd_$1_script_t httpd_t:fifo_file rw_file_perms;
-		allow httpd_$1_script_t httpd_t:process sigchld;
+		domtrans_pattern(httpd_t, httpd_$1_script_exec_t, httpd_$1_script_t)
 
 		allow httpd_t httpd_$1_script_t:process { signal sigkill sigstop };
-		allow httpd_t httpd_$1_script_exec_t:dir r_dir_perms;
-		allow httpd_t httpd_$1_script_exec_t:file r_file_perms;
+		allow httpd_t httpd_$1_script_exec_t:dir list_dir_perms;
 
 		allow httpd_$1_script_t self:process { setsched signal_perms };
 		allow httpd_$1_script_t self:unix_stream_socket create_stream_socket_perms;
@@ -287,45 +276,45 @@ template(`apache_per_role_template', `
 
 	allow $2 httpd_$1_content_t:{ dir file lnk_file } { relabelto relabelfrom };
 
-	allow $2 httpd_$1_htaccess_t:file { create_file_perms relabelto relabelfrom };
+	allow $2 httpd_$1_htaccess_t:file { manage_file_perms relabelto relabelfrom };
 
-	allow $2 httpd_$1_script_ra_t:lnk_file { create_lnk_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_ra_t:dir { create_dir_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_ra_t:file { create_file_perms relabelto relabelfrom };
+	manage_dirs_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	manage_files_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	manage_lnk_files_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	relabel_dirs_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	relabel_files_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
+	relabel_lnk_files_pattern($2,httpd_$1_script_ra_t,httpd_$1_script_ra_t)
 
-	allow $2 httpd_$1_script_ro_t:lnk_file { create_lnk_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_ro_t:dir { create_dir_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_ro_t:file { create_file_perms relabelto relabelfrom };
+	manage_dirs_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	manage_files_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	manage_lnk_files_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	relabel_dirs_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	relabel_files_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
+	relabel_lnk_files_pattern($2,httpd_$1_script_ro_t,httpd_$1_script_ro_t)
 
-	allow $2 httpd_$1_script_rw_t:lnk_file { create_lnk_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_rw_t:dir { create_dir_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_rw_t:file { create_file_perms relabelto relabelfrom };
+	manage_dirs_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_files_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	manage_lnk_files_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	relabel_dirs_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	relabel_files_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
+	relabel_lnk_files_pattern($2,httpd_$1_script_rw_t,httpd_$1_script_rw_t)
 
-	allow $2 httpd_$1_script_exec_t:dir create_dir_perms;
-	allow $2 httpd_$1_script_exec_t:file create_file_perms;
-	allow $2 httpd_$1_script_exec_t:lnk_file create_lnk_perms;
-
-	allow $2 httpd_$1_script_exec_t:dir { create_dir_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_exec_t:file { create_file_perms relabelto relabelfrom };
-	allow $2 httpd_$1_script_exec_t:lnk_file { create_lnk_perms relabelto relabelfrom };
+	manage_dirs_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	manage_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	manage_lnk_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	relabel_dirs_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	relabel_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	relabel_lnk_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
 
 	tunable_policy(`httpd_enable_cgi',`
 		# If a user starts a script by hand it gets the proper context
-		domain_auto_trans($2, httpd_$1_script_exec_t, httpd_$1_script_t)
-		allow $2 httpd_$1_script_t:fd use;
-		allow httpd_$1_script_t $2:fd use;
-		allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-		allow httpd_$1_script_t $2:process sigchld;
+		domtrans_pattern($2, httpd_$1_script_exec_t, httpd_$1_script_t)
 	')
 
 	tunable_policy(`httpd_enable_cgi && httpd_unified',`
 		allow httpd_$1_script_t httpdcontent:file entrypoint;
 
-		domain_auto_trans($2, httpdcontent, httpd_$1_script_t)
-		allow $2 httpd_$1_script_t:fd use;
-		allow httpd_$1_script_t $2:fd use;
-		allow httpd_$1_script_t $2:fifo_file rw_file_perms;
-		allow httpd_$1_script_t $2:process sigchld;
+		domtrans_pattern($2, httpdcontent, httpd_$1_script_t)
 	')
 
 	# allow accessing files/dirs below the users home dir
@@ -357,9 +346,9 @@ template(`apache_read_user_scripts',`
 		type httpd_$1_script_exec_t;
 	')
 
-	allow $2 httpd_$1_script_exec_t:dir r_dir_perms;
-	allow $2 httpd_$1_script_exec_t:file r_file_perms;
-	allow $2 httpd_$1_script_exec_t:lnk_file { getattr read };
+	allow $2 httpd_$1_script_exec_t:dir list_dir_perms;
+	read_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
+	read_lnk_files_pattern($2,httpd_$1_script_exec_t,httpd_$1_script_exec_t)
 ')
 
 ########################################
@@ -383,9 +372,9 @@ template(`apache_read_user_content',`
 		type httpd_$1_content_t;
 	')
 
-	allow $2 httpd_$1_content_t:dir r_dir_perms;
-	allow $2 httpd_$1_content_t:file r_file_perms;
-	allow $2 httpd_$1_content_t:lnk_file { getattr read };
+	allow $2 httpd_$1_content_t:dir list_dir_perms;
+	read_files_pattern($2,httpd_$1_content_t,httpd_$1_content_t)
+	read_lnk_files_pattern($2,httpd_$1_content_t,httpd_$1_content_t)
 ')
 
 ########################################
@@ -404,12 +393,7 @@ interface(`apache_domtrans',`
 	')
 
 	corecmd_search_sbin($1)
-	domain_auto_trans($1,httpd_exec_t,httpd_t)
-
-	allow $1 httpd_t:fd use;
-	allow httpd_t $1:fd use;
-	allow httpd_t $1:fifo_file rw_file_perms;
-	allow httpd_t $1:process sigchld;
+	domtrans_pattern($1,httpd_exec_t,httpd_t)
 ')
 
 ########################################
@@ -520,14 +504,13 @@ interface(`apache_manage_all_content',`
 		attribute httpdcontent, httpd_script_exec_type;
 	')
 
-	allow $1 httpdcontent:dir manage_dir_perms;
-	allow $1 httpdcontent:file manage_file_perms;
-	allow $1 httpdcontent:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1,httpdcontent,httpdcontent)
+	manage_files_pattern($1,httpdcontent,httpdcontent)
+	manage_lnk_files_pattern($1,httpdcontent,httpdcontent)
 
-	allow $1 httpd_script_exec_type:dir manage_dir_perms;
-	allow $1 httpd_script_exec_type:file manage_file_perms;
-	allow $1 httpd_script_exec_type:lnk_file create_lnk_perms;
-
+	manage_dirs_pattern($1,httpd_script_exec_type,httpd_script_exec_type)
+	manage_files_pattern($1,httpd_script_exec_type,httpd_script_exec_type)
+	manage_lnk_files_pattern($1,httpd_script_exec_type,httpd_script_exec_type)
 ')
 
 ########################################
@@ -567,9 +550,9 @@ interface(`apache_read_config',`
 	')
 
 	files_search_etc($1)
-	allow $1 httpd_config_t:dir r_dir_perms;
-	allow $1 httpd_config_t:file r_file_perms;
-	allow $1 httpd_config_t:lnk_file { getattr read };
+	allow $1 httpd_config_t:dir list_dir_perms;
+	read_files_pattern($1,httpd_config_t,httpd_config_t)
+	read_lnk_files_pattern($1,httpd_config_t,httpd_config_t)
 ')
 
 ########################################
@@ -589,9 +572,9 @@ interface(`apache_manage_config',`
 	')
 
 	files_search_etc($1)
-	allow $1 httpd_config_t:dir manage_dir_perms;
-	allow $1 httpd_config_t:file manage_file_perms;
-	allow $1 httpd_config_t:lnk_file { getattr read };
+	manage_dirs_pattern($1,httpd_config_t,httpd_config_t)
+	manage_files_pattern($1,httpd_config_t,httpd_config_t)
+	read_lnk_files_pattern($1,httpd_config_t,httpd_config_t)
 ')
 
 ########################################
@@ -611,12 +594,7 @@ interface(`apache_domtrans_helper',`
 	')
 
 	corecmd_search_sbin($1)
-	domain_auto_trans($1,httpd_helper_exec_t,httpd_helper_t)
-
-	allow $1 httpd_helper_t:fd use;
-	allow httpd_helper_t $1:fd use;
-	allow httpd_helper_t $1:fifo_file rw_file_perms;
-	allow httpd_helper_t $1:process sigchld;
+	domtrans_pattern($1,httpd_helper_exec_t,httpd_helper_t)
 ')
 
 ########################################
@@ -670,9 +648,9 @@ interface(`apache_read_log',`
 	')
 
 	logging_search_logs($1)
-	allow $1 httpd_log_t:dir r_dir_perms;
-	allow $1 httpd_log_t:file r_file_perms;
-	allow $1 httpd_log_t:lnk_file { getattr read };
+	allow $1 httpd_log_t:dir list_dir_perms;
+	read_files_pattern($1,httpd_log_t,httpd_log_t)
+	read_lnk_files_pattern($1,httpd_log_t,httpd_log_t)
 ')
 
 ########################################
@@ -692,8 +670,8 @@ interface(`apache_append_log',`
 	')
 
 	logging_search_logs($1)
-	allow $1 httpd_log_t:dir r_dir_perms;
-	allow $1 httpd_log_t:file append;
+	allow $1 httpd_log_t:dir list_dir_perms;
+	append_files_pattern($1,httpd_log_t,httpd_log_t)
 ')
 
 ########################################
@@ -732,9 +710,9 @@ interface(`apache_manage_log',`
 	')
 
 	logging_search_logs($1)
-	allow $1 httpd_log_t:dir manage_dir_perms;
-	allow $1 httpd_log_t:file manage_file_perms;
-	allow $1 httpd_log_t:lnk_file { getattr read };
+	manage_dirs_pattern($1,httpd_log_t,httpd_log_t)
+	manage_files_pattern($1,httpd_log_t,httpd_log_t)
+	read_lnk_files_pattern($1,httpd_log_t,httpd_log_t)
 ')
 
 ########################################
@@ -773,7 +751,7 @@ interface(`apache_list_modules',`
 		type httpd_modules_t;
 	')
 
-	allow $1 httpd_modules_t:dir r_dir_perms;
+	allow $1 httpd_modules_t:dir list_dir_perms;
 ')
 
 ########################################
@@ -792,8 +770,8 @@ interface(`apache_exec_modules',`
 		type httpd_modules_t;
 	')
 
-	allow $1 httpd_modules_t:dir r_dir_perms;
-	allow $1 httpd_modules_t:lnk_file r_file_perms;
+	allow $1 httpd_modules_t:dir list_dir_perms;
+	allow $1 httpd_modules_t:lnk_file read_file_perms;
 	can_exec($1,httpd_modules_t)
 ')
 
@@ -812,11 +790,7 @@ interface(`apache_domtrans_rotatelogs',`
 		type httpd_rotatelogs_t, httpd_rotatelogs_exec_t;
 	')
 
-	domain_auto_trans($1,httpd_rotatelogs_exec_t,httpd_rotatelogs_t)
-
-	allow httpd_rotatelogs_t $1:fd use;
-	allow httpd_rotatelogs_t $1:fifo_file rw_file_perms;
-	allow httpd_rotatelogs_t $1:process sigchld;
+	domtrans_pattern($1,httpd_rotatelogs_exec_t,httpd_rotatelogs_t)
 ')
 
 ########################################
@@ -838,9 +812,9 @@ interface(`apache_manage_sys_content',`
 	')
 
 	files_search_var($1)
-	allow $1 httpd_sys_content_t:dir create_dir_perms;
-	allow $1 httpd_sys_content_t:file create_file_perms;
-	allow $1 httpd_sys_content_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1,httpd_sys_content_t,httpd_sys_content_t)
+	manage_files_pattern($1,httpd_sys_content_t,httpd_sys_content_t)
+	manage_lnk_files_pattern($1,httpd_sys_content_t,httpd_sys_content_t)
 ')
 
 ########################################
@@ -863,12 +837,7 @@ interface(`apache_domtrans_sys_script',`
 	')
 
 	tunable_policy(`httpd_enable_cgi && httpd_unified',`
-		domain_auto_trans($1, httpdcontent, httpd_sys_script_t)
-
-		allow $1 httpd_sys_script_t:fd use;
-		allow httpd_sys_script_t $1:fd use;
-		allow httpd_sys_script_t $1:fifo_file rw_file_perms;
-		allow httpd_sys_script_t $1:process sigchld;
+		domtrans_pattern($1, httpdcontent, httpd_sys_script_t)
 	')
 ')
 
@@ -1009,9 +978,9 @@ interface(`apache_read_sys_content',`
 		type httpd_sys_content_t;
 	')
 
-	allow $1 httpd_sys_content_t:dir r_dir_perms;
-	allow $1 httpd_sys_content_t:file { getattr read };
-	allow $1 httpd_sys_content_t:lnk_file { getattr read };
+	allow $1 httpd_sys_content_t:dir list_dir_perms;
+	read_files_pattern($1,httpd_sys_content_t,httpd_sys_content_t)
+	read_lnk_files_pattern($1,httpd_sys_content_t,httpd_sys_content_t)
 ')
 
 ########################################
@@ -1029,5 +998,5 @@ interface(`apache_search_sys_script_state',`
 		type httpd_sys_script_t;
 	')
 
-	allow $1 httpd_sys_script_t:dir search;
+	allow $1 httpd_sys_script_t:dir search_dir_perms;
 ')

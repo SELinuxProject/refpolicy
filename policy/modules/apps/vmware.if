@@ -64,17 +64,12 @@ template(`vmware_per_role_template',`
 	# Local policy
 	#
 
-	domain_auto_trans($2, vmware_exec_t, $1_vmware_t)
-	allow $1_vmware_t $2:fd use;
-	allow $1_vmware_t $2:fifo_file rw_file_perms;
-	allow $1_vmware_t $2:process sigchld;
-
 	allow $1_vmware_t self:capability { dac_override setgid sys_nice sys_resource setuid sys_admin sys_rawio chown };
 	dontaudit $1_vmware_t self:capability sys_tty_config;
 	allow $1_vmware_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_vmware_t self:process { execmem execstack };
 	allow $1_vmware_t self:fd use;
-	allow $1_vmware_t self:fifo_file rw_file_perms;
+	allow $1_vmware_t self:fifo_file rw_fifo_file_perms;
 	allow $1_vmware_t self:unix_dgram_socket create_socket_perms;
 	allow $1_vmware_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_vmware_t self:unix_dgram_socket sendto;
@@ -90,32 +85,33 @@ template(`vmware_per_role_template',`
 	allow $1_vmware_t $1_vmware_conf_t:file manage_file_perms;
 
 	# VMWare disks
-	allow $1_vmware_t $1_vmware_file_t:dir rw_dir_perms;
-	allow $1_vmware_t $1_vmware_file_t:file manage_file_perms;
-	allow $1_vmware_t $1_vmware_file_t:lnk_file create_lnk_perms;
+	manage_files_pattern($1_vmware_t,$1_vmware_file_t,$1_vmware_file_t)
+	manage_lnk_files_pattern($1_vmware_t,$1_vmware_file_t,$1_vmware_file_t)
 
-	allow $1_vmware_t $1_vmware_tmp_t:dir manage_dir_perms;
-	allow $1_vmware_t $1_vmware_tmp_t:file { manage_file_perms execute };
-	allow $1_vmware_t $1_vmware_tmp_t:sock_file manage_file_perms;
+	allow $1_vmware_t $1_vmware_tmp_t:file execute;
+	manage_dirs_pattern($1_vmware_t,$1_vmware_tmp_t,$1_vmware_tmp_t)
+	manage_files_pattern($1_vmware_t,$1_vmware_tmp_t,$1_vmware_tmp_t)
+	manage_sock_files_pattern($1_vmware_t,$1_vmware_tmp_t,$1_vmware_tmp_t)
 	files_tmp_filetrans($1_vmware_t, $1_vmware_tmp_t, { file dir })
 
-	allow $1_vmware_t $1_vmware_tmpfs_t:dir rw_dir_perms;
-	allow $1_vmware_t $1_vmware_tmpfs_t:file manage_file_perms;
-	allow $1_vmware_t $1_vmware_tmpfs_t:lnk_file create_lnk_perms;
-	allow $1_vmware_t $1_vmware_tmpfs_t:sock_file manage_file_perms;
-	allow $1_vmware_t $1_vmware_tmpfs_t:fifo_file manage_file_perms;
+	manage_files_pattern($1_vmware_t,$1_vmware_tmpfs_t,$1_vmware_tmpfs_t)
+	manage_lnk_files_pattern($1_vmware_t,$1_vmware_tmpfs_t,$1_vmware_tmpfs_t)
+	manage_fifo_files_pattern($1_vmware_t,$1_vmware_tmpfs_t,$1_vmware_tmpfs_t)
+	manage_sock_files_pattern($1_vmware_t,$1_vmware_tmpfs_t,$1_vmware_tmpfs_t)
 	fs_tmpfs_filetrans($1_vmware_t,$1_vmware_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
 	# Read clobal configuration files
-	allow $1_vmware_t vmware_sys_conf_t:dir r_dir_perms;
-	allow $1_vmware_t vmware_sys_conf_t:file r_file_perms;
-	allow $1_vmware_t vmware_sys_conf_t:lnk_file { getattr read };
+	allow $1_vmware_t vmware_sys_conf_t:dir list_dir_perms;
+	read_files_pattern($1_vmware_t,vmware_sys_conf_t,vmware_sys_conf_t)
+	read_lnk_files_pattern($1_vmware_t,vmware_sys_conf_t,vmware_sys_conf_t)
 
-	allow $1_vmware_t $1_vmware_var_run_t:file manage_file_perms;
-	allow $1_vmware_t $1_vmware_var_run_t:sock_file manage_file_perms;
-	allow $1_vmware_t $1_vmware_var_run_t:lnk_file create_lnk_perms;
-	allow $1_vmware_t $1_vmware_var_run_t:dir manage_dir_perms;
+	manage_dirs_pattern($1_vmware_t,$1_vmware_var_run_t,$1_vmware_var_run_t)
+	manage_files_pattern($1_vmware_t,$1_vmware_var_run_t,$1_vmware_var_run_t)
+	manage_lnk_files_pattern($1_vmware_t,$1_vmware_var_run_t,$1_vmware_var_run_t)
+	manage_sock_files_pattern($1_vmware_t,$1_vmware_var_run_t,$1_vmware_var_run_t)
 	files_pid_filetrans($1_vmware_t,$1_vmware_var_run_t,{ dir file lnk_file })
+
+	domtrans_pattern($2, vmware_exec_t, $1_vmware_t)
 
 	kernel_read_system_state($1_vmware_t)
 	kernel_read_network_state($1_vmware_t)

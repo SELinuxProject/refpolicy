@@ -60,7 +60,7 @@ files_pid_file(pptp_var_run_t)
 allow pppd_t self:capability { net_admin setuid setgid fsetid fowner net_raw dac_override };
 dontaudit pppd_t self:capability sys_tty_config;
 allow pppd_t self:process signal;
-allow pppd_t self:fifo_file rw_file_perms;
+allow pppd_t self:fifo_file rw_fifo_file_perms;
 allow pppd_t self:socket create_socket_perms;
 allow pppd_t self:unix_dgram_socket create_socket_perms;
 allow pppd_t self:unix_stream_socket create_socket_perms;
@@ -69,42 +69,36 @@ allow pppd_t self:tcp_socket create_stream_socket_perms;
 allow pppd_t self:udp_socket { connect connected_socket_perms };
 allow pppd_t self:packet_socket create_socket_perms;
 
-domain_auto_trans(pppd_t, pptp_exec_t, pptp_t)
-allow pppd_t pptp_t:fd use;
-allow pptp_t pppd_t:fd use;
-allow pptp_t pppd_t:fifo_file rw_file_perms;
-allow pptp_t pppd_t:process sigchld;
+domtrans_pattern(pppd_t, pptp_exec_t, pptp_t)
 
-allow pppd_t pppd_devpts_t:chr_file { rw_file_perms setattr };
+allow pppd_t pppd_devpts_t:chr_file { rw_chr_file_perms setattr };
 
 allow pppd_t pppd_etc_t:dir rw_dir_perms;
-allow pppd_t pppd_etc_t:file r_file_perms;
+allow pppd_t pppd_etc_t:file read_file_perms;
 allow pppd_t pppd_etc_t:lnk_file { getattr read };
 
-allow pppd_t pppd_etc_rw_t:dir rw_dir_perms;
-allow pppd_t pppd_etc_rw_t:file create_file_perms;
+manage_files_pattern(pppd_t,pppd_etc_rw_t,pppd_etc_rw_t)
 # Automatically label newly created files under /etc/ppp with this type
-type_transition pppd_t pppd_etc_t:file pppd_etc_rw_t;
+filetrans_pattern(pppd_t,pppd_etc_t,pppd_etc_rw_t,file)
 
-allow pppd_t pppd_lock_t:file create_file_perms;
+allow pppd_t pppd_lock_t:file manage_file_perms;
 files_lock_filetrans(pppd_t,pppd_lock_t,file)
 
-allow pppd_t pppd_log_t:file create_file_perms;
+allow pppd_t pppd_log_t:file manage_file_perms;
 logging_log_filetrans(pppd_t,pppd_log_t,file)
 
-allow pppd_t pppd_tmp_t:dir create_dir_perms;
-allow pppd_t pppd_tmp_t:file create_file_perms;
+manage_dirs_pattern(pppd_t,pppd_tmp_t,pppd_tmp_t)
+manage_files_pattern(pppd_t,pppd_tmp_t,pppd_tmp_t)
 files_tmp_filetrans(pppd_t, pppd_tmp_t, { file dir })
 
-allow pppd_t pppd_var_run_t:dir rw_dir_perms;
-allow pppd_t pppd_var_run_t:file create_file_perms;
+manage_files_pattern(pppd_t,pppd_var_run_t,pppd_var_run_t)
 files_pid_filetrans(pppd_t,pppd_var_run_t,file)
 
 allow pppd_t pptp_t:process signal;
 
 # for SSP
 # Access secret files
-allow pppd_t pppd_secret_t:file r_file_perms;
+allow pppd_t pppd_secret_t:file read_file_perms;
 
 kernel_read_kernel_sysctls(pppd_t)
 kernel_read_system_state(pppd_t)
@@ -253,12 +247,11 @@ can_exec(pptp_t, pppd_etc_rw_t)
 # Allow pptp to append to pppd log files
 allow pptp_t pppd_log_t:file append;
 
-allow pptp_t pptp_log_t:file create_file_perms;
+allow pptp_t pptp_log_t:file manage_file_perms;
 logging_log_filetrans(pptp_t,pptp_log_t,file)
 
-allow pptp_t pptp_var_run_t:file create_file_perms;
-allow pptp_t pptp_var_run_t:dir rw_dir_perms;
-allow pptp_t pptp_var_run_t:sock_file create_file_perms;
+manage_files_pattern(pptp_t,pptp_var_run_t,pptp_var_run_t)
+manage_sock_files_pattern(pptp_t,pptp_var_run_t,pptp_var_run_t)
 files_pid_filetrans(pptp_t,pptp_var_run_t,file)
 
 kernel_list_proc(pptp_t)
@@ -334,8 +327,4 @@ optional_policy(`
 ')
 
 # FIXME:
-domain_auto_trans(pppd_t, pppd_script_exec_t, initrc_t)
-allow pppd_t initrc_t:fd use;
-allow initrc_t pppd_t:fd use;
-allow initrc_t pppd_t:fifo_file rw_file_perms;
-allow initrc_t pppd_t:process sigchld;
+domtrans_pattern(pppd_t, pppd_script_exec_t, initrc_t)

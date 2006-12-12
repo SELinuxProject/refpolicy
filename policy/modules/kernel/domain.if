@@ -562,9 +562,9 @@ interface(`domain_read_all_domains_state',`
 	')
 
 	kernel_search_proc($1)
-	allow $1 domain:dir r_dir_perms;
-	allow $1 domain:lnk_file r_file_perms;
-	allow $1 domain:file r_file_perms;
+	allow $1 domain:dir list_dir_perms;
+	read_files_pattern($1,domain,domain)
+	read_lnk_files_pattern($1,domain,domain)
 ')
 
 ########################################
@@ -621,11 +621,11 @@ interface(`domain_read_confined_domains_state',`
 	')
 
 	kernel_search_proc($1)
-	allow $1 { domain -unconfined_domain_type }:dir r_dir_perms;
-	allow $1 { domain -unconfined_domain_type }:lnk_file r_file_perms;
-	allow $1 { domain -unconfined_domain_type }:file r_file_perms;
+	allow $1 { domain -unconfined_domain_type }:dir list_dir_perms;
+	read_files_pattern($1,{ domain -unconfined_domain_type },{ domain -unconfined_domain_type })
+	read_lnk_files_pattern($1,{ domain -unconfined_domain_type },{ domain -unconfined_domain_type })
 
-	dontaudit $1 unconfined_domain_type:dir search;
+	dontaudit $1 unconfined_domain_type:dir search_dir_perms;
 	dontaudit $1 unconfined_domain_type:file { getattr read };
 ')
 
@@ -740,13 +740,13 @@ interface(`domain_dontaudit_read_all_domains_state',`
 		attribute domain;
 	')
 
-	dontaudit $1 domain:dir r_dir_perms;
-	dontaudit $1 domain:lnk_file r_file_perms;
-	dontaudit $1 domain:file r_file_perms;
+	dontaudit $1 domain:dir list_dir_perms;
+	dontaudit $1 domain:lnk_file read_file_perms;
+	dontaudit $1 domain:file read_file_perms;
 
 	# cjp: these should be removed:
-	dontaudit $1 domain:sock_file r_file_perms;
-	dontaudit $1 domain:fifo_file r_file_perms;
+	dontaudit $1 domain:sock_file read_file_perms;
+	dontaudit $1 domain:fifo_file read_file_perms;
 ')
 
 ########################################
@@ -765,7 +765,7 @@ interface(`domain_dontaudit_list_all_domains_state',`
 		attribute domain;
 	')
 
-	dontaudit $1 domain:dir r_dir_perms;
+	dontaudit $1 domain:dir list_dir_perms;
 ')
 
 ########################################
@@ -1069,8 +1069,8 @@ interface(`domain_getattr_all_entry_files',`
 		attribute entry_type;
 	')
 
-	allow $1 entry_type:lnk_file getattr;
-	allow $1 entry_type:file r_file_perms;
+	allow $1 entry_type:lnk_file read_lnk_file_perms;
+	allow $1 entry_type:file getattr;
 ')
 
 ########################################
@@ -1088,8 +1088,8 @@ interface(`domain_read_all_entry_files',`
 		attribute entry_type;
 	')
 
-	allow $1 entry_type:lnk_file r_file_perms;
-	allow $1 entry_type:file r_file_perms;
+	allow $1 entry_type:lnk_file read_lnk_file_perms;
+	allow $1 entry_type:file read_file_perms;
 ')
 
 ########################################
@@ -1149,7 +1149,7 @@ interface(`domain_relabel_all_entry_files',`
 		attribute entry_type;
 	')
 
-	allow $1 entry_type:file { relabelfrom relabelto };
+	allow $1 entry_type:file relabel_file_perms;
 ')
 
 ########################################
@@ -1168,7 +1168,7 @@ interface(`domain_mmap_all_entry_files',`
 		attribute entry_type;
 	')
 
-	allow $1 entry_type:file { getattr read execute };
+	allow $1 entry_type:file mmap_file_perms;
 ')
 
 ########################################
@@ -1187,7 +1187,7 @@ interface(`domain_entry_file_spec_domtrans',`
 		attribute entry_type;
 	')
 
-	domain_trans($1,entry_type,$2)
+	domain_transition_pattern($1,entry_type,$2)
 ')
 
 ########################################
@@ -1216,63 +1216,4 @@ interface(`domain_unconfined',`
 	typeattribute $1 can_change_process_role;
 	typeattribute $1 can_change_object_identity;
 	typeattribute $1 set_curr_context;
-')
-
-#
-# These next macros are not templates, but actually are 
-# support macros.  Due to the domain_ prefix, they 
-# are placed in this module, to try to prevent confusion.
-# They are called templates since regular m4 defines
-# wont work here.
-#
-
-########################################
-## <summary>
-##	Specified domain transition requiring setexeccon.
-## </summary>
-## <param name="source_domain">
-##	<summary>
-##	Domain to transition from.
-##	</summary>
-## </param>
-## <param name="entry_file">
-##	<summary>
-##	Type of program to execute.
-##	</summary>
-## </param>
-## <param name="target_domain">
-##	<summary>
-##	Domain to transition to.
-##	</summary>
-## </param>
-#
-template(`domain_trans',`
-	allow $1 $2:file { getattr read execute };
-	allow $1 $3:process transition;
-	dontaudit $1 $3:process { noatsecure siginh rlimitinh };
-')
-
-########################################
-## <summary>
-##	Automatic domain transition by type_transition.
-## </summary>
-## <param name="source_domain">
-##	<summary>
-##	Domain to transition from.
-##	</summary>
-## </param>
-## <param name="entry_file">
-##	<summary>
-##	Type of program to execute.
-##	</summary>
-## </param>
-## <param name="target_domain">
-##	<summary>
-##	Domain to transition to.
-##	</summary>
-## </param>
-#
-template(`domain_auto_trans',`
-	domain_trans($1,$2,$3)
-	type_transition $1 $2:process $3;
 ')

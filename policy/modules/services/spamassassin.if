@@ -67,8 +67,8 @@ template(`spamassassin_per_role_template',`
 
 	allow $1_spamc_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_spamc_t self:fd use;
-	allow $1_spamc_t self:fifo_file rw_file_perms;
-	allow $1_spamc_t self:sock_file r_file_perms;
+	allow $1_spamc_t self:fifo_file rw_fifo_file_perms;
+	allow $1_spamc_t self:sock_file read_sock_file_perms;
 	allow $1_spamc_t self:shm create_shm_perms;
 	allow $1_spamc_t self:sem create_sem_perms;
 	allow $1_spamc_t self:msgq create_msgq_perms;
@@ -80,19 +80,15 @@ template(`spamassassin_per_role_template',`
 	allow $1_spamc_t self:tcp_socket create_stream_socket_perms;
 	allow $1_spamc_t self:udp_socket create_socket_perms;
 
-	allow $1_spamc_t $1_spamc_tmp_t:dir create_dir_perms;
-	allow $1_spamc_t $1_spamc_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_spamc_t,$1_spamc_tmp_t,$1_spamc_tmp_t)
+	manage_files_pattern($1_spamc_t,$1_spamc_tmp_t,$1_spamc_tmp_t)
 	files_tmp_filetrans($1_spamc_t, $1_spamc_tmp_t, { file dir })
 
 	# Allow connecting to a local spamd
 	allow $1_spamc_t spamd_t:unix_stream_socket connectto;
 	allow $1_spamc_t spamd_tmp_t:sock_file rw_file_perms;
 
-	domain_auto_trans($2, spamc_exec_t, $1_spamc_t)
-	allow $2 $1_spamc_t:fd use;
-	allow $1_spamc_t $2:fd use;
-	allow $1_spamc_t $2:fifo_file rw_file_perms;
-	allow $1_spamc_t $2:process sigchld;
+	domtrans_pattern($2, spamc_exec_t, $1_spamc_t)
 
 	kernel_read_kernel_sysctls($1_spamc_t)
 
@@ -180,8 +176,8 @@ template(`spamassassin_per_role_template',`
 
 	allow $1_spamassassin_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_spamassassin_t self:fd use;
-	allow $1_spamassassin_t self:fifo_file rw_file_perms;
-	allow $1_spamassassin_t self:sock_file r_file_perms;
+	allow $1_spamassassin_t self:fifo_file rw_fifo_file_perms;
+	allow $1_spamassassin_t self:sock_file read_sock_file_perms;
 	allow $1_spamassassin_t self:unix_dgram_socket create_socket_perms;
 	allow $1_spamassassin_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_spamassassin_t self:unix_dgram_socket sendto;
@@ -191,32 +187,31 @@ template(`spamassassin_per_role_template',`
 	allow $1_spamassassin_t self:msgq create_msgq_perms;
 	allow $1_spamassassin_t self:msg { send receive };
 
-	allow $1_spamassassin_t $1_spamassassin_home_t:dir create_dir_perms;
-	allow $1_spamassassin_t $1_spamassassin_home_t:file create_file_perms;
-	allow $1_spamassassin_t $1_spamassassin_home_t:lnk_file create_lnk_perms;
-	allow $1_spamassassin_t $1_spamassassin_home_t:sock_file create_file_perms;
-	allow $1_spamassassin_t $1_spamassassin_home_t:fifo_file create_file_perms;
+	manage_dirs_pattern($1_spamassassin_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_files_pattern($1_spamassassin_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_lnk_files_pattern($1_spamassassin_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_fifo_files_pattern($1_spamassassin_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_sock_files_pattern($1_spamassassin_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
 	userdom_user_home_dir_filetrans($1,$1_spamassassin_t,$1_spamassassin_home_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow $1_spamassassin_t $1_spamassassin_tmp_t:dir create_dir_perms;
-	allow $1_spamassassin_t $1_spamassassin_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_spamassassin_t, $1_spamassassin_tmp_t,$1_spamassassin_tmp_t)
+	manage_files_pattern($1_spamassassin_t, $1_spamassassin_tmp_t,$1_spamassassin_tmp_t)
 	files_tmp_filetrans($1_spamassassin_t, $1_spamassassin_tmp_t, { file dir })
 
-	allow $2 $1_spamassassin_home_t:dir { create_dir_perms relabelfrom relabelto };
-	allow $2 $1_spamassassin_home_t:file { create_file_perms relabelfrom relabelto };
-	allow $2 $1_spamassassin_home_t:lnk_file { create_lnk_perms relabelfrom relabelto };
+	manage_dirs_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_files_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_lnk_files_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	relabel_dirs_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	relabel_files_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	relabel_lnk_files_pattern($2, $1_spamassassin_home_t,$1_spamassassin_home_t)
 
-	domain_auto_trans($2, spamassassin_exec_t, $1_spamassassin_t)
-	allow $2 $1_spamassassin_t:fd use;
-	allow $1_spamassassin_t $2:fd use;
-	allow $1_spamassassin_t $2:fifo_file rw_file_perms;
-	allow $1_spamassassin_t $2:process sigchld;
+	domtrans_pattern($2, spamassassin_exec_t, $1_spamassassin_t)
 
-	allow spamd_t $1_spamassassin_home_t:dir create_dir_perms;
-	allow spamd_t $1_spamassassin_home_t:file create_file_perms;
-	allow spamd_t $1_spamassassin_home_t:lnk_file create_lnk_perms;
-	allow spamd_t $1_spamassassin_home_t:sock_file create_file_perms;
-	allow spamd_t $1_spamassassin_home_t:fifo_file create_file_perms;
+	manage_dirs_pattern(spamd_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_files_pattern(spamd_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_lnk_files_pattern(spamd_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_fifo_files_pattern(spamd_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
+	manage_sock_files_pattern(spamd_t, $1_spamassassin_home_t,$1_spamassassin_home_t)
 	userdom_user_home_dir_filetrans($1,spamd_t,$1_spamassassin_home_t,{ dir file lnk_file sock_file fifo_file })
 
 	kernel_read_kernel_sysctls($1_spamassassin_t)
@@ -409,12 +404,7 @@ template(`spamassassin_domtrans_user_client',`
 		type $1_spamc_t, spamc_exec_t;
 	')
 
-	domain_auto_trans($2,spamc_exec_t,$1_spamc_t)
-
-	allow $2 $1_spamc_t:fd use;
-	allow $1_spamc_t $2:fd use;
-	allow $1_spamc_t $2:fifo_file rw_file_perms;
-	allow $1_spamc_t $2:process sigchld;
+	domtrans_pattern($2,spamc_exec_t,$1_spamc_t)
 ')
 
 ########################################
@@ -462,12 +452,7 @@ template(`spamassassin_domtrans_user_local_client',`
 		type $1_spamassassin_t, spamassassin_exec_t;
 	')
 
-	domain_auto_trans($2,spamassassin_exec_t,$1_spamassassin_t)
-
-	allow $2 $1_spamassassin_t:fd use;
-	allow $1_spamassassin_t $2:fd use;
-	allow $1_spamassassin_t $2:fifo_file rw_file_perms;
-	allow $1_spamassassin_t $2:process sigchld;
+	domtrans_pattern($2,spamassassin_exec_t,$1_spamassassin_t)
 ')
 
 ########################################
@@ -485,7 +470,7 @@ interface(`spamassassin_read_spamd_tmp_files',`
 		type spamd_tmp_t;
 	')
 
-	allow $1 spamd_tmp_t:file r_file_perms;
+	allow $1 spamd_tmp_t:file read_file_perms;
 ')
 
 ########################################

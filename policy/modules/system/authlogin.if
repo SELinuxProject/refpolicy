@@ -27,9 +27,10 @@ template(`authlogin_common_auth_domain_template',`
 	domain_type($1_chkpwd_t)
 	domain_entry_file($1_chkpwd_t,chkpwd_exec_t)
 
-	allow $1_chkpwd_t self:capability { audit_write audit_control setuid };
+	allow $1_chkpwd_t self:capability { audit_control setuid };
 	allow $1_chkpwd_t self:process getattr;
-	allow $1_chkpwd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+
+	send_audit_msgs_pattern($1_chkpwd_t)
 
 	files_list_etc($1_chkpwd_t)
 	allow $1_chkpwd_t shadow_t:file { getattr read };
@@ -113,10 +114,7 @@ template(`authlogin_per_role_template',`
 	dontaudit $2 shadow_t:file { getattr read };
 
 	# Transition from the user domain to this domain.
-	domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
-	allow $1_chkpwd_t $2:fd use;
-	allow $1_chkpwd_t $2:fifo_file rw_file_perms;
-	allow $1_chkpwd_t $2:process sigchld;
+	domtrans_pattern($2,chkpwd_exec_t,$1_chkpwd_t)
 
 	domain_use_interactive_fds($1_chkpwd_t)
 
@@ -159,23 +157,15 @@ template(`auth_domtrans_user_chk_passwd',`
 			type system_chkpwd_t, chkpwd_exec_t;
 		')
 
-		domain_auto_trans($2,chkpwd_exec_t,system_chkpwd_t)
-		allow $2 system_chkpwd_t:fd use;
-		allow system_chkpwd_t $2:fd use;
-		allow system_chkpwd_t $2:fifo_file rw_file_perms;
-		allow system_chkpwd_t $2:process sigchld;
+		corecmd_search_bin($2)
+		domtrans_pattern($2,chkpwd_exec_t,system_chkpwd_t)
 	',`
 		gen_require(`
 			type $1_chkpwd_t, chkpwd_exec_t;
 		')
 
 		corecmd_search_bin($2)
-		domain_auto_trans($2,chkpwd_exec_t,$1_chkpwd_t)
-
-		allow $2 $1_chkpwd_t:fd use;
-		allow $1_chkpwd_t $2:fd use;
-		allow $1_chkpwd_t $2:fifo_file rw_file_perms;
-		allow $1_chkpwd_t $2:process sigchld;
+		domtrans_pattern($2,chkpwd_exec_t,$1_chkpwd_t)
 	')
 ')
 
@@ -274,10 +264,7 @@ interface(`auth_domtrans_login_program',`
 	')
 
 	corecmd_search_bin($1)
-	domain_auto_trans($1,login_exec_t,$2)
-	allow $2 $1:fd use;
-	allow $2 $1:fifo_file rw_file_perms;
-	allow $2 $1:process sigchld;
+	domtrans_pattern($1,login_exec_t,$2)
 ')
 
 ########################################
@@ -332,15 +319,12 @@ interface(`auth_domtrans_chk_passwd',`
 		type system_chkpwd_t, chkpwd_exec_t, shadow_t;
 	')
 
-
-	allow $1 self:capability { audit_write audit_control };
-	allow $1 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
+	# cjp: is this really needed?
+	allow $1 self:capability audit_control;
+	send_audit_msgs_pattern($1)
 
 	corecmd_search_sbin($1)
-	domain_auto_trans($1,chkpwd_exec_t,system_chkpwd_t)
-	allow system_chkpwd_t $1:fd use;
-	allow system_chkpwd_t $1:fifo_file rw_file_perms;
-	allow system_chkpwd_t $1:process sigchld;
+	domtrans_pattern($1,chkpwd_exec_t,system_chkpwd_t)
 
 	dontaudit $1 shadow_t:file { getattr read };
 
@@ -473,7 +457,7 @@ interface(`auth_tunable_read_shadow',`
 	')
 
 	files_list_etc($1)
-	allow $1 shadow_t:file r_file_perms;
+	allow $1 shadow_t:file read_file_perms;
 ')
 
 ########################################
@@ -615,7 +599,7 @@ interface(`auth_append_faillog',`
 	')
 
 	logging_search_logs($1)
-	allow $1 faillog_t:file { getattr append };
+	allow $1 faillog_t:file append_file_perms;
 ')
 
 ########################################
@@ -654,7 +638,7 @@ interface(`auth_read_lastlog',`
 	')
 
 	logging_search_logs($1)
-	allow $1 lastlog_t:file { getattr read };
+	allow $1 lastlog_t:file read_file_perms;
 ')
 
 #######################################
@@ -673,7 +657,7 @@ interface(`auth_append_lastlog',`
 	')
 
 	logging_search_logs($1)
-	allow $1 lastlog_t:file { getattr lock append };
+	allow $1 lastlog_t:file { append_file_perms lock };
 ')
 
 #######################################
@@ -692,7 +676,7 @@ interface(`auth_rw_lastlog',`
 	')
 
 	logging_search_logs($1)
-	allow $1 lastlog_t:file { getattr read write lock setattr };
+	allow $1 lastlog_t:file { rw_file_perms lock setattr };
 ')
 
 ########################################
@@ -710,10 +694,7 @@ interface(`auth_domtrans_pam',`
 		type pam_t, pam_exec_t;
 	')
 
-	domain_auto_trans($1,pam_exec_t,pam_t)
-	allow pam_t $1:fd use;
-	allow pam_t $1:fifo_file rw_file_perms;
-	allow pam_t $1:process sigchld;
+	domtrans_pattern($1,pam_exec_t,pam_t)
 ')
 
 ########################################
@@ -803,7 +784,7 @@ interface(`auth_read_pam_pid',`
 
 	files_search_pids($1)
 	allow $1 pam_var_run_t:dir list_dir_perms;
-	allow $1 pam_var_run_t:file r_file_perms;
+	allow $1 pam_var_run_t:file read_file_perms;
 ')
 
 #######################################
@@ -840,8 +821,8 @@ interface(`auth_delete_pam_pid',`
 	')
 
 	files_search_pids($1)
-	allow $1 pam_var_run_t:dir { getattr search read write remove_name };
-	allow $1 pam_var_run_t:file { getattr unlink };
+	allow $1 pam_var_run_t:dir del_entry_dir_perms;
+	allow $1 pam_var_run_t:file delete_file_perms;
 ')
 
 ########################################
@@ -879,10 +860,7 @@ interface(`auth_domtrans_pam_console',`
 		type pam_console_t, pam_console_exec_t;
 	')
 
-	domain_auto_trans($1,pam_console_exec_t,pam_console_t)
-	allow pam_console_t $1:fd use;
-	allow pam_console_t $1:fifo_file rw_file_perms;
-	allow pam_console_t $1:process sigchld;
+	domtrans_pattern($1,pam_console_exec_t,pam_console_t)
 ')
 
 ########################################
@@ -942,7 +920,7 @@ interface(`auth_read_pam_console_data',`
 
 	files_search_pids($1)
 	allow $1 pam_var_console_t:dir list_dir_perms;
-	allow $1 pam_var_console_t:file r_file_perms;
+	allow $1 pam_var_console_t:file read_file_perms;
 ')
 
 ########################################
@@ -962,9 +940,8 @@ interface(`auth_manage_pam_console_data',`
 	')
 
 	files_search_pids($1)
-	allow $1 pam_var_console_t:dir rw_dir_perms;
-	allow $1 pam_var_console_t:file manage_file_perms;
-	allow $1 pam_var_console_t:lnk_file create_lnk_perms;
+	manage_files_pattern($1,pam_var_console_t,pam_var_console_t)
+	manage_lnk_files_pattern($1,pam_var_console_t,pam_var_console_t)
 ')
 
 #######################################
@@ -984,8 +961,7 @@ interface(`auth_delete_pam_console_data',`
 
 	files_search_var($1)
 	files_search_pids($1)
-	allow $1 pam_var_console_t:dir rw_dir_perms;
-	allow $1 pam_var_console_t:file unlink;
+	delete_files_pattern($1,pam_var_console_t,pam_var_console_t)
 ')
 
 ########################################
@@ -1131,10 +1107,7 @@ interface(`auth_domtrans_utempter',`
 		type utempter_t, utempter_exec_t;
 	')
 
-	domain_auto_trans($1,utempter_exec_t,utempter_t)
-	allow utempter_t $1:fd use;
-	allow utempter_t $1:fifo_file rw_file_perms;
-	allow utempter_t $1:process sigchld;
+	domtrans_pattern($1,utempter_exec_t,utempter_t)
 ')
 
 ########################################
@@ -1221,7 +1194,7 @@ interface(`auth_read_login_records',`
 	')
 
 	logging_search_logs($1)
-	allow $1 wtmp_t:file r_file_perms;
+	allow $1 wtmp_t:file read_file_perms;
 ')
 
 ########################################
@@ -1258,7 +1231,8 @@ interface(`auth_append_login_records',`
 		type wtmp_t;
 	')
 
-	allow $1 wtmp_t:file { getattr append lock };
+	allow $1 wtmp_t:file append_file_perms;
+	logging_search_logs($1)
 ')
 
 #######################################
@@ -1276,7 +1250,7 @@ interface(`auth_write_login_records',`
 		type wtmp_t;
 	')
 
-	allow $1 wtmp_t:file { write lock };
+	allow $1 wtmp_t:file { write_file_perms lock };
 ')
 
 ########################################

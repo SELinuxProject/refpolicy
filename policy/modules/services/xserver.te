@@ -83,7 +83,7 @@ optional_policy(`
 
 allow xdm_t self:capability { setgid setuid sys_resource kill sys_tty_config mknod chown dac_override dac_read_search fowner fsetid ipc_owner sys_nice sys_rawio net_bind_service };
 allow xdm_t self:process { setexec setpgid getsched setsched setrlimit signal_perms setkeycreate };
-allow xdm_t self:fifo_file rw_file_perms;
+allow xdm_t self:fifo_file rw_fifo_file_perms;
 allow xdm_t self:shm create_shm_perms;
 allow xdm_t self:sem create_sem_perms;
 allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
@@ -100,9 +100,9 @@ dontaudit xdm_t ice_tmp_t:dir { getattr setattr };
 
 allow xdm_t xconsole_device_t:fifo_file { getattr setattr };
 
-allow xdm_t xdm_tmp_t:dir manage_dir_perms;
-allow xdm_t xdm_tmp_t:file manage_file_perms;
-allow xdm_t xdm_tmp_t:sock_file manage_file_perms;
+manage_dirs_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
+manage_files_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
+manage_sock_files_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
 files_tmp_filetrans(xdm_t, xdm_tmp_t, { file dir sock_file })
 
 # Allow gdm to run gdm-binary
@@ -110,8 +110,7 @@ can_exec(xdm_t, xdm_exec_t)
 
 # wdm has its own config dir /etc/X11/wdm
 # this is ugly, daemons should not create files under /etc!
-allow xdm_t xdm_rw_etc_t:dir rw_dir_perms;
-allow xdm_t xdm_rw_etc_t:file create_file_perms;
+manage_files_pattern(xdm_t,xdm_rw_etc_t,xdm_rw_etc_t)
 
 kernel_read_system_state(xdm_t)
 kernel_read_kernel_sysctls(xdm_t)
@@ -221,23 +220,23 @@ userdom_read_all_users_state(xdm_t)
 userdom_signal_all_users(xdm_t)
 
 ifdef(`strict_policy',`
-	allow xdm_t xdm_lock_t:file create_file_perms;
+	allow xdm_t xdm_lock_t:file manage_file_perms;
 	files_lock_filetrans(xdm_t,xdm_lock_t,file)
 
-	allow xdm_t xdm_tmpfs_t:dir manage_dir_perms;
-	allow xdm_t xdm_tmpfs_t:file manage_file_perms;
-	allow xdm_t xdm_tmpfs_t:lnk_file create_lnk_perms;
-	allow xdm_t xdm_tmpfs_t:sock_file manage_file_perms;
-	allow xdm_t xdm_tmpfs_t:fifo_file manage_file_perms;
+	manage_dirs_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+	manage_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+	manage_lnk_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+	manage_fifo_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+	manage_sock_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
 	fs_tmpfs_filetrans(xdm_t,xdm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow xdm_t xdm_var_lib_t:file create_file_perms;
-	allow xdm_t xdm_var_lib_t:dir create_dir_perms;
+	manage_dirs_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)	
+	manage_files_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)
 	files_var_lib_filetrans(xdm_t,xdm_var_lib_t,file)
 
-	allow xdm_t xdm_var_run_t:dir manage_dir_perms;
-	allow xdm_t xdm_var_run_t:file manage_file_perms;
-	allow xdm_t xdm_var_run_t:fifo_file manage_file_perms;
+	manage_dirs_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
+	manage_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
+	manage_fifo_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
 	files_pid_filetrans(xdm_t,xdm_var_run_t,{ dir file fifo_file })
 
 	allow xdm_t xdm_xserver_t:process signal;
@@ -247,28 +246,22 @@ ifdef(`strict_policy',`
 	allow xdm_t xdm_xserver_tmp_t:dir { setattr r_dir_perms };
 
 	# transition to the xdm xserver
-	domain_auto_trans(xdm_t, xserver_exec_t, xdm_xserver_t)
-	allow xdm_t xdm_xserver_t:fd use;
-	allow xdm_xserver_t xdm_t:fd use;
-	allow xdm_xserver_t xdm_t:fifo_file rw_file_perms;
-	allow xdm_xserver_t xdm_t:process { signal sigchld };
+	domtrans_pattern(xdm_t, xserver_exec_t, xdm_xserver_t)
+	allow xdm_xserver_t xdm_t:process signal;
 	allow xdm_t xdm_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
 
 	allow xdm_t xdm_xserver_t:shm rw_shm_perms;
 
 	# connect to xdm xserver over stream socket
-	allow xdm_t xdm_xserver_tmp_t:dir r_dir_perms;
-	allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
-	allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
+	stream_connect_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t,xdm_xserver_t)
 
 	# Remove /tmp/.X11-unix/X0.
-	allow xdm_t xdm_xserver_tmp_t:dir { remove_name write };
-	allow xdm_t xdm_xserver_tmp_t:sock_file unlink;
-	allow xdm_t xdm_xserver_tmp_t:file unlink;
+	delete_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
+	delete_sock_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
 
-	allow xdm_t xserver_log_t:dir manage_dir_perms;
-	allow xdm_t xserver_log_t:file manage_file_perms;
-	allow xdm_t xserver_log_t:fifo_file manage_file_perms;
+	manage_dirs_pattern(xdm_t,xserver_log_t,xserver_log_t)
+	manage_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
+	manage_fifo_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
 	logging_log_filetrans(xdm_t,xserver_log_t,file)
 
 	auth_domtrans_pam_console(xdm_t)	
@@ -387,10 +380,9 @@ dontaudit xdm_xserver_t xdm_var_lib_t:dir search;
 allow xdm_xserver_t xdm_var_run_t:file { getattr read };
 
 # Label pid and temporary files with derived types.
-allow xdm_xserver_t xdm_tmp_t:dir rw_dir_perms;
-allow xdm_xserver_t xdm_tmp_t:file manage_file_perms;
-allow xdm_xserver_t xdm_tmp_t:lnk_file create_lnk_perms;
-allow xdm_xserver_t xdm_tmp_t:sock_file manage_file_perms;
+manage_files_pattern(xdm_xserver_t,xdm_tmp_t,xdm_tmp_t)
+manage_lnk_files_pattern(xdm_xserver_t,xdm_tmp_t,xdm_tmp_t)
+manage_sock_files_pattern(xdm_xserver_t,xdm_tmp_t,xdm_tmp_t)
 
 # Run xkbcomp.
 allow xdm_xserver_t xkb_var_lib_t:lnk_file read;
@@ -459,7 +451,7 @@ dontaudit xdm_t usr_t:file write;
 
 ifdef(`rhgb.te', `
 allow xdm_xserver_t ramfs_t:dir rw_dir_perms;
-allow xdm_xserver_t ramfs_t:file create_file_perms;
+allow xdm_xserver_t ramfs_t:file manage_file_perms;
 allow rhgb_t xdm_xserver_t:process signal;
 ')
 

@@ -57,6 +57,7 @@ template(`mozilla_per_role_template',`
 	#
 	# Local policy
 	#
+
 	allow $1_mozilla_t self:capability { sys_nice setgid setuid };
 	allow $1_mozilla_t self:process { sigkill signal setsched getsched setrlimit };
 	allow $1_mozilla_t self:fifo_file { getattr read write };
@@ -72,13 +73,13 @@ template(`mozilla_per_role_template',`
 	can_exec($1_mozilla_t, mozilla_exec_t)
 
 	# X access, Home files
-	allow $1_mozilla_t $1_mozilla_home_t:dir manage_dir_perms;
-	allow $1_mozilla_t $1_mozilla_home_t:file manage_file_perms;
-	allow $1_mozilla_t $1_mozilla_home_t:lnk_file create_lnk_perms;
-	fs_search_auto_mountpoints($1_mozilla_t)
+	manage_dirs_pattern($1_mozilla_t,$1_mozilla_home_t,$1_mozilla_home_t)
+	manage_files_pattern($1_mozilla_t,$1_mozilla_home_t,$1_mozilla_home_t)
+	manage_lnk_files_pattern($1_mozilla_t,$1_mozilla_home_t,$1_mozilla_home_t)
+	userdom_search_user_home_dirs($1,$1_mozilla_t)
 
 	# Mozpluggerrc
-	allow $1_mozilla_t mozilla_conf_t:file r_file_perms;
+	allow $1_mozilla_t mozilla_conf_t:file read_file_perms;
 
 	allow $1_mozilla_t $2:fd use;
 	allow $1_mozilla_t $2:process sigchld;
@@ -89,28 +90,23 @@ template(`mozilla_per_role_template',`
 	allow $2 $1_mozilla_t:unix_stream_socket connectto;
 
 	# X access, Home files
-	allow $2 $1_mozilla_home_t:dir manage_dir_perms;
-	allow $2 $1_mozilla_home_t:file manage_file_perms;
-	allow $2 $1_mozilla_home_t:lnk_file create_lnk_perms;
-	allow $2 $1_mozilla_home_t:{ dir file lnk_file } { relabelfrom relabelto };
-	userdom_search_user_home_dirs($1,$1_mozilla_t)
+	manage_dirs_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
+	manage_files_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
+	manage_lnk_files_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
+	relabel_dirs_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
+	relabel_files_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
+	relabel_lnk_files_pattern($2,$1_mozilla_home_t,$1_mozilla_home_t)
 
-	allow $1_mozilla_t $1_mozilla_tmpfs_t:dir rw_dir_perms;
-	allow $1_mozilla_t $1_mozilla_tmpfs_t:file manage_file_perms;
-	allow $1_mozilla_t $1_mozilla_tmpfs_t:lnk_file create_lnk_perms;
-	allow $1_mozilla_t $1_mozilla_tmpfs_t:sock_file manage_file_perms;
-	allow $1_mozilla_t $1_mozilla_tmpfs_t:fifo_file manage_file_perms;
-	fs_tmpfs_filetrans($1_mozilla_t,$1_mozilla_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	manage_files_pattern($1_mozilla_t,$1_mozilla_tmpfs_t,$1_mozilla_tmpfs_t)
+	manage_lnk_files_pattern($1_mozilla_t,$1_mozilla_tmpfs_t,$1_mozilla_tmpfs_t)
+	manage_fifo_files_pattern($1_mozilla_t,$1_mozilla_tmpfs_t,$1_mozilla_tmpfs_t)
+	manage_sock_files_pattern($1_mozilla_t,$1_mozilla_tmpfs_t,$1_mozilla_tmpfs_t)
+	fs_tmpfs_filetrans($1_mozilla_t,$1_mozilla_tmpfs_t,{ file lnk_file sock_file fifo_file })
 
-	# Unrestricted inheritance from the caller.
-	allow $2 $1_mozilla_t:process { noatsecure siginh rlimitinh };
 	allow $1_mozilla_t $2:process signull;
 
 	# Allow the user domain to signal/ps.
-	allow $2 $1_mozilla_t:dir { search getattr read };
-	allow $2 $1_mozilla_t:{ file lnk_file } { read getattr };
-	allow $2 $1_mozilla_t:process getattr;
-
+	ps_process_pattern($2,$1_mozilla_t)
 	allow $2 $1_mozilla_t:process signal_perms;
 	
 	kernel_read_kernel_sysctls($1_mozilla_t)
@@ -164,6 +160,7 @@ template(`mozilla_per_role_template',`
 	files_read_var_files($1_mozilla_t)
 	files_read_var_symlinks($1_mozilla_t)
 
+	fs_search_auto_mountpoints($1_mozilla_t)
 	fs_search_inotifyfs($1_mozilla_t)
 	fs_rw_tmpfs_files($1_mozilla_t)
 	
@@ -208,6 +205,8 @@ template(`mozilla_per_role_template',`
 	# Type transition
 	tunable_policy(`! disable_mozilla_trans',`
 		domain_auto_trans($2, mozilla_exec_t, $1_mozilla_t)
+		# Unrestricted inheritance from the caller.
+		allow $2 $1_mozilla_t:process { noatsecure siginh rlimitinh };
 	')
 
 	# Uploads, local html

@@ -17,13 +17,7 @@ interface(`apt_domtrans',`
 
 	files_search_usr($1)
 	corecmd_search_bin($1)
-	domain_auto_trans($1,apt_exec_t,apt_t)
-
-	# allow basic communication
-	allow $1 apt_t:fd use;
-	allow apt_t $1:fd use;
-	allow apt_t $1:fifo_file rw_file_perms;
-	allow apt_t $1:process sigchld;
+	domtrans_pattern($1,apt_exec_t,apt_t)
 ')
 
 ########################################
@@ -92,7 +86,7 @@ interface(`apt_read_pipes',`
 		type apt_t;
 	')
 
-	allow $1 apt_t:fifo_file r_file_perms;
+	allow $1 apt_t:fifo_file read_fifo_file_perms;
 	# TODO: enforce dpkg_read_pipes?
 ')
 
@@ -131,9 +125,9 @@ interface(`apt_read_db',`
 	')
 
 	files_search_var_lib($1)
-	allow $1 apt_var_lib_t:dir r_dir_perms;
-	allow $1 apt_var_lib_t:file { getattr read };
-	allow $1 apt_var_lib_t:lnk_file r_file_perms;
+	allow $1 apt_var_lib_t:dir list_dir_perms;
+	read_files_pattern($1,apt_var_lib_t,apt_var_lib_t)
+	read_lnk_files_pattern($1,apt_var_lib_t,apt_var_lib_t)
 ')
 
 ########################################
@@ -152,9 +146,10 @@ interface(`apt_manage_db',`
 	')
 
 	files_search_var_lib($1)
-	allow $1 apt_var_lib_t:dir rw_dir_perms;
-	allow $1 apt_var_lib_t:file { getattr create read write append unlink };
-	allow $1 apt_var_lib_t:lnk_file { getattr read write unlink };
+	manage_files_pattern($1,apt_var_lib_t,apt_var_lib_t)
+	# cjp: shouldnt this be manage_lnk_files?
+	rw_lnk_files_pattern($1,apt_var_lib_t,apt_var_lib_t)
+	delete_lnk_files_pattern($1,apt_var_lib_t,apt_var_lib_t)
 ')
 
 ########################################
@@ -174,6 +169,6 @@ interface(`apt_dontaudit_manage_db',`
 	')
 
 	dontaudit $1 apt_var_lib_t:dir rw_dir_perms;
-	dontaudit $1 apt_var_lib_t:file create_file_perms;
-	dontaudit $1 apt_var_lib_t:lnk_file create_lnk_perms;
+	dontaudit $1 apt_var_lib_t:file manage_file_perms;
+	dontaudit $1 apt_var_lib_t:lnk_file manage_lnk_perms;
 ')

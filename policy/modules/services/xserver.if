@@ -49,8 +49,8 @@ template(`xserver_common_domain_template',`
 	dontaudit $1_xserver_t self:capability chown;
 	allow $1_xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_xserver_t self:fd use;
-	allow $1_xserver_t self:fifo_file rw_file_perms;
-	allow $1_xserver_t self:sock_file r_file_perms;
+	allow $1_xserver_t self:fifo_file rw_fifo_file_perms;
+	allow $1_xserver_t self:sock_file read_sock_file_perms;
 	allow $1_xserver_t self:shm create_shm_perms;
 	allow $1_xserver_t self:sem create_sem_perms;
 	allow $1_xserver_t self:msgq create_msgq_perms;
@@ -61,29 +61,26 @@ template(`xserver_common_domain_template',`
 	allow $1_xserver_t self:tcp_socket create_stream_socket_perms;
 	allow $1_xserver_t self:udp_socket create_socket_perms;
 
-	allow $1_xserver_t $1_xserver_tmp_t:dir manage_dir_perms;
-	allow $1_xserver_t $1_xserver_tmp_t:file manage_file_perms;
-	allow $1_xserver_t $1_xserver_tmp_t:sock_file manage_file_perms;
+	manage_dirs_pattern($1_xserver_t,$1_xserver_tmp_t,$1_xserver_tmp_t)
+	manage_files_pattern($1_xserver_t,$1_xserver_tmp_t,$1_xserver_tmp_t)
+	manage_sock_files_pattern($1_xserver_t,$1_xserver_tmp_t,$1_xserver_tmp_t)
 	files_tmp_filetrans($1_xserver_t, $1_xserver_tmp_t, { file dir sock_file })
 
-	allow $1_xserver_t xdm_xserver_tmp_t:dir rw_dir_perms;
-	type_transition $1_xserver_t xdm_xserver_tmp_t:sock_file $1_xserver_tmp_t;
+	filetrans_pattern($1_xserver_t,xdm_xserver_tmp_t,$1_xserver_tmp_t,sock_file)
 
-	allow $1_xserver_t $1_xserver_tmpfs_t:dir manage_dir_perms;
-	allow $1_xserver_t $1_xserver_tmpfs_t:file manage_file_perms;
-	allow $1_xserver_t $1_xserver_tmpfs_t:lnk_file create_lnk_perms;
-	allow $1_xserver_t $1_xserver_tmpfs_t:sock_file manage_file_perms;
-	allow $1_xserver_t $1_xserver_tmpfs_t:fifo_file manage_file_perms;
+	manage_dirs_pattern($1_xserver_t,$1_xserver_tmpfs_t,$1_xserver_tmpfs_t)
+	manage_files_pattern($1_xserver_t,$1_xserver_tmpfs_t,$1_xserver_tmpfs_t)
+	manage_lnk_files_pattern($1_xserver_t,$1_xserver_tmpfs_t,$1_xserver_tmpfs_t)
+	manage_fifo_files_pattern($1_xserver_t,$1_xserver_tmpfs_t,$1_xserver_tmpfs_t)
+	manage_sock_files_pattern($1_xserver_t,$1_xserver_tmpfs_t,$1_xserver_tmpfs_t)
 	fs_tmpfs_filetrans($1_xserver_t,$1_xserver_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow $1_xserver_t xkb_var_lib_t:dir rw_dir_perms;
-	allow $1_xserver_t xkb_var_lib_t:file manage_file_perms;
-	allow $1_xserver_t xkb_var_lib_t:lnk_file create_lnk_perms;
+	manage_files_pattern($1_xserver_t,xkb_var_lib_t,xkb_var_lib_t)
+	manage_lnk_files_pattern($1_xserver_t,xkb_var_lib_t,xkb_var_lib_t)
 	files_search_var_lib($1_xserver_t)
 
 	# Create files in /var/log with the xserver_log_t type.
-	allow $1_xserver_t xserver_log_t:file manage_file_perms;
-	allow $1_xserver_t xserver_log_t:dir r_dir_perms;
+	manage_files_pattern($1_xserver_t,xserver_log_t,xserver_log_t)
 	logging_log_filetrans($1_xserver_t,xserver_log_t,file)
 
 	kernel_read_system_state($1_xserver_t)
@@ -273,36 +270,28 @@ template(`xserver_per_role_template',`
 	# $1_xserver_t Local policy
 	#
 
-	domain_auto_trans($1_xserver_t, xauth_exec_t, $1_xauth_t)
-	allow $1_xserver_t $1_xauth_t:fd use;
-	allow $1_xauth_t $1_xserver_t:fd use;
-	allow $1_xauth_t $1_xserver_t:fifo_file rw_file_perms;
-	allow $1_xauth_t $1_xserver_t:process sigchld;
+	domtrans_pattern($1_xserver_t, xauth_exec_t, $1_xauth_t)
 
 	allow $1_xserver_t $1_xauth_home_t:file { getattr read };
 
-	domain_auto_trans($2, xserver_exec_t, $1_xserver_t)
-	allow $2 $1_xserver_t:fd use;
-	allow $1_xserver_t $2:fd use;
-	allow $1_xserver_t $2:fifo_file rw_file_perms;
-	allow $1_xserver_t $2:process { signal sigchld };
+	domtrans_pattern($2, xserver_exec_t, $1_xserver_t)
+	allow $1_xserver_t $2:process signal;
 
 	allow $1_xserver_t $2:shm rw_shm_perms;
 
-	allow $2 $1_fonts_t:dir manage_dir_perms;
-	allow $2 $1_fonts_t:file manage_file_perms;
-	allow $2 $1_fonts_t:{ dir file } { relabelto relabelfrom };
+	manage_dirs_pattern($2,$1_fonts_t,$1_fonts_t)
+	manage_files_pattern($2,$1_fonts_t,$1_fonts_t)
+	relabel_dirs_pattern($2,$1_fonts_t,$1_fonts_t)
+	relabel_files_pattern($2,$1_fonts_t,$1_fonts_t)
 
-	allow $2 $1_fonts_config_t:dir manage_dir_perms;
-	allow $2 $1_fonts_config_t:file manage_file_perms;
-	allow $2 $1_fonts_config_t:file { relabelto relabelfrom };
+	manage_dirs_pattern($2,$1_fonts_config_t,$1_fonts_config_t)
+	manage_files_pattern($2,$1_fonts_config_t,$1_fonts_config_t)
+	relabel_files_pattern($2,$1_fonts_config_t,$1_fonts_config_t)
 
 	# For startup relabel
 	allow $2 $1_fonts_cache_t:{ dir file } { relabelto relabelfrom };
 
-	allow $2 $1_xserver_tmp_t:dir r_dir_perms;
-	allow $2 $1_xserver_tmp_t:sock_file rw_file_perms;
-	allow $2 $1_xserver_t:unix_stream_socket connectto;
+	stream_connect_pattern($2,$1_xserver_tmp_t,$1_xserver_tmp_t,$1_xserver_t)
 
 	allow $2 $1_xserver_tmpfs_t:file rw_file_perms;
 
@@ -343,22 +332,16 @@ template(`xserver_per_role_template',`
 	allow $1_xauth_t $1_xauth_home_t:file manage_file_perms;
 	userdom_user_home_dir_filetrans($1,$1_xauth_t,$1_xauth_home_t,file)
 
-	allow $1_xauth_t $1_xauth_tmp_t:dir create_dir_perms;
-	allow $1_xauth_t $1_xauth_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_xauth_t,$1_xauth_tmp_t,$1_xauth_tmp_t)
+	manage_files_pattern($1_xauth_t,$1_xauth_tmp_t,$1_xauth_tmp_t)
 	files_tmp_filetrans($1_xauth_t, $1_xauth_tmp_t, { file dir })
 
-	domain_auto_trans($2, xauth_exec_t, $1_xauth_t)
-	allow $2 $1_xauth_t:fd use;
-	allow $1_xauth_t $2:fd use;
-	allow $1_xauth_t $2:fifo_file rw_file_perms;
-	allow $1_xauth_t $2:process sigchld;
+	domtrans_pattern($2, xauth_exec_t, $1_xauth_t)
 
 	allow $2 $1_xauth_t:process signal;
 
 	# allow ps to show xauth
-	allow $2 $1_xauth_t:dir { search getattr read };
-	allow $2 $1_xauth_t:{ file lnk_file } { read getattr };
-	allow $2 $1_xauth_t:process getattr;
+	ps_process_pattern($2,$1_xauth_t)
 
 	allow $2 $1_xauth_home_t:file manage_file_perms;
 	allow $2 $1_xauth_home_t:file { relabelfrom relabelto };
@@ -408,19 +391,13 @@ template(`xserver_per_role_template',`
 	# $1_iceauth_t Local policy
 	#
 
-	domain_auto_trans($2, iceauth_exec_t, $1_iceauth_t)
-	allow $2 $1_iceauth_t:fd use;
-	allow $1_iceauth_t $2:fd use;
-	allow $1_iceauth_t $2:fifo_file rw_file_perms;
-	allow $1_iceauth_t $2:process sigchld;
+	domtrans_pattern($2, iceauth_exec_t, $1_iceauth_t)
 
 	allow $1_iceauth_t $1_iceauth_home_t:file manage_file_perms;
 	userdom_user_home_dir_filetrans($1,$1_iceauth_t,$1_iceauth_home_t,file)
 
 	# allow ps to show iceauth
-	allow $2 $1_iceauth_t:dir { search getattr read };
-	allow $2 $1_iceauth_t:{ file lnk_file } { read getattr };
-	allow $2 $1_iceauth_t:process getattr;
+	ps_process_pattern($2,$1_iceauth_t)
 
 	allow $2 $1_iceauth_home_t:file manage_file_perms;
 	allow $2 $1_iceauth_home_t:file { relabelfrom relabelto };
@@ -485,7 +462,7 @@ template(`xserver_ro_session_template',`
 	# Client read xserver shm
 	allow $2 $1_xserver_t:fd use;
 	allow $2 $1_xserver_t:shm r_shm_perms;
-	allow $2 $1_xserver_tmpfs_t:file r_file_perms;
+	allow $2 $1_xserver_tmpfs_t:file read_file_perms;
 ')
 
 #######################################
@@ -622,8 +599,8 @@ template(`xserver_use_user_fonts',`
 	allow $2 $1_fonts_t:file read_file_perms;
 
 	# Manipulate the global font cache
-	allow $2 $1_fonts_cache_t:dir manage_dir_perms;
-	allow $2 $1_fonts_cache_t:file manage_file_perms;
+	manage_dirs_pattern($2,$1_fonts_cache_t,$1_fonts_cache_t)
+	manage_files_pattern($2,$1_fonts_cache_t,$1_fonts_cache_t)
 
 	# Read per user font config
 	allow $2 $1_fonts_config_t:dir list_dir_perms;
@@ -662,11 +639,7 @@ template(`xserver_domtrans_user_xauth',`
 		type $1_xauth_t, xauth_exec_t;
 	')
 
-	domain_auto_trans($2, xauth_exec_t, $1_xauth_t)
-	allow $2 $1_xauth_t:fd use;
-	allow $1_xauth_t $2:fd use;
-	allow $1_xauth_t $2:fifo_file rw_file_perms;
-	allow $1_xauth_t $2:process sigchld;
+	domtrans_pattern($2, xauth_exec_t, $1_xauth_t)
 ')
 
 ########################################
@@ -690,8 +663,8 @@ interface(`xserver_use_all_users_fonts',`
 	allow $1 fonts_type:file read_file_perms;
 
 	# Manipulate the global font cache
-	allow $1 fonts_cache_type:dir manage_dir_perms;
-	allow $1 fonts_cache_type:file manage_file_perms;
+	manage_dirs_pattern($1,fonts_cache_type,fonts_cache_type)
+	manage_files_pattern($1,fonts_cache_type,fonts_cache_type)
 
 	# Read per user font config
 	allow $1 fonts_config_type:dir list_dir_perms;
@@ -828,9 +801,7 @@ interface(`xserver_stream_connect_xdm',`
 	')
 
 	files_search_tmp($1)
-	allow $1 xdm_tmp_t:dir search_dir_perms;
-	allow $1 xdm_tmp_t:sock_file write;
-	allow $1 xdm_t:unix_stream_socket connectto;
+	stream_connect_pattern($1,xdm_tmp_t,xdm_tmp_t,xdm_t)
 ')
 
 ########################################
@@ -849,7 +820,7 @@ interface(`xserver_read_xdm_rw_config',`
 	')
 
 	files_search_etc($1)
-	allow $1 xdm_rw_etc_t:dir { getattr read };
+	allow $1 xdm_rw_etc_t:file { getattr read };
 ')
 
 ########################################
@@ -887,8 +858,8 @@ interface(`xserver_create_xdm_tmp_sockets',`
 	')
 
 	files_search_tmp($1)
-	allow $1 xdm_tmp_t:dir ra_dir_perms;
-	allow $1 xdm_tmp_t:sock_file create;
+	allow $1 xdm_tmp_t:dir list_dir_perms;
+	create_sock_files_pattern($1,xdm_tmp_t,xdm_tmp_t)
 ')
 
 ########################################
@@ -907,7 +878,7 @@ interface(`xserver_read_xdm_pid',`
 	')
 
 	files_search_pids($1)
-	allow $1 xdm_var_run_t:file r_file_perms;
+	allow $1 xdm_var_run_t:file read_file_perms;
 ')
 
 ########################################
@@ -943,12 +914,7 @@ interface(`xserver_domtrans_xdm_xserver',`
 		type xdm_xserver_t, xserver_exec_t;
 	')
 
-	domain_auto_trans($1,xserver_exec_t,xdm_xserver_t)
-
-	allow $1 xdm_xserver_t:fd use;
-	allow xdm_xserver_t $1:fd use;
-	allow xdm_xserver_t $1:fifo_file rw_file_perms;
-	allow xdm_xserver_t $1:process sigchld;
+	domtrans_pattern($1,xserver_exec_t,xdm_xserver_t)
 ')
 
 ########################################
@@ -1061,8 +1027,8 @@ interface(`xserver_delete_log',`
 	')
 
 	logging_search_logs($1)
-	allow $1 xserver_log_t:dir rw_dir_perms;
-	allow $1 xserver_log_t:file unlink;
+	allow $1 xserver_log_t:dir list_dir_perms;
+	delete_files_pattern($1,xserver_log_t,xserver_log_t)
 ')
 
 ########################################
@@ -1082,8 +1048,8 @@ interface(`xserver_read_xkb_libs',`
 
 	files_search_var_lib($1)
 	allow $1 xkb_var_lib_t:dir list_dir_perms;
-	allow $1 xkb_var_lib_t:file r_file_perms;
-	allow $1 xkb_var_lib_t:lnk_file { getattr read };
+	read_files_pattern($1,xkb_var_lib_t,xkb_var_lib_t)
+	read_lnk_files_pattern($1,xkb_var_lib_t,xkb_var_lib_t)
 ')
 
 ########################################
@@ -1119,8 +1085,7 @@ interface(`xserver_read_xdm_tmp_files',`
 		type xdm_tmp_t;
 	')
 
-	allow $1 xdm_tmp_t:dir search_dir_perms;
-	allow $1 xdm_tmp_t:file { getattr read };
+	read_files_pattern($1,xdm_tmp_t,xdm_tmp_t)
 ')
 
 ########################################
@@ -1195,7 +1160,5 @@ interface(`xserver_stream_connect_xdm_xserver',`
 	')
 
 	files_search_tmp($1)
-	allow $1 xdm_xserver_tmp_t:dir search_dir_perms;
-	allow $1 xdm_xserver_tmp_t:sock_file write;
-	allow $1 xdm_xserver_t:unix_stream_socket connectto;
+	stream_connect_pattern($1,xdm_xserver_tmp_t,xdm_xserver_tmp_t,xdm_xserver_t)
 ')

@@ -59,7 +59,7 @@ template(`java_per_role_template',`
 	#
 
 	allow $1_javaplugin_t self:process { signal_perms getsched setsched execmem };
-	allow $1_javaplugin_t self:fifo_file rw_file_perms;
+	allow $1_javaplugin_t self:fifo_file rw_fifo_file_perms;
 	allow $1_javaplugin_t self:tcp_socket create_socket_perms;
 	allow $1_javaplugin_t self:udp_socket create_socket_perms;
 	
@@ -67,21 +67,18 @@ template(`java_per_role_template',`
 	allow $1_javaplugin_t $2:unix_stream_socket { read write };
 	userdom_write_user_tmp_sockets($1,$1_javaplugin_t)
 
-	allow $1_javaplugin_t $1_javaplugin_tmp_t:dir create_dir_perms;
-	allow $1_javaplugin_t $1_javaplugin_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_javaplugin_t,$1_javaplugin_tmp_t,$1_javaplugin_tmp_t)
+	manage_files_pattern($1_javaplugin_t,$1_javaplugin_tmp_t,$1_javaplugin_tmp_t)
 	files_tmp_filetrans($1_javaplugin_t,$1_javaplugin_tmp_t,{ file dir })
 
-	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_javaplugin_t $1_javaplugin_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	fs_tmpfs_filetrans($1_javaplugin_t,$1_javaplugin_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	manage_files_pattern($1_javaplugin_t,$1_javaplugin_tmpfs_t,$1_javaplugin_tmpfs_t)
+	manage_lnk_files_pattern($1_javaplugin_t,$1_javaplugin_tmpfs_t,$1_javaplugin_tmpfs_t)
+	manage_fifo_files_pattern($1_javaplugin_t,$1_javaplugin_tmpfs_t,$1_javaplugin_tmpfs_t)
+	manage_sock_files_pattern($1_javaplugin_t,$1_javaplugin_tmpfs_t,$1_javaplugin_tmpfs_t)
+	fs_tmpfs_filetrans($1_javaplugin_t,$1_javaplugin_tmpfs_t,{ file lnk_file sock_file fifo_file })
 
-	# cjp: rw_dir_perms here doesnt make sense
-	allow $1_javaplugin_t $1_home_t:dir rw_dir_perms;
-	allow $1_javaplugin_t $1_home_t:file rw_file_perms;
-	allow $1_javaplugin_t $1_home_t:lnk_file { getattr read };
+	rw_files_pattern($1_javaplugin_t,$1_home_t,$1_home_t)
+	read_files_pattern($1_javaplugin_t,$1_home_t,$1_home_t)
 
 	can_exec($1_javaplugin_t, java_exec_t)
 	
@@ -189,12 +186,7 @@ interface(`java_domtrans',`
 		')
 
 		corecmd_search_bin($1)
-		domain_auto_trans($1, java_exec_t, java_t)
-
-		allow $1 java_t:fd use;
-		allow java_t $1:fd use;
-		allow java_t $1:fifo_file rw_file_perms;
-		allow java_t $1:process sigchld;
+		domtrans_pattern($1, java_exec_t, java_t)
 	',`
 		refpolicywarn(`$0($1) has no effect in strict policy.')
 	')

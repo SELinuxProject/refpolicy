@@ -63,40 +63,34 @@ template(`gift_per_role_template',`
 
 	allow $1_gift_t self:tcp_socket create_socket_perms;
 
-	allow $1_gift_t $1_gift_tmpfs_t:dir rw_dir_perms;
-	allow $1_gift_t $1_gift_tmpfs_t:file manage_file_perms;
-	allow $1_gift_t $1_gift_tmpfs_t:lnk_file create_lnk_perms;
-	allow $1_gift_t $1_gift_tmpfs_t:sock_file manage_file_perms;
-	allow $1_gift_t $1_gift_tmpfs_t:fifo_file manage_file_perms;
+	manage_files_pattern($1_gift_t,$1_gift_tmpfs_t,$1_gift_tmpfs_t)
+	manage_lnk_files_pattern($1_gift_t,$1_gift_tmpfs_t,$1_gift_tmpfs_t)
+	manage_fifo_files_pattern($1_gift_t,$1_gift_tmpfs_t,$1_gift_tmpfs_t)
+	manage_sock_files_pattern($1_gift_t,$1_gift_tmpfs_t,$1_gift_tmpfs_t)
 	fs_tmpfs_filetrans($1_gift_t,$1_gift_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-	allow $1_gift_t $1_gift_home_t:dir manage_dir_perms;
-	allow $1_gift_t $1_gift_home_t:file manage_file_perms;
-	allow $1_gift_t $1_gift_home_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_gift_t,$1_gift_home_t,$1_gift_home_t)
+	manage_files_pattern($1_gift_t,$1_gift_home_t,$1_gift_home_t)
+	manage_lnk_files_pattern($1_gift_t,$1_gift_home_t,$1_gift_home_t)
 	userdom_user_home_dir_filetrans($1,$1_gift_t,$1_gift_home_t,dir)
 
 	# Launch gift daemon
-	domain_auto_trans($1_gift_t, giftd_exec_t, $1_giftd_t)
-	allow $1_giftd_t $1_gift_t:fd use;
-	allow $1_giftd_t $1_gift_t:fifo_file rw_file_perms;
-	allow $1_giftd_t $1_gift_t:process sigchld;
+	domtrans_pattern($1_gift_t, giftd_exec_t, $1_giftd_t)
 
 	# transition from user domain
-	domain_auto_trans($2, gift_exec_t, $1_gift_t)
-	allow $1_gift_t $2:fd use;
-	allow $1_gift_t $2:fifo_file rw_file_perms;
-	allow $1_gift_t $2:process sigchld;
+	domtrans_pattern($2, gift_exec_t, $1_gift_t)
 
 	# user managed content
-	allow $2 $1_gift_home_t:dir manage_dir_perms;
-	allow $2 $1_gift_home_t:file manage_file_perms;
-	allow $2 $1_gift_home_t:lnk_file create_lnk_perms;
-	allow $2 $1_gift_home_t:{ dir file lnk_file } { relabelfrom relabelto };
+	manage_dirs_pattern($2,$1_gift_home_t,$1_gift_home_t)
+	manage_files_pattern($2,$1_gift_home_t,$1_gift_home_t)
+	manage_lnk_files_pattern($2,$1_gift_home_t,$1_gift_home_t)
+	relabel_dirs_pattern($2,$1_gift_home_t,$1_gift_home_t)
+	relabel_files_pattern($2,$1_gift_home_t,$1_gift_home_t)
+	relabel_lnk_files_pattern($2,$1_gift_home_t,$1_gift_home_t)
 
 	# Allow the user domain to signal/ps.
-	allow $2 $1_gift_t:dir { search getattr read };
-	allow $2 $1_gift_t:{ file lnk_file } { read getattr };
-	allow $2 $1_gift_t:process { getattr signal_perms };
+	ps_process_pattern($2,$1_gift_t)
+	allow $2 $1_gift_t:process signal_perms;
 
 	# Read /proc/meminfo
 	kernel_read_system_state($1_giftd_t)
@@ -150,15 +144,12 @@ template(`gift_per_role_template',`
 	allow $1_giftd_t self:tcp_socket create_stream_socket_perms;
 	allow $1_giftd_t self:udp_socket create_socket_perms;
 
-	allow $1_giftd_t $1_gift_home_t:dir manage_dir_perms;
-	allow $1_giftd_t $1_gift_home_t:file manage_file_perms;
-	allow $1_giftd_t $1_gift_home_t:lnk_file create_lnk_perms;
+	manage_dirs_pattern($1_giftd_t,$1_gift_home_t,$1_gift_home_t)
+	manage_files_pattern($1_giftd_t,$1_gift_home_t,$1_gift_home_t)
+	manage_lnk_files_pattern($1_giftd_t,$1_gift_home_t,$1_gift_home_t)
 	userdom_user_home_dir_filetrans($1,$1_giftd_t,$1_gift_home_t,dir)
 
-	domain_auto_trans($2, giftd_exec_t, $1_giftd_t)
-	allow $1_giftd_t $2:fd use;
-	allow $1_giftd_t $2:fifo_file rw_file_perms;
-	allow $1_giftd_t $2:process sigchld;
+	domtrans_pattern($2, giftd_exec_t, $1_giftd_t)
 
 	kernel_read_system_state($1_giftd_t)
 	kernel_read_kernel_sysctls($1_giftd_t)

@@ -45,28 +45,27 @@ allow ftpd_t self:capability { chown fowner fsetid setgid setuid sys_chroot sys_
 dontaudit ftpd_t self:capability sys_tty_config;
 allow ftpd_t self:process signal_perms;
 allow ftpd_t self:process { getcap setcap setsched setrlimit };
-allow ftpd_t self:fifo_file rw_file_perms;
+allow ftpd_t self:fifo_file rw_fifo_file_perms;
 allow ftpd_t self:unix_dgram_socket { sendto create_socket_perms };
 allow ftpd_t self:unix_stream_socket create_stream_socket_perms;
 allow ftpd_t self:tcp_socket create_stream_socket_perms;
 allow ftpd_t self:udp_socket create_socket_perms;
 
-allow ftpd_t ftpd_etc_t:file r_file_perms;
+allow ftpd_t ftpd_etc_t:file read_file_perms;
 
-allow ftpd_t ftpd_tmp_t:dir create_dir_perms;
-allow ftpd_t ftpd_tmp_t:file create_file_perms;
+manage_dirs_pattern(ftpd_t,ftpd_tmp_t,ftpd_tmp_t)
+manage_files_pattern(ftpd_t,ftpd_tmp_t,ftpd_tmp_t)
 files_tmp_filetrans(ftpd_t, ftpd_tmp_t, { file dir })
 
-allow ftpd_t ftpd_tmpfs_t:fifo_file create_file_perms;
-allow ftpd_t ftpd_tmpfs_t:dir create_dir_perms;
-allow ftpd_t ftpd_tmpfs_t:file create_file_perms;
-allow ftpd_t ftpd_tmpfs_t:lnk_file create_lnk_perms;
-allow ftpd_t ftpd_tmpfs_t:sock_file create_file_perms;
+manage_dirs_pattern(ftpd_t,ftpd_tmpfs_t,ftpd_tmpfs_t)
+manage_files_pattern(ftpd_t,ftpd_tmpfs_t,ftpd_tmpfs_t)
+manage_lnk_files_pattern(ftpd_t,ftpd_tmpfs_t,ftpd_tmpfs_t)
+manage_fifo_files_pattern(ftpd_t,ftpd_tmpfs_t,ftpd_tmpfs_t)
+manage_sock_files_pattern(ftpd_t,ftpd_tmpfs_t,ftpd_tmpfs_t)
 fs_tmpfs_filetrans(ftpd_t,ftpd_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-allow ftpd_t ftpd_var_run_t:file manage_file_perms;
-allow ftpd_t ftpd_var_run_t:dir rw_dir_perms;
-allow ftpd_t ftpd_var_run_t:sock_file manage_file_perms;
+manage_files_pattern(ftpd_t,ftpd_var_run_t,ftpd_var_run_t)
+manage_sock_files_pattern(ftpd_t,ftpd_var_run_t,ftpd_var_run_t)
 files_pid_filetrans(ftpd_t,ftpd_var_run_t,file)
 
 # proftpd requires the client side to bind a socket so that
@@ -77,7 +76,7 @@ allow ftpd_t ftpdctl_tmp_t:sock_file { getattr unlink };
 
 # Create and modify /var/log/xferlog.
 allow ftpd_t xferlog_t:dir search_dir_perms;
-allow ftpd_t xferlog_t:file create_file_perms;
+allow ftpd_t xferlog_t:file manage_file_perms;
 logging_log_filetrans(ftpd_t,xferlog_t,file)
 
 kernel_read_kernel_sysctls(ftpd_t)
@@ -200,7 +199,7 @@ tunable_policy(`ftp_home_dir && use_samba_home_dirs',`
 ')
 
 tunable_policy(`ftpd_is_daemon',`
-	allow ftpd_t ftpd_lock_t:file create_file_perms;
+	allow ftpd_t ftpd_lock_t:file manage_file_perms;
 	files_lock_filetrans(ftpd_t,ftpd_lock_t,file)
 
 	corenet_tcp_bind_ftp_port(ftpd_t)
@@ -257,9 +256,7 @@ optional_policy(`
 #
 
 # Allow ftpdctl to talk to ftpd over a socket connection
-allow ftpdctl_t ftpd_t:unix_stream_socket connectto;
-allow ftpdctl_t ftpd_var_run_t:dir search;
-allow ftpdctl_t ftpd_var_run_t:sock_file write;
+stream_connect_pattern(ftpdctl_t,ftpd_var_run_t,ftpd_var_run_t,ftpd_t)
 
 # ftpdctl creates a socket so that the daemon can perform
 # access control decisions (see comments in ftpd_t rules above)

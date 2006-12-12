@@ -77,34 +77,28 @@ template(`lpd_per_role_template',`
 
 	can_exec($1_lpr_t,lpr_exec_t)
 
-	allow $1_lpr_t $1_lpr_tmp_t:dir create_dir_perms;
-	allow $1_lpr_t $1_lpr_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
+	manage_files_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
 	files_tmp_filetrans($1_lpr_t, $1_lpr_tmp_t, { file dir })
 
-	allow $1_lpr_t $1_print_spool_t:file create_file_perms;
-	allow $1_lpr_t print_spool_t:dir rw_dir_perms;
-	type_transition $1_lpr_t print_spool_t:file $1_print_spool_t;
+	manage_files_pattern($1_lpr_t,print_spool_t,$1_print_spool_t)
+	filetrans_pattern($1_lpr_t,print_spool_t,$1_print_spool_t,file)
 	# Read and write shared files in the spool directory.
 	allow $1_lpr_t print_spool_t:file rw_file_perms;
 
-	allow $1_lpr_t printconf_t:dir r_dir_perms;
-	allow $1_lpr_t printconf_t:file r_file_perms;
-	allow $1_lpr_t printconf_t:lnk_file { getattr read };
+	allow $1_lpr_t printconf_t:dir list_dir_perms;
+	read_files_pattern($1_lpr_t,printconf_t,printconf_t)
+	read_lnk_files_pattern($1_lpr_t,printconf_t,printconf_t)
 
 	dontaudit $1_lpr_t $2:unix_stream_socket { read write };
 
 	# Transition from the user domain to the derived domain.
-	allow $2 $1_lpr_t:fd use;
-	allow $1_lpr_t $2:fd use;
-	allow $1_lpr_t $2:fifo_file rw_file_perms;
-	allow $1_lpr_t $2:process sigchld;
-	domain_auto_trans($2,lpr_exec_t,$1_lpr_t)
+	domtrans_pattern($2,lpr_exec_t,$1_lpr_t)
 
 	allow $2 $1_lpr_t:process signull;
 
 	# Allow lpd to read, rename, and unlink spool files.
-	allow lpd_t $1_print_spool_t:file r_file_perms;
-	allow lpd_t $1_print_spool_t:file link_file_perms;
+	allow lpd_t $1_print_spool_t:file { read_file_perms rename_file_perms delete_file_perms };
 
 	kernel_read_kernel_sysctls($1_lpr_t)
 
@@ -247,12 +241,7 @@ interface(`lpd_domtrans_checkpc',`
 		type checkpc_t, checkpc_exec_t;
 	')
 
-	domain_auto_trans($1,checkpc_exec_t,checkpc_t)
-
-	allow $1 checkpc_t:fd use;
-	allow checkpc_t $1:fd use;
-	allow checkpc_t $1:fifo_file rw_file_perms;
-	allow checkpc_t $1:process sigchld;
+	domtrans_pattern($1,checkpc_exec_t,checkpc_t)
 ')
 
 ########################################
@@ -322,10 +311,10 @@ interface(`lpd_manage_spool',`
 	')
 
 	files_search_spool($1)
+	manage_files_pattern($1,print_spool_t,print_spool_t)
 
 	# cjp: cups wants setattr
-	allow $1 print_spool_t:dir { rw_dir_perms setattr };
-	allow $1 print_spool_t:file manage_file_perms;
+	allow $1 print_spool_t:dir setattr;
 ')
 
 ########################################
@@ -364,7 +353,7 @@ interface(`lpd_read_config',`
 	')
 
 	allow $1 printconf_t:dir list_dir_perms;
-	allow $1 printconf_t:file r_file_perms;
+	read_files_pattern($1,printconf_t,printconf_t)
 ')
 
 ########################################
@@ -397,10 +386,5 @@ template(`lpd_domtrans_user_lpr',`
 		type $1_lpr_t, lpr_exec_t;
 	')
 
-	domain_auto_trans($2, lpr_exec_t, $1_lpr_t)
-	allow $2 $1_lpr_t:fd use;
-	allow $1_lpr_t $2:fd use;
-	allow $1_lpr_t $2:fifo_file rw_file_perms;
-	allow $1_lpr_t $2:process sigchld;
+	domtrans_pattern($2, lpr_exec_t, $1_lpr_t)
 ')
-

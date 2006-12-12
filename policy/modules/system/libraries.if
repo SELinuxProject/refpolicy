@@ -16,12 +16,7 @@ interface(`libs_domtrans_ldconfig',`
 	')
 
 	corecmd_search_sbin($1)
-	domain_auto_trans($1,ldconfig_exec_t,ldconfig_t)
-
-	allow $1 ldconfig_t:fd use;
-	allow ldconfig_t $1:fd use;
-	allow ldconfig_t $1:fifo_file rw_file_perms;
-	allow ldconfig_t $1:process sigchld;
+	domtrans_pattern($1,ldconfig_exec_t,ldconfig_t)
 ')
 
 ########################################
@@ -72,11 +67,12 @@ interface(`libs_use_ld_so',`
 	')
 
 	files_list_etc($1)
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:lnk_file r_file_perms;
-	allow $1 ld_so_t:lnk_file r_file_perms;
-	allow $1 ld_so_t:file rx_file_perms;
-	allow $1 ld_so_cache_t:file r_file_perms;
+	allow $1 lib_t:dir list_dir_perms;
+
+	read_lnk_files_pattern($1,lib_t,{ lib_t ld_so_t })
+	mmap_files_pattern($1,lib_t,ld_so_t)
+
+	allow $1 ld_so_cache_t:file read_file_perms;
 ')
 
 ########################################
@@ -115,10 +111,9 @@ interface(`libs_exec_ld_so',`
 		type lib_t, ld_so_t;
 	')
 
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:lnk_file r_file_perms;
-	allow $1 ld_so_t:lnk_file r_file_perms;
-	can_exec($1,ld_so_t)
+	allow $1 lib_t:dir list_dir_perms;
+	read_lnk_files_pattern($1,lib_t,{ lib_t ld_so_t })
+	exec_files_pattern($1,lib_t,ld_so_t)
 ')
 
 ########################################
@@ -138,8 +133,7 @@ interface(`libs_manage_ld_so',`
 		type lib_t, ld_so_t;
 	')
 
-	allow $1 lib_t:dir rw_dir_perms;
-	allow $1 ld_so_t:file manage_file_perms;
+	manage_files_pattern($1,lib_t,ld_so_t)
 ')
 
 ########################################
@@ -159,8 +153,7 @@ interface(`libs_relabel_ld_so',`
 		type lib_t, ld_so_t;
 	')
 
-	allow $1 lib_t:dir search_dir_perms;
-	allow $1 ld_so_t:file { relabelfrom relabelto };
+	relabel_files_pattern($1,lib_t,ld_so_t)
 ')
 
 ########################################
@@ -198,7 +191,7 @@ interface(`libs_search_lib',`
 		type lib_t;
 	')
 
-	allow $1 lib_t:dir search;
+	allow $1 lib_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -261,8 +254,9 @@ interface(`libs_read_lib_files',`
 	')
 
 	files_search_usr($1)
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:{ file lnk_file } r_file_perms;
+	list_dirs_pattern($1,lib_t,lib_t)
+	read_files_pattern($1,lib_t,lib_t)
+	read_lnk_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -281,9 +275,9 @@ interface(`libs_exec_lib_files',`
 	')
 
 	files_search_usr($1)
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:lnk_file r_file_perms;
-	can_exec($1,lib_t)
+	allow $1 lib_t:dir list_dir_perms;
+	read_lnk_files_pattern($1,lib_t,lib_t)
+	exec_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -303,9 +297,9 @@ interface(`libs_use_lib_files',`
 	')
 
 	files_list_usr($1)
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:lnk_file r_file_perms;
-	allow $1 lib_t:file rx_file_perms;
+	allow $1 lib_t:dir list_dir_perms;
+	read_lnk_files_pattern($1,lib_t,lib_t)
+	mmap_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -325,8 +319,7 @@ interface(`libs_manage_lib_files',`
 		type lib_t;
 	')
 
-	allow $1 lib_t:dir rw_dir_perms;
-	allow $1 lib_t:file manage_file_perms;
+	manage_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -344,8 +337,7 @@ interface(`libs_relabelto_lib_files',`
 		type lib_t;
 	')
 
-	allow $1 lib_t:dir search_dir_perms;
-	allow $1 lib_t:file relabelto;
+	relabelto_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -365,8 +357,7 @@ interface(`libs_relabel_lib_files',`
 		type lib_t;
 	')
 
-	allow $1 lib_t:dir search_dir_perms;
-	allow $1 lib_t:file { relabelfrom relabelto };
+	relabel_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -385,8 +376,7 @@ interface(`libs_delete_lib_symlinks',`
 		type lib_t;
 	')
 
-	allow $1 lib_t:dir { getattr search read write remove_name };
-	allow $1 lib_t:lnk_file unlink;
+	delete_lnk_files_pattern($1,lib_t,lib_t)
 ')
 
 ########################################
@@ -405,8 +395,7 @@ interface(`libs_manage_shared_libs',`
 		type lib_t, shlib_t, textrel_shlib_t;
 	')
 
-	allow $1 lib_t:dir rw_dir_perms;
-	allow $1 { shlib_t textrel_shlib_t }:file manage_file_perms;
+	manage_files_pattern($1,lib_t,{ shlib_t textrel_shlib_t })
 ')
 
 ########################################
@@ -425,10 +414,9 @@ interface(`libs_use_shared_libs',`
 	')
 
 	files_list_usr($1)
-	allow $1 lib_t:dir r_dir_perms;
-	allow $1 lib_t:lnk_file r_file_perms;
-	allow $1 { shlib_t textrel_shlib_t }:lnk_file r_file_perms;
-	allow $1 { shlib_t textrel_shlib_t }:file rx_file_perms;
+	allow $1 lib_t:dir list_dir_perms;
+	read_lnk_files_pattern($1,lib_t,{ lib_t shlib_t textrel_shlib_t })
+	mmap_files_pattern($1,lib_t,{ shlib_t textrel_shlib_t })
 	allow $1 textrel_shlib_t:file execmod;
 ')
 
@@ -469,8 +457,7 @@ interface(`libs_relabel_shared_libs',`
 		type lib_t, shlib_t, textrel_shlib_t;
 	')
 
-	allow $1 lib_t:dir search_dir_perms;
-	allow $1 { shlib_t textrel_shlib_t }:file { relabelfrom relabelto };
+	relabel_files_pattern($1,lib_t,{ shlib_t textrel_shlib_t })
 ')
 
 ########################################
@@ -491,9 +478,8 @@ interface(`libs_relabel_shared_libs',`
 #
 interface(`files_lib_filetrans_shared_lib',`
 	gen_require(`
-		type root_t;
+		type lib_t, shlib_t;
 	')
 
-	allow $1 root_t:dir rw_dir_perms;
-	type_transition $1 root_t:$2 shlib_t;
+	filetrans_pattern($1,lib_t,shlib_t,$2)
 ')

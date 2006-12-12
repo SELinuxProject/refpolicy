@@ -64,7 +64,8 @@ template(`uml_per_role_template',`
 	#
 	# Local policy
 	#
-	allow $1_uml_t self:fifo_file rw_file_perms;
+
+	allow $1_uml_t self:fifo_file rw_fifo_file_perms;
 	allow $1_uml_t self:process { signal_perms ptrace };
 	allow $1_uml_t self:unix_stream_socket create_stream_socket_perms;
 	allow $1_uml_t self:unix_dgram_socket create_socket_perms;
@@ -79,52 +80,58 @@ template(`uml_per_role_template',`
 	allow $1_uml_t $1_uml_devpts_t:chr_file { rw_file_perms setattr };
 	term_create_pty($1_uml_t,$1_uml_devpts_t)
 
-	allow $1_uml_t $1_uml_tmp_t:dir create_dir_perms;
-	allow $1_uml_t $1_uml_tmp_t:file create_file_perms;
+	manage_dirs_pattern($1_uml_t,$1_uml_tmp_t,$1_uml_tmp_t)
+	manage_files_pattern($1_uml_t,$1_uml_tmp_t,$1_uml_tmp_t)
 	files_tmp_filetrans($1_uml_t, $1_uml_tmp_t, { file dir })
 	can_exec($1_uml_t, $1_uml_tmp_t)
 
-	allow $1_uml_t $1_uml_tmpfs_t:dir { read getattr lock search ioctl add_name remove_name write };
-	allow $1_uml_t $1_uml_tmpfs_t:file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_uml_t $1_uml_tmpfs_t:lnk_file { create read getattr setattr link unlink rename };
-	allow $1_uml_t $1_uml_tmpfs_t:sock_file { create ioctl read getattr lock write setattr append link unlink rename };
-	allow $1_uml_t $1_uml_tmpfs_t:fifo_file { create ioctl read getattr lock write setattr append link unlink rename };
-	fs_tmpfs_filetrans($1_uml_t,$1_uml_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+	manage_files_pattern($1_uml_t,$1_uml_tmpfs_t,$1_uml_tmpfs_t)
+	manage_lnk_files_pattern($1_uml_t,$1_uml_tmpfs_t,$1_uml_tmpfs_t)
+	manage_fifo_files_pattern($1_uml_t,$1_uml_tmpfs_t,$1_uml_tmpfs_t)
+	manage_sock_files_pattern($1_uml_t,$1_uml_tmpfs_t,$1_uml_tmpfs_t)
+	fs_tmpfs_filetrans($1_uml_t,$1_uml_tmpfs_t,{ file lnk_file sock_file fifo_file })
 	can_exec($1_uml_t, $1_uml_tmpfs_t)
 
 	# access config files
-	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:dir r_dir_perms;
-	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:file r_file_perms;
-	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:lnk_file { getattr read };
+	allow $1_uml_t { $1_uml_ro_t uml_ro_t }:dir list_dir_perms;
+	read_files_pattern($1_uml_t,{ $1_uml_ro_t uml_ro_t },{ $1_uml_ro_t uml_ro_t })
+	read_lnk_files_pattern($1_uml_t,{ $1_uml_ro_t uml_ro_t },{ $1_uml_ro_t uml_ro_t })
 
-	allow $1_uml_t $1_uml_rw_t:dir create_dir_perms;
-	allow $1_uml_t $1_uml_rw_t:file create_file_perms;
-	allow $1_uml_t $1_uml_rw_t:lnk_file create_lnk_perms;
-	allow $1_uml_t $1_uml_rw_t:sock_file create_file_perms;
-	allow $1_uml_t $1_uml_rw_t:fifo_file create_file_perms;
+	manage_dirs_pattern($1_uml_t,$1_uml_rw_t,$1_uml_rw_t)
+	manage_files_pattern($1_uml_t,$1_uml_rw_t,$1_uml_rw_t)
+	manage_lnk_files_pattern($1_uml_t,$1_uml_rw_t,$1_uml_rw_t)
+	manage_fifo_files_pattern($1_uml_t,$1_uml_rw_t,$1_uml_rw_t)
+	manage_sock_files_pattern($1_uml_t,$1_uml_rw_t,$1_uml_rw_t)
 	userdom_user_home_dir_filetrans($1,$1_uml_t,$1_uml_rw_t,{ file lnk_file sock_file fifo_file })
 
-	allow $2 uml_ro_t:dir r_dir_perms;
-	allow $2 uml_ro_t:file r_file_perms;
-	allow $2 uml_ro_t:lnk_file { getattr read };
+	allow $2 uml_ro_t:dir list_dir_perms;
+	read_files_pattern($2,uml_ro_t,uml_ro_t)
+	read_lnk_files_pattern($2,uml_ro_t,uml_ro_t)
 
-	allow $2 { $1_uml_ro_t $1_uml_rw_t }:{ file sock_file fifo_file } { relabelfrom relabelto create_file_perms };
-	allow $2 { $1_uml_ro_t $1_uml_rw_t }:lnk_file { relabelfrom relabelto create_lnk_perms };
-	allow $2 { $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t }:dir { relabelfrom relabelto create_dir_perms };
-	allow $2 $1_uml_exec_t:file { relabelfrom relabelto create_file_perms };
+	manage_dirs_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	manage_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	manage_lnk_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	manage_fifo_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	manage_sock_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	relabel_dirs_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	relabel_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	relabel_lnk_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	relabel_fifo_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
+	relabel_sock_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t },{ $1_uml_ro_t $1_uml_rw_t })
 
-	allow $2 $1_uml_t:process ptrace;
-	allow $2 $1_uml_t:process signal_perms;
+	manage_dirs_pattern($2,{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t },{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t })
+	manage_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t },{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t })
+	relabel_dirs_pattern($2,{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t },{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t })
+	relabel_files_pattern($2,{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t },{ $1_uml_ro_t $1_uml_rw_t $1_uml_exec_t })
 
 	# allow ps, ptrace, signal
-	allow $2 $1_uml_t:dir { search getattr read };
-	allow $2 $1_uml_t:{ file lnk_file } { read getattr };
-	allow $2 $1_uml_t:process getattr;
+	ps_process_pattern($2,$1_uml_t)
+	allow $2 $1_uml_t:process { ptrace signal_perms };
 
-	allow $2 $1_uml_tmp_t:dir create_dir_perms;
-	allow $2 $1_uml_tmp_t:file create_file_perms;
-	allow $2 $1_uml_tmp_t:lnk_file create_lnk_perms;
-	allow $2 $1_uml_tmp_t:sock_file create_file_perms;
+	manage_dirs_pattern($2,$1_uml_tmp_t,$1_uml_tmp_t)
+	manage_files_pattern($2,$1_uml_tmp_t,$1_uml_tmp_t)
+	manage_lnk_files_pattern($2,$1_uml_tmp_t,$1_uml_tmp_t)
+	manage_sock_files_pattern($2,$1_uml_tmp_t,$1_uml_tmp_t)
 
 	# Transition from the user domain to this domain.
 	domain_auto_trans($2, { uml_exec_t $1_uml_exec_t }, $1_uml_t)
@@ -245,7 +252,6 @@ interface(`uml_manage_util_files',`
 		type uml_switch_var_run_t;
 	')
 
-	allow $1 uml_switch_var_run_t:dir rw_dir_perms;
-	allow $1 uml_switch_var_run_t:file create_file_perms;
-	allow $1 uml_switch_var_run_t:lnk_file create_lnk_perms;
+	manage_files_pattern($1,uml_switch_var_run_t,uml_switch_var_run_t)
+	manage_lnk_files_pattern($1,uml_switch_var_run_t,uml_switch_var_run_t)
 ')
