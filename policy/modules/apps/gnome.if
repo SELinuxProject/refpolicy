@@ -35,19 +35,24 @@
 template(`gnome_per_role_template',`
 	gen_require(`
 		type gconfd_exec_t;
+		attribute gnomedomain;
 	')
 
 	##############################
 	#
 	# Declarations
 	#
-	type $1_gconfd_t;
+	type $1_gconfd_t, gnomedomain;
+
 	domain_type($1_gconfd_t)
 	domain_entry_file($1_gconfd_t, gconfd_exec_t)
 	role $3 types $1_gconfd_t;
 
 	type $1_gconf_home_t;
-	files_type($1_gconf_home_t)
+	userdom_user_home_content($1, $1_gconf_home_t)
+
+	type $1_gnome_home_t;
+	userdom_user_home_content($1, $1_gnome_home_t)
 
 	type $1_gconf_tmp_t;
 	files_tmp_file($1_gconf_tmp_t)
@@ -58,6 +63,7 @@ template(`gnome_per_role_template',`
 	#
 
 	allow $1_gconfd_t self:process getsched;
+ 	allow $1_gconfd_t self:fifo_file rw_fifo_file_perms;
 
 	manage_dirs_pattern($1_gconfd_t,$1_gconf_home_t,$1_gconf_home_t)
 	manage_files_pattern($1_gconfd_t,$1_gconf_home_t,$1_gconf_home_t)
@@ -74,6 +80,8 @@ template(`gnome_per_role_template',`
 
 	allow $1_gconfd_t gconf_etc_t:dir list_dir_perms;
 	read_files_pattern($1_gconfd_t,gconf_etc_t,gconf_etc_t)
+
+	ps_process_pattern($2,$1_gconfd_t)
 
 	dev_read_urand($1_gconfd_t)
 
@@ -124,6 +132,64 @@ template(`gnome_stream_connect_gconf_template',`
 		type $1_gconf_tmp_t;
 	')
 
+	read_files_pattern($2,$1_gconf_tmp_t,$1_gconf_tmp_t)
 	allow $2 $1_gconfd_t:unix_stream_socket connectto;
-	allow $2 $1_gconf_tmp_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Run gconfd in the role-specific gconfd domain.
+## </summary>
+## <desc>
+##	<p>
+##	Run gconfd in the role-specfic gconfd domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`gnome_domtrans_user_gconf',`
+	gen_require(`
+		type $1_gconfd_t, gconfd_exec_t;
+	')
+
+	domtrans_pattern($2,gconfd_exec_t,$1_gconfd_t)
+')
+
+########################################
+## <summary>
+##	manage gnome homedir content (.config)
+## </summary>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`gnome_manage_user_gnome_config',`
+	gen_require(`
+		type $1_gnome_home_t;
+	')
+
+	allow $2 $1_gnome_home_t:dir manage_dir_perms;
+	allow $2 $1_gnome_home_t:file manage_file_perms;
 ')

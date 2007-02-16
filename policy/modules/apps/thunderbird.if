@@ -46,6 +46,7 @@ template(`thunderbird_per_role_template',`
 
 	type $1_thunderbird_home_t alias $1_thunderbird_rw_t;
 	files_poly_member($1_thunderbird_home_t)
+	userdom_user_home_content($1, $1_thunderbird_home_t)
 
 	type $1_thunderbird_tmpfs_t;
 	files_tmpfs_file($1_thunderbird_tmpfs_t)
@@ -62,6 +63,7 @@ template(`thunderbird_per_role_template',`
 	allow $1_thunderbird_t self:unix_stream_socket { create accept connect write getattr read listen bind };
 	allow $1_thunderbird_t self:tcp_socket create_socket_perms;
 	allow $1_thunderbird_t self:shm { read write create destroy unix_read unix_write };
+ 	allow $1_thunderbird_t self:netlink_route_socket r_netlink_socket_perms;
 
 	# Access ~/.thunderbird
 	manage_dirs_pattern($1_thunderbird_t,$1_thunderbird_home_t,$1_thunderbird_home_t)
@@ -89,16 +91,19 @@ template(`thunderbird_per_role_template',`
 	manage_dirs_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
 	manage_files_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
 	manage_lnk_files_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
+
 	relabel_dirs_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
 	relabel_files_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
 	relabel_lnk_files_pattern($2,$1_thunderbird_home_t,$1_thunderbird_home_t)
 	
 	# Allow netstat
 	kernel_read_network_state($1_thunderbird_t)
+	kernel_read_net_sysctls($1_thunderbird_t)
+	kernel_read_system_state($1_thunderbird_t)
 	
 	corecmd_exec_shell($1_thunderbird_t)
 	# Startup shellscript
-	corecmd_exec_bin($1_thunderbird_t)
+	corecmd_search_sbin($1_thunderbird_t)
 
 	corenet_non_ipsec_sendrecv($1_thunderbird_t)
 	corenet_tcp_sendrecv_generic_if($1_thunderbird_t)
@@ -122,11 +127,22 @@ template(`thunderbird_per_role_template',`
 	corenet_sendrecv_pop_client_packets($1_thunderbird_t)
 	corenet_sendrecv_http_client_packets($1_thunderbird_t)
 
+ 	dev_read_urand($1_thunderbird_t)
+	dev_dontaudit_search_sysfs($1_thunderbird_t)
+
 	files_list_tmp($1_thunderbird_t)
 	files_read_usr_files($1_thunderbird_t)
 	files_read_etc_files($1_thunderbird_t)
+	files_read_etc_runtime_files($1_thunderbird_t)
+	files_read_var_files($1_thunderbird_t)
+	files_read_var_symlinks($1_thunderbird_t)
+	files_dontaudit_getattr_all_tmp_files($1_thunderbird_t)
+	files_dontaudit_getattr_boot_dirs($1_thunderbird_t)
+	files_dontaudit_getattr_lost_found_dirs($1_thunderbird_t)
+	files_dontaudit_search_mnt($1_thunderbird_t)
 
 	fs_getattr_xattr_fs($1_thunderbird_t)
+	fs_list_inotifyfs($1_thunderbird_t)
 	# Access ~/.thunderbird
 	fs_search_auto_mountpoints($1_thunderbird_t)
 	
@@ -134,6 +150,7 @@ template(`thunderbird_per_role_template',`
 	libs_use_ld_so($1_thunderbird_t)
 
 	miscfiles_read_fonts($1_thunderbird_t)
+	miscfiles_read_localization($1_thunderbird_t)
 
 	sysnet_read_config($1_thunderbird_t)
 	# Allow DNS
@@ -147,7 +164,9 @@ template(`thunderbird_per_role_template',`
 	userdom_read_user_home_content_files($1,$1_thunderbird_t)
 
 	xserver_user_client_template($1,$1_thunderbird_t,$1_thunderbird_tmpfs_t)
-	
+	xserver_read_xdm_tmp_files($1_thunderbird_t)
+	xserver_dontaudit_getattr_xdm_tmp_sockets($1_thunderbird_t)
+
 	# Transition from user type
 	tunable_policy(`! disable_thunderbird_trans',`
 		domain_auto_trans($2, thunderbird_exec_t, $1_thunderbird_t)
@@ -200,7 +219,6 @@ template(`thunderbird_per_role_template',`
 		userdom_read_user_tmp_symlinks($1,$1_thunderbird_t)
 		userdom_search_user_home_dirs($1,$1_thunderbird_t)
 		userdom_read_user_home_content_files($1,$1_thunderbird_t)
-		userdom_read_user_home_content_symlinks($1,$1_thunderbird_t)
 		
 		ifndef(`enable_mls',`
 			fs_search_removable($1_thunderbird_t)
@@ -284,9 +302,10 @@ template(`thunderbird_per_role_template',`
 		files_search_home($1_thunderbird_t)
 		files_tmp_filetrans($1_thunderbird_t,$1_untrusted_content_tmp_t,file)
 		files_tmp_filetrans($1_thunderbird_t,$1_untrusted_content_tmp_t,dir)
-
-		userdom_manage_user_untrusted_content_files($1,$1_thunderbird_t,file)
-		userdom_manage_user_untrusted_content_files($1,$1_thunderbird_t,dir)
+		userdom_manage_user_untrusted_content_files($1,$1_thunderbird_t)
+		userdom_manage_user_untrusted_content_tmp_files($1, $1_thunderbird_t)
+		userdom_user_home_dir_filetrans($1,$1_thunderbird_t,$1_untrusted_content_tmp_t, { file dir })
+		userdom_user_home_content_filetrans($1,$1_thunderbird_t,$1_untrusted_content_tmp_t, { file dir })
 	',`
 		files_dontaudit_list_home($1_thunderbird_t)
 		files_dontaudit_list_tmp($1_thunderbird_t)
@@ -305,11 +324,14 @@ template(`thunderbird_per_role_template',`
 	')
 
 	optional_policy(`
-		lpd_domtrans_user_lpr($1,$1_thunderbird_t)
+		cups_read_rw_config($1_thunderbird_t)
+		cups_dbus_chat($1_thunderbird_t)
 	')
 
 	optional_policy(`
-		cups_read_rw_config($1_thunderbird_t)
+		gnome_stream_connect_gconf_template($1,$1_thunderbird_t)
+		gnome_domtrans_user_gconf($1, $1_thunderbird_t)
+		gnome_manage_user_gnome_config($1, $1_thunderbird_t)
 	')
 
 	optional_policy(`
@@ -317,7 +339,21 @@ template(`thunderbird_per_role_template',`
 	')
 
 	optional_policy(`
+		lpd_domtrans_user_lpr($1,$1_thunderbird_t)
+	')
+
+	optional_policy(`
+		mozilla_read_user_home_files($1, $1_thunderbird_t)
+		mozilla_domtrans_user_mozilla($1, $1_thunderbird_t)
+		mozilla_dbus_chat($1, $1_thunderbird_t)
+	')
+
+	optional_policy(`
 		nis_use_ypbind($1_thunderbird_t)
+	')
+
+	optional_policy(`
+		nscd_socket_use($1_thunderbird_t)
 	')
 
 	ifdef(`TODO',`
@@ -325,24 +361,44 @@ template(`thunderbird_per_role_template',`
 		# A similar thing might be necessary for mozilla compiled without GNOME
 		# support (is this possible?).
 
-		# Start links in web browser
-		ifdef(`mozilla.te', `
-			can_exec($1_thunderbird_t, shell_exec_t)
-			domain_auto_trans($1_thunderbird_t, mozilla_exec_t, $1_mozilla_t)
-		')
-
 		# GNOME support
 		optional_policy(`
 			gnome_application($1_thunderbird, $1)
 			gnome_file_dialog($1_thunderbird, $1)
 			allow $1_thunderbird_t $1_gnome_settings_t:file { read write };
 		')
-		optinal_policy(`
-			allow $1_t $2_dbusd_t:dbus send_msg;
-			ifdef(`cups.te', `
-				allow cupsd_t $1_t:dbus send_msg;
-			')
-		')
-
 	')
+')
+
+########################################
+## <summary>
+##	Run thunderbird in the user thunderbird domain.
+## </summary>
+## <desc>
+##	<p>
+##	Run thunderbird in the user thunderbird domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`thunderbird_domtrans_user_thunderbird',`
+	gen_require(`
+		type $1_thunderbird_t, thunderbird_exec_t;
+	')
+
+	domtrans_pattern($2, thunderbird_exec_t,$1_thunderbird_t)
 ')

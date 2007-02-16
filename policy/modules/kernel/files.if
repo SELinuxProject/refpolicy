@@ -1004,6 +1004,29 @@ interface(`files_dontaudit_search_all_dirs',`
 
 ########################################
 ## <summary>
+##	Get the attributes of all filesystems
+##	with the type of a file.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+# dwalsh: This interface is to allow quotacheck to work on a 
+# a filesystem mounted with the --context switch
+# https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=212957
+#
+interface(`files_getattr_all_file_type_fs',`
+	gen_require(`
+		attribute file_type;
+	')
+
+	allow $1 file_type:filesystem getattr;
+')
+
+########################################
+## <summary>
 ##	Relabel a filesystem to the type of a file.
 ## </summary>
 ## <param name="domain">
@@ -1939,6 +1962,24 @@ interface(`files_read_etc_symlinks',`
 
 ########################################
 ## <summary>
+##	Create, read, write, and delete symbolic links in /etc.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_manage_etc_symlinks',`
+	gen_require(`
+		type etc_t;
+	')
+
+	manage_lnk_files_pattern($1,etc_t,etc_t)
+')
+
+########################################
+## <summary>
 ##	Create objects in /etc with a private
 ##	type using a type_transition.
 ## </summary>
@@ -2485,6 +2526,25 @@ interface(`files_getattr_lost_found_dirs',`
 	')
 
 	allow $1 lost_found_t:dir getattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the attributes of
+##	lost+found directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`files_dontaudit_getattr_lost_found_dirs',`
+	gen_require(`
+		type lost_found_t;
+	')
+
+	dontaudit $1 lost_found_t:dir getattr;
 ')
 
 ########################################
@@ -3131,6 +3191,43 @@ interface(`files_setattr_all_tmp_dirs',`
 
 ########################################
 ## <summary>
+##	Do not audit attempts to get the attributes
+##	of all tmp files. 
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain not to audit.
+##	</summary>
+## </param>
+#
+interface(`files_dontaudit_getattr_all_tmp_files',`
+	gen_require(`
+		attribute tmpfile;
+	')
+
+	dontaudit $1 tmpfile:file getattr;
+')
+
+########################################
+## <summary>
+##	Read all tmp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_read_all_tmp_files',`
+	gen_require(`
+		attribute tmpfile;
+	')
+
+	read_files_pattern($1,tmpfile,tmpfile)
+')
+
+########################################
+## <summary>
 ##	Create an object in the tmp directories, with a private
 ##	type using a type transition.
 ## </summary>
@@ -3515,6 +3612,24 @@ interface(`files_dontaudit_write_var_dirs',`
 
 ########################################
 ## <summary>
+##	Allow attempts to write to /var.dirs
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`files_write_var_dirs',`
+	gen_require(`
+		type var_t;
+	')
+
+	allow $1 var_t:dir write;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to search
 ##	the contents of /var.
 ## </summary>
@@ -3786,6 +3901,7 @@ interface(`files_read_var_lib_files',`
 		type var_t, var_lib_t;
 	')
 
+	allow $1 var_lib_t:dir list_dir_perms;
 	read_files_pattern($1,{ var_t var_lib_t },var_lib_t)
 ')
 
@@ -4421,7 +4537,7 @@ interface(`files_polyinstantiate_all',`
 	selinux_compute_member($1)
 
 	# Need sys_admin capability for mounting
-	allow $1 self:capability sys_admin;
+	allow $1 self:capability { chown fsetid sys_admin };
 
 	# Need to give access to the directories to be polyinstantiated
 	allow $1 polydir:dir { create getattr search write add_name setattr mounton rmdir };
@@ -4437,7 +4553,7 @@ interface(`files_polyinstantiate_all',`
 	allow $1 self:process setfscreate;
 	allow $1 polymember: dir { create setattr relabelto };
 	allow $1 polydir: dir { write add_name };
-	allow $1 polyparent:dir { write add_name relabelfrom relabelto };
+	allow $1 polyparent:dir { read write remove_name add_name relabelfrom relabelto };
 
 	# Default type for mountpoints
 	allow $1 poly_t:dir { create mounton };

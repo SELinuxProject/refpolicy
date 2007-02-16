@@ -45,7 +45,7 @@ template(`xserver_common_domain_template',`
 	# execheap needed until the X module loader is fixed.
 	# NVIDIA Needs execstack
 
-	allow $1_xserver_t self:capability { dac_override fsetid setgid setuid ipc_owner sys_rawio sys_admin sys_nice sys_tty_config mknod net_bind_service };
+	allow $1_xserver_t self:capability { dac_override fowner fsetid setgid setuid ipc_owner sys_rawio sys_admin sys_nice sys_tty_config mknod net_bind_service };
 	dontaudit $1_xserver_t self:capability chown;
 	allow $1_xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 	allow $1_xserver_t self:fd use;
@@ -138,6 +138,7 @@ template(`xserver_common_domain_template',`
 	fs_getattr_xattr_fs($1_xserver_t)
 	fs_search_nfs($1_xserver_t)
 	fs_search_auto_mountpoints($1_xserver_t)
+	fs_search_ramfs($1_xserver_t)
 
 	init_getpgid($1_xserver_t)
 
@@ -180,6 +181,11 @@ template(`xserver_common_domain_template',`
 
 	optional_policy(`
 		nscd_socket_use($1_xserver_t)
+	')
+
+	optional_policy(`
+		rhgb_getpgid($1_xserver_t)
+		rhgb_signal($1_xserver_t)
 	')
 
 	optional_policy(`
@@ -309,6 +315,7 @@ template(`xserver_per_role_template',`
 	userdom_rw_user_tmpfs_files($1,$1_xserver_t)
 
 	xserver_use_user_fonts($1,$1_xserver_t)
+	xserver_rw_xdm_tmp_files($1_xauth_t)
 
 	optional_policy(`
 		userhelper_search_config($1_xserver_t)
@@ -401,6 +408,8 @@ template(`xserver_per_role_template',`
 
 	allow $2 $1_iceauth_home_t:file manage_file_perms;
 	allow $2 $1_iceauth_home_t:file { relabelfrom relabelto };
+
+	allow xdm_t $1_iceauth_home_t:file r_file_perms;
 
 	fs_search_auto_mountpoints($1_iceauth_t)
 
@@ -525,7 +534,7 @@ template(`xserver_user_client_template',`
 
 	gen_require(`
 		type xdm_t, xdm_tmp_t;
-		type $1_xauth_home_t, $1_xserver_t, $1_xserver_tmpfs_t;
+		type $1_xauth_home_t, $1_iceauth_home_t, $1_xserver_t, $1_xserver_tmpfs_t;
 	')
 
 	allow $2 self:shm create_shm_perms;
@@ -534,6 +543,7 @@ template(`xserver_user_client_template',`
 
 	# Read .Xauthority file
 	allow $2 $1_xauth_home_t:file { getattr read };
+	allow $2 $1_iceauth_home_t:file { getattr read };
 
 	# for when /tmp/.X11-unix is created by the system
 	allow $2 xdm_t:fd use;
@@ -554,6 +564,8 @@ template(`xserver_user_client_template',`
 	xserver_ro_session_template(xdm,$2,$3)
 	xserver_rw_session_template($1,$2,$3)
 	xserver_use_user_fonts($1,$2)
+
+	xserver_read_xdm_tmp_files($2)
 
 	# Client write xserver shm
 	tunable_policy(`allow_write_xshm',`
@@ -640,6 +652,39 @@ template(`xserver_domtrans_user_xauth',`
 	')
 
 	domtrans_pattern($2, xauth_exec_t, $1_xauth_t)
+')
+
+########################################
+## <summary>
+##	Transition to a user Xauthority domain.
+## </summary>
+## <desc>
+##	<p>
+##	Transition to a user Xauthority domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`xserver_user_home_dir_filetrans_user_xauth',`
+	gen_require(`
+		type $1_xauth_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, $2, $1_xauth_home_t, file)
 ')
 
 ########################################
@@ -914,6 +959,7 @@ interface(`xserver_domtrans_xdm_xserver',`
 		type xdm_xserver_t, xserver_exec_t;
 	')
 
+ 	allow $1 xdm_xserver_t:process siginh;
 	domtrans_pattern($1,xserver_exec_t,xdm_xserver_t)
 ')
 
@@ -1029,6 +1075,7 @@ interface(`xserver_delete_log',`
 	logging_search_logs($1)
 	allow $1 xserver_log_t:dir list_dir_perms;
 	delete_files_pattern($1,xserver_log_t,xserver_log_t)
+	delete_fifo_files_pattern($1,xserver_log_t,xserver_log_t)
 ')
 
 ########################################
@@ -1085,7 +1132,82 @@ interface(`xserver_read_xdm_tmp_files',`
 		type xdm_tmp_t;
 	')
 
+ 	files_search_tmp($1)
 	read_files_pattern($1,xdm_tmp_t,xdm_tmp_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read xdm temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`xserver_dontaudit_read_xdm_tmp_files',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	dontaudit $1 xdm_tmp_t:dir search_dir_perms;
+	dontaudit $1 xdm_tmp_t:file r_file_perms;
+')
+
+########################################
+## <summary>
+##	Read write xdm temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`xserver_rw_xdm_tmp_files',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	allow $1 xdm_tmp_t:dir search_dir_perms;
+	allow $1 xdm_tmp_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete xdm temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`xserver_manage_xdm_tmp_files',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	manage_files_pattern($1,xdm_tmp_t,xdm_tmp_t)
+')
+
+########################################
+## <summary>
+##	dontaudit getattr xdm temporary named sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`xserver_dontaudit_getattr_xdm_tmp_sockets',`
+	gen_require(`
+		type xdm_tmp_t;
+	')
+
+	dontaudit $1 xdm_tmp_t:sock_file getattr;
 ')
 
 ########################################
@@ -1141,6 +1263,25 @@ interface(`xserver_dontaudit_rw_xdm_xserver_tcp_sockets',`
 	')
 
 	dontaudit $1 xdm_xserver_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write xdm_xserver
+##	unix domain stream sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xserver_dontaudit_rw_xdm_stream_sockets',`
+	gen_require(`
+		type xdm_xserver_t;
+	')
+
+	dontaudit $1 xdm_xserver_t:unix_stream_socket { read write };
 ')
 
 ########################################

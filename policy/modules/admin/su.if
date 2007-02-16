@@ -61,6 +61,7 @@ template(`su_restricted_domain_template', `
 	kernel_read_system_state($1_su_t)
 	kernel_read_kernel_sysctls($1_su_t)
 	kernel_search_key($1_su_t)
+	kernel_link_key($1_su_t)
 
 	# for SSP
 	dev_read_urand($1_su_t)
@@ -160,11 +161,12 @@ template(`su_restricted_domain_template', `
 #
 template(`su_per_role_template',`
 	gen_require(`
+		attribute su_domain_type;
 		type su_exec_t;
 		bool secure_mode;
 	')
 
-	type $1_su_t;
+	type $1_su_t, su_domain_type;
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
 	domain_interactive_fd($1_su_t)
@@ -177,6 +179,7 @@ template(`su_per_role_template',`
 	allow $1_su_t self:process { setexec setsched setrlimit };
 	allow $1_su_t self:fifo_file rw_fifo_file_perms;
 	allow $1_su_t self:netlink_audit_socket { nlmsg_relay create_netlink_socket_perms };
+	allow $1_su_t self:key { search write };
 
 	# Transition from the user domain to this domain.
 	domtrans_pattern($2, su_exec_t, $1_su_t)
@@ -189,11 +192,16 @@ template(`su_per_role_template',`
 
 	kernel_read_system_state($1_su_t)
 	kernel_read_kernel_sysctls($1_su_t)
+	kernel_search_key($1_su_t)
+	kernel_link_key($1_su_t)
 
 	# for SSP
 	dev_read_urand($1_su_t)
 
 	fs_search_auto_mountpoints($1_su_t)
+
+	# needed for pam_rootok
+	selinux_compute_access_vector($1_su_t)
 
 	auth_domtrans_user_chk_passwd($1,$1_su_t)
 	auth_dontaudit_read_shadow($1_su_t)
@@ -213,6 +221,8 @@ template(`su_per_role_template',`
 	# Write to utmp.
 	init_rw_utmp($1_su_t)
 
+	mls_file_write_down($1_su_t)
+
 	libs_use_ld_so($1_su_t)
 	libs_use_shared_libs($1_su_t)
 
@@ -230,7 +240,6 @@ template(`su_per_role_template',`
 
 		selinux_get_fs_mount($1_su_t)
 		selinux_validate_context($1_su_t)
-		selinux_compute_access_vector($1_su_t)
 		selinux_compute_create_context($1_su_t)
 		selinux_compute_relabel_context($1_su_t)
 		selinux_compute_user_contexts($1_su_t)
@@ -297,9 +306,7 @@ template(`su_per_role_template',`
 
 	# Modify .Xauthority file (via xauth program).
 	optional_policy(`
-#		file_type_auto_trans($1_su_t, staff_home_dir_t, staff_xauth_home_t, file)
-#		file_type_auto_trans($1_su_t, user_home_dir_t, user_xauth_home_t, file)
-#		file_type_auto_trans($1_su_t, sysadm_home_dir_t, sysadm_xauth_home_t, file)
+		xserver_user_home_dir_filetrans_user_xauth($1, su_domain_type)
 		xserver_domtrans_user_xauth($1, $1_su_t)
 	')
 

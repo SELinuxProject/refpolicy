@@ -1,5 +1,5 @@
 
-policy_module(ccs,1.0.0)
+policy_module(ccs,1.0.1)
 
 ########################################
 #
@@ -18,6 +18,10 @@ files_type(cluster_conf_t)
 type ccs_var_log_t;
 logging_log_file(ccs_var_log_t)
 
+# var lib files
+type ccs_var_lib_t;
+logging_log_file(ccs_var_lib_t)
+
 # pid files
 type ccs_var_run_t;
 files_pid_file(ccs_var_run_t)
@@ -27,7 +31,7 @@ files_pid_file(ccs_var_run_t)
 # ccs local policy
 #
 
-allow ccs_t self:capability { ipc_lock sys_nice sys_resource };
+allow ccs_t self:capability { ipc_lock sys_nice sys_resource sys_admin };
 allow ccs_t self:process { signal setrlimit setsched };
 allow ccs_t self:fifo_file { read write };
 allow ccs_t self:unix_stream_socket { connectto create_stream_socket_perms };
@@ -45,6 +49,11 @@ manage_files_pattern(ccs_t,ccs_var_log_t,ccs_var_log_t)
 manage_sock_files_pattern(ccs_t,ccs_var_log_t,ccs_var_log_t)
 allow ccs_t ccs_var_log_t:dir setattr;
 logging_log_filetrans(ccs_t,ccs_var_log_t,{ sock_file file dir })
+
+# var lib files
+manage_dirs_pattern(ccs_t,ccs_var_lib_t,ccs_var_lib_t)
+manage_files_pattern(ccs_t,ccs_var_lib_t,ccs_var_lib_t)
+files_var_lib_filetrans(ccs_t,ccs_var_lib_t,{ file dir })
 
 # pid file
 manage_dirs_pattern(ccs_t,ccs_var_run_t,ccs_var_run_t)
@@ -86,6 +95,11 @@ logging_send_syslog_msg(ccs_t)
 miscfiles_read_localization(ccs_t)
 
 sysnet_dns_name_resolve(ccs_t)
+
+ifdef(`hide_broken_symptoms', `
+	corecmd_dontaudit_write_sbin_dirs(ccs_t)
+	files_manage_isid_type_files(ccs_t)
+')
 
 ifdef(`targeted_policy',`
 	term_dontaudit_use_generic_ptys(ccs_t)

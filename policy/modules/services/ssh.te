@@ -1,5 +1,5 @@
 
-policy_module(ssh,1.5.0)
+policy_module(ssh,1.5.1)
 
 ########################################
 #
@@ -7,6 +7,10 @@ policy_module(ssh,1.5.0)
 #
 
 attribute ssh_server;
+
+# Type for the ssh-agent executable.
+type ssh_agent_exec_t;
+files_type(ssh_agent_exec_t)
 
 # ssh client executable.
 type ssh_exec_t;
@@ -23,46 +27,20 @@ corecmd_executable_file(ssh_keysign_exec_t)
 type sshd_exec_t;
 corecmd_executable_file(sshd_exec_t)
 
+ssh_server_template(sshd)
+init_daemon_domain(sshd_t,sshd_exec_t)
+
+ssh_server_template(sshd_extern)
+
 type sshd_key_t;
 files_type(sshd_key_t)
 
-ifdef(`targeted_policy',`
-	unconfined_alias_domain(sshd_t)
-	init_system_domain(sshd_t,sshd_exec_t)
+type sshd_tmp_t;
+files_tmp_file(sshd_tmp_t)
+files_poly_parent(sshd_tmp_t)
 
-	type sshd_var_run_t;
-	files_type(sshd_var_run_t)
-
-	ifdef(`enable_mcs',`
-		init_ranged_system_domain(sshd_t,sshd_exec_t,s0 - mcs_systemhigh)
-	')
-',`
-	# Type for the ssh-agent executable.
-	type ssh_agent_exec_t;
-	files_type(ssh_agent_exec_t)
-
-	ssh_server_template(sshd)
-	ssh_server_template(sshd_extern)
-
-	# cjp: commenting this out until typeattribute works in a conditional
-#	optional_policy(`
-#		tunable_policy(`run_ssh_inetd',`
-#			inetd_tcp_service_domain(sshd_t,sshd_exec_t)
-#		',`
-#			init_daemon_domain(sshd_t,sshd_exec_t)
-#		')
-#	',`
-		# These rules should match the else block
-		# of the run_ssh_inetd tunable directly above
-		init_daemon_domain(sshd_t,sshd_exec_t)
-
-		ifdef(`enable_mcs',`
-			init_ranged_daemon_domain(sshd_t,sshd_exec_t,s0 - mcs_systemhigh)
-		')
-#	')
-
-	type sshd_tmp_t;
-	files_tmp_file(sshd_tmp_t)
+ifdef(`enable_mcs',`
+	init_ranged_daemon_domain(sshd_t,sshd_exec_t,s0 - mcs_systemhigh)
 ')
 
 #################################
@@ -72,79 +50,86 @@ ifdef(`targeted_policy',`
 # sshd_t is the domain for the sshd program.
 #
 
-ifdef(`strict_policy',`
-	# so a tunnel can point to another ssh tunnel
-	allow sshd_t self:netlink_route_socket r_netlink_socket_perms;
-	allow sshd_t self:key { search link write };
+# so a tunnel can point to another ssh tunnel
+allow sshd_t self:netlink_route_socket r_netlink_socket_perms;
+allow sshd_t self:key { search link write };
 
-	manage_dirs_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
-	manage_files_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
-	manage_sock_files_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
-	files_tmp_filetrans(sshd_t, sshd_tmp_t, { dir file sock_file })
+manage_dirs_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
+manage_files_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
+manage_sock_files_pattern(sshd_t,sshd_tmp_t,sshd_tmp_t)
+files_tmp_filetrans(sshd_t, sshd_tmp_t, { dir file sock_file })
 
-	kernel_link_key(sshd_t)
+kernel_search_key(sshd_t)
+kernel_link_key(sshd_t)
 
-	# for X forwarding
-	corenet_tcp_bind_xserver_port(sshd_t)
-	corenet_sendrecv_xserver_server_packets(sshd_t)
+# for X forwarding
+corenet_tcp_bind_xserver_port(sshd_t)
+corenet_sendrecv_xserver_server_packets(sshd_t)
 
-	tunable_policy(`ssh_sysadm_login',`
-		# Relabel and access ptys created by sshd
-		# ioctl is necessary for logout() processing for utmp entry and for w to
-		# display the tty.
-		# some versions of sshd on the new SE Linux require setattr
-		term_use_all_user_ptys(sshd_t)
-		term_setattr_all_user_ptys(sshd_t)
-		term_relabelto_all_user_ptys(sshd_t)
-
-		userdom_spec_domtrans_all_users(sshd_t)
-		userdom_signal_all_users(sshd_t)
-	',`
-		userdom_spec_domtrans_unpriv_users(sshd_t)
-		userdom_signal_unpriv_users(sshd_t)
-
-		userdom_setattr_unpriv_users_ptys(sshd_t)
-		userdom_relabelto_unpriv_users_ptys(sshd_t)
-		userdom_use_unpriv_users_ptys(sshd_t)
-	')
-
-	optional_policy(`
-		daemontools_service_domain(sshd_t, sshd_exec_t)
-	')
-
-	optional_policy(`
-		rpm_use_script_fds(sshd_t)
-	')
-
-	optional_policy(`
-		rssh_spec_domtrans_all_users(sshd_t)
-		# For reading /home/user/.ssh
-		rssh_read_all_users_ro_content(sshd_t)
-	')
-
-	ifdef(`TODO',`
-	tunable_policy(`ssh_sysadm_login',`
-		# Relabel and access ptys created by sshd
-		# ioctl is necessary for logout() processing for utmp entry and for w to
-		# display the tty.
-		# some versions of sshd on the new SE Linux require setattr
-		allow sshd_t ptyfile:chr_file relabelto;
-
-		optional_policy(`
-			domain_trans(sshd_t, xauth_exec_t, userdomain)
-		')
-	',`
-		optional_policy(`
-			domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
-		')
-		# Relabel and access ptys created by sshd
-		# ioctl is necessary for logout() processing for utmp entry and for w to
-		# display the tty.
-		# some versions of sshd on the new SE Linux require setattr
-		allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
-	')
-	') dnl endif TODO
+ifdef(`targeted_policy',`
+	unconfined_domain(sshd_t)
 ')
+
+tunable_policy(`ssh_sysadm_login',`
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	term_use_all_user_ptys(sshd_t)
+	term_setattr_all_user_ptys(sshd_t)
+	term_relabelto_all_user_ptys(sshd_t)
+
+	userdom_spec_domtrans_all_users(sshd_t)
+	userdom_signal_all_users(sshd_t)
+',`
+	userdom_spec_domtrans_unpriv_users(sshd_t)
+	userdom_signal_unpriv_users(sshd_t)
+
+	userdom_setattr_unpriv_users_ptys(sshd_t)
+	userdom_relabelto_unpriv_users_ptys(sshd_t)
+	userdom_use_unpriv_users_ptys(sshd_t)
+')
+
+optional_policy(`
+	daemontools_service_domain(sshd_t, sshd_exec_t)
+')
+
+optional_policy(`
+	inetd_tcp_service_domain(sshd_t, sshd_exec_t)
+')
+
+optional_policy(`
+	rpm_use_script_fds(sshd_t)
+')
+
+optional_policy(`
+	rssh_spec_domtrans_all_users(sshd_t)
+	# For reading /home/user/.ssh
+	rssh_read_all_users_ro_content(sshd_t)
+')
+
+ifdef(`TODO',`
+tunable_policy(`ssh_sysadm_login',`
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_t ptyfile:chr_file relabelto;
+
+	optional_policy(`
+		domain_trans(sshd_t, xauth_exec_t, userdomain)
+	')
+',`
+	optional_policy(`
+		domain_trans(sshd_t, xauth_exec_t, unpriv_userdomain)
+	')
+	# Relabel and access ptys created by sshd
+	# ioctl is necessary for logout() processing for utmp entry and for w to
+	# display the tty.
+	# some versions of sshd on the new SE Linux require setattr
+	allow sshd_t userpty_type:chr_file { relabelto read write getattr ioctl setattr };
+')
+') dnl endif TODO
 
 #################################
 #

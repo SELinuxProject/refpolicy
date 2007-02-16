@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.4.0)
+policy_module(selinuxutil,1.4.1)
 
 ifdef(`strict_policy',`
 	gen_require(`
@@ -292,6 +292,7 @@ domain_sigchld_interactive_fds(newrole_t)
 
 # Write to utmp.
 init_rw_utmp(newrole_t)
+init_use_fds(newrole_t)
 
 files_read_etc_files(newrole_t)
 files_read_var_files(newrole_t)
@@ -307,6 +308,7 @@ miscfiles_read_localization(newrole_t)
 userdom_use_unpriv_users_fds(newrole_t)
 # for some PAM modules and for cwd
 userdom_dontaudit_search_all_users_home_content(newrole_t)
+userdom_search_all_users_home_dirs(newrole_t)
 
 ifdef(`strict_policy',`
 	# if secure mode is enabled, then newrole
@@ -316,6 +318,10 @@ ifdef(`strict_policy',`
 	} else {
 		userdom_spec_domtrans_all_users(newrole_t)
 	}
+')
+
+tunable_policy(`allow_polyinstantiation',`
+	files_polyinstantiate_all(newrole_t)
 ')
 
 optional_policy(`
@@ -408,6 +414,11 @@ ifdef(`distro_redhat', `
 ifdef(`hide_broken_symptoms',`
 	optional_policy(`
 		udev_dontaudit_rw_dgram_sockets(restorecon_t)
+	')
+
+	optional_policy(`
+		unconfined_dontaudit_rw_pipes(restorecon_t)
+		unconfined_dontaudit_rw_tcp_sockets(restorecon_t)
 	')
 ')
 
@@ -669,6 +680,7 @@ auth_relabelto_shadow(setfiles_t)
 init_use_fds(setfiles_t)
 init_use_script_fds(setfiles_t)
 init_use_script_ptys(setfiles_t)
+init_exec_script_files(setfiles_t)
 
 domain_use_interactive_fds(setfiles_t)
 
@@ -688,3 +700,10 @@ miscfiles_read_localization(setfiles_t)
 userdom_use_all_users_fds(setfiles_t)
 # for config files in a home directory
 userdom_read_all_users_home_content_files(setfiles_t)
+
+ifdef(`hide_broken_symptoms',`
+	# cjp: cover up stray file descriptors.
+	optional_policy(`
+		unconfined_dontaudit_read_pipes(setfiles_t)
+	')
+')

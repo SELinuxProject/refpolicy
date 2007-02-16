@@ -53,7 +53,7 @@ template(`evolution_per_role_template',`
 	userdom_user_home_content($1,$1_evolution_home_t)
 
 	type $1_evolution_orbit_tmp_t;
-	files_type($1_evolution_orbit_tmp_t)
+	files_tmp_file($1_evolution_orbit_tmp_t)
 	
 	type $1_evolution_alarm_t;
 	domain_type($1_evolution_alarm_t)
@@ -64,7 +64,7 @@ template(`evolution_per_role_template',`
 	files_tmpfs_file($1_evolution_alarm_tmpfs_t)
 
 	type $1_evolution_alarm_orbit_tmp_t;
-	files_type($1_evolution_alarm_orbit_tmp_t)
+	files_tmp_file($1_evolution_alarm_orbit_tmp_t)
 
 	type $1_evolution_exchange_t;
 	domain_type($1_evolution_exchange_t)
@@ -78,7 +78,7 @@ template(`evolution_per_role_template',`
 	files_tmp_file($1_evolution_exchange_tmp_t)
 
 	type $1_evolution_exchange_orbit_tmp_t;
-	files_type($1_evolution_exchange_orbit_tmp_t)
+	files_tmp_file($1_evolution_exchange_orbit_tmp_t)
 
 	type $1_evolution_server_t;
 	domain_type($1_evolution_server_t)
@@ -86,7 +86,7 @@ template(`evolution_per_role_template',`
 	role $3 types $1_evolution_server_t;
 
 	type $1_evolution_server_orbit_tmp_t;
-	files_type($1_evolution_server_orbit_tmp_t)
+	files_tmp_file($1_evolution_server_orbit_tmp_t)
 
 	type $1_evolution_webcal_t;
 	domain_type($1_evolution_webcal_t)
@@ -97,7 +97,7 @@ template(`evolution_per_role_template',`
 	files_tmpfs_file($1_evolution_webcal_tmpfs_t)
 
 	type $1_orbit_tmp_t;
-	files_type($1_orbit_tmp_t)
+	files_tmp_file($1_orbit_tmp_t)
 
 	########################################
 	#
@@ -128,6 +128,10 @@ template(`evolution_per_role_template',`
 	allow $1_evolution_t $1_evolution_orbit_tmp_t:dir manage_dir_perms;
 	allow $1_evolution_t $1_evolution_orbit_tmp_t:file manage_file_perms;
 	files_tmp_filetrans($1_evolution_t,$1_evolution_orbit_tmp_t,{ dir file })
+
+	allow $1_evolution_server_t $1_evolution_orbit_tmp_t:dir manage_dir_perms;
+	allow $1_evolution_server_t $1_evolution_orbit_tmp_t:file manage_file_perms;
+	files_tmp_filetrans($1_evolution_server_t,$1_evolution_orbit_tmp_t,{ dir file })
 
 	allow $1_evolution_t $1_evolution_server_t:dir search_dir_perms;
 	allow $1_evolution_t $1_evolution_server_t:file read;
@@ -170,6 +174,8 @@ template(`evolution_per_role_template',`
 	allow $2 $1_evolution_t:dir { search getattr read };
 	allow $2 $1_evolution_t:{ file lnk_file } { read getattr };
 	allow $2 $1_evolution_t:process getattr;
+
+	domain_dontaudit_read_all_domains_state($1_evolution_t)
 
 	#FIXME check to see if really needed
 	kernel_read_kernel_sysctls($1_evolution_t)
@@ -238,6 +244,7 @@ template(`evolution_per_role_template',`
 	userdom_manage_user_tmp_dirs($1,$1_evolution_t)
 	userdom_manage_user_tmp_sockets($1,$1_evolution_t)
 	userdom_manage_user_tmp_files($1,$1_evolution_t)
+	userdom_use_user_terminals($1, $1_evolution_t)
 	# FIXME: suppress access to .local/.icons/.themes until properly implemented
 	# FIXME: suppress access to .gaim/blist.xml (buddy list synchronization)
 	# until properly implemented
@@ -246,6 +253,7 @@ template(`evolution_per_role_template',`
 	mta_read_config($1_evolution_t)
 
 	xserver_user_client_template($1,$1_evolution_t,$1_evolution_tmpfs_t)
+	xserver_read_xdm_tmp_files($1_evolution_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_dirs($1_evolution_t)
@@ -367,7 +375,10 @@ template(`evolution_per_role_template',`
 	tunable_policy(`write_untrusted_content',`
 		files_search_home($1_evolution_t)
 	
-		userdom_manage_user_untrusted_content_files($1,$1_evolution_t,{ dir file })
+		userdom_manage_user_untrusted_content_files($1,$1_evolution_t)
+		userdom_user_home_dir_filetrans($1,$1_evolution_t,$1_untrusted_content_tmp_t, { file dir })
+		userdom_user_home_content_filetrans($1,$1_evolution_t,$1_untrusted_content_tmp_t, { file dir })
+
 	',`
 		files_dontaudit_list_home($1_evolution_t)
 		files_dontaudit_list_tmp($1_evolution_t)
@@ -394,6 +405,10 @@ template(`evolution_per_role_template',`
 		dbus_send_user_bus($1,$1_evolution_t)
 	')
 
+	optional_policy(`
+		gnome_stream_connect_gconf_template($1, $1_evolution_t)
+	')
+
 	# Encrypt mail
 	optional_policy(`
 		gpg_domtrans_user_gpg($1,$1_evolution_t)
@@ -404,13 +419,18 @@ template(`evolution_per_role_template',`
 		lpd_domtrans_user_lpr($1,$1_evolution_t)
 	')
 
+	optional_policy(`
+		mozilla_read_user_home_files($1, $1_evolution_t)
+		mozilla_domtrans_user_mozilla($1, $1_evolution_t)
+	')
+
 	# Allow POP/IMAP/SMTP/NNTP/LDAP/IPP(printing)
 	optional_policy(`
 		nis_use_ypbind($1_evolution_t)
 	')
 
 	optional_policy(`
-		nscd_socket_use($1_evolution_exchange_t)
+		nscd_socket_use($1_evolution_t)
 	')
 
 	### Junk mail filtering (start spamd)
@@ -426,9 +446,6 @@ template(`evolution_per_role_template',`
 	')
 
 	ifdef(`TODO',`
-
-		#dbus connect to
-		allow $1_evolution_t $1_dbusd_t:unix_stream_socket connectto;
 
 		# Gnome common stuff
 		gnome_application($1_evolution, $1)
@@ -450,12 +467,6 @@ template(`evolution_per_role_template',`
 		ifdef(`TODO',`
 			gnome_file_dialog($1_evolution, $1)
 		')
-		# Start links in web browser
-		ifdef(`mozilla', `
-			corecmd_exec_shell($1_evolution_t)
-			domain_auto_trans($1_evolution_t, mozilla_exec_t, $1_mozilla_t)
-		')
-
 	')
 
 	########################################
@@ -463,7 +474,8 @@ template(`evolution_per_role_template',`
 	# Evolution alarm local policy
 	#
 
-	allow $1_evolution_alarm_t self:fifo_file { read write };
+	allow $1_evolution_alarm_t self:process { signal getsched };
+	allow $1_evolution_alarm_t self:fifo_file rw_fifo_file_perms;
 
 	allow $1_evolution_alarm_t $1_evolution_t:unix_stream_socket connectto;
 	allow $1_evolution_alarm_t $1_evolution_orbit_tmp_t:sock_file write;
@@ -489,7 +501,15 @@ template(`evolution_per_role_template',`
 	domain_auto_trans($2, evolution_alarm_exec_t, $1_evolution_alarm_t)
 	allow $1_evolution_alarm_t $2:fd use;
 
+	dev_read_urand($1_evolution_alarm_t)
+
+	files_read_etc_files($1_evolution_alarm_t)
+	files_read_usr_files($1_evolution_alarm_t)
+
 	fs_search_auto_mountpoints($1_evolution_alarm_t)
+
+	libs_use_ld_so($1_evolution_alarm_t)
+	libs_use_shared_libs($1_evolution_alarm_t)
 	
 	miscfiles_read_localization($1_evolution_alarm_t)
 
@@ -512,6 +532,15 @@ template(`evolution_per_role_template',`
 	')
 
 	optional_policy(`
+		dbus_user_bus_client_template($1,$1_evolution_alarm,$1_evolution_alarm_t)
+		dbus_send_user_bus($1,$1_evolution_alarm_t)
+	')
+
+	optional_policy(`
+		gnome_stream_connect_gconf_template($1, $1_evolution_alarm_t)
+	')
+
+	optional_policy(`
 		nscd_socket_use($1_evolution_alarm_t)
 	')
 
@@ -524,6 +553,9 @@ template(`evolution_per_role_template',`
 	#
 	# Evolution exchange connector local policy
 	#
+
+	allow $1_evolution_exchange_t self:process getsched;
+	allow $1_evolution_exchange_t self:fifo_file rw_fifo_file_perms;
 
 	allow $1_evolution_exchange_t self:tcp_socket create_socket_perms;
 	allow $1_evolution_exchange_t self:udp_socket create_socket_perms;
@@ -571,8 +603,18 @@ template(`evolution_per_role_template',`
 	# Allow netstat
 	corecmd_exec_bin($1_evolution_exchange_t)
 
+	dev_read_urand($1_evolution_exchange_t)
+
+	files_read_etc_files($1_evolution_exchange_t)
+	files_read_usr_files($1_evolution_exchange_t)
+
 	# Access evolution home
 	fs_search_auto_mountpoints($1_evolution_exchange_t)
+
+	libs_use_ld_so($1_evolution_exchange_t)
+	libs_use_shared_libs($1_evolution_exchange_t)
+
+	miscfiles_read_localization($1_evolution_exchange_t)
 	 
 	# Access evolution home
 	userdom_search_user_home_dirs($1,$1_evolution_exchange_t)
@@ -591,6 +633,10 @@ template(`evolution_per_role_template',`
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_evolution_exchange_t)
 	')
+
+	optional_policy(`
+		gnome_stream_connect_gconf_template($1, $1_evolution_exchange_t)
+	')
 	
 	optional_policy(`
 		nscd_socket_use($1_evolution_exchange_t)
@@ -605,6 +651,8 @@ template(`evolution_per_role_template',`
 	#
 	# Evolution data server local policy
 	#
+
+	allow $1_evolution_server_t self:process { getsched signal };
 
 	allow $1_evolution_server_t self:fifo_file { read write };
 	allow $1_evolution_server_t self:unix_stream_socket { accept connectto };
@@ -643,6 +691,8 @@ template(`evolution_per_role_template',`
 	corenet_sendrecv_http_client_packets($1_evolution_server_t)
 	corenet_sendrecv_http_cache_client_packets($1_evolution_server_t)
 
+	dev_read_urand($1_evolution_server_t)
+
 	files_read_etc_files($1_evolution_server_t)
 	# Obtain weather data via http (read server name from xml file in /usr)
 	files_read_usr_files($1_evolution_server_t)
@@ -652,6 +702,7 @@ template(`evolution_per_role_template',`
 	libs_use_ld_so($1_evolution_server_t)
 	libs_use_shared_libs($1_evolution_server_t)
 
+	miscfiles_read_localization($1_evolution_server_t)
 	# Look in /etc/pki
 	miscfiles_read_certs($1_evolution_server_t)
 
@@ -679,6 +730,10 @@ template(`evolution_per_role_template',`
 
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_evolution_server_t)
+	')
+
+	optional_policy(`
+		gnome_stream_connect_gconf_template($1, $1_evolution_server_t)
 	')
 
 	optional_policy(`
@@ -812,4 +867,46 @@ template(`evolution_stream_connect',`
 
 	allow $2 $1_evolution_t:unix_stream_socket connectto;
 	allow $2 $1_evolution_home_t:dir search;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	evolution over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`evolution_dbus_chat',`
+	gen_require(`
+		type $1_evolution_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_evolution_t:dbus send_msg;
+	allow $1_evolution_t $2:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	evolution_alarm over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`evolution_alarm_dbus_chat',`
+	gen_require(`
+		type $1_evolution_alarm_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_evolution_alarm_t:dbus send_msg;
+	allow $1_evolution_alarm_t $2:dbus send_msg;
 ')

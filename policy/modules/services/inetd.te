@@ -1,5 +1,5 @@
 
-policy_module(inetd,1.2.0)
+policy_module(inetd,1.2.1)
 
 ########################################
 #
@@ -37,10 +37,11 @@ files_pid_file(inetd_child_var_run_t)
 
 allow inetd_t self:capability { setuid setgid };
 dontaudit inetd_t self:capability sys_tty_config;
-allow inetd_t self:process setsched;
+allow inetd_t self:process { setsched setexec };
 allow inetd_t self:fifo_file rw_fifo_file_perms;
 allow inetd_t self:tcp_socket create_stream_socket_perms;
 allow inetd_t self:udp_socket create_socket_perms;
+allow inetd_t self:fd use;
 
 allow inetd_t inetd_log_t:file manage_file_perms;
 logging_log_filetrans(inetd_t,inetd_log_t,file)
@@ -55,6 +56,8 @@ files_pid_filetrans(inetd_t,inetd_var_run_t,file)
 kernel_read_kernel_sysctls(inetd_t)
 kernel_list_proc(inetd_t)
 kernel_read_proc_symlinks(inetd_t)
+kernel_read_system_state(inetd_t)
+kernel_tcp_recvfrom_unlabeled(inetd_t)
 
 # base networking:
 corenet_non_ipsec_sendrecv(inetd_t)
@@ -88,6 +91,7 @@ corenet_udp_bind_rsync_port(inetd_t)
 corenet_tcp_bind_swat_port(inetd_t)
 corenet_udp_bind_swat_port(inetd_t)
 corenet_udp_bind_tftp_port(inetd_t)
+corenet_tcp_bind_ssh_port(inetd_t)
 
 # service port packets:
 corenet_sendrecv_amanda_server_packets(inetd_t)
@@ -109,6 +113,9 @@ dev_read_sysfs(inetd_t)
 fs_getattr_all_fs(inetd_t)
 fs_search_auto_mountpoints(inetd_t)
 
+selinux_validate_context(inetd_t)
+selinux_compute_create_context(inetd_t)
+
 term_dontaudit_use_console(inetd_t)
 
 # Run other daemons in the inetd_child_t domain.
@@ -129,10 +136,22 @@ logging_send_syslog_msg(inetd_t)
 
 miscfiles_read_localization(inetd_t)
 
+# xinetd needs MLS override privileges to work
+mls_fd_use_all_levels(inetd_t)
+mls_fd_share_all_levels(inetd_t)
+mls_socket_read_to_clearance(inetd_t)
+mls_process_set_level(inetd_t)
+mls_socket_read_to_clearance(inetd_t)
+
 sysnet_read_config(inetd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(inetd_t)
 userdom_dontaudit_search_sysadm_home_dirs(inetd_t)
+
+ifdef(`enable_mls',`
+ 	corenet_tcp_recv_netlabel(inetd_t)
+  	corenet_udp_recv_netlabel(inetd_t)
+')
 
 ifdef(`targeted_policy',`
 	term_dontaudit_use_unallocated_ttys(inetd_t)
@@ -209,10 +228,8 @@ miscfiles_read_localization(inetd_child_t)
 
 sysnet_read_config(inetd_child_t)
 
-ifdef(`strict_policy',`
-	tunable_policy(`run_ssh_inetd',`
-		corenet_tcp_bind_ssh_port(inetd_t)
-	')
+ifdef(`targeted_policy',`
+	unconfined_domain(inetd_child_t)
 ')
 
 optional_policy(`

@@ -35,11 +35,7 @@ template(`ssh_basic_client_template',`
 
 	gen_require(`
 		attribute ssh_server;
-		type ssh_exec_t, sshd_key_t;
-
-		ifdef(`strict_policy',`
-			type sshd_tmp_t;
-		')
+		type ssh_exec_t, sshd_key_t, sshd_tmp_t;
 	')
 
 	##############################
@@ -79,6 +75,11 @@ template(`ssh_basic_client_template',`
 
 	# Read the ssh key file.
 	allow $1_ssh_t sshd_key_t:file read_file_perms;
+
+	# Access the ssh temporary files.
+	allow $1_ssh_t sshd_tmp_t:dir manage_dir_perms;
+	allow $1_ssh_t sshd_tmp_t:file manage_file_perms;
+	files_tmp_filetrans($1_ssh_t, sshd_tmp_t, { file dir })
 
 	# Transition from the domain to the derived domain.
 	domtrans_pattern($2, ssh_exec_t, $1_ssh_t)
@@ -146,13 +147,6 @@ template(`ssh_basic_client_template',`
 
 	sysnet_read_config($1_ssh_t)
 	sysnet_dns_name_resolve($1_ssh_t)
-
-	ifdef(`strict_policy',`
-		# Access the ssh temporary files.
-		allow $1_ssh_t sshd_tmp_t:dir manage_dir_perms;
-		allow $1_ssh_t sshd_tmp_t:file manage_file_perms;
-		files_tmp_filetrans($1_ssh_t, sshd_tmp_t, { file dir })
-	')
 
 	tunable_policy(`read_default_t',`
 		files_list_default($1_ssh_t)
@@ -225,6 +219,7 @@ template(`ssh_per_role_template',`
 	type $1_ssh_agent_t;
 	domain_type($1_ssh_agent_t)
 	domain_entry_file($1_ssh_agent_t,ssh_agent_exec_t)
+	domain_interactive_fd($1_ssh_agent_t)
 	role $3 types $1_ssh_agent_t;
 
 	type $1_ssh_agent_tmp_t;
@@ -258,11 +253,15 @@ template(`ssh_per_role_template',`
 
 	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
 
+	allow $2 $1_ssh_t:process signal;
+
 	userdom_use_unpriv_users_fds($1_ssh_t)
 	userdom_dontaudit_list_user_home_dirs($1,$1_ssh_t)
 	userdom_search_user_home_dirs($1,$1_ssh_t)
 	# Write to the user domain tty.
 	userdom_use_user_terminals($1,$1_ssh_t)
+	# needs to read krb tgt
+	userdom_read_user_tmp_files($1, $1_ssh_t)
 
 	tunable_policy(`allow_ssh_keysign',`
 		domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
@@ -292,8 +291,6 @@ template(`ssh_per_role_template',`
 	')
 
 	ifdef(`TODO',`
-	allow $1_ssh_t $1_tmp_t:dir r_dir_perms;
-
 	# for /bin/sh used to execute xauth
 	dontaudit $1_ssh_t proc_t:{ lnk_file file } { getattr read };
 
@@ -657,6 +654,24 @@ interface(`ssh_dontaudit_rw_tcp_sockets',`
 #
 interface(`ssh_tcp_connect',`
 	refpolicywarn(`$0($*) has been deprecated.')
+')
+
+########################################
+## <summary>
+##	Execute the ssh daemon sshd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_domtrans',`
+	gen_require(`
+		type sshd_t, sshd_exec_t;
+	')
+
+	domtrans_pattern($1,sshd_exec_t,sshd_t)
 ')
 
 ########################################

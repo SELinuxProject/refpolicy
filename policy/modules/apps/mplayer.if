@@ -33,6 +33,9 @@
 ## </param>
 #
 template(`mplayer_per_role_template',`
+	gen_require(`
+		type mencoder_exec_t, mplayer_exec_t;
+	')
 
 	########################################
 	#
@@ -198,6 +201,10 @@ template(`mplayer_per_role_template',`
 		userdom_dontaudit_read_user_tmp_untrusted_content_files($1,$1_mencoder_t)
 	')
 
+	tunable_policy(`write_untrusted_content',`
+		userdom_manage_user_untrusted_content_files($1, $1_mplayer_t)
+	')
+
 	# Save encoded files
 	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
 		files_search_home($1_mencoder_t)
@@ -249,6 +256,7 @@ template(`mplayer_per_role_template',`
 
 	allow $1_mplayer_t self:process { signal_perms getsched };
 	allow $1_mplayer_t self:fifo_file rw_fifo_file_perms;
+ 	allow $1_mplayer_t self:sem create_sem_perms;
 
 	manage_dirs_pattern($1_mplayer_t,$1_mplayer_home_t,$1_mplayer_home_t)
 	manage_files_pattern($1_mplayer_t,$1_mplayer_home_t,$1_mplayer_home_t)
@@ -320,6 +328,7 @@ template(`mplayer_per_role_template',`
 
 	fs_dontaudit_getattr_all_fs($1_mplayer_t)
 	fs_search_auto_mountpoints($1_mplayer_t)
+	fs_list_inotifyfs($1_mplayer_t)
 
 	libs_use_ld_so($1_mplayer_t)
 	libs_use_shared_libs($1_mplayer_t)
@@ -434,4 +443,70 @@ template(`mplayer_per_role_template',`
 	optional_policy(`
 		nscd_socket_use($1_mplayer_t)
 	')
+')
+
+########################################
+## <summary>
+##	Run mplayer in mplayer domain.
+## </summary>
+## <desc>
+##	<p>
+##	Run mplayer in mplayer domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mplayer_domtrans_user_mplayer',`
+	gen_require(`
+		type $1_mplayer_t, mplayer_exec_t;
+	')
+
+	domtrans_pattern($2, mplayer_exec_t,$1_mplayer_t)
+')
+
+########################################
+## <summary>
+##	Read mplayer per user homedir
+## </summary>
+## <desc>
+##	<p>
+##	Read mplayer per user homedir
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mplayer_read_user_home_files',`
+	gen_require(`
+		type $1_mplayer_home_t;
+	')
+
+	read_files_pattern($2,$1_mplayer_home_t,$1_mplayer_home_t)
 ')

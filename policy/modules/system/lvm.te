@@ -1,5 +1,5 @@
 
-policy_module(lvm,1.5.0)
+policy_module(lvm,1.5.1)
 
 ########################################
 #
@@ -44,6 +44,7 @@ files_tmp_file(lvm_tmp_t)
 # Cluster LVM daemon local policy
 #
 
+allow clvmd_t self:capability { sys_admin mknod };
 dontaudit clvmd_t self:capability sys_tty_config;
 allow clvmd_t self:process signal_perms;
 allow clvmd_t self:socket create_socket_perms;
@@ -62,9 +63,11 @@ kernel_read_system_state(clvmd_t)
 kernel_list_proc(clvmd_t)
 kernel_read_proc_symlinks(clvmd_t)
 kernel_search_debugfs(clvmd_t)
+kernel_dontaudit_getattr_core_if(clvmd_t)
 
 corecmd_exec_shell(clvmd_t)
 corecmd_read_bin_symlinks(clvmd_t)
+corecmd_getattr_sbin_files(clvmd_t)
 corecmd_read_sbin_symlinks(clvmd_t)
 
 corenet_non_ipsec_sendrecv(clvmd_t)
@@ -83,12 +86,18 @@ corenet_sendrecv_generic_server_packets(clvmd_t)
 
 dev_read_sysfs(clvmd_t)
 dev_manage_generic_chr_files(clvmd_t)
+dev_rw_lvm_control(clvmd_t)
+dev_dontaudit_getattr_all_blk_files(clvmd_t)
+dev_dontaudit_getattr_all_chr_files(clvmd_t)
 
 files_read_etc_files(clvmd_t)
 files_list_usr(clvmd_t)
 
 fs_getattr_all_fs(clvmd_t)
 fs_search_auto_mountpoints(clvmd_t)
+fs_dontaudit_list_tmpfs(clvmd_t)
+
+storage_dontaudit_getattr_removable_dev(clvmd_t)
 
 term_dontaudit_use_console(clvmd_t)
 
@@ -128,6 +137,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	gpm_dontaudit_getattr_gpmctl(clvmd_t)
+')
+
+optional_policy(`
 	nis_use_ypbind(clvmd_t)
 ')
 
@@ -156,6 +169,8 @@ allow lvm_t self:file rw_file_perms;
 allow lvm_t self:fifo_file rw_file_perms;
 allow lvm_t self:unix_dgram_socket create_socket_perms;
 allow lvm_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+allow lvm_t clvmd_t:unix_stream_socket connectto;
 
 manage_dirs_pattern(lvm_t,lvm_tmp_t,lvm_tmp_t)
 manage_files_pattern(lvm_t,lvm_tmp_t,lvm_tmp_t)
@@ -228,6 +243,7 @@ fs_search_auto_mountpoints(lvm_t)
 fs_list_tmpfs(lvm_t)
 fs_read_tmpfs_symlinks(lvm_t)
 fs_dontaudit_read_removable_files(lvm_t)
+fs_dontaudit_getattr_tmpfs_files(lvm_t)
 
 storage_relabel_fixed_disk(lvm_t)
 storage_dontaudit_read_removable_device(lvm_t)
@@ -240,8 +256,8 @@ storage_dev_filetrans_fixed_disk(lvm_t)
 # Access raw devices and old /dev/lvm (c 109,0).  Is this needed?
 storage_manage_fixed_disk(lvm_t)
 
-term_dontaudit_getattr_all_user_ttys(lvm_t)
-term_dontaudit_getattr_pty_dirs(lvm_t)
+term_getattr_all_user_ttys(lvm_t)
+term_list_ptys(lvm_t)
 
 corecmd_exec_sbin(lvm_t)
 
@@ -274,8 +290,8 @@ ifdef(`distro_redhat',`
 ')
 
 ifdef(`targeted_policy', `
-	term_dontaudit_use_unallocated_ttys(lvm_t)
-	term_dontaudit_use_generic_ptys(lvm_t)
+	term_use_unallocated_ttys(lvm_t)
+	term_use_generic_ptys(lvm_t)
 
 	files_dontaudit_read_root_files(lvm_t)
 ')

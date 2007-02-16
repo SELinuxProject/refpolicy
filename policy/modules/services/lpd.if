@@ -64,31 +64,33 @@ template(`lpd_per_role_template',`
 	allow $1_lpr_t self:udp_socket create_socket_perms;
 	allow $1_lpr_t self:netlink_route_socket r_netlink_socket_perms;
 	
-	# lpr can run in lightweight mode, without a local print spooler.
-	allow $1_lpr_t lpd_var_run_t:dir search;
-	allow $1_lpr_t lpd_var_run_t:sock_file write;
-	files_read_var_files($1_lpr_t)
-
-	# Connect to lpd via a Unix domain socket.
-	allow $1_lpr_t printer_t:sock_file rw_file_perms;
-	allow $1_lpr_t lpd_t:unix_stream_socket connectto;
-	# Send SIGHUP to lpd.
-	allow $1_lpr_t lpd_t:process signal;
-
 	can_exec($1_lpr_t,lpr_exec_t)
 
-	manage_dirs_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
-	manage_files_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
-	files_tmp_filetrans($1_lpr_t, $1_lpr_tmp_t, { file dir })
+	tunable_policy(`use_lpd_server',`
+		# lpr can run in lightweight mode, without a local print spooler.
+		allow $1_lpr_t lpd_var_run_t:dir search;
+		allow $1_lpr_t lpd_var_run_t:sock_file write;
+		files_read_var_files($1_lpr_t)
 
-	manage_files_pattern($1_lpr_t,print_spool_t,$1_print_spool_t)
-	filetrans_pattern($1_lpr_t,print_spool_t,$1_print_spool_t,file)
-	# Read and write shared files in the spool directory.
-	allow $1_lpr_t print_spool_t:file rw_file_perms;
+		# Connect to lpd via a Unix domain socket.
+		allow $1_lpr_t printer_t:sock_file rw_sock_file_perms;
+		allow $1_lpr_t lpd_t:unix_stream_socket connectto;
+		# Send SIGHUP to lpd.
+		allow $1_lpr_t lpd_t:process signal;
 
-	allow $1_lpr_t printconf_t:dir list_dir_perms;
-	read_files_pattern($1_lpr_t,printconf_t,printconf_t)
-	read_lnk_files_pattern($1_lpr_t,printconf_t,printconf_t)
+		manage_dirs_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
+		manage_files_pattern($1_lpr_t,$1_lpr_tmp_t,$1_lpr_tmp_t)
+		files_tmp_filetrans($1_lpr_t, $1_lpr_tmp_t, { file dir })
+
+		manage_files_pattern($1_lpr_t,print_spool_t,$1_print_spool_t)
+		filetrans_pattern($1_lpr_t,print_spool_t,$1_print_spool_t,file)
+		# Read and write shared files in the spool directory.
+		allow $1_lpr_t print_spool_t:file rw_file_perms;
+
+		allow $1_lpr_t printconf_t:dir list_dir_perms;
+		read_files_pattern($1_lpr_t,printconf_t,printconf_t)
+		read_lnk_files_pattern($1_lpr_t,printconf_t,printconf_t)
+	')
 
 	dontaudit $1_lpr_t $2:unix_stream_socket { read write };
 
@@ -215,9 +217,13 @@ template(`lpd_per_role_template',`
 template(`lpr_admin_template',`
 	gen_require(`
 		type $1_lpr_t;
+		type print_spool_t;
 	')
 
 	userdom_read_all_users_home_content_files($1_lpr_t)
+
+	# Read and write shared files in the spool directory.
+	allow $1_lpr_t print_spool_t:file rw_file_perms;
 
 	# Allow per user lpr domain read acces for specific user.
 	tunable_policy(`read_untrusted_content',`

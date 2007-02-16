@@ -60,7 +60,7 @@ template(`mozilla_per_role_template',`
 
 	allow $1_mozilla_t self:capability { sys_nice setgid setuid };
 	allow $1_mozilla_t self:process { sigkill signal setsched getsched setrlimit };
-	allow $1_mozilla_t self:fifo_file { getattr read write };
+	allow $1_mozilla_t self:fifo_file rw_fifo_file_perms;
 	allow $1_mozilla_t self:shm { unix_read unix_write read write destroy create };
 	allow $1_mozilla_t self:sem create_sem_perms;
 	allow $1_mozilla_t self:socket create_socket_perms;
@@ -150,6 +150,7 @@ template(`mozilla_per_role_template',`
 	dev_write_sound($1_mozilla_t)
 	dev_read_sound($1_mozilla_t)
 	dev_dontaudit_rw_dri($1_mozilla_t)
+	dev_getattr_sysfs_dirs($1_mozilla_t)
 
 	files_read_etc_runtime_files($1_mozilla_t)
 	files_read_usr_files($1_mozilla_t)
@@ -159,10 +160,13 @@ template(`mozilla_per_role_template',`
 	# interacting with gstreamer
 	files_read_var_files($1_mozilla_t)
 	files_read_var_symlinks($1_mozilla_t)
+ 	files_dontaudit_getattr_boot_dirs($1_mozilla_t)
 
 	fs_search_auto_mountpoints($1_mozilla_t)
-	fs_search_inotifyfs($1_mozilla_t)
+	fs_list_inotifyfs($1_mozilla_t)
 	fs_rw_tmpfs_files($1_mozilla_t)
+
+	term_dontaudit_getattr_pty_dirs($1_mozilla_t)
 	
 	libs_use_ld_so($1_mozilla_t)
 	libs_use_lib_files($1_mozilla_t)
@@ -185,7 +189,9 @@ template(`mozilla_per_role_template',`
 	userdom_manage_user_tmp_sockets($1,$1_mozilla_t)
 	
 	xserver_user_client_template($1,$1_mozilla_t,$1_mozilla_tmpfs_t)
-	
+	xserver_dontaudit_read_xdm_tmp_files($1_mozilla_t)
+	xserver_dontaudit_getattr_xdm_tmp_sockets($1_mozilla_t)
+
 	tunable_policy(`allow_execmem',`
 		allow $1_mozilla_t self:process { execmem execstack };
 	')
@@ -318,12 +324,14 @@ template(`mozilla_per_role_template',`
 
 	tunable_policy(`write_untrusted_content',`
 		files_search_home($1_mozilla_t)
+		userdom_manage_user_untrusted_content_tmp_files($1, $1_mozilla_t)
 		files_tmp_filetrans($1_mozilla_t,$1_untrusted_content_tmp_t,file)
 		files_tmp_filetrans($1_mozilla_t,$1_untrusted_content_tmp_t,dir)
 
-		userdom_manage_user_untrusted_content_files($1,$1_mozilla_t,file)
-		userdom_manage_user_untrusted_content_files($1,$1_mozilla_t,dir)
-	',`
+		userdom_manage_user_untrusted_content_files($1,$1_mozilla_t)
+		userdom_user_home_dir_filetrans($1,$1_mozilla_t,$1_untrusted_content_tmp_t, { file dir })
+		userdom_user_home_content_filetrans($1,$1_mozilla_t,$1_untrusted_content_tmp_t, { file dir })
+		',`
 		files_dontaudit_list_home($1_mozilla_t)
 		files_dontaudit_list_tmp($1_mozilla_t)
 
@@ -340,17 +348,36 @@ template(`mozilla_per_role_template',`
 	')
 
 	optional_policy(`
+		automount_dontaudit_getattr_tmp_dirs($1_mozilla_t)
+	')
+
+	optional_policy(`
 		cups_read_rw_config($1_mozilla_t)
+		cups_dbus_chat($1_mozilla_t)
 	')
 
 	optional_policy(`
 		dbus_system_bus_client_template($1_mozilla,$1_mozilla_t)
 		dbus_send_system_bus($1_mozilla_t)
-		ifdef(`TODO',`
-			optional_policy(`
-				allow cupsd_t $1_mozilla_t:dbus send_msg;
-			')
-		')
+		dbus_user_bus_client_template($1,$1_mozilla,$1_mozilla_t)
+		dbus_send_user_bus($1,$1_mozilla_t)
+	')
+
+	optional_policy(`
+		gnome_stream_connect_gconf_template($1,$1_mozilla_t)
+	')
+
+	optional_policy(`
+		java_domtrans_user_javaplugin($1, $1_mozilla_t)
+	')
+
+	optional_policy(`
+		lpd_domtrans_user_lpr($1,$1_mozilla_t)
+	')
+
+	optional_policy(`
+		mplayer_domtrans_user_mplayer($1, $1_mozilla_t)
+		mplayer_read_user_home_files($1, $1_mozilla_t)
 	')
 
 	optional_policy(`
@@ -358,43 +385,15 @@ template(`mozilla_per_role_template',`
 	')
 
 	optional_policy(`
-		lpd_domtrans_user_lpr($1,$1_mozilla_t)
+		thunderbird_domtrans_user_thunderbird($1, $1_mozilla_t)
 	')
 
 	ifdef(`TODO',`
-		# Java plugin
-		optional_policy(`
-			#reh, these are hacked in types due to the use of the java_per_role_template
-			type $1_mozilla_tmp_t;
-			files_tmp_file($1_mozilla_tmp_t)
-
-			#this looks even more ugly.
-			type $1_mozilla_tty_device_t;
-			term_tty($1_mozilla_t,$1_mozilla_tty_device_t)
-			type $1_mozilla_devpts_t;
-			term_pty($1_mozilla_devpts_t)
-			type $1_mozilla_home_dir_t;
-			userdom_user_home_content($1,$1_mozilla_home_dir_t)
-
-			java_per_role_template($1_mozilla,$2,$3)
-		')
-
-		######### Launch mplayer
-		optional_policy(`
-			domain_auto_trans($1_mozilla_t, mplayer_exec_t, $1_mplayer_t)
-			dontaudit $1_mplayer_t $1_mozilla_home_t:file { read write };
-			dontaudit $1_mplayer_t $1_mozilla_t:unix_stream_socket { read write };
-			dontaudit $1_mplayer_t $1_mozilla_home_t:file { read write };
-		')
 		#NOTE commented out in strict.
 		######### Launch email client, and make webcal links work
 		#ifdef(`evolution.te', `
 		#domain_auto_trans($1_mozilla_t, evolution_exec_t, $1_evolution_t)
 		#domain_auto_trans($1_mozilla_t, evolution_webcal_exec_t, $1_evolution_webcal_t)
-		#')
-		#NOTE commented out in strict
-		#ifdef(`thunderbird.te', `
-		#domain_auto_trans($1_mozilla_t, thunderbird_exec_t, $1_thunderbird_t)
 		#')
 	
 		# Macros for mozilla/mozilla (or other browser) domains.
@@ -408,4 +407,175 @@ template(`mozilla_per_role_template',`
 			gnome_file_dialog($1_mozilla, $1)
 		')
 	')
+')
+
+########################################
+## <summary>
+##	Read mozilla per user homedir
+## </summary>
+## <desc>
+##	<p>
+##	Read mozilla per user homedir
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mozilla_read_user_home_files',`
+	gen_require(`
+		type $1_mozilla_home_t;
+	')
+
+	allow $2 $1_mozilla_home_t:dir list_dir_perms;
+	allow $2 $1_mozilla_home_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	write mozilla per user homedir
+## </summary>
+## <desc>
+##	<p>
+##	Read mozilla per user homedir
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mozilla_write_user_home_files',`
+	gen_require(`
+		type $1_mozilla_home_t;
+	')
+
+	allow $2 $1_mozilla_home_t:dir list_dir_perms;
+	allow $2 $1_mozilla_home_t:file write;
+')
+
+########################################
+## <summary>
+##	Run mozilla in user mozilla domain.
+## </summary>
+## <desc>
+##	<p>
+##	Run mozilla in mozilla domain.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mozilla_domtrans_user_mozilla',`
+	gen_require(`
+		type $1_mozilla_t, mozilla_exec_t;
+	')
+
+	domtrans_pattern($2, mozilla_exec_t,$1_mozilla_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	mozilla over dbus.
+## </summary>
+## <desc>
+##	<p>
+##	Send and receive messages from
+##	mozilla over dbus.
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mozilla_dbus_chat',`
+	gen_require(`
+		type $1_mozilla_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_mozilla_t:dbus send_msg;
+	allow $1_mozilla_t $2:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	read/write mozilla per user tcp_socket
+## </summary>
+## <desc>
+##	<p>
+##	read/write mozilla per user tcp_socket
+##	</p>
+##	<p>
+##	This is a templated interface, and should only
+##	be called from a per-userdomain template.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`mozilla_rw_user_tcp_sockets',`
+	gen_require(`
+		type $1_mozilla_t;
+	')
+
+	allow $2 $1_mozilla_t:tcp_socket rw_socket_perms;
 ')

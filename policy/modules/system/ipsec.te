@@ -1,5 +1,5 @@
 
-policy_module(ipsec,1.2.0)
+policy_module(ipsec,1.2.1)
 
 ########################################
 #
@@ -19,6 +19,9 @@ files_type(ipsec_conf_file_t)
 type ipsec_key_file_t;
 files_type(ipsec_key_file_t)
 
+# Default type for IPSEC SPD entries
+type ipsec_spd_t;
+
 # type for runtime files, including pluto.ctl
 type ipsec_var_run_t;
 files_pid_file(ipsec_var_run_t)
@@ -34,6 +37,16 @@ files_lock_file(ipsec_mgmt_lock_t)
 
 type ipsec_mgmt_var_run_t;
 files_pid_file(ipsec_mgmt_var_run_t)
+
+type racoon_t;
+type racoon_exec_t;
+init_daemon_domain(racoon_t,racoon_exec_t)
+role system_r types racoon_t;
+
+type setkey_t;
+type setkey_exec_t;
+init_system_domain(setkey_t,setkey_exec_t)
+role system_r types setkey_t;
 
 ########################################
 #
@@ -265,3 +278,83 @@ file_type_auto_trans(ipsec_mgmt_t, sysadm_home_dir_t, sysadm_home_t, file)
 
 allow ipsec_mgmt_t dev_fs:file_class_set getattr;
 ') dnl end TODO
+
+########################################
+#
+# Racoon local policy
+#
+
+allow racoon_t self:capability { net_admin net_bind_service };
+allow racoon_t self:netlink_route_socket create_netlink_socket_perms;
+allow racoon_t self:unix_dgram_socket { connect create ioctl write };
+allow racoon_t self:netlink_selinux_socket { bind create read };
+allow racoon_t self:udp_socket create_socket_perms;
+allow racoon_t self:key_socket { create read setopt write };
+
+# manage pid file
+manage_files_pattern(racoon_t,ipsec_var_run_t,ipsec_var_run_t)
+manage_sock_files_pattern(racoon_t,ipsec_var_run_t,ipsec_var_run_t)
+files_pid_filetrans(racoon_t,ipsec_var_run_t,file)
+
+allow racoon_t ipsec_conf_file_t:dir list_dir_perms;
+read_files_pattern(racoon_t,ipsec_conf_file_t,ipsec_conf_file_t)
+read_lnk_files_pattern(racoon_t,ipsec_conf_file_t,ipsec_conf_file_t)
+
+allow racoon_t ipsec_key_file_t:dir list_dir_perms;
+read_files_pattern(racoon_t,ipsec_key_file_t,ipsec_key_file_t)
+read_lnk_files_pattern(racoon_t,ipsec_key_file_t,ipsec_key_file_t)
+
+allow racoon_t ipsec_spd_t:association setcontext;
+
+kernel_read_network_state(racoon_t)
+
+corenet_non_ipsec_sendrecv(racoon_t)
+corenet_tcp_bind_all_nodes(racoon_t)
+corenet_udp_bind_isakmp_port(racoon_t)
+
+dev_read_urand(racoon_t)
+
+# allow racoon to set contexts on ipsec policy and SAs
+domain_ipsec_setcontext_all_domains(racoon_t)
+
+files_read_etc_files(racoon_t)
+
+# allow racoon to use avc_has_perm to check context on proposed SA
+selinux_compute_access_vector(racoon_t)
+
+libs_use_ld_so(racoon_t)
+libs_use_shared_libs(racoon_t)
+
+locallogin_use_fds(racoon_t)
+
+logging_send_syslog_msg(racoon_t)
+
+miscfiles_read_localization(racoon_t)
+
+seutil_read_config(setkey_t)
+
+########################################
+#
+# Setkey local policy
+#
+
+allow setkey_t self:capability net_admin;
+allow setkey_t self:key_socket { create read setopt write };
+allow setkey_t self:netlink_route_socket create_netlink_socket_perms;
+
+# allow setkey to set the context for ipsec SAs and policy.
+allow setkey_t ipsec_spd_t:association setcontext;
+
+# allow setkey utility to set contexts on SA's and policy
+domain_ipsec_setcontext_all_domains(setkey_t)
+
+files_read_etc_files(setkey_t)
+
+locallogin_use_fds(setkey_t)
+
+libs_use_ld_so(setkey_t)
+libs_use_shared_libs(setkey_t)
+
+miscfiles_read_localization(setkey_t)
+
+seutil_read_config(setkey_t)

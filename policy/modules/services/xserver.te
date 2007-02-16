@@ -1,5 +1,5 @@
 
-policy_module(xserver,1.3.0)
+policy_module(xserver,1.3.1)
 
 ########################################
 #
@@ -9,9 +9,6 @@ policy_module(xserver,1.3.0)
 attribute fonts_type;
 attribute fonts_cache_type;
 attribute fonts_config_type;
-
-type ice_tmp_t;
-files_tmp_file(ice_tmp_t)
 
 type iceauth_exec_t;
 corecmd_executable_file(iceauth_exec_t)
@@ -45,6 +42,7 @@ files_pid_file(xdm_var_run_t)
 
 type xdm_tmp_t;
 files_tmp_file(xdm_tmp_t)
+typealias xdm_tmp_t alias ice_tmp_t;
 
 type xdm_tmpfs_t;
 files_tmpfs_file(xdm_tmpfs_t)
@@ -95,22 +93,63 @@ allow xdm_t self:socket create_socket_perms;
 allow xdm_t self:appletalk_socket create_socket_perms;
 allow xdm_t self:key { search link write };
 
-# Supress permission check on .ICE-unix
-dontaudit xdm_t ice_tmp_t:dir { getattr setattr };
-
 allow xdm_t xconsole_device_t:fifo_file { getattr setattr };
+
+# Allow gdm to run gdm-binary
+can_exec(xdm_t, xdm_exec_t)
+
+allow xdm_t xdm_lock_t:file manage_file_perms;
+files_lock_filetrans(xdm_t,xdm_lock_t,file)
+
+# wdm has its own config dir /etc/X11/wdm
+# this is ugly, daemons should not create files under /etc!
+manage_files_pattern(xdm_t,xdm_rw_etc_t,xdm_rw_etc_t)
 
 manage_dirs_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
 manage_files_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
 manage_sock_files_pattern(xdm_t,xdm_tmp_t,xdm_tmp_t)
 files_tmp_filetrans(xdm_t, xdm_tmp_t, { file dir sock_file })
 
-# Allow gdm to run gdm-binary
-can_exec(xdm_t, xdm_exec_t)
+manage_dirs_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+manage_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+manage_lnk_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+manage_fifo_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+manage_sock_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
+fs_tmpfs_filetrans(xdm_t,xdm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
 
-# wdm has its own config dir /etc/X11/wdm
-# this is ugly, daemons should not create files under /etc!
-manage_files_pattern(xdm_t,xdm_rw_etc_t,xdm_rw_etc_t)
+manage_dirs_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)	
+manage_files_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)
+files_var_lib_filetrans(xdm_t,xdm_var_lib_t,file)
+
+manage_dirs_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
+manage_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
+manage_fifo_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
+files_pid_filetrans(xdm_t,xdm_var_run_t,{ dir file fifo_file })
+
+allow xdm_t xdm_xserver_t:process signal;
+allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
+
+allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
+allow xdm_t xdm_xserver_tmp_t:dir { setattr r_dir_perms };
+
+# transition to the xdm xserver
+domtrans_pattern(xdm_t, xserver_exec_t, xdm_xserver_t)
+allow xdm_xserver_t xdm_t:process signal;
+allow xdm_t xdm_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
+
+allow xdm_t xdm_xserver_t:shm rw_shm_perms;
+
+# connect to xdm xserver over stream socket
+stream_connect_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t,xdm_xserver_t)
+
+# Remove /tmp/.X11-unix/X0.
+delete_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
+delete_sock_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
+
+manage_dirs_pattern(xdm_t,xserver_log_t,xserver_log_t)
+manage_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
+manage_fifo_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
+logging_log_filetrans(xdm_t,xserver_log_t,file)
 
 kernel_read_system_state(xdm_t)
 kernel_read_kernel_sysctls(xdm_t)
@@ -189,6 +228,7 @@ term_dontaudit_use_console(xdm_t)
 term_use_unallocated_ttys(xdm_t)
 term_setattr_unallocated_ttys(xdm_t)
 
+auth_domtrans_pam_console(xdm_t)
 auth_manage_pam_pid(xdm_t)
 auth_manage_pam_console_data(xdm_t)
 auth_rw_faillog(xdm_t)
@@ -219,71 +259,7 @@ userdom_read_unpriv_users_home_content_files(xdm_t)
 userdom_read_all_users_state(xdm_t)
 userdom_signal_all_users(xdm_t)
 
-ifdef(`strict_policy',`
-	allow xdm_t xdm_lock_t:file manage_file_perms;
-	files_lock_filetrans(xdm_t,xdm_lock_t,file)
-
-	manage_dirs_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
-	manage_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
-	manage_lnk_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
-	manage_fifo_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
-	manage_sock_files_pattern(xdm_t,xdm_tmpfs_t,xdm_tmpfs_t)
-	fs_tmpfs_filetrans(xdm_t,xdm_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
-
-	manage_dirs_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)	
-	manage_files_pattern(xdm_t,xdm_var_lib_t,xdm_var_lib_t)
-	files_var_lib_filetrans(xdm_t,xdm_var_lib_t,file)
-
-	manage_dirs_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
-	manage_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
-	manage_fifo_files_pattern(xdm_t,xdm_var_run_t,xdm_var_run_t)
-	files_pid_filetrans(xdm_t,xdm_var_run_t,{ dir file fifo_file })
-
-	allow xdm_t xdm_xserver_t:process signal;
-	allow xdm_t xdm_xserver_t:unix_stream_socket connectto;
-
-	allow xdm_t xdm_xserver_tmp_t:sock_file rw_file_perms;
-	allow xdm_t xdm_xserver_tmp_t:dir { setattr r_dir_perms };
-
-	# transition to the xdm xserver
-	domtrans_pattern(xdm_t, xserver_exec_t, xdm_xserver_t)
-	allow xdm_xserver_t xdm_t:process signal;
-	allow xdm_t xdm_xserver_t:process { noatsecure siginh rlimitinh signal sigkill };
-
-	allow xdm_t xdm_xserver_t:shm rw_shm_perms;
-
-	# connect to xdm xserver over stream socket
-	stream_connect_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t,xdm_xserver_t)
-
-	# Remove /tmp/.X11-unix/X0.
-	delete_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
-	delete_sock_files_pattern(xdm_t,xdm_xserver_tmp_t,xdm_xserver_tmp_t)
-
-	manage_dirs_pattern(xdm_t,xserver_log_t,xserver_log_t)
-	manage_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
-	manage_fifo_files_pattern(xdm_t,xserver_log_t,xserver_log_t)
-	logging_log_filetrans(xdm_t,xserver_log_t,file)
-
-	auth_domtrans_pam_console(xdm_t)	
-
-	xserver_rw_session_template(xdm,xdm_t,xdm_tmpfs_t)
-
-	tunable_policy(`xdm_sysadm_login',`
-		userdom_xsession_spec_domtrans_all_users(xdm_t)
-		# FIXME:
-#		xserver_rw_session_template(xdm,userdomain)
-	',`
-		userdom_xsession_spec_domtrans_unpriv_users(xdm_t)
-		# FIXME:
-#		xserver_rw_session_template(xdm,unpriv_userdomain)
-#		dontaudit xdm_xserver_t sysadm_t:shm { unix_read unix_write };
-#		allow xdm_xserver_t xdm_tmpfs_t:file rw_file_perms;
-	')
-
-	optional_policy(`
-		alsa_domtrans(xdm_t)
-	')
-')
+xserver_rw_session_template(xdm,xdm_t,xdm_tmpfs_t)
 
 ifdef(`targeted_policy',`
 	unconfined_domain(xdm_t)
@@ -311,6 +287,22 @@ tunable_policy(`use_samba_home_dirs',`
 	fs_manage_cifs_files(xdm_t)
 	fs_manage_cifs_symlinks(xdm_t)
 	fs_exec_cifs_files(xdm_t)
+')
+
+tunable_policy(`xdm_sysadm_login',`
+	userdom_xsession_spec_domtrans_all_users(xdm_t)
+	# FIXME:
+#	xserver_rw_session_template(xdm,userdomain)
+',`
+	userdom_xsession_spec_domtrans_unpriv_users(xdm_t)
+	# FIXME:
+#	xserver_rw_session_template(xdm,unpriv_userdomain)
+#	dontaudit xdm_xserver_t sysadm_t:shm { unix_read unix_write };
+#	allow xdm_xserver_t xdm_tmpfs_t:file rw_file_perms;
+')
+
+optional_policy(`
+	alsa_domtrans(xdm_t)
 ')
 
 optional_policy(`
@@ -396,6 +388,14 @@ fs_search_auto_mountpoints(xdm_xserver_t)
 
 init_use_fds(xdm_xserver_t)
 
+# FIXME: After per user fonts are properly working
+# xdm_xserver_t may no longer have any reason
+# to read ROLE_home_t - examine this in more detail
+# (xauth?)
+userdom_read_unpriv_users_home_content_files(xdm_xserver_t)
+
+xserver_use_all_users_fonts(xdm_xserver_t)
+
 tunable_policy(`use_nfs_home_dirs',`
 	fs_manage_nfs_dirs(xdm_xserver_t)
 	fs_manage_nfs_files(xdm_xserver_t)
@@ -406,16 +406,6 @@ tunable_policy(`use_samba_home_dirs',`
 	fs_manage_cifs_dirs(xdm_xserver_t)
 	fs_manage_cifs_files(xdm_xserver_t)
 	fs_manage_cifs_symlinks(xdm_xserver_t)
-')
-
-ifdef(`strict_policy',`
-	# FIXME: After per user fonts are properly working
-	# xdm_xserver_t may no longer have any reason
-	# to read ROLE_home_t - examine this in more detail
-	# (xauth?)
-	userdom_read_unpriv_users_home_content_files(xdm_xserver_t)
-
-	xserver_use_all_users_fonts(xdm_xserver_t)
 ')
 
 ifdef(`targeted_policy',`
