@@ -1,10 +1,49 @@
 
-policy_module(ftp,1.4.3)
+policy_module(ftp,1.4.4)
 
 ########################################
 #
 # Declarations
 #
+
+## <desc>
+## <p>
+## Allow ftp servers to modify public files
+## used for public file transfer services.
+## </p>
+## </desc>
+gen_tunable(allow_ftpd_anon_write,false)
+
+## <desc>
+## <p>
+## Allow ftp servers to login to local users and 
+## read/write all files on the system, governed by DAC.
+## </p>
+## </desc>
+gen_tunable(allow_ftpd_full_access,false)
+
+## <desc>
+## <p>
+## Allow ftp servers to use cifs
+## used for public file transfer services.
+## </p>
+## </desc>
+gen_tunable(allow_ftpd_use_cifs,false)
+
+## <desc>
+## <p>
+## Allow ftp servers to use nfs
+## used for public file transfer services.
+## </p>
+## </desc>
+gen_tunable(allow_ftpd_use_nfs,false)
+
+## <desc>
+## <p>
+## Allow ftp to read and write files in the user home directories
+## </p>
+## </desc>
+gen_tunable(ftp_home_dir,false)
 
 type ftpd_t;
 type ftpd_exec_t;
@@ -13,7 +52,6 @@ init_daemon_domain(ftpd_t,ftpd_exec_t)
 type ftpd_etc_t;
 files_config_file(ftpd_etc_t)
 
-# ftpd_lock_t is only needed when ftpd_is_daemon is true, but we cannot define types conditionally
 type ftpd_lock_t;
 files_lock_file(ftpd_lock_t)
 
@@ -52,6 +90,9 @@ allow ftpd_t self:tcp_socket create_stream_socket_perms;
 allow ftpd_t self:udp_socket create_socket_perms;
 
 allow ftpd_t ftpd_etc_t:file read_file_perms;
+
+allow ftpd_t ftpd_lock_t:file manage_file_perms;
+files_lock_filetrans(ftpd_t,ftpd_lock_t,file)
 
 manage_dirs_pattern(ftpd_t,ftpd_tmp_t,ftpd_tmp_t)
 manage_files_pattern(ftpd_t,ftpd_tmp_t,ftpd_tmp_t)
@@ -198,13 +239,6 @@ tunable_policy(`ftp_home_dir && use_samba_home_dirs',`
 	fs_read_cifs_symlinks(ftpd_t)
 ')
 
-tunable_policy(`ftpd_is_daemon',`
-	allow ftpd_t ftpd_lock_t:file manage_file_perms;
-	files_lock_filetrans(ftpd_t,ftpd_lock_t,file)
-
-	corenet_tcp_bind_ftp_port(ftpd_t)
-')
-
 optional_policy(`
 	tunable_policy(`ftp_home_dir',`
 		apache_search_sys_content(ftpd_t)
@@ -232,17 +266,10 @@ optional_policy(`
 ')
 
 optional_policy(`
-	#reh: typeattributes not allowed in conditionals yet.
-	#tunable_policy(`! ftpd_is_daemon',`
-	#	inetd_tcp_service_domain(ftpd_t,ftpd_exec_t)
-	#')
-
 	inetd_tcp_service_domain(ftpd_t,ftpd_exec_t)
 
 	optional_policy(`
-		tunable_policy(`! ftpd_is_daemon',`
-			tcpd_domtrans(tcpd_t)
-		')
+		tcpd_domtrans(tcpd_t)
 	')
 ')
 

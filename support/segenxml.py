@@ -3,6 +3,7 @@
 #  Author(s): Donald Miner <dminer@tresys.com>
 #             Dave Sugar <dsugar@tresys.com>
 #             Brian Williams <bwilliams@tresys.com>
+#             Caleb Case <ccase@tresys.com>
 #
 # Copyright (C) 2005 - 2006 Tresys Technology, LLC
 #      This program is free software; you can redistribute it and/or modify
@@ -18,6 +19,7 @@ import sys
 import os
 import glob
 import re
+import getopt
 
 # GLOBALS
 
@@ -70,9 +72,15 @@ def getModuleXML(file_name):
 	Returns the XML data for a module in a list, one line per list item.
 	'''
 
+	# Gather information.
+	module_dir = os.path.dirname(file_name)
+	module_name = os.path.basename(file_name)
+	module_te = "%s/%s.te" % (module_dir, module_name)
+	module_if = "%s/%s.if" % (module_dir, module_name)
+
 	# Try to open the file, if it cant, just ignore it.
 	try:
-		module_file = open(file_name, "r")
+		module_file = open(module_if, "r")
 		module_code = module_file.readlines()
 		module_file.close()
 	except:
@@ -83,7 +91,7 @@ def getModuleXML(file_name):
 
 	# Infer the module name, which is the base of the file name.
 	module_buf.append("<module name=\"%s\" filename=\"%s\">\n" 
-		% (os.path.splitext(os.path.split(file_name)[-1])[0], file_name))
+		% (os.path.splitext(os.path.split(file_name)[-1])[0], module_if))
 
 	temp_buf = []
 	interface = None
@@ -175,53 +183,12 @@ def getModuleXML(file_name):
 	elif temp_buf:
 		warning("orphan XML comments at bottom of file %s" % file_name)
 
+	# Process the TE file if it exists.
+	module_buf = module_buf + getTunableXML(module_te, "both")
+
 	module_buf.append("</module>\n")
 
 	return module_buf
-
-def getLayerXML (layerName, directories):
-	'''
-	Returns the XML documentation for a layer.
-	'''
-
-	layer_buf = []
-
-	# Infer the layer name from the directory name.
-	layer_buf.append("<layer name=\"%s\">\n" % layerName)
-
-	# Try to file the metadata file for this layer and if it exists,
-	# append the contents to the buffer.
-	bFoundMeta = False
-	for directory in directories:
-		metafile = directory + "/" + meta
-
-		if not bFoundMeta and os.path.isfile (metafile):
-			layer_meta = open (metafile, "r")
-			layer_buf += layer_meta.readlines ()
-			layer_meta.close()
-			bFoundMeta = True
-
-	# force the metadata for the third party layer
-	if not bFoundMeta:
-		if layerName == third_party:
-			layer_buf.append ("<summary>This is all third-party generated modules.</summary>\n")
-			bFoundMeta = True
-
-	# didn't find meta data for this layer - oh well	
-	if not bFoundMeta:
-		layer_buf.append ("<summary>Summary is missing!.</summary>\n")
-		warning ("unable to find %s for layer %s" % (meta, layerName))	
-	
-	# For each module file in the layer, add its XML.
-	for directory in directories:
-		modules = glob.glob("%s/*.if" % directory)
-		modules.sort()
-		for module in modules:
-			layer_buf += getModuleXML(module)
-
-	layer_buf.append("</layer>\n")
-
-	return layer_buf
 
 def getTunableXML(file_name, kind):
 	'''
@@ -257,8 +224,10 @@ def getTunableXML(file_name, kind):
 		if boolean:
 			# If there is a gen_bool in a tunable file or a
 			# gen_tunable in a boolean file, error and exit.
-			if boolean.group(1) != kind:
-				error("%s in a %s file." % (boolean.group(1), kind))
+			# Skip if both kinds are valid.
+			if kind != "both":
+				if boolean.group(1) != kind:
+					error("%s in a %s file." % (boolean.group(1), kind))
 
 			tunable_buf.append("<%s name=\"%s\" dftval=\"%s\">\n" % boolean.groups())
 			tunable_buf += temp_buf
@@ -341,39 +310,15 @@ def usage():
 	Displays a message describing the proper usage of this script.
 	"""
 
-	sys.stdout.write("usage: %s [-w] [-m file] "\
-		% sys.argv[0])
+	sys.stdout.write("usage: %s [-w] [-mtb] <file>\n\n" % sys.argv[0])
+	sys.stdout.write("-w --warn\t\t\tshow warnings\n"+\
+	"-m --module <file>\t\tname of module to process\n"+\
+	"-t --tunable <file>\t\tname of global tunable file to process\n"+\
+	"-b --boolean <file>\t\tname of global boolean file to process\n\n")
 
-	sys.stdout.write("layerdirectory [layerdirectory...]\n\n")
-
-	sys.stdout.write("Options:\n")
-
-	sys.stdout.write ("-h --help                      -- "+\
-				"show command line options\n")
-
-	sys.stdout.write("-w --warn                      -- "+\
-				"show warnings\n")
-
-	sys.stdout.write("-m --meta <file>               -- "+\
-				"the filename of the metadata in each layer\n")
-
-	sys.stdout.write("-t --tunable <file>            -- "+\
-				"A file containing tunable declarations\n")
-
-	sys.stdout.write("-b --bool <file>               -- "+\
-				"A file containing bool declarations\n")
-												   
-	sys.stdout.write("-o --output-dir <directory>    -- "+\
-				"A directory to output global_tunables.xml and global_booleans.xml\n")
-
-	sys.stdout.write("--tunables-xml <file>          -- "+\
-				"A file containing tunable declarations already in XML format\n")
-
-	sys.stdout.write("--booleans-xml <file>          -- "+\
-				"A file containing bool declarations already in XML format\n")
-				
-	sys.stdout.write ("-3 --third-party <directory>   -- "+\
-				"Look for 3rd Party modules in directory.\n")
+	sys.stdout.write("examples:\n")
+	sys.stdout.write("> %s -w -m policy/modules/apache\n" % sys.argv[0])
+	sys.stdout.write("> %s -t policy/global_tunables\n" % sys.argv[0])
 
 def warning(description):
 	'''
@@ -397,79 +342,50 @@ def error(description):
 
 
 # MAIN PROGRAM
+
+# Defaults
+warn = False
+module = False
+tunable = False
+boolean = False
+
 # Check that there are command line arguments.
 if len(sys.argv) <= 1:
 	usage()
 	sys.exit(1)
 
-
-# Parse the command line arguments
-for i in range(1, len(sys.argv)):
-	if sys.argv[i-1] in ("-m", "--meta",\
-					"-t", "--tunable", "-b", "--bool",\
-					"-o", "--output-dir", "-3", "--third-party", \
-					"--tunables-xml", "--booleans-xml"):
-		continue
-	elif sys.argv[i] in ("-w", "--warn"):
+# Parse command line args
+try:
+	opts, args = getopt.getopt(sys.argv[1:], 'whm:t:b:', ['warn', 'help', 'module=', 'tunable=', 'boolean='])
+except getopt.GetoptError:
+	usage()
+	sys.exit(2)
+for o, a in opts:
+	if o in ('-w', '--warn'):
 		warn = True
-	elif sys.argv[i] in ("-m", "--meta"):
-		if i < len(sys.argv)-1:
-			meta = sys.argv[i+1]
-		else:
-			usage()
-	elif sys.argv[i] in ("-t", "--tunable"):
-		if i < len(sys.argv)-1:
-			tunable_files.append(sys.argv[i+1])
-		else:
-			usage()
-	elif sys.argv[i] in ("-b", "--bool"):
-		if i < len(sys.argv)-1:
-			bool_files.append(sys.argv[i+1])
-		else:
-			usage()
-	
-	elif sys.argv[i] == "--tunables-xml":
-		if i < len(sys.argv)-1:
-			xml_bool_files.append (sys.argv[i+1])
-		else:
-			usage ()
-			
-	elif sys.argv[i] == "--booleans-xml":
-		if i < len(sys.argv)-1:
-			xml_tunable_files.append (sys.argv[i+1])
-		else:
-			usage ()
-			
-	elif sys.argv[i] in ("-o", "--output-dir"):
-		if i < len(sys.argv)-1:
-			output_dir = sys.argv[i+1]
-		else:
-			usage ()
-			
-	elif sys.argv[i] in ("-3", "--third-party"):
-		if i < len(sys.argv) -1:
-			if layers.has_key (third_party):
-				layers[third_party].append (sys.argv[i+1])
-			else:
-				layers[third_party] = [sys.argv[i+1]]
-		else:
-			usage ()
-
-	elif sys.argv[i] in ("-h", "--help"):
-		usage ()
-		sys.exit (1)
-
+	elif o in ('-h', '--help'):
+		usage()
+		sys.exit(0)
+	elif o in ('-m', '--module'):
+		module = a
+		break
+	elif o in ('-t', '--tunable'):
+		tunable = a
+		break
+	elif o in ('-b', '--boolean'):
+		boolean = a
+		break
 	else:
-		# store directories in hash stored by layer name
-		splitlayer = os.path.split(sys.argv[i])
-		if layers.has_key (splitlayer[1]):
-			layers[splitlayer[1]].append (sys.argv[i])
-		else:
-			layers[splitlayer[1]] = [sys.argv[i]]
+		usage()
+		sys.exit(2)
 
-
-# Generate the XML and output it to a file
-lines = getPolicyXML()
-for s in lines:
-	sys.stdout.write(s)
+if module:
+	sys.stdout.writelines(getModuleXML(module))
+elif tunable:
+	sys.stdout.writelines(getTunableXML(tunable, "tunable"))
+elif boolean:
+	sys.stdout.writelines(getTunableXML(boolean, "bool"))
+else:
+	usage()
+	sys.exit(2)
 

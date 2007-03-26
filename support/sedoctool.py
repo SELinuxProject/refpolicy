@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 #  Author: Joshua Brindle <jbrindle@tresys.com>
+#          Caleb Case <ccase@tresys.com>
 #
 # Copyright (C) 2005 - 2006 Tresys Technology, LLC
 #      This program is free software; you can redistribute it and/or modify
@@ -317,6 +318,12 @@ def gen_docs(doc, working_dir, templatedir):
 		templatefile = open(templatedir + "/template.html", "r")
 		templatedata = templatefile.read()
 		templatefile.close()
+		tunfile = open(templatedir + "/tunable.html", "r")
+		tundata = tunfile.read()
+		tunfile.close()
+		boolfile = open(templatedir + "/boolean.html", "r")
+		booldata = boolfile.read()
+		boolfile.close()
 		menufile = open(templatedir + "/menu.html", "r")
 		menudata = menufile.read()
 		menufile.close()
@@ -332,12 +339,18 @@ def gen_docs(doc, working_dir, templatedir):
 		templistfile = open(templatedir + "/temp_list.html", "r")
 		templistdata = templistfile.read()
 		templistfile.close()
-		boollistfile = open(templatedir + "/global_bool_list.html", "r")
-		boollistdata = boollistfile.read()
-		boollistfile.close()
-		tunlistfile = open(templatedir + "/global_tun_list.html", "r")
+		tunlistfile = open(templatedir + "/tun_list.html", "r")
 		tunlistdata = tunlistfile.read()
 		tunlistfile.close()
+		boollistfile = open(templatedir + "/bool_list.html", "r")
+		boollistdata = boollistfile.read()
+		boollistfile.close()
+		gboollistfile = open(templatedir + "/global_bool_list.html", "r")
+		gboollistdata = gboollistfile.read()
+		gboollistfile.close()
+		gtunlistfile = open(templatedir + "/global_tun_list.html", "r")
+		gtunlistdata = gtunlistfile.read()
+		gtunlistfile.close()
 	except:
 		error("Could not open templates")
 
@@ -412,6 +425,8 @@ def gen_docs(doc, working_dir, templatedir):
 
 	all_interfaces = []
 	all_templates = []
+	all_tunables = []
+	all_booleans = []
 	for node in doc.getElementsByTagName("module"):
                 mod_name = mod_layer = mod_desc = interface_buf = ''
 
@@ -511,6 +526,54 @@ def gen_docs(doc, working_dir, templatedir):
 		template_tpl = pyplate.Template(templatedata)
 		template_buf = template_tpl.execute_string({"templates" : templates})
 
+		#generate 'boolean' pages
+		booleans = []
+		for boolean in node.getElementsByTagName("bool"):
+			boolean_parameters = []
+			boolean_desc = None
+			boolean_name = boolean.getAttribute("name")
+			boolean_dftval = boolean.getAttribute("dftval")
+			for desc in boolean.childNodes:
+				if desc.nodeName == "desc":
+					boolean_desc = format_html_desc(desc)
+
+			booleans.append({ "bool_name" : boolean_name,
+					  "desc" : boolean_desc,
+					  "def_val" : boolean_dftval })
+			#all_booleans is for the main boolean index with all booleans
+			all_booleans.append({ "bool_name" : boolean_name,
+					   "desc" : boolean_desc,
+					   "def_val" : boolean_dftval,
+					   "mod_name": mod_name,
+					   "mod_layer" : mod_layer })
+		booleans.sort(bool_cmp)
+		boolean_tpl = pyplate.Template(booldata)
+		boolean_buf = boolean_tpl.execute_string({"booleans" : booleans})
+
+		#generate 'tunable' pages
+		tunables = []
+		for tunable in node.getElementsByTagName("tunable"):
+			tunable_parameters = []
+			tunable_desc = None
+			tunable_name = tunable.getAttribute("name")
+			tunable_dftval = tunable.getAttribute("dftval")
+			for desc in tunable.childNodes:
+				if desc.nodeName == "desc":
+					tunable_desc = format_html_desc(desc)
+
+			tunables.append({ "tun_name" : tunable_name,
+					  "desc" : tunable_desc,
+					  "def_val" : tunable_dftval })
+			#all_tunables is for the main tunable index with all tunables
+			all_tunables.append({ "tun_name" : tunable_name,
+					   "desc" : tunable_desc,
+					   "def_val" : tunable_dftval,
+					   "mod_name": mod_name,
+					   "mod_layer" : mod_layer })
+		tunables.sort(tun_cmp)
+		tunable_tpl = pyplate.Template(tundata)
+		tunable_buf = tunable_tpl.execute_string({"tunables" : tunables})
+	
 
 		menu = gen_doc_menu(mod_layer, module_list)
 
@@ -531,6 +594,10 @@ def gen_docs(doc, working_dir, templatedir):
 			interface_buf = None
 		if not template_buf.strip():
 			template_buf = None
+		if not tunable_buf.strip():
+			tunable_buf = None
+		if not boolean_buf.strip():
+			boolean_buf = None
 
 		module_args = { "mod_layer" : mod_layer,
 			      "mod_name" : mod_name,	
@@ -538,7 +605,9 @@ def gen_docs(doc, working_dir, templatedir):
 			      "mod_desc" : mod_desc,
 			      "mod_req" : mod_req,
 			      "interfaces" : interface_buf,
-			      "templates": template_buf }
+			      "templates" : template_buf,
+			      "tunables" : tunable_buf,
+			      "booleans" : boolean_buf }
 
 		module_tpl = pyplate.Template(moduledata)
 		module_buf = module_tpl.execute_string(module_args)
@@ -590,19 +659,19 @@ def gen_docs(doc, working_dir, templatedir):
 
 
 	#build the global tunable index
-	global_tun_buf = []
+	global_tun = []
 	for tunable in doc.getElementsByTagName("tunable"):
 		if tunable.parentNode.nodeName == "policy":
 			tunable_name = tunable.getAttribute("name")
 			default_value = tunable.getAttribute("dftval")
 			for desc in tunable.getElementsByTagName("desc"):
 				description = format_html_desc(desc)
-			global_tun_buf.append( { "tun_name" : tunable_name,
+			global_tun.append( { "tun_name" : tunable_name,
 						"def_val" : default_value,
 						"desc" : description } )
-	global_tun_buf.sort(tun_cmp)
-	global_tun_tpl = pyplate.Template(tunlistdata)
-	global_tun_buf = global_tun_tpl.execute_string({"tunables" : global_tun_buf})
+	global_tun.sort(tun_cmp)
+	global_tun_tpl = pyplate.Template(gtunlistdata)
+	global_tun_buf = global_tun_tpl.execute_string({"tunables" : global_tun})
 	global_tun_file = "global_tunables.html"
 	global_tun_fh = open(global_tun_file, "w")
 	body_tpl = pyplate.Template(bodydata)
@@ -613,21 +682,35 @@ def gen_docs(doc, working_dir, templatedir):
 	body_tpl.execute(global_tun_fh, body_args)
 	global_tun_fh.close()
 
+	#build the tunable index
+	all_tunables = all_tunables + global_tun
+	all_tunables.sort(tun_cmp)
+	tunable_tpl = pyplate.Template(tunlistdata)
+	tunable_buf = tunable_tpl.execute_string({"tunables" : all_tunables})
+	temp_file = "tunables.html"
+	temp_fh = open(temp_file, "w")
+	body_tpl = pyplate.Template(bodydata)
+
+	body_args = { "menu" : menu_buf, 
+		      "content" : tunable_buf }
+
+	body_tpl.execute(temp_fh, body_args)
+	temp_fh.close()
 
 	#build the global boolean index
-	global_bool_buf = []
+	global_bool = []
 	for boolean in doc.getElementsByTagName("bool"):
 		if boolean.parentNode.nodeName == "policy":
 			bool_name = boolean.getAttribute("name")
 			default_value = boolean.getAttribute("dftval")
 			for desc in boolean.getElementsByTagName("desc"):
 				description = format_html_desc(desc)
-			global_bool_buf.append( { "bool_name" : bool_name,
+			global_bool.append( { "bool_name" : bool_name,
 						"def_val" : default_value,
 						"desc" : description } )
-	global_bool_buf.sort(bool_cmp)
-	global_bool_tpl = pyplate.Template(boollistdata)
-	global_bool_buf = global_bool_tpl.execute_string({"booleans" : global_bool_buf})
+	global_bool.sort(bool_cmp)
+	global_bool_tpl = pyplate.Template(gboollistdata)
+	global_bool_buf = global_bool_tpl.execute_string({"booleans" : global_bool})
 	global_bool_file = "global_booleans.html"
 	global_bool_fh = open(global_bool_file, "w")
 	body_tpl = pyplate.Template(bodydata)
@@ -637,6 +720,21 @@ def gen_docs(doc, working_dir, templatedir):
 
 	body_tpl.execute(global_bool_fh, body_args)
 	global_bool_fh.close()
+	
+	#build the boolean index
+	all_booleans = all_booleans + global_bool
+	all_booleans.sort(bool_cmp)
+	boolean_tpl = pyplate.Template(boollistdata)
+	boolean_buf = boolean_tpl.execute_string({"booleans" : all_booleans})
+	temp_file = "booleans.html"
+	temp_fh = open(temp_file, "w")
+	body_tpl = pyplate.Template(bodydata)
+
+	body_args = { "menu" : menu_buf, 
+		      "content" : boolean_buf }
+
+	body_tpl.execute(temp_fh, body_args)
+	temp_fh.close()
 
 
 

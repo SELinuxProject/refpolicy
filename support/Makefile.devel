@@ -33,7 +33,7 @@ genxml := $(PYTHON) $(HEADERDIR)/support/segenxml.py
 docs = doc
 polxml = $(docs)/policy.xml
 xmldtd = $(HEADERDIR)/support/policy.dtd
-layerxml = metadata.xml
+metaxml = metadata.xml
 
 globaltun = $(HEADERDIR)/global_tunables.xml
 globalbool = $(HEADERDIR)/global_booleans.xml
@@ -84,25 +84,40 @@ M4PARAM += -D hide_broken_symptoms -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$
 
 # policy headers
 m4support = $(wildcard $(HEADERDIR)/support/*.spt)
+
 all_layers = $(filter-out $(HEADERDIR)/support,$(shell find $(wildcard $(HEADERDIR)/*) -maxdepth 0 -type d))
 all_interfaces = $(foreach layer,$(all_layers),$(wildcard $(layer)/*.if))
 rolemap = $(HEADERDIR)/rolemap
 
 detected_layers =  $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
+
+clayers = $(addprefix $(CURDIR)/, $(filter $(notdir $(detected_layers)), $(notdir $(all_layers))))
+all_layers_subset = $(addprefix $(HEADERDIR)/, $(filter-out $(notdir $(detected_layers)), $(notdir $(all_layers))))
+detected_layers_subset = $(addprefix $(CURDIR)/, $(filter-out $(notdir $(clayers)), $(notdir $(detected_layers))))
+
 3rd_party_mods = $(wildcard *.te)
 detected_mods = $(3rd_party_mods) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.te))
+detected_mods_subset = $(3rd_party_mods) $(foreach layer,$(detected_layers_subset),$(wildcard $(layer)/*.te))
+
 detected_ifs = $(detected_mods:.te=.if)
 detected_fcs = $(detected_mods:.te=.fc)
 all_packages = $(notdir $(detected_mods:.te=.pp))
 
+modxml = $(addprefix $(CURDIR)/, $(detected_mods_subset:.te=.xml))
+layerxml = $(addprefix tmp/, $(notdir $(addsuffix .xml, $(detected_layers_subset) $(CURDIR))))
+
+hmodxml = $(all_interfaces:.if=.xml)
+hlayerxml = $(addsuffix .xml, $(addprefix tmp/, $(notdir $(all_layers_subset))))
+hmetaxml = $(foreach layer, $(all_layers_subset), $(layer)/$(metaxml))
+
+cmods = $(foreach layer, $(clayers), $(wildcard $(layer)/*.te))
+cmodxml = $(cmods:.te=.xml)
+clayerxml= $(addsuffix .xml, $(addprefix tmp/, $(notdir $(clayers))))
+cmetaxml = $(foreach layer, $(notdir $(clayers)), $(HEADERDIR)/$(layer)/$(metaxml))
+
 vpath %.te $(detected_layers)
 vpath %.if $(detected_layers)
 vpath %.fc $(detected_layers)
-
-# if there are modules in the current directory, add them into the third party layer
-ifneq "$(3rd_party_mods)" ""
-        genxml += -3 .
-endif
 
 ########################################
 #
@@ -197,18 +212,45 @@ $(detected_ifs) $(detected_fcs):
 # Documentation generation
 #
 
-# minimal dependencies here, because we don't want to rebuild
-# this and its dependents every time the dependencies
-# change.  Also use all .if files here, rather then just the
-# enabled modules.
-$(polxml): $(detected_ifs) $(foreach dir,$(all_layers),$(dir)/$(layerxml))
-	@echo "Creating $@"
-	@mkdir -p doc
+$(clayerxml): %.xml: $(cmodxml) $(hmodxml) $(cmetaxml)
+	@test -d tmp || mkdir -p tmp
+	$(verbose) echo '<layer name="$(*F)">' > $@
+	$(verbose) cat $(addprefix $(HEADERDIR)/, $(notdir $*)/$(metaxml)) >> $@;
+	$(verbose) cat $(filter $(addprefix $(CURDIR)/, $(notdir $*))/%, $(cmodxml)) >> $@
+	$(verbose) cat $(filter-out $(addprefix $(HEADERDIR)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(HEADERDIR)/, $(notdir $*))/%, $(hmodxml))) >> $@
+	$(verbose) echo '</layer>' >> $@
+
+$(hlayerxml): %.xml: $(hmodxml) $(hmetaxml)
+	@test -d tmp || mkdir -p tmp
+	$(verbose) echo '<layer name="$(*F)">' > $@
+	$(verbose) cat $(addprefix $(HEADERDIR)/, $(notdir $*)/$(metaxml)) >> $@;
+	$(verbose) cat $(filter-out $(addprefix $(HEADERDIR)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(HEADERDIR)/, $(notdir $*))/%, $(hmodxml))) >> $@
+	$(verbose) echo '</layer>' >> $@
+
+$(cmodxml) $(modxml): %.xml: %.if %.te
+	$(verbose) $(genxml) -w -m $* > $@
+
+$(layerxml): %.xml: $(modxml)
+	@test -d tmp || mkdir -p tmp
+	$(verbose) echo '<layer name="$(*F)">' > $@
+	$(verbose) if test -f '$(metaxml)'; then \
+		cat $(metaxml) >> $@; \
+	else \
+		echo '<summary>This is all third-party generated modules.</summary>' >> $@; \
+	fi
+	$(verbose) cat $(filter-out %/$(metaxml), $^) >> $@
+	$(verbose) echo '</layer>' >> $@
+
+$(polxml): $(clayerxml) $(hlayerxml) $(layerxml) $(globaltun) $(globalbool)
+	@echo "Creating $(@F)"
+	@test -d $(dir $(polxml)) || mkdir -p $(dir $(polxml))
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(xmldtd)">' >> $@
-	$(verbose) $(genxml) -m $(layerxml) --tunables-xml $(globaltun) --booleans-xml $(globalbool) $(all_layers) $(detected_layers) >> $@
+	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
+	$(verbose) echo '<policy>' >> $@
+	$(verbose) cat $(sort $(clayerxml) $(hlayerxml) $(layerxml)) $(globaltun) $(globalbool) >> $@
+	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
-		$(XMLLINT) --noout --dtdvalid $(xmldtd) $@ ;\
+		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
 	fi
 
 ########################################

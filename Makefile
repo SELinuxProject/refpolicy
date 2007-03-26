@@ -108,7 +108,7 @@ genhomedircon := $(PYTHON) -E $(support)/genhomedircon
 # documentation paths
 docs := doc
 xmldtd = $(docs)/policy.dtd
-layerxml = metadata.xml
+metaxml = metadata.xml
 doctemplate = $(docs)/templates
 docfiles = $(docs)/Makefile.example $(addprefix $(docs)/,example.te example.if example.fc)
 
@@ -253,6 +253,10 @@ generated_fc := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.fc.in
 # sort here since it removes duplicates, which can happen
 # when a generated file is already generated
 detected_mods := $(sort $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te)) $(generated_te))
+
+modxml := $(detected_mods:.te=.xml)
+layerxml := $(addprefix $(tmpdir)/, $(notdir $(addsuffix .xml,$(all_layers))))
+all_metaxml := $(addsuffix /$(metaxml), $(all_layers))
 
 # modules.conf setting for base module
 configbase := base
@@ -408,23 +412,36 @@ $(fcsort) : $(support)/fc_sort.c
 # Documentation generation
 #
 
-# minimal dependencies here, because we don't want to rebuild 
-# this and its dependents every time the dependencies
-# change.  Also use all .if files here, rather then just the
-# enabled modules.
-xml: $(polxml)
-$(polxml): $(detected_mods:.te=.if) $(foreach dir,$(all_layers),$(dir)/$(layerxml))
+$(modxml): %.xml: %.if %.te
+	$(verbose) $(genxml) -w -m $* > $@
+
+$(layerxml): %.xml: $(modxml) $(all_metaxml)
+	@test -d $(tmpdir) || mkdir -p $(tmpdir)
+	$(verbose) echo '<layer name="$(*F)">' > $@
+	$(verbose) cat $(addprefix $(moddir)/, $(notdir $*))/$(metaxml) >> $@
+	$(verbose) cat $(filter-out $(addprefix $(moddir)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(moddir)/, $(notdir $*))/%, $(modxml))) >> $@
+	$(verbose) echo '</layer>' >> $@
+
+$(tunxml): $(globaltun)
+	$(verbose) $(genxml) -w -t $< > $@
+
+$(boolxml): $(globalbool)
+	$(verbose) $(genxml) -w -b $< > $@
+
+$(polxml): $(layerxml) $(tunxml) $(boolxml)
 	@echo "Creating $(@F)"
 	@test -d $(dir $(polxml)) || mkdir -p $(dir $(polxml))
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
-	$(verbose) $(genxml) -w -m $(layerxml) -t $(globaltun) -b $(globalbool) -o $(docs) $(all_layers) >> $@
+	$(verbose) echo '<policy>' >> $@
+	$(verbose) cat $(layerxml) $(tunxml) $(boolxml) >> $@
+	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
 	fi
 
-$(tunxml) $(boolxml): $(polxml)
+xml: $(polxml)
 
 html $(tmpdir)/html: $(polxml)
 	@echo "Building html interface reference documentation in $(htmldir)"
@@ -517,7 +534,7 @@ $(contextpath)/users/%: $(appconf)/%_default_contexts
 #
 # Install policy headers
 #
-install-headers: $(tunxml) $(boolxml)
+install-headers: $(layerxml) $(tunxml) $(boolxml)
 	@mkdir -p $(headerdir)
 	@echo "Installing $(TYPE) policy headers."
 	$(verbose) $(INSTALL) -m 644 $(tunxml) $(boolxml) $(headerdir)
@@ -528,7 +545,7 @@ install-headers: $(tunxml) $(boolxml)
 	$(verbose) for i in $(notdir $(all_layers)); do \
 		mkdir -p $(headerdir)/$$i ;\
 		$(INSTALL) -m 644 $(moddir)/$$i/*.if \
-			$(moddir)/$$i/metadata.xml \
+			$(moddir)/$$i/*.xml \
 			$(headerdir)/$$i ;\
 	done
 	$(verbose) echo "TYPE ?= $(TYPE)" > $(headerdir)/build.conf
@@ -620,6 +637,8 @@ resetlabels:
 #
 bare: clean
 	rm -f $(polxml)
+	rm -f $(layerxml)
+	rm -f $(modxml)
 	rm -f $(tunxml)
 	rm -f $(boolxml)
 	rm -f $(mod_conf)
