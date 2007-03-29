@@ -6,6 +6,7 @@ M4 ?= m4
 SED ?= sed
 EINFO ?= echo
 PYTHON ?= python
+CUT ?= cut
 
 NAME ?= $(shell $(AWK) -F= '/^SELINUXTYPE/{ print $$2 }' /etc/selinux/config)
 SHAREDIR ?= /usr/share/selinux
@@ -115,6 +116,12 @@ cmodxml = $(cmods:.te=.xml)
 clayerxml= $(addsuffix .xml, $(addprefix tmp/, $(notdir $(clayers))))
 cmetaxml = $(foreach layer, $(notdir $(clayers)), $(HEADERDIR)/$(layer)/$(metaxml))
 
+# figure out what modules we may want to reload
+loaded_mods = $(addsuffix .pp,$(shell $(SEMODULE) -l | $(CUT) -f1))
+sys_mods = $(wildcard $(SHAREDIR)/$(NAME)/*.pp)
+match_sys = $(filter $(addprefix $(SHAREDIR)/$(NAME)/,$(loaded_mods)),$(sys_mods))
+match_loc = $(filter $(all_packages),$(loaded_mods))
+
 vpath %.te $(detected_layers)
 vpath %.if $(detected_layers)
 vpath %.fc $(detected_layers)
@@ -162,6 +169,14 @@ endef
 all: $(all_packages)
 
 xml: $(polxml)
+
+########################################
+#
+# Attempt to reinstall all installed packages
+#
+refresh:
+	@$(EINFO) "Refreshing $(NAME) modules"
+	$(verbose) $(SEMODULE) -b $(SHAREDIR)/$(NAME)/base.pp $(foreach mod,$(match_sys) $(match_loc),-i $(mod))
 
 ########################################
 #
