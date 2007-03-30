@@ -370,7 +370,12 @@ class Flask:
 		results = []
 		results.append(self.autogen)
 		results.append("/*\n * Security object class definitions\n */\n")
-		results.append("    S_(NULL)\n")
+
+		if mode == self.KERNEL:
+			results.append("    S_(NULL)\n")
+		else:
+			results.append("    S_(\"null\")\n")
+
 		for c in self.classes:
 			user = self.userspace.has_key(c)
 			if mode == self.KERNEL and user:
