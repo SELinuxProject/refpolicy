@@ -5,9 +5,10 @@
 /require \{/,/} # end require/b nextline
 /optional \{/,/} # end optional/b nextline
 
-/^[[:blank:]]*(attribute|type(alias)?) /	s/^/# this line was moved by the build process: &/
+/^[[:blank:]]*(attribute|type(alias)?) /s/^/# this line was moved by the build process: &/
 /^[[:blank:]]*(port|node|netif|genfs)con /s/^/# this line was moved by the build process: &/
 /^[[:blank:]]*fs_use_(xattr|task|trans) /s/^/# this line was moved by the build process: &/
 /^[[:blank:]]*sid /s/^/# this line was moved by the build process: &/
+/^[[:blank:]]*bool /s/^/# this line was moved by the build process: &/
 
 :nextline
