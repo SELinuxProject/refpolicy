@@ -1,5 +1,5 @@
 
-policy_module(libraries,1.5.3)
+policy_module(libraries,1.5.4)
 
 ########################################
 #
@@ -17,6 +17,14 @@ files_type(ld_so_cache_t)
 #
 type ld_so_t;
 files_type(ld_so_t)
+
+type ldconfig_t;
+type ldconfig_exec_t;
+init_system_domain(ldconfig_t,ldconfig_exec_t)
+role system_r types ldconfig_t;
+
+type ldconfig_tmp_t;
+files_tmp_file(ldconfig_tmp_t)
 
 #
 # lib_t is the type of files in the system lib directories.
@@ -46,13 +54,15 @@ files_type(textrel_shlib_t)
 #
 # ldconfig local policy
 #
-type ldconfig_t;
-type ldconfig_exec_t;
-init_system_domain(ldconfig_t,ldconfig_exec_t)
-role system_r types ldconfig_t;
+
+allow ldconfig_t self:capability sys_chroot;
 
 allow ldconfig_t ld_so_cache_t:file manage_file_perms;
 files_etc_filetrans(ldconfig_t,ld_so_cache_t,file)
+
+manage_dirs_pattern(ldconfig_t,ldconfig_tmp_t,ldconfig_tmp_t)
+manage_files_pattern(ldconfig_t,ldconfig_tmp_t,ldconfig_tmp_t)
+files_tmp_filetrans(ldconfig_t, ldconfig_tmp_t, { file dir })
 
 manage_lnk_files_pattern(ldconfig_t,lib_t,lib_t)
 
@@ -74,6 +84,8 @@ init_use_script_ptys(ldconfig_t)
 libs_use_ld_so(ldconfig_t)
 libs_use_shared_libs(ldconfig_t)
 
+miscfiles_read_localization(ldconfig_t)
+
 logging_send_syslog_msg(ldconfig_t)
 
 userdom_use_all_users_fds(ldconfig_t)
@@ -86,7 +98,9 @@ ifdef(`hide_broken_symptoms',`
 
 ifdef(`targeted_policy',`
 	allow ldconfig_t lib_t:file read_file_perms;
-	unconfined_domain(ldconfig_t) 
+	files_read_generic_tmp_symlinks(ldconfig_t)
+	term_dontaudit_use_generic_ptys(ldconfig_t)
+	term_dontaudit_use_unallocated_ttys(ldconfig_t)
 ')
 
 optional_policy(`
