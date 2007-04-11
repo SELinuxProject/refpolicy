@@ -1,0 +1,57 @@
+
+policy_module(zabbix,1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type zabbix_t;
+type zabbix_exec_t;
+init_daemon_domain(zabbix_t, zabbix_exec_t)
+
+# log files
+type zabbix_log_t;
+logging_log_file(zabbix_log_t)
+
+# pid files
+type zabbix_var_run_t;
+files_pid_file(zabbix_var_run_t)
+
+########################################
+#
+# zabbix local policy
+#
+
+allow zabbix_t self:capability { setuid setgid };
+allow zabbix_t self:fifo_file rw_file_perms;
+allow zabbix_t self:unix_stream_socket create_stream_socket_perms;
+
+# log files
+allow zabbix_t zabbix_log_t:dir setattr;
+manage_files_pattern(zabbix_t,zabbix_log_t,zabbix_log_t)
+logging_log_filetrans(zabbix_t,zabbix_log_t,file)
+
+# pid file
+manage_files_pattern(zabbix_t,zabbix_var_run_t,zabbix_var_run_t)
+files_pid_filetrans(zabbix_t,zabbix_var_run_t, file)
+
+files_read_etc_files(zabbix_t)
+
+libs_use_ld_so(zabbix_t)
+libs_use_shared_libs(zabbix_t)
+
+miscfiles_read_localization(zabbix_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_unallocated_ttys(zabbix_t)
+	term_dontaudit_use_generic_ptys(zabbix_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(zabbix_t)
+')
+
+optional_policy(`
+	postgresql_stream_connect(zabbix_t)
+')
