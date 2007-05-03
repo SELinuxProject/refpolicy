@@ -1,5 +1,5 @@
 
-policy_module(consolekit,1.1.0)
+policy_module(consolekit,1.1.1)
 
 ########################################
 #
@@ -19,14 +19,19 @@ files_pid_file(consolekit_var_run_t)
 # consolekit local policy
 #
 
-allow consolekit_t self:capability { sys_tty_config dac_override sys_nice sys_ptrace };
+allow consolekit_t self:capability { setuid setgid sys_tty_config dac_override sys_nice sys_ptrace };
 allow consolekit_t self:process { getsched signal };
 allow consolekit_t self:fifo_file rw_fifo_file_perms;
 allow consolekit_t self:unix_stream_socket create_stream_socket_perms;
+allow consolekit_t self:unix_dgram_socket create_socket_perms;
 
 # pid file
 manage_files_pattern(consolekit_t,consolekit_var_run_t,consolekit_var_run_t)
 files_pid_filetrans(consolekit_t,consolekit_var_run_t, file)
+
+kernel_read_system_state(consolekit_t)
+
+corecmd_exec_bin(consolekit_t)
 
 dev_read_urand(consolekit_t)
 dev_read_sysfs(consolekit_t)
@@ -38,17 +43,14 @@ files_read_etc_files(consolekit_t)
 # needs to read /var/lib/dbus/machine-id
 files_read_var_lib_files(consolekit_t)
 
-term_use_console(consolekit_t)
+fs_list_inotifyfs(consolekit_t)
+
+term_use_all_terms(consolekit_t)
 
 libs_use_ld_so(consolekit_t)
 libs_use_shared_libs(consolekit_t)
 
 miscfiles_read_localization(consolekit_t)
-
-ifdef(`targeted_policy',`
-	term_dontaudit_use_unallocated_ttys(consolekit_t)
-	term_dontaudit_use_generic_ptys(consolekit_t)
-')
 
 optional_policy(`
 	dbus_system_bus_client_template(consolekit, consolekit_t)
@@ -60,4 +62,9 @@ optional_policy(`
 	optional_policy(`
 		unconfined_dbus_chat(consolekit_t)
 	')
+')
+
+optional_policy(`
+	xserver_read_all_users_xauth(consolekit_t)
+	xserver_stream_connect_xdm_xserver(consolekit_t)
 ')
