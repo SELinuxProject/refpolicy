@@ -1,5 +1,5 @@
 
-policy_module(hal,1.6.0)
+policy_module(hal,1.6.1)
 
 ########################################
 #
@@ -9,6 +9,30 @@ policy_module(hal,1.6.0)
 type hald_t;
 type hald_exec_t;
 init_daemon_domain(hald_t,hald_exec_t)
+
+type hald_acl_t;
+type hald_acl_exec_t;
+domain_type(hald_acl_t)
+domain_entry_file(hald_acl_t,hald_acl_exec_t)
+role system_r types hald_acl_t;
+
+type hald_cache_t;
+files_pid_file(hald_cache_t)
+
+type hald_log_t;
+files_type(hald_log_t)
+
+type hald_mac_t;
+type hald_mac_exec_t;
+domain_type(hald_mac_t)
+domain_entry_file(hald_mac_t,hald_mac_exec_t)
+role system_r types hald_mac_t;
+
+type hald_sonypic_t;
+type hald_sonypic_exec_t;
+domain_type(hald_sonypic_t)
+domain_entry_file(hald_sonypic_t,hald_sonypic_exec_t)
+role system_r types hald_sonypic_t;
 
 type hald_tmp_t;
 files_tmp_file(hald_tmp_t)
@@ -26,7 +50,7 @@ files_type(hald_var_lib_t)
 
 # execute openvt which needs setuid
 allow hald_t self:capability { chown setuid setgid kill net_admin sys_admin sys_nice dac_override dac_read_search mknod sys_rawio sys_tty_config };
-dontaudit hald_t self:capability sys_tty_config;
+dontaudit hald_t self:capability {sys_ptrace sys_tty_config };
 allow hald_t self:process signal_perms;
 allow hald_t self:fifo_file rw_fifo_file_perms;
 allow hald_t self:unix_stream_socket { create_stream_socket_perms connectto };
@@ -38,6 +62,12 @@ allow hald_t self:udp_socket create_socket_perms;
 allow hald_t self:netlink_socket create_socket_perms;
 
 send_audit_msgs_pattern(hald_t)
+
+manage_files_pattern(hald_t,hald_cache_t,hald_cache_t)
+
+# log files for hald
+allow hald_t hald_log_t:file manage_file_perms;
+logging_log_filetrans(hald_t,hald_log_t,file)
 
 manage_dirs_pattern(hald_t,hald_tmp_t,hald_tmp_t)
 manage_files_pattern(hald_t,hald_tmp_t,hald_tmp_t)
@@ -53,9 +83,9 @@ files_pid_filetrans(hald_t,hald_var_run_t,file)
 
 kernel_read_system_state(hald_t)
 kernel_read_network_state(hald_t)
-kernel_read_kernel_sysctls(hald_t)
+kernel_rw_kernel_sysctl(hald_t)
 kernel_read_fs_sysctls(hald_t)
-kernel_read_irq_sysctls(hald_t)
+kernel_rw_irq_sysctls(hald_t)
 kernel_rw_vm_sysctls(hald_t)
 kernel_write_proc_files(hald_t)
 
@@ -88,6 +118,7 @@ dev_rw_sysfs(hald_t)
 
 domain_use_interactive_fds(hald_t)
 domain_read_all_domains_state(hald_t)
+domain_dontaudit_ptrace_all_domains(hald_t)
 
 files_exec_etc_files(hald_t)
 files_read_etc_files(hald_t)
@@ -104,6 +135,7 @@ files_read_kernel_img(hald_t)
 
 fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
+fs_list_inotifyfs(hald_t)
 fs_list_auto_mountpoints(hald_t)
 files_getattr_all_mountpoints(hald_t)
 
@@ -128,10 +160,10 @@ term_dontaudit_use_unallocated_ttys(hald_t)
 auth_use_nsswitch(hald_t)
 
 init_domtrans_script(hald_t)
-init_write_initctl(hald_t)
 init_read_utmp(hald_t)
 #hal runs shutdown, probably need a shutdown domain
 init_rw_utmp(hald_t)
+init_telinit(hald_t)
 
 libs_use_ld_so(hald_t)
 libs_use_shared_libs(hald_t)
@@ -157,6 +189,10 @@ userdom_dontaudit_search_sysadm_home_dirs(hald_t)
 ifdef(`targeted_policy',`
 	term_dontaudit_use_generic_ptys(hald_t)
 	files_dontaudit_read_root_files(hald_t)
+')
+
+optional_policy(`
+	alsa_read_rw_config(hald_t)
 ')
 
 optional_policy(`
@@ -244,4 +280,101 @@ optional_policy(`
 
 optional_policy(`
 	vbetool_domtrans(hald_t)
+')
+
+########################################
+#
+# Hal acl local policy
+#
+
+allow hald_acl_t self:capability { dac_override fowner };
+allow hald_acl_t self:fifo_file read_fifo_file_perms;
+
+domtrans_pattern(hald_t, hald_acl_exec_t, hald_acl_t)
+allow hald_t hald_acl_t:process signal;
+allow hald_acl_t hald_t:unix_stream_socket connectto;
+
+manage_dirs_pattern(hald_acl_t,hald_var_lib_t,hald_var_lib_t)
+manage_files_pattern(hald_acl_t,hald_var_lib_t,hald_var_lib_t)
+files_search_var_lib(hald_acl_t)
+
+corecmd_exec_bin(hald_acl_t)
+
+dev_getattr_all_chr_files(hald_acl_t)
+dev_setattr_video_dev(hald_acl_t)
+dev_setattr_sound_dev(hald_acl_t)
+dev_setattr_generic_usb_dev(hald_acl_t)
+dev_setattr_usbfs_files(hald_acl_t)
+
+files_read_usr_files(hald_acl_t)
+files_read_etc_files(hald_acl_t)
+
+storage_getattr_removable_dev(hald_acl_t)
+storage_setattr_removable_dev(hald_acl_t)
+
+auth_use_nsswitch(hald_acl_t)
+
+libs_use_ld_so(hald_acl_t)
+libs_use_shared_libs(hald_acl_t)
+
+miscfiles_read_localization(hald_acl_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_console(hald_acl_t)
+	term_dontaudit_use_generic_ptys(hald_acl_t)
+')
+
+########################################
+#
+# Local hald mac policy
+#
+
+domtrans_pattern(hald_t, hald_mac_exec_t, hald_mac_t)
+allow hald_t hald_mac_t:process signal;
+allow hald_mac_t hald_t:unix_stream_socket connectto;
+
+manage_dirs_pattern(hald_mac_t,hald_var_lib_t,hald_var_lib_t)
+manage_files_pattern(hald_mac_t,hald_var_lib_t,hald_var_lib_t)
+files_search_var_lib(hald_mac_t)
+
+dev_write_raw_memory(hald_mac_t)
+
+files_read_usr_files(hald_mac_t)
+
+libs_use_ld_so(hald_mac_t)
+libs_use_shared_libs(hald_mac_t)
+
+miscfiles_read_localization(hald_mac_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_console(hald_mac_t)
+	term_dontaudit_use_generic_ptys(hald_mac_t)
+')
+
+########################################
+#
+# Local hald sonypic policy
+#
+
+domtrans_pattern(hald_t, hald_sonypic_exec_t, hald_sonypic_t)
+allow hald_t hald_sonypic_t:process signal;
+allow hald_sonypic_t hald_t:unix_stream_socket connectto;
+
+dev_read_video_dev(hald_sonypic_t)
+dev_write_video_dev(hald_sonypic_t)
+
+manage_dirs_pattern(hald_sonypic_t,hald_var_lib_t,hald_var_lib_t)
+manage_files_pattern(hald_sonypic_t,hald_var_lib_t,hald_var_lib_t)
+files_search_var_lib(hald_sonypic_t)
+
+files_read_usr_files(hald_sonypic_t)
+
+libs_use_ld_so(hald_sonypic_t)
+libs_use_shared_libs(hald_sonypic_t)
+
+miscfiles_read_localization(hald_sonypic_t)
+
+ifdef(`targeted_policy',`
+	term_dontaudit_use_console(hald_sonypic_t)
+	term_dontaudit_use_generic_ptys(hald_sonypic_t)
 ')
