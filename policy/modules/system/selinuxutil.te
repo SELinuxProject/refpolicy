@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.5.0)
+policy_module(selinuxutil,1.5.1)
 
 ifdef(`strict_policy',`
 	gen_require(`
@@ -79,12 +79,6 @@ neverallow ~can_relabelto_binary_policy policy_config_t:file relabelto;
 type policy_src_t;
 files_type(policy_src_t)
 
-type restorecon_t, can_relabelto_binary_policy;
-type restorecon_exec_t;
-domain_obj_id_change_exemption(restorecon_t)
-init_system_domain(restorecon_t,restorecon_exec_t)
-role system_r types restorecon_t;
-
 type restorecond_t;
 type restorecond_exec_t;
 init_daemon_domain(restorecond_t,restorecond_exec_t)
@@ -120,13 +114,10 @@ files_tmp_file(semanage_tmp_t)
 type semanage_trans_lock_t; 
 files_type(semanage_trans_lock_t)
 
-type setfiles_t, can_relabelto_binary_policy;
+type setfiles_t alias restorecon_t, can_relabelto_binary_policy;
+type setfiles_exec_t alias restorecon_exec_t;
+init_system_domain(setfiles_t,setfiles_exec_t)
 domain_obj_id_change_exemption(setfiles_t)
-domain_type(setfiles_t)
-role system_r types setfiles_t;
-
-type setfiles_exec_t;
-domain_entry_file(setfiles_t,setfiles_exec_t)
 
 ifdef(`distro_redhat',`
 	init_system_domain(setfiles_t,setfiles_exec_t)
@@ -330,100 +321,6 @@ optional_policy(`
 
 optional_policy(`
 	nscd_socket_use(newrole_t)
-')
-
-########################################
-#
-# Restorecon local policy
-#
-
-allow restorecon_t self:capability { dac_override dac_read_search fowner };
-dontaudit restorecon_t self:capability sys_tty_config;
-allow restorecon_t self:fifo_file rw_fifo_file_perms;
-
-allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:dir r_dir_perms;
-allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:file r_file_perms;
-allow restorecon_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file r_file_perms;
-
-kernel_use_fds(restorecon_t)
-kernel_rw_pipes(restorecon_t)
-kernel_read_system_state(restorecon_t)
-kernel_rw_unix_dgram_sockets(restorecon_t)
-kernel_relabelfrom_unlabeled_dirs(restorecon_t)
-kernel_relabelfrom_unlabeled_files(restorecon_t)
-kernel_relabelfrom_unlabeled_symlinks(restorecon_t)
-kernel_relabelfrom_unlabeled_pipes(restorecon_t)
-kernel_relabelfrom_unlabeled_sockets(restorecon_t)
-kernel_dontaudit_list_all_proc(restorecon_t)
-kernel_dontaudit_list_all_sysctls(restorecon_t)
-
-dev_relabel_all_dev_nodes(restorecon_t)
-# cjp: why is this needed?
-dev_rw_generic_files(restorecon_t)
-
-fs_getattr_xattr_fs(restorecon_t)
-fs_search_auto_mountpoints(restorecon_t)
-fs_getattr_all_dirs(restorecon_t)
-
-mls_file_read_up(restorecon_t)
-mls_file_write_down(restorecon_t)
-mls_file_upgrade(restorecon_t)
-mls_file_downgrade(restorecon_t)
-
-selinux_get_fs_mount(restorecon_t)
-selinux_validate_context(restorecon_t)
-selinux_compute_access_vector(restorecon_t)
-selinux_compute_create_context(restorecon_t)
-selinux_compute_relabel_context(restorecon_t)
-selinux_compute_user_contexts(restorecon_t)
-
-term_use_unallocated_ttys(restorecon_t)
-term_use_all_user_ttys(restorecon_t)
-term_use_all_user_ptys(restorecon_t)
-
-init_use_fds(restorecon_t)
-init_use_script_ptys(restorecon_t)
-
-domain_use_interactive_fds(restorecon_t)
-domain_dontaudit_search_all_domains_state(restorecon_t)
-
-files_read_etc_runtime_files(restorecon_t)
-files_read_etc_files(restorecon_t)
-
-libs_use_ld_so(restorecon_t)
-libs_use_shared_libs(restorecon_t)
-
-logging_send_syslog_msg(restorecon_t)
-
-userdom_use_all_users_fds(restorecon_t)
-
-files_relabel_all_files(restorecon_t)
-fs_relabelfrom_noxattr_fs(restorecon_t)
-
-files_list_all(restorecon_t)
-# this is to satisfy the assertion:
-auth_relabelto_shadow(restorecon_t)
-
-ifdef(`distro_redhat', `
-	fs_rw_tmpfs_chr_files(restorecon_t)
-	fs_rw_tmpfs_blk_files(restorecon_t)
-	fs_relabel_tmpfs_blk_file(restorecon_t)
-	fs_relabel_tmpfs_chr_file(restorecon_t)
-')
-
-ifdef(`hide_broken_symptoms',`
-	optional_policy(`
-		udev_dontaudit_rw_dgram_sockets(restorecon_t)
-	')
-
-	optional_policy(`
-		unconfined_dontaudit_rw_pipes(restorecon_t)
-		unconfined_dontaudit_rw_tcp_sockets(restorecon_t)
-	')
-')
-
-optional_policy(`
-	hotplug_use_fds(restorecon_t)
 ')
 
 ########################################
@@ -636,6 +533,7 @@ ifdef(`enable_mls',`
 #
 
 allow setfiles_t self:capability { dac_override dac_read_search fowner };
+dontaudit setfiles_t self:capability sys_tty_config;
 allow setfiles_t self:fifo_file rw_file_perms;
 
 allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:dir r_dir_perms;
@@ -648,11 +546,18 @@ kernel_relabelfrom_unlabeled_files(setfiles_t)
 kernel_relabelfrom_unlabeled_symlinks(setfiles_t)
 kernel_relabelfrom_unlabeled_pipes(setfiles_t)
 kernel_relabelfrom_unlabeled_sockets(setfiles_t)
+kernel_use_fds(setfiles_t)
+kernel_rw_pipes(setfiles_t)
+kernel_rw_unix_dgram_sockets(setfiles_t)
+kernel_dontaudit_list_all_proc(setfiles_t)
+kernel_dontaudit_list_all_sysctls(setfiles_t)
 
 dev_relabel_all_dev_nodes(setfiles_t)
 
 fs_getattr_xattr_fs(setfiles_t)
 fs_list_all(setfiles_t)
+fs_search_auto_mountpoints(setfiles_t)
+fs_relabelfrom_noxattr_fs(setfiles_t)
 
 mls_file_read_up(setfiles_t)
 mls_file_write_down(setfiles_t)
@@ -679,6 +584,7 @@ init_use_script_ptys(setfiles_t)
 init_exec_script_files(setfiles_t)
 
 domain_use_interactive_fds(setfiles_t)
+domain_dontaudit_search_all_domains_state(setfiles_t)
 
 libs_use_ld_so(setfiles_t)
 libs_use_shared_libs(setfiles_t)
@@ -687,7 +593,6 @@ files_read_etc_runtime_files(setfiles_t)
 files_read_etc_files(setfiles_t)
 files_list_all(setfiles_t)
 files_relabel_all_files(setfiles_t)
-fs_relabelfrom_noxattr_fs(setfiles_t)
 
 logging_send_syslog_msg(setfiles_t)
 
@@ -697,9 +602,25 @@ userdom_use_all_users_fds(setfiles_t)
 # for config files in a home directory
 userdom_read_all_users_home_content_files(setfiles_t)
 
+ifdef(`distro_redhat', `
+	fs_rw_tmpfs_chr_files(setfiles_t)
+	fs_rw_tmpfs_blk_files(setfiles_t)
+	fs_relabel_tmpfs_blk_file(setfiles_t)
+	fs_relabel_tmpfs_chr_file(setfiles_t)
+')
+
 ifdef(`hide_broken_symptoms',`
+	optional_policy(`
+		udev_dontaudit_rw_dgram_sockets(setfiles_t)
+	')
+
 	# cjp: cover up stray file descriptors.
 	optional_policy(`
 		unconfined_dontaudit_read_pipes(setfiles_t)
+		unconfined_dontaudit_rw_tcp_sockets(setfiles_t)
 	')
+')
+
+optional_policy(`
+	hotplug_use_fds(setfiles_t)
 ')
