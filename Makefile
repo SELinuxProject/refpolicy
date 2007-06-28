@@ -593,6 +593,7 @@ $(tags):
 	 --regex-te='/^attribute[ \t]+(\w+);/\1/a,attribute/' \
 	 --regex-te='/^[ \t]*define\(`(\w+)/\1/d,define/' \
 	 --regex-te='/^[ \t]*interface\(`(\w+)/\1/i,interface/' \
+	 --regex-te='/^[ \t]*template\(`(\w+)/\1/i,template/' \
 	 --regex-te='/^[ \t]*bool[ \t]+(\w+)/\1/b,bool/' policy/modules/*/*.{if,te} policy/support/*.spt
 
 ########################################
