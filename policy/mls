@@ -93,8 +93,10 @@ mlsconstrain { file lnk_file fifo_file dir chr_file blk_file sock_file } { write
 	 ( t1 == mlsfilewrite ) or
 	 ( t2 == mlstrustedobject ));
 
+# Directory "write" ops
 mlsconstrain dir { add_name remove_name reparent rmdir }
-	((( l1 dom l2 ) and ( l1 domby h2 )) or
+	(( l1 eq l2 ) or
+	 (( t1 == mlsfilewriteinrange ) and ( l1 dom l2 ) and ( l1 domby h2 )) or
 	 (( t1 == mlsfilewritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsfilewrite ) or
 	 ( t2 == mlstrustedobject ));
@@ -165,6 +167,18 @@ mlsconstrain filesystem { mount remount unmount relabelfrom quotamod }
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } relabelto
 	( h1 dom h2 );
 
+# the socket "read+write" ops
+# (Socket FDs are generally bidirectional, equivalent to open(..., O_RDWR),
+# require equal levels for unprivileged subjects, or read *and* write overrides)
+mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { accept connect }
+	(( l1 eq l2 ) or
+	 (((( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
+	   ( t1 == mlsnetread )) and
+	  ((( t1 == mlsnetwriteranged ) and ( l1 dom l2 ) and ( l1 domby h2 )) or
+	   (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
+	   ( t1 == mlsnetwrite ))));
+
+
 # the socket "read" ops (note the check is dominance of the low level)
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { read getattr listen accept getopt recv_msg }
 	(( l1 dom l2 ) or
@@ -178,16 +192,16 @@ mlsconstrain { netlink_route_socket netlink_firewall_socket netlink_tcpdiag_sock
 
 # the socket "write" ops
 mlsconstrain { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { write setattr relabelfrom connect setopt shutdown }
-	((( l1 dom l2 ) and ( l1 domby h2 )) or
+	(( l1 eq l2 ) or 
+	 (( t1 == mlsnetwriteranged ) and ( l1 dom l2 ) and ( l1 domby h2 )) or
 	 (( t1 == mlsnetwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 ( t1 == mlsnetwrite ));
 
-# used by netlabel to restrict normal domains to same level connections unless the connection is unlabeled
+# used by netlabel to restrict normal domains to same level connections
 mlsconstrain { tcp_socket udp_socket rawip_socket } recvfrom
 	(( l1 eq l2 ) or
 	 (( t1 == mlsnetreadtoclr ) and ( h1 dom l2 )) or
-	 ( t1 == mlsnetread ) or
-	 ( t2 == unlabeled_t ));
+	 ( t1 == mlsnetread ));
 
 # these access vectors have no MLS restrictions
 # { socket tcp_socket udp_socket rawip_socket netlink_socket packet_socket key_socket unix_stream_socket unix_dgram_socket netlink_route_socket netlink_firewall_socket netlink_tcpdiag_socket netlink_nflog_socket netlink_xfrm_socket netlink_selinux_socket netlink_audit_socket netlink_ip6fw_socket netlink_dnrt_socket } { ioctl create lock append bind sendto send_msg name_bind }
@@ -275,7 +289,8 @@ mlsconstrain { node netif } { tcp_recv udp_recv rawip_recv }
 
 # the netif/node "write" ops (implicit single level socket doing the write)
 mlsconstrain { netif node } { tcp_send udp_send rawip_send }
-	(( l1 dom l2 ) and ( l1 domby h2 ));
+	(( l1 eq l2 ) or
+	(( t1 == mlsnetwriteranged ) and ( l1 dom l2 ) and ( l1 domby h2 )));
 
 # these access vectors have no MLS restrictions
 # node enforce_dest
@@ -582,7 +597,8 @@ mlsconstrain association { recvfrom }
 	 ( t2 == unlabeled_t ));
 
 mlsconstrain association { sendto }
-	((( l1 dom l2 ) and ( l1 domby h2 )) or
+	(( l1 eq l2 ) or
+	 (( t1 == mlsnetwriteranged ) and ( l1 dom l2 ) and ( l1 domby h2 )) or
 	 ( t2 == unlabeled_t ));
 
 mlsconstrain association { polmatch }
