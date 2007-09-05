@@ -1,5 +1,5 @@
 
-policy_module(hal,1.7.0)
+policy_module(hal,1.7.1)
 
 ########################################
 #
@@ -18,6 +18,12 @@ role system_r types hald_acl_t;
 
 type hald_cache_t;
 files_pid_file(hald_cache_t)
+
+type hald_keymap_t;
+type hald_keymap_exec_t;
+domain_type(hald_keymap_t)
+domain_entry_file(hald_keymap_t,hald_keymap_exec_t)
+role system_r types hald_keymap_t;
 
 type hald_log_t;
 files_type(hald_log_t)
@@ -81,6 +87,7 @@ files_pid_filetrans(hald_t,hald_var_run_t,file)
 
 kernel_read_system_state(hald_t)
 kernel_read_network_state(hald_t)
+kernel_read_software_raid_state(hald_t)
 kernel_rw_kernel_sysctl(hald_t)
 kernel_read_fs_sysctls(hald_t)
 kernel_rw_irq_sysctls(hald_t)
@@ -131,6 +138,7 @@ files_read_usr_files(hald_t)
 files_create_boot_flag(hald_t)
 files_getattr_all_dirs(hald_t)
 files_read_kernel_img(hald_t)
+files_rw_lock_dirs(hald_t)
 
 fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
@@ -180,6 +188,7 @@ modutils_domtrans_insmod(hald_t)
 
 seutil_read_config(hald_t)
 seutil_read_default_contexts(hald_t)
+seutil_read_file_contexts(hald_t)
 
 sysnet_read_config(hald_t)
 
@@ -192,6 +201,7 @@ ifdef(`targeted_policy',`
 ')
 
 optional_policy(`
+	alsa_domtrans(hald_t)
 	alsa_read_rw_config(hald_t)
 ')
 
@@ -301,7 +311,10 @@ files_search_var_lib(hald_acl_t)
 corecmd_exec_bin(hald_acl_t)
 
 dev_getattr_all_chr_files(hald_acl_t)
+dev_getattr_generic_usb_dev(hald_acl_t)
+dev_getattr_video_dev(hald_acl_t)
 dev_setattr_video_dev(hald_acl_t)
+dev_getattr_sound_dev(hald_acl_t)
 dev_setattr_sound_dev(hald_acl_t)
 dev_setattr_generic_usb_dev(hald_acl_t)
 dev_setattr_usbfs_files(hald_acl_t)
@@ -378,3 +391,25 @@ ifdef(`targeted_policy',`
 	term_dontaudit_use_console(hald_sonypic_t)
 	term_dontaudit_use_generic_ptys(hald_sonypic_t)
 ')
+
+########################################
+#
+# Hal keymap local policy
+#
+
+domtrans_pattern(hald_t, hald_keymap_exec_t, hald_keymap_t)
+allow hald_t hald_keymap_t:process signal;
+allow hald_keymap_t hald_t:unix_stream_socket connectto;
+
+manage_dirs_pattern(hald_keymap_t,hald_var_lib_t,hald_var_lib_t)
+manage_files_pattern(hald_keymap_t,hald_var_lib_t,hald_var_lib_t)
+files_search_var_lib(hald_keymap_t)
+
+dev_rw_input_dev(hald_keymap_t)
+
+files_read_usr_files(hald_keymap_t)
+
+libs_use_ld_so(hald_keymap_t)
+libs_use_shared_libs(hald_keymap_t)
+
+miscfiles_read_localization(hald_keymap_t)
