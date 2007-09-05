@@ -1,5 +1,5 @@
 
-policy_module(udev,1.7.0)
+policy_module(udev,1.7.1)
 
 ########################################
 #
@@ -68,8 +68,9 @@ allow udev_t udev_etc_t:file read_file_perms;
 allow udev_t udev_tbl_t:file manage_file_perms;
 dev_filetrans(udev_t,udev_tbl_t,file)
 
+manage_dirs_pattern(udev_t,udev_var_run_t,udev_var_run_t)
 manage_files_pattern(udev_t,udev_var_run_t,udev_var_run_t)
-files_pid_filetrans(udev_t,udev_var_run_t,file)
+files_pid_filetrans(udev_t,udev_var_run_t,{ dir file })
 
 kernel_read_system_state(udev_t)
 kernel_getattr_core_if(udev_t)
@@ -83,16 +84,23 @@ kernel_rw_unix_dgram_sockets(udev_t)
 kernel_dgram_send(udev_t)
 kernel_signal(udev_t)
 
+#https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=235182
+kernel_rw_net_sysctls(udev_t)
+kernel_read_network_state(udev_t)
+
 corecmd_exec_all_executables(udev_t)
 
 dev_rw_sysfs(udev_t)
 dev_manage_all_dev_nodes(udev_t)
 dev_rw_generic_files(udev_t)
 dev_delete_generic_files(udev_t)
+dev_search_usbfs(udev_t)
+dev_relabel_all_dev_nodes(udev_t)
 
 domain_read_all_domains_state(udev_t)
 domain_dontaudit_ptrace_all_domains(udev_t) #pidof triggers these 
 
+files_read_usr_files(udev_t)
 files_read_etc_runtime_files(udev_t)
 files_read_etc_files(udev_t)
 files_exec_etc_files(udev_t)
@@ -144,6 +152,12 @@ seutil_domtrans_setfiles(udev_t)
 
 sysnet_domtrans_ifconfig(udev_t)
 sysnet_domtrans_dhcpc(udev_t)
+sysnet_rw_dhcp_config(udev_t)
+sysnet_read_dhcpc_pid(udev_t)
+sysnet_delete_dhcpc_pid(udev_t)
+sysnet_signal_dhcpc(udev_t)
+sysnet_manage_config(udev_t)
+sysnet_etc_filetrans_config(udev_t)
 
 userdom_use_sysadm_ttys(udev_t)
 userdom_dontaudit_search_all_users_home_content(udev_t)
@@ -176,11 +190,19 @@ ifdef(`targeted_policy',`
 ')
 
 optional_policy(`
+	brctl_domtrans(udev_t)
+')
+
+optional_policy(`
 	consoletype_exec(udev_t)
 ')
 
 optional_policy(`
 	dbus_system_bus_client_template(udev,udev_t)
+')
+
+optional_policy(`
+	fstools_domtrans(udev_t)
 ')
 
 optional_policy(`
@@ -191,6 +213,23 @@ optional_policy(`
 	hotplug_read_config(udev_t)
 	# usb.agent searches /var/run/usb
 	hotplug_search_pids(udev_t)
+')
+
+optional_policy(`
+	openct_read_pid_files(udev_t)
+	openct_domtrans(udev_t)
+')
+
+optional_policy(`
+	pcscd_read_pub_files(udev_t)
+	pcscd_domtrans(udev_t)
+')
+
+optional_policy(`
+	kernel_write_xen_state(udev_t)
+	kernel_read_xen_state(udev_t)
+	xen_manage_log(udev_t)
+	xen_read_image_files(udev_t)
 ')
 
 optional_policy(`
