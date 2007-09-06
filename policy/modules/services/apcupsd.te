@@ -1,5 +1,5 @@
 
-policy_module(apcupsd,1.1.1)
+policy_module(apcupsd,1.1.2)
 
 ########################################
 #
@@ -16,6 +16,9 @@ files_lock_file(apcupsd_lock_t)
 type apcupsd_log_t;
 logging_log_file(apcupsd_log_t)
 
+type apcupsd_tmp_t;
+files_tmp_file(apcupsd_tmp_t)
+
 type apcupsd_var_run_t;
 files_pid_file(apcupsd_var_run_t)
 
@@ -24,6 +27,7 @@ files_pid_file(apcupsd_var_run_t)
 # apcupsd local policy
 #
 
+allow apcupsd_t self:capability { dac_override setgid sys_tty_config };
 allow apcupsd_t self:process signal;
 allow apcupsd_t self:fifo_file rw_file_perms;
 allow apcupsd_t self:unix_stream_socket create_stream_socket_perms;
@@ -36,8 +40,16 @@ allow apcupsd_t apcupsd_log_t:dir setattr;
 manage_files_pattern(apcupsd_t,apcupsd_log_t,apcupsd_log_t)
 logging_log_filetrans(apcupsd_t,apcupsd_log_t,{ file dir })
 
+manage_files_pattern(apcupsd_t, apcupsd_tmp_t, apcupsd_tmp_t)
+files_tmp_filetrans(apcupsd_t, apcupsd_tmp_t, file)
+
 manage_files_pattern(apcupsd_t,apcupsd_var_run_t,apcupsd_var_run_t)
 files_pid_filetrans(apcupsd_t,apcupsd_var_run_t, file)
+
+kernel_read_system_state(apcupsd_t)
+
+corecmd_exec_bin(apcupsd_t)
+corecmd_exec_shell(apcupsd_t)
 
 corenet_all_recvfrom_unlabeled(apcupsd_t)
 corenet_all_recvfrom_netlabel(apcupsd_t)
@@ -47,6 +59,7 @@ corenet_tcp_sendrecv_all_ports(apcupsd_t)
 corenet_tcp_bind_all_nodes(apcupsd_t)
 corenet_tcp_bind_apcupsd_port(apcupsd_t)
 corenet_sendrecv_apcupsd_server_packets(apcupsd_t)
+corenet_tcp_connect_apcupsd_port(apcupsd_t)
 
 dev_rw_generic_usb_dev(apcupsd_t)
 
@@ -55,6 +68,16 @@ domain_use_interactive_fds(apcupsd_t)
 
 files_read_etc_files(apcupsd_t)
 files_search_locks(apcupsd_t)
+# Creates /etc/nologin
+files_manage_etc_runtime_files(apcupsd_t)
+files_etc_filetrans_etc_runtime(apcupsd_t,file)
+
+# https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=240805
+term_use_unallocated_ttys(apcupsd_t)
+
+#apcupsd runs shutdown, probably need a shutdown domain
+init_rw_utmp(apcupsd_t)
+init_telinit(apcupsd_t)
 
 libs_use_ld_so(apcupsd_t)
 libs_use_shared_libs(apcupsd_t)
@@ -64,6 +87,37 @@ logging_send_syslog_msg(apcupsd_t)
 miscfiles_read_localization(apcupsd_t)
 
 ifdef(`targeted_policy',`
-	term_dontaudit_use_unallocated_ttys(apcupsd_t)
 	term_dontaudit_use_generic_ptys(apcupsd_t)
+')
+
+optional_policy(`
+	hostname_exec(apcupsd_t)
+')
+
+optional_policy(`
+	mta_send_mail(apcupsd_t)
+')
+
+########################################
+#
+# apcupsd_cgi Declarations
+#
+
+optional_policy(`
+	apache_content_template(apcupsd_cgi)
+	
+	allow httpd_apcupsd_cgi_script_t self:tcp_socket create_stream_socket_perms;
+	allow httpd_apcupsd_cgi_script_t self:udp_socket create_socket_perms;
+	
+	corenet_all_recvfrom_unlabeled(httpd_apcupsd_cgi_script_t)
+	corenet_all_recvfrom_netlabel(httpd_apcupsd_cgi_script_t)
+	corenet_tcp_sendrecv_all_if(httpd_apcupsd_cgi_script_t)
+	corenet_tcp_sendrecv_all_nodes(httpd_apcupsd_cgi_script_t)
+	corenet_tcp_sendrecv_all_ports(httpd_apcupsd_cgi_script_t)
+	corenet_tcp_connect_apcupsd_port(httpd_apcupsd_cgi_script_t)
+	corenet_udp_sendrecv_all_if(httpd_apcupsd_cgi_script_t)
+	corenet_udp_sendrecv_all_nodes(httpd_apcupsd_cgi_script_t)
+	corenet_udp_sendrecv_all_ports(httpd_apcupsd_cgi_script_t)
+	
+	sysnet_dns_name_resolve(httpd_apcupsd_cgi_script_t)
 ')

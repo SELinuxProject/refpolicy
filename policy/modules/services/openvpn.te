@@ -1,10 +1,17 @@
 
-policy_module(openvpn,1.3.0)
+policy_module(openvpn,1.3.1)
 
 ########################################
 #
 # Declarations
 #
+
+## <desc>
+## <p>
+## Allow openvpn to read home directories
+## </p>
+## </desc>
+gen_tunable(openvpn_enable_homedirs,false)
 
 # main openvpn domain
 type openvpn_t;
@@ -28,7 +35,9 @@ files_pid_file(openvpn_var_run_t)
 # openvpn local policy
 #
 
-allow openvpn_t self:capability { net_bind_service net_admin setgid setuid sys_tty_config };
+allow openvpn_t self:capability { dac_read_search dac_override net_bind_service net_admin setgid setuid sys_tty_config };
+allow openvpn_t self:process { signal getsched };
+
 allow openvpn_t self:unix_dgram_socket { create_socket_perms sendto };
 allow openvpn_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow openvpn_t self:udp_socket create_socket_perms;
@@ -42,8 +51,8 @@ read_lnk_files_pattern(openvpn_t,openvpn_etc_t,openvpn_etc_t)
 allow openvpn_t openvpn_var_log_t:file manage_file_perms;
 logging_log_filetrans(openvpn_t,openvpn_var_log_t,file)
 
-allow openvpn_t openvpn_var_run_t:file manage_file_perms;
-files_pid_filetrans(openvpn_t, openvpn_var_run_t, file)
+manage_files_pattern(openvpn_t, openvpn_var_run_t, openvpn_var_run_t)
+files_pid_filetrans(openvpn_t, openvpn_var_run_t, { file dir })
 
 kernel_read_kernel_sysctls(openvpn_t)
 kernel_read_net_sysctls(openvpn_t)
@@ -67,6 +76,7 @@ corenet_tcp_bind_openvpn_port(openvpn_t)
 corenet_udp_bind_openvpn_port(openvpn_t)
 corenet_sendrecv_openvpn_server_packets(openvpn_t)
 corenet_rw_tun_tap_dev(openvpn_t)
+corenet_tcp_connect_openvpn_port(openvpn_t)
 
 dev_search_sysfs(openvpn_t)
 dev_read_rand(openvpn_t)
@@ -81,6 +91,7 @@ libs_use_shared_libs(openvpn_t)
 logging_send_syslog_msg(openvpn_t)
 
 miscfiles_read_localization(openvpn_t)
+miscfiles_read_certs(openvpn_t)
 
 sysnet_dns_name_resolve(openvpn_t)
 sysnet_exec_ifconfig(openvpn_t)
@@ -90,6 +101,18 @@ ifdef(`targeted_policy',`
 	term_use_generic_ptys(openvpn_t)
 ')
 
+tunable_policy(`openvpn_enable_homedirs',`
+	userdom_read_unpriv_users_home_content_files(openvpn_t)
+')
+
 optional_policy(`
 	daemontools_service_domain(openvpn_t,openvpn_exec_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client_template(openvpn,openvpn_t)
+	dbus_connect_system_bus(openvpn_t)
+	dbus_send_system_bus(openvpn_t)
+
+	networkmanager_dbus_chat(openvpn_t)
 ')
