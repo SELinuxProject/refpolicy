@@ -49,6 +49,10 @@ interface(`dbus_stub',`
 ## </param>
 #
 template(`dbus_per_role_template',`
+	gen_require(`
+		type system_dbusd_exec_t, system_dbusd_t, dbusd_etc_t;
+		class dbus { send_msg acquire_svc };
+	')
 
 	##############################
 	#
@@ -70,6 +74,7 @@ template(`dbus_per_role_template',`
 	#
 
 	allow $1_dbusd_t self:process { getattr sigkill signal };
+	dontaudit $1_dbusd_t self:process ptrace;
 	allow $1_dbusd_t self:file { getattr read write };
 	allow $1_dbusd_t self:fifo_file rw_fifo_file_perms;
 	allow $1_dbusd_t self:dbus { send_msg acquire_svc };
@@ -97,6 +102,13 @@ template(`dbus_per_role_template',`
 
 	domtrans_pattern($2, system_dbusd_exec_t, $1_dbusd_t)
 	allow $2 $1_dbusd_t:process { sigkill signal };
+
+	# cjp: this seems very broken
+	corecmd_bin_domtrans($1_dbusd_t, $2)
+	allow $1_dbusd_t $2:process sigkill;
+	allow $2 $1_dbusd_t:fd use;
+	allow $2 $1_dbusd_t:fifo_file rw_fifo_file_perms;
+	allow $2 $1_dbusd_t:process sigchld;
 
 	kernel_read_system_state($1_dbusd_t)
 	kernel_read_kernel_sysctls($1_dbusd_t)
@@ -149,6 +161,12 @@ template(`dbus_per_role_template',`
 
 	sysnet_read_config($1_dbusd_t)
 
+	userdom_read_user_home_content_files($1, $1_dbusd_t)
+
+	ifdef(`hide_broken_symptoms', `
+		dontaudit $2 $1_dbusd_t:netlink_selinux_socket { read write };
+	')
+
 	tunable_policy(`read_default_t',`
 		files_list_default($1_dbusd_t)
 		files_read_default_files($1_dbusd_t)
@@ -191,7 +209,7 @@ template(`dbus_per_role_template',`
 template(`dbus_system_bus_client_template',`
 	gen_require(`
 		type system_dbusd_t, system_dbusd_t;
-		type system_dbusd_var_run_t;
+		type system_dbusd_var_run_t, system_dbusd_var_lib_t;
 		class dbus send_msg;
 	')
 
@@ -201,9 +219,12 @@ template(`dbus_system_bus_client_template',`
 	# SE-DBus specific permissions
 	allow $1_dbusd_system_t { system_dbusd_t self }:dbus send_msg;
 
+	read_files_pattern($2, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+
 	# For connecting to the bus
 	files_search_pids($2)
 	stream_connect_pattern($2,system_dbusd_var_run_t,system_dbusd_var_run_t,system_dbusd_t)
+	dbus_read_config($2)
 ')
 
 #######################################
@@ -285,6 +306,7 @@ interface(`dbus_read_config',`
 		type dbusd_etc_t;
 	')
 
+	allow $1 dbusd_etc_t:dir list_dir_perms;
 	allow $1 dbusd_etc_t:file read_file_perms;
 ')
 
