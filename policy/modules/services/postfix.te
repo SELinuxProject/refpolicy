@@ -1,5 +1,5 @@
 
-policy_module(postfix,1.6.1)
+policy_module(postfix,1.6.2)
 
 ########################################
 #
@@ -83,6 +83,12 @@ files_type(postfix_public_t)
 type postfix_var_run_t;
 files_pid_file(postfix_var_run_t)
 
+postfix_server_domain_template(virtual)
+mta_mailserver_delivery(postfix_virtual_t)
+
+type postfix_virtual_tmp_t;
+files_tmp_file(postfix_virtual_tmp_t)
+
 ########################################
 #
 # Postfix master process local policy
@@ -158,6 +164,8 @@ domain_use_interactive_fds(postfix_master_t)
 
 files_read_usr_files(postfix_master_t)
 
+term_dontaudit_search_ptys(postfix_master_t)
+
 miscfiles_read_man_pages(postfix_master_t)
 
 seutil_sigchld_newrole(postfix_master_t)
@@ -168,6 +176,10 @@ sysnet_read_config(postfix_master_t)
 
 mta_rw_aliases(postfix_master_t)
 mta_read_sendmail_bin(postfix_master_t)
+
+optional_policy(`
+	auth_use_nsswitch(postfix_master_t)
+')
 
 ifdef(`targeted_policy',`
 	term_dontaudit_use_unallocated_ttys(postfix_master_t)
@@ -184,7 +196,15 @@ optional_policy(`
 ')
 
 optional_policy(`
+	mysql_stream_connect(postfix_master_t)
+')
+
+optional_policy(`
 	nis_use_ypbind(postfix_master_t)
+')
+
+optional_policy(`
+	sendmail_signal(postfix_master_t)
 ')
 
 ###########################################################
@@ -387,7 +407,7 @@ delete_files_pattern(postfix_pickup_t,postfix_spool_maildrop_t,postfix_spool_mai
 # Postfix pipe local policy
 #
 
-allow postfix_pipe_t self:fifo_file { read write };
+allow postfix_pipe_t self:fifo_file rw_fifo_file_perms;
 
 write_sock_files_pattern(postfix_pipe_t,postfix_private_t,postfix_private_t)
 
@@ -439,6 +459,11 @@ ifdef(`targeted_policy', `
 
 optional_policy(`
 	cron_system_entry(postfix_postdrop_t, postfix_postdrop_exec_t)
+')
+
+# https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=239951
+optional_policy(`
+	fstools_read_pipes(postfix_postdrop_t)
 ')
 
 optional_policy(`
@@ -520,14 +545,14 @@ sysnet_dns_name_resolve(postfix_showq_t)
 # Postfix smtp delivery local policy
 #
 
-allow postfix_smtp_t self:netlink_route_socket r_netlink_socket_perms;
-
 # connect to master process
 stream_connect_pattern(postfix_smtp_t,{ postfix_private_t postfix_public_t },{ postfix_private_t postfix_public_t },postfix_master_t)
 
 allow postfix_smtp_t postfix_prng_t:file rw_file_perms;
 
 allow postfix_smtp_t postfix_spool_t:file rw_file_perms;
+
+files_dontaudit_getattr_home_dir(postfix_smtp_t)
 
 optional_policy(`
 	cyrus_stream_connect(postfix_smtp_t)
@@ -553,9 +578,41 @@ files_read_usr_files(postfix_smtpd_t)
 mta_read_aliases(postfix_smtpd_t)
 
 optional_policy(`
+	mailman_read_data_files(postfix_smtpd_t)
+')
+
+optional_policy(`
 	postgrey_stream_connect(postfix_smtpd_t)
 ')
 
 optional_policy(`
 	sasl_connect(postfix_smtpd_t)
 ')
+
+########################################
+#
+# Postfix virtual local policy
+#
+
+allow postfix_virtual_t self:fifo_file rw_fifo_file_perms;
+allow postfix_virtual_t self:process { setsched setrlimit };
+
+allow postfix_virtual_t postfix_spool_t:file rw_file_perms;
+
+manage_dirs_pattern(postfix_virtual_t,postfix_virtual_tmp_t,postfix_virtual_tmp_t)
+manage_files_pattern(postfix_virtual_t,postfix_virtual_tmp_t,postfix_virtual_tmp_t)
+files_tmp_filetrans(postfix_virtual_t, postfix_virtual_tmp_t, { file dir })
+
+# connect to master process
+stream_connect_pattern(postfix_virtual_t,postfix_public_t,postfix_public_t,postfix_master_t)
+
+corecmd_exec_shell(postfix_virtual_t)
+corecmd_exec_bin(postfix_virtual_t)
+
+files_read_etc_files(postfix_virtual_t)
+
+mta_read_aliases(postfix_virtual_t)
+mta_delete_spool(postfix_virtual_t)
+# For reading spamassasin
+mta_read_config(postfix_virtual_t)
+mta_manage_spool(postfix_virtual_t)
