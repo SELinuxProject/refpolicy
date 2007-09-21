@@ -31,10 +31,10 @@ QUIET ?= y
 
 genxml := $(PYTHON) $(HEADERDIR)/support/segenxml.py
 
-docs = doc
-polxml = $(docs)/policy.xml
-xmldtd = $(HEADERDIR)/support/policy.dtd
-metaxml = metadata.xml
+docs := doc
+polxml := $(docs)/policy.xml
+xmldtd := $(HEADERDIR)/support/policy.dtd
+metaxml := metadata.xml
 
 globaltun = $(HEADERDIR)/global_tunables.xml
 globalbool = $(HEADERDIR)/global_booleans.xml
@@ -86,35 +86,23 @@ M4PARAM += -D hide_broken_symptoms -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$
 # policy headers
 m4support = $(wildcard $(HEADERDIR)/support/*.spt)
 
-all_layers = $(filter-out $(HEADERDIR)/support,$(shell find $(wildcard $(HEADERDIR)/*) -maxdepth 0 -type d))
-all_interfaces = $(foreach layer,$(all_layers),$(wildcard $(layer)/*.if))
-rolemap = $(HEADERDIR)/rolemap
+header_layers := $(filter-out $(HEADERDIR)/support,$(shell find $(wildcard $(HEADERDIR)/*) -maxdepth 0 -type d))
+header_xml := $(addsuffix .xml,$(header_layers))
+header_interfaces := $(foreach layer,$(header_layers),$(wildcard $(layer)/*.if))
 
-detected_layers =  $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
+rolemap := $(HEADERDIR)/rolemap
 
-clayers = $(addprefix $(CURDIR)/, $(filter $(notdir $(detected_layers)), $(notdir $(all_layers))))
-all_layers_subset = $(addprefix $(HEADERDIR)/, $(filter-out $(notdir $(detected_layers)), $(notdir $(all_layers))))
-detected_layers_subset = $(addprefix $(CURDIR)/, $(filter-out $(notdir $(clayers)), $(notdir $(detected_layers))))
+local_layers := $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
+local_xml := $(addprefix tmp/, $(addsuffix .xml,$(local_layers)))
 
-3rd_party_mods = $(wildcard *.te)
-detected_mods = $(3rd_party_mods) $(foreach layer,$(detected_layers),$(wildcard $(layer)/*.te))
-detected_mods_subset = $(3rd_party_mods) $(foreach layer,$(detected_layers_subset),$(wildcard $(layer)/*.te))
+all_layer_names := $(sort $(notdir $(header_layers) $(local_layers)))
 
-detected_ifs = $(detected_mods:.te=.if)
-detected_fcs = $(detected_mods:.te=.fc)
-all_packages = $(notdir $(detected_mods:.te=.pp))
+3rd_party_mods := $(wildcard *.te)
+detected_mods := $(3rd_party_mods) $(foreach layer,$(local_layers),$(wildcard $(layer)/*.te))
 
-modxml = $(addprefix $(CURDIR)/, $(detected_mods_subset:.te=.xml))
-layerxml = $(addprefix tmp/, $(notdir $(addsuffix .xml, $(detected_layers_subset) $(CURDIR))))
-
-hmodxml = $(all_interfaces:.if=.xml)
-hlayerxml = $(addsuffix .xml, $(addprefix tmp/, $(notdir $(all_layers_subset))))
-hmetaxml = $(foreach layer, $(all_layers_subset), $(layer)/$(metaxml))
-
-cmods = $(foreach layer, $(clayers), $(wildcard $(layer)/*.te))
-cmodxml = $(cmods:.te=.xml)
-clayerxml= $(addsuffix .xml, $(addprefix tmp/, $(notdir $(clayers))))
-cmetaxml = $(foreach layer, $(notdir $(clayers)), $(HEADERDIR)/$(layer)/$(metaxml))
+detected_ifs := $(detected_mods:.te=.if)
+detected_fcs := $(detected_mods:.te=.fc)
+all_packages := $(notdir $(detected_mods:.te=.pp))
 
 # figure out what modules we may want to reload
 loaded_mods = $(addsuffix .pp,$(shell $(SEMODULE) -l | $(CUT) -f1))
@@ -122,9 +110,9 @@ sys_mods = $(wildcard $(SHAREDIR)/$(NAME)/*.pp)
 match_sys = $(filter $(addprefix $(SHAREDIR)/$(NAME)/,$(loaded_mods)),$(sys_mods))
 match_loc = $(filter $(all_packages),$(loaded_mods))
 
-vpath %.te $(detected_layers)
-vpath %.if $(detected_layers)
-vpath %.fc $(detected_layers)
+vpath %.te $(local_layers)
+vpath %.if $(local_layers)
+vpath %.fc $(local_layers)
 
 ########################################
 #
@@ -202,7 +190,7 @@ reload: $(all_packages)
 #
 tmp/%.mod: $(m4support) tmp/all_interfaces.conf %.te
 	@$(EINFO) "Compiling $(NAME) $(basename $(@F)) module"
-	@test -d tmp || mkdir -p tmp
+	@test -d $(@D) || mkdir -p $(@D)
 	$(call peruser-expansion,$(basename $(@F)),$@.role)
 	$(verbose) $(M4) $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
 	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
@@ -214,55 +202,50 @@ tmp/%.mod.fc: $(m4support) %.fc
 	@echo "Creating $(NAME) $(@F) policy package"
 	$(verbose) $(SEMOD_PKG) -o $@ -m $< -f $<.fc
 
-tmp/all_interfaces.conf: $(m4support) $(all_interfaces) $(detected_ifs)
-	@test -d tmp || mkdir -p tmp
-	$(verbose) m4 $^ | sed -e s/dollarsstar/\$$\*/g > $@
+tmp/all_interfaces.conf: $(m4support) $(header_interfaces) $(detected_ifs)
+	@test -d $(@D) || mkdir -p $(@D)
+	@echo "ifdef(\`__if_error',\`m4exit(1)')" > tmp/iferror.m4
+	@echo "divert(-1)" > $@
+	$(verbose) $(M4) $^ tmp/iferror.m4 | sed -e s/dollarsstar/\$$\*/g >> $@
+	@echo "divert" >> $@
 
 # so users dont have to make empty .fc and .if files
-$(detected_ifs) $(detected_fcs):
+$(detected_fcs):
 	@touch $@
+	
+$(detected_ifs):
+	@echo "## <summary>$(basename $(@D))</summary>" > $@
 
 ########################################
 #
 # Documentation generation
 #
+tmp/%.xml: %/*.te %/*.if
+	@test -d $(@D) || mkdir -p $(@D)
+	$(verbose) test -f $(HEADERDIR)/$*.xml || cat $*/$(metaxml) > $@
+	$(verbose) $(genxml) -w -m $(sort $(basename $^)) >> $@
 
-$(clayerxml): %.xml: $(cmodxml) $(hmodxml) $(cmetaxml)
-	@test -d tmp || mkdir -p tmp
-	$(verbose) echo '<layer name="$(*F)">' > $@
-	$(verbose) cat $(addprefix $(HEADERDIR)/, $(notdir $*)/$(metaxml)) >> $@;
-	$(verbose) cat $(filter $(addprefix $(CURDIR)/, $(notdir $*))/%, $(cmodxml)) >> $@
-	$(verbose) cat $(filter-out $(addprefix $(HEADERDIR)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(HEADERDIR)/, $(notdir $*))/%, $(hmodxml))) >> $@
-	$(verbose) echo '</layer>' >> $@
+vars: $(local_xml)
 
-$(hlayerxml): %.xml: $(hmodxml) $(hmetaxml)
-	@test -d tmp || mkdir -p tmp
-	$(verbose) echo '<layer name="$(*F)">' > $@
-	$(verbose) cat $(addprefix $(HEADERDIR)/, $(notdir $*)/$(metaxml)) >> $@;
-	$(verbose) cat $(filter-out $(addprefix $(HEADERDIR)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(HEADERDIR)/, $(notdir $*))/%, $(hmodxml))) >> $@
-	$(verbose) echo '</layer>' >> $@
-
-$(cmodxml) $(modxml): %.xml: %.if %.te
-	$(verbose) $(genxml) -w -m $* > $@
-
-$(layerxml): %.xml: $(modxml)
-	@test -d tmp || mkdir -p tmp
-	$(verbose) echo '<layer name="$(*F)">' > $@
-	$(verbose) if test -f '$(metaxml)'; then \
-		cat $(metaxml) >> $@; \
-	else \
-		echo '<summary>This is all third-party generated modules.</summary>' >> $@; \
-	fi
-	$(verbose) cat $(filter-out %/$(metaxml), $^) >> $@
-	$(verbose) echo '</layer>' >> $@
-
-$(polxml): $(clayerxml) $(hlayerxml) $(layerxml) $(globaltun) $(globalbool)
+$(polxml): $(header_xml) $(local_xml) $(globaltun) $(globalbool) $(detected_mods) $(detected_ifs)
 	@echo "Creating $(@F)"
-	@test -d $(dir $(polxml)) || mkdir -p $(dir $(polxml))
+	@test -d $(@D) || mkdir -p $(@D)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
 	$(verbose) echo '<policy>' >> $@
-	$(verbose) cat $(sort $(clayerxml) $(hlayerxml) $(layerxml)) $(globaltun) $(globalbool) >> $@
+	$(verbose) for i in $(all_layer_names); do \
+		echo "<layer name=\"$$i\">" >> $@ ;\
+		test -f $(HEADERDIR)/$$i.xml && cat $(HEADERDIR)/$$i.xml >> $@ ;\
+		test -f tmp/$$i.xml && cat tmp/$$i.xml >> $@ ;\
+		echo "</layer>" >> $@ ;\
+	done
+ifneq "$(strip $(3rd_party_mods))" ""
+	$(verbose) echo "<layer name=\"third_party\">" >> $@
+	$(verbose) echo "<summary>These are all third-party modules.</summary>" >> $@
+	$(verbose) $(genxml) -w -m $(addprefix ./,$(basename $(3rd_party_mods))) >> $@
+	$(verbose) echo "</layer>" >> $@
+endif
+	$(verbose) cat $(globaltun) $(globalbool) >> $@
 	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\

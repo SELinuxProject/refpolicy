@@ -241,9 +241,9 @@ user_default_contexts_names := $(addprefix $(contextpath)/users/,$(subst _defaul
 appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts customizable_types) $(contextpath)/files/media $(user_default_contexts_names)
 net_contexts := $(builddir)net_contexts
 
-all_layers := $(filter-out $(moddir)/CVS,$(shell find $(wildcard $(moddir)/*) -maxdepth 0 -type d))
+all_layers := $(shell find $(wildcard $(moddir)/*) -maxdepth 0 -type d)
 ifdef LOCAL_ROOT
-all_layers += $(filter-out $(local_moddir)/CVS,$(shell find $(wildcard $(local_moddir)/*) -maxdepth 0 -type d))
+all_layers += $(shell find $(wildcard $(local_moddir)/*) -maxdepth 0 -type d)
 endif
 
 generated_te := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te.in)))
@@ -254,9 +254,10 @@ generated_fc := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.fc.in
 # when a generated file is already generated
 detected_mods := $(sort $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te)) $(generated_te))
 
-modxml := $(detected_mods:.te=.xml)
-layerxml := $(addprefix $(tmpdir)/, $(notdir $(addsuffix .xml,$(all_layers))))
-all_metaxml := $(addsuffix /$(metaxml), $(all_layers))
+modxml := $(addprefix $(tmpdir)/, $(detected_mods:.te=.xml))
+layerxml := $(sort $(addprefix $(tmpdir)/, $(notdir $(addsuffix .xml,$(all_layers)))))
+layer_names := $(sort $(notdir $(all_layers)))
+all_metaxml = $(call detect-metaxml, $(layer_names))
 
 # modules.conf setting for base module
 configbase := base
@@ -345,6 +346,29 @@ define create-base-per-role-tmpl
 
 endef
 
+# detect-metaxml layer_names
+ifdef LOCAL_ROOT
+define detect-metaxml
+	$(shell for i in $1; do \
+		if [ -d $(moddir)/$$i -a -d $(local_moddir)/$$i ]; then \
+			if [ -f $(local_moddir)/$$i/$(metaxml) ]; then \
+				echo $(local_moddir)/$$i/$(metaxml) ;\
+			else \
+				echo $(moddir)/$$i/$(metaxml) ;\
+			fi \
+		elif [ -d $(local_moddir)/$$i ]; then
+			echo $(local_moddir)/$$i/$(metaxml) ;\
+		else \
+			echo $(moddir)/$$i/$(metaxml) ;\
+		fi \
+	done )
+endef
+else
+define detect-metaxml
+	$(shell for i in $1; do echo $(moddir)/$$i/$(metaxml); done)
+endef
+endif
+
 ########################################
 #
 # Load appropriate rules
@@ -405,22 +429,19 @@ $(mod_conf) $(booleans): $(polxml)
 # Generate the fc_sort program
 #
 $(fcsort) : $(support)/fc_sort.c
-	$(verbose) $(CC) $(CFLAGS) $(support)/fc_sort.c -o $(fcsort)
+	$(verbose) $(CC) $(CFLAGS) $^ -o $@
 
 ########################################
 #
 # Documentation generation
 #
-
-$(modxml): %.xml: %.if %.te
-	$(verbose) $(genxml) -w -m $* > $@
-
-$(layerxml): %.xml: $(modxml) $(all_metaxml)
+$(layerxml): %.xml: $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
-	$(verbose) echo '<layer name="$(*F)">' > $@
-	$(verbose) cat $(addprefix $(moddir)/, $(notdir $*))/$(metaxml) >> $@
-	$(verbose) cat $(filter-out $(addprefix $(moddir)/, $(notdir $*))/$(metaxml), $(filter $(addprefix $(moddir)/, $(notdir $*))/%, $(modxml))) >> $@
-	$(verbose) echo '</layer>' >> $@
+	$(verbose) cat $(filter %$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
+	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
+ifdef LOCAL_ROOT
+	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
+endif	
 
 $(tunxml): $(globaltun)
 	$(verbose) $(genxml) -w -t $< > $@
@@ -435,7 +456,8 @@ $(polxml): $(layerxml) $(tunxml) $(boolxml)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
 	$(verbose) echo '<policy>' >> $@
-	$(verbose) cat $(layerxml) $(tunxml) $(boolxml) >> $@
+	$(verbose) for i in $(basename $(notdir $(layerxml))); do echo "<layer name=\"$$i\">" >> $@; cat $(tmpdir)/$$i.xml >> $@; echo "</layer>" >> $@; done
+	$(verbose) cat $(tunxml) $(boolxml) >> $@
 	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
@@ -537,16 +559,14 @@ $(contextpath)/users/%: $(appconf)/%_default_contexts
 install-headers: $(layerxml) $(tunxml) $(boolxml)
 	@mkdir -p $(headerdir)
 	@echo "Installing $(TYPE) policy headers."
-	$(verbose) $(INSTALL) -m 644 $(tunxml) $(boolxml) $(headerdir)
+	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
 	$(verbose) $(M4) $(M4PARAM) $(rolemap) > $(headerdir)/$(notdir $(rolemap))
 	$(verbose) mkdir -p $(headerdir)/support
 	$(verbose) $(INSTALL) -m 644 $(m4support) $(word $(words $(genxml)),$(genxml)) $(xmldtd) $(headerdir)/support
 	$(verbose) $(genperm) $(avs) $(secclass) > $(headerdir)/support/all_perms.spt
 	$(verbose) for i in $(notdir $(all_layers)); do \
 		mkdir -p $(headerdir)/$$i ;\
-		$(INSTALL) -m 644 $(moddir)/$$i/*.if \
-			$(moddir)/$$i/*.xml \
-			$(headerdir)/$$i ;\
+		$(INSTALL) -m 644 $(moddir)/$$i/*.if $(headerdir)/$$i ;\
 	done
 	$(verbose) echo "TYPE ?= $(TYPE)" > $(headerdir)/build.conf
 	$(verbose) echo "NAME ?= $(NAME)" >> $(headerdir)/build.conf
@@ -661,6 +681,6 @@ ifneq ($(generated_fc),)
 endif
 endif
 
-.PHONY: install-src install-appconfig generate xml conf html bare tags
+.PHONY: install-src install-appconfig install-headers generate xml conf html bare tags
 .SUFFIXES:
 .SUFFIXES: .c
