@@ -49,6 +49,10 @@ interface(`mount_run',`
 	mount_domtrans($1)
 	role $2 types mount_t;
 	allow mount_t $3:chr_file rw_file_perms;
+
+	optional_policy(`
+		samba_run_smbmount($1, $2, $3)
+	')
 ')
 
 ########################################
@@ -128,18 +132,42 @@ interface(`mount_send_nfs_client_request',`
 ## </param>
 #
 interface(`mount_domtrans_unconfined',`
-	ifdef(`targeted_policy',`
-		gen_require(`
-			type unconfined_mount_t, mount_exec_t;
-		')
-
-		domtrans_pattern($1,mount_exec_t,unconfined_mount_t)
-
-		allow $1 unconfined_mount_t:fd use;
-		allow unconfined_mount_t $1:fd use;
-		allow unconfined_mount_t $1:fifo_file rw_file_perms;
-		allow unconfined_mount_t $1:process sigchld;
-	',`
-		mount_domtrans($1)
+	gen_require(`
+		type unconfined_mount_t, mount_exec_t;
 	')
+
+	domtrans_pattern($1, mount_exec_t, unconfined_mount_t)
+')
+
+########################################
+## <summary>
+##	Execute mount in the unconfined mount domain, and
+##	allow the specified role the unconfined mount domain,
+##	and use the caller's terminal.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the unconfined mount domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the unconfined mount domain to use.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mount_run_unconfined',`
+	gen_require(`
+		type unconfined_mount_t;
+	')
+
+	mount_domtrans_unconfined($1)
+	role $2 types unconfined_mount_t;
+	allow unconfined_mount_t $3:chr_file rw_file_perms;
 ')

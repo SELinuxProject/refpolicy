@@ -10,15 +10,6 @@ gen_require(`
 # Declarations
 #
 
-ifdef(`targeted_policy',`
-## <desc>
-## <p>
-## Allow all daemons the ability to use unallocated ttys
-## </p>
-## </desc>
-gen_tunable(allow_daemons_use_tty,false)
-')
-
 # used for direct running of init scripts
 # by admin domains
 attribute direct_run_init;
@@ -172,16 +163,16 @@ ifdef(`distro_redhat',`
 	fs_tmpfs_filetrans(init_t,initctl_t,fifo_file)
 ')
 
-ifdef(`targeted_policy',`
-	unconfined_domain(init_t)
-')
-
 optional_policy(`
 	auth_rw_login_records(init_t)
 ')
 
 optional_policy(`
 	nscd_socket_use(init_t)
+')
+
+optional_policy(`
+	unconfined_domain(init_t)
 ')
 
 # Run the shell in the sysadm_t domain for single-user mode.
@@ -505,37 +496,6 @@ ifdef(`distro_suse',`
 	')
 ')
 
-ifdef(`targeted_policy',`
-	domain_subj_id_change_exemption(initrc_t)
-	unconfined_domain(initrc_t)
-
-	ifdef(`distro_redhat',`
-		# system-config-services causes avc messages that should be dontaudited
-		unconfined_dontaudit_rw_pipes(daemon)
-	')
-
-	tunable_policy(`allow_daemons_use_tty',`
-		term_use_unallocated_ttys(daemon)
-		term_use_generic_ptys(daemon)
-	')
-
-	optional_policy(`
-		mono_domtrans(initrc_t)
-	')
-',`
-	# cjp: require doesnt work in the else of optionals :\
-	# this also would result in a type transition
-	# conflict if sendmail is enabled
-#	optional_policy(`',`
-#		mta_send_mail(initrc_t)
-#	')
-
-	# allow init scripts to su
-	optional_policy(`
-		su_restricted_domain_template(initrc,initrc_t,system_r)
-	')
-')
-
 optional_policy(`
 	amavis_search_lib(initrc_t)
 	amavis_setattr_pid_files(initrc_t)
@@ -672,6 +632,12 @@ optional_policy(`
 	mta_read_config(initrc_t)
 	mta_dontaudit_read_spool_symlinks(initrc_t)
 ')
+# cjp: require doesnt work in the else of optionals :\
+# this also would result in a type transition
+# conflict if sendmail is enabled
+#optional_policy(`',`
+#	mta_send_mail(initrc_t)
+#')
 
 optional_policy(`
 	ifdef(`distro_redhat',`
@@ -750,6 +716,11 @@ optional_policy(`
 ')
 
 optional_policy(`
+	# allow init scripts to su
+	su_restricted_domain_template(initrc,initrc_t,system_r)
+')
+
+optional_policy(`
 	ssh_dontaudit_read_server_keys(initrc_t)
 ')
 
@@ -763,6 +734,19 @@ optional_policy(`
 
 optional_policy(`
 	uml_setattr_util_sockets(initrc_t)
+')
+
+optional_policy(`
+	unconfined_domain(initrc_t)
+
+	ifdef(`distro_redhat',`
+		# system-config-services causes avc messages that should be dontaudited
+		unconfined_dontaudit_rw_pipes(daemon)
+	')
+
+	optional_policy(`
+		mono_domtrans(initrc_t)
+	')
 ')
 
 optional_policy(`

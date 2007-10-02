@@ -158,18 +158,8 @@ modpkgdir = $(sharedir)/$(strip $(NAME))
 headerdir = $(modpkgdir)/include
 docsdir = $(prefix)/share/doc/$(PKGNAME)
 
-# compile strict policy if requested.
-ifneq ($(findstring strict,$(TYPE)),)
-	M4PARAM += -D strict_policy
-endif
-
-# compile targeted policy if requested.
-ifneq ($(findstring targeted,$(TYPE)),)
-	M4PARAM += -D targeted_policy
-endif
-
 # enable MLS if requested.
-ifneq ($(findstring -mls,$(TYPE)),)
+ifeq "$(TYPE)" "mls"
 	M4PARAM += -D enable_mls
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
@@ -177,7 +167,7 @@ ifneq ($(findstring -mls,$(TYPE)),)
 endif
 
 # enable MLS if MCS requested.
-ifneq ($(findstring -mcs,$(TYPE)),)
+ifeq "$(TYPE)" "mcs"
 	M4PARAM += -D enable_mcs
 	CHECKPOLICY += -M
 	CHECKMODULE += -M

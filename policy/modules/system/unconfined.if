@@ -12,6 +12,7 @@
 #
 interface(`unconfined_domain_noaudit',`
 	gen_require(`
+		type unconfined_t;
 		class dbus all_dbus_perms;
 		class nscd all_nscd_perms;
 		class passwd all_passwd_perms;
@@ -114,6 +115,56 @@ interface(`unconfined_domain',`
 #	tunable_policy(`allow_execmem',`
 #		auditallow $1 self:process execmem;
 #	')
+')
+
+########################################
+## <summary>
+##	Add an alias type to the unconfined domain.  (Deprecated)
+## </summary>
+## <desc>
+##	<p>
+##	Add an alias type to the unconfined domain.  (Deprecated)
+##	</p>
+##	<p>
+##	This is added to support targeted policy.  Its
+##	use should be limited.  It has no effect
+##	on the strict policy.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	New alias of the unconfined domain.
+##	</summary>
+## </param>
+#
+interface(`unconfined_alias_domain',`
+	refpolicywarn(`$0($1) has been deprecated.')
+')
+
+########################################
+## <summary>
+##	Add an alias type to the unconfined execmem
+##	program file type.  (Deprecated)
+## </summary>
+## <desc>
+##	<p>
+##	Add an alias type to the unconfined execmem
+##	program file type.  (Deprecated)
+##	</p>
+##	<p>
+##	This is added to support targeted policy.  Its
+##	use should be limited.  It has no effect
+##	on the strict policy.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	New alias of the unconfined execmem program type.
+##	</summary>
+## </param>
+#
+interface(`unconfined_execmem_alias_program',`
+	refpolicywarn(`$0($1) has been deprecated.')
 ')
 
 ########################################
@@ -473,72 +524,6 @@ interface(`unconfined_dbus_chat',`
 
 ########################################
 ## <summary>
-##	Add an alias type to the unconfined domain.
-## </summary>
-## <desc>
-##	<p>
-##	Add an alias type to the unconfined domain.
-##	</p>
-##	<p>
-##	This is added to support targeted policy.  Its
-##	use should be limited.  It has no effect
-##	on the strict policy.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	New alias of the unconfined domain.
-##	</summary>
-## </param>
-#
-interface(`unconfined_alias_domain',`
-	ifdef(`targeted_policy',`
-		gen_require(`
-			type unconfined_t;
-		')
-
-		typealias unconfined_t alias $1;
-	',`
-		refpolicywarn(`$0($1) has no effect in strict policy.')
-	')
-')
-
-########################################
-## <summary>
-##	Add an alias type to the unconfined execmem
-##	program file type.
-## </summary>
-## <desc>
-##	<p>
-##	Add an alias type to the unconfined execmem
-##	program file type.
-##	</p>
-##	<p>
-##	This is added to support targeted policy.  Its
-##	use should be limited.  It has no effect
-##	on the strict policy.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	New alias of the unconfined execmem program type.
-##	</summary>
-## </param>
-#
-interface(`unconfined_execmem_alias_program',`
-	ifdef(`targeted_policy',`
-		gen_require(`
-			type unconfined_execmem_exec_t;
-		')
-
-		typealias unconfined_execmem_exec_t alias $1;
-	',`
-		refpolicywarn(`$0($1) has no effect in strict policy.')
-	')
-')
-
-########################################
-## <summary>
 ##	Connect to the the unconfined DBUS
 ##	for service (acquire_svc).
 ## </summary>
@@ -555,4 +540,64 @@ interface(`unconfined_dbus_connect',`
 	')
 
 	allow $1 unconfined_t:dbus acquire_svc;
+')
+
+########################################
+## <summary>
+##	Read files in unconfined users home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`unconfined_read_home_content_files',`
+	gen_require(`
+		type unconfined_home_dir_t, unconfined_home_t;
+	')
+
+	files_search_home($1)
+	allow $1 { unconfined_home_dir_t unconfined_home_t }:dir list_dir_perms;
+	read_files_pattern($1, { unconfined_home_dir_t unconfined_home_t }, unconfined_home_t)
+	read_lnk_files_pattern($1, { unconfined_home_dir_t unconfined_home_t }, unconfined_home_t)
+')
+
+########################################
+## <summary>
+##	Read unconfined users temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`unconfined_read_tmp_files',`
+	gen_require(`
+		type unconfined_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 unconfined_tmp_t:dir list_dir_perms;
+	read_files_pattern($1, unconfined_tmp_t, unconfined_tmp_t)
+	read_lnk_files_pattern($1, unconfined_tmp_t, unconfined_tmp_t)
+')
+
+########################################
+## <summary>
+##	Write unconfined users temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`unconfined_write_tmp_files',`
+	gen_require(`
+		type unconfined_tmp_t;
+	')
+
+	allow $1 unconfined_tmp_t:file { getattr write append };
 ')

@@ -6,192 +6,210 @@ policy_module(unconfined,1.7.0)
 # Declarations
 #
 
-type unconfined_t;
-type unconfined_exec_t;
-init_system_domain(unconfined_t,unconfined_exec_t)
+# usage in this module of types created by these
+# calls is not correct, however we dont currently
+# have another method to add access to these types
+userdom_base_user_template(unconfined)
+userdom_manage_home_template(unconfined)
+userdom_manage_tmp_template(unconfined)
+userdom_manage_tmpfs_template(unconfined)
 
-ifdef(`targeted_policy',`
-	type unconfined_execmem_t;
-	type unconfined_execmem_exec_t;
-	init_system_domain(unconfined_execmem_t,unconfined_execmem_exec_t)
-')
+type unconfined_exec_t;
+init_system_domain(unconfined_t, unconfined_exec_t)
+
+type unconfined_execmem_t;
+type unconfined_execmem_exec_t;
+init_system_domain(unconfined_execmem_t, unconfined_execmem_exec_t)
+role unconfined_r types unconfined_execmem_t;
 
 ########################################
 #
 # Local policy
 #
 
-unconfined_domain(unconfined_t)
+domtrans_pattern(unconfined_t, unconfined_execmem_exec_t, unconfined_execmem_t)
+
+files_create_boot_flag(unconfined_t)
+
+mcs_killall(unconfined_t)
+mcs_ptrace_all(unconfined_t)
+
+init_run_daemon(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+
+libs_run_ldconfig(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
 
 logging_send_syslog_msg(unconfined_t)
+logging_run_auditctl(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
 
-ifdef(`targeted_policy',`
-	allow unconfined_t self:system syslog_read;
-	dontaudit unconfined_t self:capability sys_module;
+mount_run_unconfined(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
 
-	domain_auto_trans(unconfined_t,unconfined_execmem_exec_t,unconfined_execmem_t)
+seutil_run_setfiles(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+seutil_run_semanage(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
 
-	files_create_boot_flag(unconfined_t)
+unconfined_domain(unconfined_t)
 
-	mcs_killall(unconfined_t)
-	mcs_ptrace_all(unconfined_t)
+userdom_priveleged_home_dir_manager(unconfined_t)
 
-	init_domtrans_script(unconfined_t)
+optional_policy(`
+	ada_domtrans(unconfined_t)
+')
 
-	libs_domtrans_ldconfig(unconfined_t)
+optional_policy(`
+	apache_run_helper(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+	apache_per_role_template(unconfined, unconfined_t, unconfined_r)
+	# this is disallowed usage:
+	unconfined_domain(httpd_unconfined_script_t)
+')
 
-	logging_domtrans_auditctl(unconfined_t)
+optional_policy(`
+	bind_run_ndc(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	mount_domtrans_unconfined(unconfined_t)
+optional_policy(`
+	bootloader_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	seutil_domtrans_setfiles(unconfined_t)
-	seutil_domtrans_semanage(unconfined_t)
+optional_policy(`
+	cron_per_role_template(unconfined, unconfined_t, unconfined_r)
+	# this is disallowed usage:
+	unconfined_domain(unconfined_crond_t)
+')
 
-	userdom_unconfined(unconfined_t)
-	userdom_priveleged_home_dir_manager(unconfined_t)
+optional_policy(`
+	init_dbus_chat_script(unconfined_t)
+
+	dbus_stub(unconfined_t)
 
 	optional_policy(`
-		ada_domtrans(unconfined_t)
+		avahi_dbus_chat(unconfined_t)
 	')
 
 	optional_policy(`
-		apache_domtrans_helper(unconfined_t)
+		bluetooth_dbus_chat(unconfined_t)
 	')
 
 	optional_policy(`
-		bind_domtrans_ndc(unconfined_t)
+		consolekit_dbus_chat(unconfined_t)
 	')
 
 	optional_policy(`
-		bootloader_domtrans(unconfined_t)
+		cups_dbus_chat_config(unconfined_t)
 	')
 
 	optional_policy(`
-		init_dbus_chat_script(unconfined_t)
-
-		dbus_stub(unconfined_t)
-
-		optional_policy(`
-			avahi_dbus_chat(unconfined_t)
-		')
-
-		optional_policy(`
-			bluetooth_dbus_chat(unconfined_t)
-		')
-
-		optional_policy(`
-			consolekit_dbus_chat(unconfined_t)
-		')
-
-		optional_policy(`
-			cups_dbus_chat_config(unconfined_t)
-		')
-
-		optional_policy(`
-			hal_dbus_chat(unconfined_t)
-		')
-
-		optional_policy(`
-			networkmanager_dbus_chat(unconfined_t)
-		')
-
-		optional_policy(`
-			oddjob_dbus_chat(unconfined_t)
-		')
+		hal_dbus_chat(unconfined_t)
 	')
 
 	optional_policy(`
-		firstboot_domtrans(unconfined_t)
+		networkmanager_dbus_chat(unconfined_t)
 	')
 
 	optional_policy(`
-		ftp_domtrans_ftpdctl(unconfined_t)
+		oddjob_dbus_chat(unconfined_t)
 	')
+')
 
-	optional_policy(`
-		inn_domtrans(unconfined_t)
-	')
+optional_policy(`
+	firstboot_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		java_domtrans(unconfined_t)
-	')
+optional_policy(`
+	ftp_run_ftpdctl(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		lpd_domtrans_checkpc(unconfined_t)
-	')
+optional_policy(`
+	inn_domtrans(unconfined_t)
+')
 
-	optional_policy(`
-		modutils_domtrans_update_mods(unconfined_t)
-	')
+optional_policy(`
+	java_domtrans(unconfined_t)
+')
 
-	optional_policy(`
-		mono_domtrans(unconfined_t)
-	')
+optional_policy(`
+	lpd_run_checkpc(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		oddjob_domtrans_mkhomedir(unconfined_t)
-	')
+optional_policy(`
+	modutils_run_update_mods(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		prelink_domtrans(unconfined_t)
-	')
+optional_policy(`
+	mono_domtrans(unconfined_t)
+')
 
-	optional_policy(`
-		portmap_domtrans_helper(unconfined_t)
-	')
+optional_policy(`
+	mta_per_role_template(unconfined, unconfined_t, unconfined_r)
+')
 
-	optional_policy(`
-		postfix_domtrans_map(unconfined_t)
-		# cjp: this should probably be removed:
-		postfix_domtrans_master(unconfined_t)
-	')
+optional_policy(`
+	oddjob_domtrans_mkhomedir(unconfined_t)
+')
 
-	optional_policy(`
-		# cjp: this should probably be removed:
-		rpc_domtrans_nfsd(unconfined_t)
-	')
+optional_policy(`
+	prelink_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		rpm_domtrans(unconfined_t)
-	')
+optional_policy(`
+	portmap_run_helper(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		samba_domtrans_net(unconfined_t)
-		samba_domtrans_winbind_helper(unconfined_t)
-	')
+optional_policy(`
+	postfix_run_map(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+	# cjp: this should probably be removed:
+	postfix_domtrans_master(unconfined_t)
+')
 
-	optional_policy(`
-		sendmail_domtrans(unconfined_t)
-	')
 
-	optional_policy(`
-		sysnet_domtrans_dhcpc(unconfined_t)
-		sysnet_dbus_chat_dhcpc(unconfined_t)
-	')
+optional_policy(`
+	pyzor_per_role_template(unconfined)
+')
 
-	optional_policy(`
-		tzdata_domtrans(unconfined_t)
-	')
+optional_policy(`
+	# cjp: this should probably be removed:
+	rpc_domtrans_nfsd(unconfined_t)
+')
 
-	optional_policy(`
-		usermanage_domtrans_admin_passwd(unconfined_t)
-	')
+optional_policy(`
+	rpm_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		vpn_domtrans(unconfined_t)
-	')
+optional_policy(`
+	samba_per_role_template(unconfined)
+	samba_run_net(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+	samba_run_winbind_helper(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
 
-	optional_policy(`
-		webalizer_domtrans(unconfined_t)
-	')
+optional_policy(`
+	spamassassin_per_role_template(unconfined, unconfined_t, unconfined_r)
+')
 
-	optional_policy(`
-		wine_domtrans(unconfined_t)
-	')
+optional_policy(`
+	sysnet_run_dhcpc(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+	sysnet_dbus_chat_dhcpc(unconfined_t)
+')
 
-	optional_policy(`
-		xserver_domtrans_xdm_xserver(unconfined_t)
-	')
+optional_policy(`
+	tzdata_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
+
+optional_policy(`
+	usermanage_run_admin_passwd(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
+
+optional_policy(`
+	vpn_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
+
+optional_policy(`
+	webalizer_run(unconfined_t, unconfined_r, { unconfined_devpts_t unconfined_tty_device_t })
+')
+
+optional_policy(`
+	wine_domtrans(unconfined_t)
+')
+
+optional_policy(`
+	xserver_domtrans_xdm_xserver(unconfined_t)
 ')
 
 ########################################
@@ -199,18 +217,16 @@ ifdef(`targeted_policy',`
 # Unconfined Execmem Local policy
 #
 
-ifdef(`targeted_policy',`
-	allow unconfined_execmem_t self:process { execstack execmem };
-	unconfined_domain_noaudit(unconfined_execmem_t)
+allow unconfined_execmem_t self:process { execstack execmem };
+unconfined_domain_noaudit(unconfined_execmem_t)
+
+optional_policy(`
+	dbus_stub(unconfined_execmem_t)
+
+	init_dbus_chat_script(unconfined_execmem_t)
+	unconfined_dbus_chat(unconfined_execmem_t)
 
 	optional_policy(`
-		dbus_stub(unconfined_execmem_t)
-
-		init_dbus_chat_script(unconfined_execmem_t)
-		unconfined_dbus_chat(unconfined_execmem_t)
-
-		optional_policy(`
-			hal_dbus_chat(unconfined_execmem_t)
-		')
+		hal_dbus_chat(unconfined_execmem_t)
 	')
 ')

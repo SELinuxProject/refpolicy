@@ -182,14 +182,6 @@ files_tmp_file(httpd_tmp_t)
 type httpd_tmpfs_t;
 files_tmpfs_file(httpd_tmpfs_t)
 
-# Unconfined domain for apache scripts.
-# Only to be used as a last resort
-type httpd_unconfined_script_t;
-type httpd_unconfined_script_exec_t; # customizable
-domain_type(httpd_unconfined_script_t)
-domain_entry_file(httpd_unconfined_script_t,httpd_unconfined_script_exec_t)
-role system_r types httpd_unconfined_script_t;
-
 # for apache2 memory mapped files
 type httpd_var_lib_t;
 files_type(httpd_var_lib_t)
@@ -200,11 +192,6 @@ files_pid_file(httpd_var_run_t)
 # File Type of squirrelmail attachments
 type squirrelmail_spool_t;
 files_tmp_file(squirrelmail_spool_t)
-
-ifdef(`targeted_policy',`
-	typealias httpd_sys_content_t alias httpd_user_content_t;
-	typealias httpd_sys_script_exec_t alias httpd_user_script_exec_t;
-')
 
 optional_policy(`
 	prelink_object_file(httpd_modules_t)
@@ -363,16 +350,6 @@ userdom_use_unpriv_users_fds(httpd_t)
 
 mta_send_mail(httpd_t)
 
-ifdef(`targeted_policy',`
-	term_dontaudit_use_unallocated_ttys(httpd_t)
-	term_dontaudit_use_generic_ptys(httpd_t)
-	files_dontaudit_read_root_files(httpd_t)
-
-	tunable_policy(`httpd_enable_homedirs',`
-		userdom_search_generic_user_home_dirs(httpd_t)
-	')
-')
-
 tunable_policy(`allow_httpd_anon_write',`
 	miscfiles_manage_public_files(httpd_t)
 ') 
@@ -408,13 +385,6 @@ tunable_policy(`httpd_can_network_relay',`
 	corenet_sendrecv_ftp_client_packets(httpd_t)
 	corenet_sendrecv_http_client_packets(httpd_t)
 	corenet_sendrecv_http_cache_client_packets(httpd_t)
-')
-
-tunable_policy(`httpd_enable_cgi',`
-	domtrans_pattern(httpd_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
-
-	allow httpd_t httpd_unconfined_script_t:process { signal sigkill sigstop };
-	allow httpd_t httpd_unconfined_script_exec_t:dir list_dir_perms;
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified && httpd_builtin_scripting',`
@@ -461,6 +431,10 @@ tunable_policy(`httpd_tty_comm',`
 
 optional_policy(`
 	calamaris_read_www_files(httpd_t)
+')
+
+optional_policy(`
+	cron_system_entry(httpd_t, httpd_exec_t)
 ')
 
 optional_policy(`
@@ -632,12 +606,6 @@ logging_send_syslog_msg(httpd_suexec_t)
 
 miscfiles_read_localization(httpd_suexec_t)
 
-ifdef(`targeted_policy',`
-	tunable_policy(`httpd_enable_homedirs',`
-		userdom_search_generic_user_home_dirs(httpd_suexec_t)
-	')
-')
-
 tunable_policy(`httpd_can_network_connect',`
 	allow httpd_suexec_t self:tcp_socket create_stream_socket_perms;
 	allow httpd_suexec_t self:udp_socket create_socket_perms;
@@ -654,10 +622,6 @@ tunable_policy(`httpd_can_network_connect',`
 	corenet_sendrecv_all_client_packets(httpd_suexec_t)
 
 	sysnet_read_config(httpd_suexec_t)
-')
-
-tunable_policy(`httpd_enable_cgi',`
-	domtrans_pattern(httpd_suexec_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified',`
@@ -726,12 +690,6 @@ ifdef(`distro_redhat',`
 	allow httpd_sys_script_t httpd_log_t:file { getattr append };
 ')
 
-ifdef(`targeted_policy',`
-	tunable_policy(`httpd_enable_homedirs',`
-		userdom_search_generic_user_home_dirs(httpd_sys_script_t)
-	')
-')
-
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
 	fs_read_nfs_files(httpd_sys_script_t)
 	fs_read_nfs_symlinks(httpd_sys_script_t)
@@ -753,21 +711,6 @@ optional_policy(`
 
 ########################################
 #
-# Apache unconfined script local policy
-#
-
-unconfined_domain(httpd_unconfined_script_t)
-
-optional_policy(`
-	cron_system_entry(httpd_t, httpd_exec_t)
-')
-
-optional_policy(`
-	nscd_socket_use(httpd_unconfined_script_t)
-')
-
-########################################
-#
 # httpd_rotatelogs local policy
 #
 
@@ -785,8 +728,3 @@ libs_use_shared_libs(httpd_rotatelogs_t)
 logging_search_logs(httpd_rotatelogs_t)
 
 miscfiles_read_localization(httpd_rotatelogs_t)
-
-ifdef(`targeted_policy',`
-	term_dontaudit_use_generic_ptys(httpd_rotatelogs_t)
-	term_dontaudit_use_unallocated_ttys(httpd_rotatelogs_t)
-')

@@ -71,6 +71,9 @@ allow rpm_t self:msg { send receive };
 allow rpm_t self:dir search;
 allow rpm_t self:file rw_file_perms;;
 
+allow rpm_t rpm_log_t:file manage_file_perms;
+logging_log_filetrans(rpm_t,rpm_log_t,file)
+
 manage_dirs_pattern(rpm_t,rpm_tmp_t,rpm_tmp_t)
 manage_files_pattern(rpm_t,rpm_tmp_t,rpm_tmp_t)
 files_tmp_filetrans(rpm_t, rpm_tmp_t, { file dir })
@@ -172,22 +175,6 @@ sysnet_read_config(rpm_t)
 
 userdom_use_unpriv_users_fds(rpm_t)
 
-ifdef(`distro_redhat',`
-	unconfined_domain(rpm_t)
-')
-
-ifdef(`targeted_policy',`
-	unconfined_domain(rpm_t)
-	# yum-updatesd requires this
-	unconfined_dbus_chat(rpm_t)
-',`
-	# cjp: these are here to stop type_transition
-	# conflicts since rpm_t is an alias of
-	# unconfined in the targeted policy
-	allow rpm_t rpm_log_t:file manage_file_perms;
-	logging_log_filetrans(rpm_t,rpm_log_t,file)
-')
-
 optional_policy(`
 	cron_system_entry(rpm_t,rpm_exec_t)
 ')
@@ -202,6 +189,12 @@ optional_policy(`
 
 optional_policy(`
 	prelink_domtrans(rpm_t)
+')
+
+optional_policy(`
+	unconfined_domain(rpm_t)
+	# yum-updatesd requires this
+	unconfined_dbus_chat(rpm_t)
 ')
 
 ifdef(`TODO',`
@@ -332,26 +325,6 @@ seutil_domtrans_semanage(rpm_script_t)
 userdom_use_all_users_fds(rpm_script_t)
 
 ifdef(`distro_redhat',`
-	unconfined_domain(rpm_script_t)
-')
-
-ifdef(`targeted_policy',`
-	unconfined_domain(rpm_script_t)
-
-	optional_policy(`
-		java_domtrans(rpm_script_t)
-	')
-
-	optional_policy(`
-		mono_domtrans(rpm_script_t)
-	')
-
-	optional_policy(`
-		unconfined_domtrans(rpm_script_t)
-	')
-')
-
-ifdef(`distro_redhat',`
 	optional_policy(`
 		mta_send_mail(rpm_script_t)
 	')
@@ -372,6 +345,19 @@ optional_policy(`
 optional_policy(`
 	tzdata_domtrans(rpm_t)
 	tzdata_domtrans(rpm_script_t)
+')
+
+optional_policy(`
+	unconfined_domain(rpm_script_t)
+	unconfined_domtrans(rpm_script_t)
+
+	optional_policy(`
+		java_domtrans(rpm_script_t)
+	')
+
+	optional_policy(`
+		mono_domtrans(rpm_script_t)
+	')
 ')
 
 optional_policy(`

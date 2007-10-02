@@ -80,11 +80,6 @@ kernel_link_key(sshd_t)
 corenet_tcp_bind_xserver_port(sshd_t)
 corenet_sendrecv_xserver_server_packets(sshd_t)
 
-ifdef(`targeted_policy',`
-	unconfined_domain(sshd_t)
-	unconfined_shell_domtrans(sshd_t)
-')
-
 tunable_policy(`ssh_sysadm_login',`
 	# Relabel and access ptys created by sshd
 	# ioctl is necessary for logout() processing for utmp entry and for w to
@@ -123,6 +118,11 @@ optional_policy(`
 	rssh_read_all_users_ro_content(sshd_t)
 ')
 
+optional_policy(`
+	unconfined_domain(sshd_t)
+	unconfined_shell_domtrans(sshd_t)
+')
+
 ifdef(`TODO',`
 tunable_policy(`ssh_sysadm_login',`
 	# Relabel and access ptys created by sshd
@@ -153,39 +153,37 @@ tunable_policy(`ssh_sysadm_login',`
 # sshd_extern_t is the domain for ssh from outside our network
 #
 
-ifdef(`strict_policy',`
-	ifdef(`TODO',`
-	domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
+ifdef(`TODO',`
+domain_trans(initrc_t, sshd_exec_t, sshd_extern_t)
 
-	domain_trans(sshd_extern_t, shell_exec_t, user_mini_domain)
-	# Signal the user domains.
-	allow sshd_extern_t user_mini_domain:process signal;
+domain_trans(sshd_extern_t, shell_exec_t, user_mini_domain)
+# Signal the user domains.
+allow sshd_extern_t user_mini_domain:process signal;
 
-	ifdef(`xauth.te', `
-	domain_trans(sshd_extern_t, xauth_exec_t, user_mini_domain)
-	')
-
-	# Relabel and access ptys created by sshd
-	# ioctl is necessary for logout() processing for utmp entry and for w to
-	# display the tty.
-	# some versions of sshd on the new SE Linux require setattr
-	allow sshd_extern_t user_mini_domain:chr_file { relabelto read write getattr ioctl setattr };
-
-	# inheriting stream sockets is needed for "ssh host command" as no pty
-	# is allocated
-	allow user_mini_domain sshd_extern_t:unix_stream_socket rw_stream_socket_perms;
-
-	optional_policy(`
-		domain_trans(inetd_t, sshd_exec_t, sshd_extern_t)
-	')
-
-	ifdef(`direct_sysadm_daemon', `
-	# Direct execution by sysadm_r.
-	domain_auto_trans(sysadm_t, sshd_exec_t, sshd_t)
-	role_transition sysadm_r sshd_exec_t system_r;
-	')
-	') dnl endif TODO
+ifdef(`xauth.te', `
+domain_trans(sshd_extern_t, xauth_exec_t, user_mini_domain)
 ')
+
+# Relabel and access ptys created by sshd
+# ioctl is necessary for logout() processing for utmp entry and for w to
+# display the tty.
+# some versions of sshd on the new SE Linux require setattr
+allow sshd_extern_t user_mini_domain:chr_file { relabelto read write getattr ioctl setattr };
+
+# inheriting stream sockets is needed for "ssh host command" as no pty
+# is allocated
+allow user_mini_domain sshd_extern_t:unix_stream_socket rw_stream_socket_perms;
+
+optional_policy(`
+	domain_trans(inetd_t, sshd_exec_t, sshd_extern_t)
+')
+
+ifdef(`direct_sysadm_daemon', `
+# Direct execution by sysadm_r.
+domain_auto_trans(sysadm_t, sshd_exec_t, sshd_t)
+role_transition sysadm_r sshd_exec_t system_r;
+')
+') dnl endif TODO
 
 ########################################
 #
@@ -227,20 +225,7 @@ logging_send_syslog_msg(ssh_keygen_t)
 allow ssh_keygen_t proc_t:dir r_dir_perms;
 allow ssh_keygen_t proc_t:lnk_file read;
 
-userdom_use_sysadm_ttys(ssh_keygen_t)
 userdom_dontaudit_use_unpriv_user_fds(ssh_keygen_t)
-
-# cjp: with the old daemon_(base_)domain being broken up into
-# a daemon and system interface, this probably is not needed:
-ifdef(`direct_sysadm_daemon',`
-	userdom_dontaudit_use_sysadm_terms(ssh_keygen_t)
-')
-
-ifdef(`targeted_policy',`
-	term_dontaudit_use_unallocated_ttys(ssh_keygen_t)
-	term_dontaudit_use_generic_ptys(ssh_keygen_t)
-	files_dontaudit_read_root_files(ssh_keygen_t)
-')
 
 optional_policy(`
 	nscd_socket_use(ssh_keygen_t)
