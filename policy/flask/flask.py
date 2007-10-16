@@ -132,6 +132,8 @@ class Flask:
 				classes.append(c)
 				if self.USERFLAG.search(line):
 					self.userspace[c] = True
+				else:
+					self.userspace[c] = False
 				continue
 
 			raise ParseError, ("data.  Was expecting either a comment, whitespace, or class definition. ", path, number)
@@ -232,7 +234,7 @@ class Flask:
 				if i not in common: raise UndefinedError, (self.COMMON, path, number, i)
 				inherits[c] = i
 				state = INHERIT
-				if not self.userspace.has_key(c): user_commons[i] = False
+				if not self.userspace[c]: user_commons[i] = False
 				continue
 
 			m = self.OPENB.search(line)
@@ -314,8 +316,7 @@ class Flask:
 			if self.inherits.has_key(c):
 				i = self.inherits[c]
 				count = len(self.common[i])
-				user = self.userspace.has_key(c)
-				if not (mode == self.KERNEL and user):
+				if not (mode == self.KERNEL and self.userspace[c]):
 					results.append("   S_(SECCLASS_%s, %s, %s)\n" % (c.upper(), i, self.createUL(count)))
 		return results
 
@@ -326,8 +327,7 @@ class Flask:
 		results.append(self.autogen)
 		for c in self.vectors:
 			for p in self.vector[c]:
-				user = self.userspace.has_key(c)
-				if (mode == self.KERNEL and not user) or (mode == self.USERSPACE):
+				if not (mode == self.KERNEL and self.userspace[c]):
 					results.append("   S_(SECCLASS_%s, %s__%s, \"%s\")\n" % (c.upper(), c.upper(), p.upper(), p))
 
 		return results
@@ -360,8 +360,7 @@ class Flask:
 			for p in ps: 
 				columnA = "#define %s__%s " % (c.upper(), p.upper())
 				columnA += "".join([" " for i in range(width - len(columnA))])
-				user = self.userspace.has_key(c)
-				if not (mode == self.KERNEL and user):
+				if not (mode == self.KERNEL and self.userspace[c]):
 					results.append("%s%s\n" % (columnA, self.createUL(count)))
 				count += 1
 
@@ -380,8 +379,7 @@ class Flask:
 			results.append("    S_(\"null\")\n")
 
 		for c in self.classes:
-			user = self.userspace.has_key(c)
-			if mode == self.KERNEL and user:
+			if mode == self.KERNEL and self.userspace[c]:
 				results.append("    S_(NULL)\n")
 			else:
 				results.append("    S_(\"%s\")\n" % c)
@@ -419,8 +417,7 @@ class Flask:
 			count += 1
 			columnA = "#define SECCLASS_%s " % c.upper()
 			columnA += "".join([" " for i in range(width - len(columnA))])
-			user = self.userspace.has_key(c)
-			if not (mode == self.KERNEL and user):
+			if not (mode == self.KERNEL and self.userspace[c]):
 				results.append("%s%d\n" % (columnA, count))
 
 		results.append("\n")
