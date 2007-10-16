@@ -27,11 +27,11 @@ FLASK_NOWARNINGS = --nowarnings
 
 all:  $(USER_H) $(KERN_H)
 
-$(USER_H):
+$(USER_H): flask.py $(ACCESS_VECTORS_F) $(INITIAL_SIDS_F) $(SECURITY_CLASSES_F)
 	mkdir -p $(USER_D)
 	$(PYTHON) flask.py -a $(ACCESS_VECTORS_F) -i $(INITIAL_SIDS_F) -s $(SECURITY_CLASSES_F) -o $(USER_D) -u $(FLASK_NOWARNINGS)
 
-$(KERN_H):
+$(KERN_H): flask.py $(ACCESS_VECTORS_F) $(INITIAL_SIDS_F) $(SECURITY_CLASSES_F)
 	mkdir -p $(KERN_D) 
 	$(PYTHON) flask.py -a $(ACCESS_VECTORS_F) -i $(INITIAL_SIDS_F) -s $(SECURITY_CLASSES_F) -o $(KERN_D) -k $(FLASK_NOWARNINGS)
 
