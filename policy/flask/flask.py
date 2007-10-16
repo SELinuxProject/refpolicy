@@ -310,9 +310,7 @@ class Flask:
 				i = self.inherits[c]
 				count = len(self.common[i])
 				user = self.userspace.has_key(c)
-				if mode == self.KERNEL and user:
-					results.append("   S_(0, 0, 0)\n")
-				else:
+				if not (mode == self.KERNEL and user):
 					results.append("   S_(SECCLASS_%s, %s, %s)\n" % (c.upper(), i, self.createUL(count)))
 		return results
 
