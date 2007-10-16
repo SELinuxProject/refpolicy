@@ -344,10 +344,11 @@ class Flask:
 			count = 0
 			shift = 0
 			for p in self.common[common]:
-				columnA = "#define COMMON_%s__%s " % (common.upper(), p.upper())
-				columnA += "".join([" " for i in range(width - len(columnA))])
-				results.append("%s%s\n" % (columnA, self.createUL(count)))
-				count += 1
+				if not (mode == self.KERNEL and self.user_commons[common]):
+					columnA = "#define COMMON_%s__%s " % (common.upper(), p.upper())
+					columnA += "".join([" " for i in range(width - len(columnA))])
+					results.append("%s%s\n" % (columnA, self.createUL(count)))
+					count += 1
 
 		width = 50 # broken for old tools whitespace
 		for c in self.vectors:
@@ -391,8 +392,7 @@ class Flask:
 		results = []
 		results.append(self.autogen)
 		for common in self.commons:
-			user = self.user_commons[common]
-			if not (mode == self.KERNEL and user):
+			if not (mode == self.KERNEL and self.user_commons[common]):
 				results.append("TB_(common_%s_perm_to_string)\n" % common)
 				for p in self.common[common]:
 					results.append("    S_(\"%s\")\n" % p)
