@@ -1,5 +1,5 @@
 
-policy_module(domain,1.4.1)
+policy_module(domain,1.4.2)
 
 ########################################
 #
@@ -80,6 +80,11 @@ allow domain self:dir list_dir_perms;
 allow domain self:lnk_file { read_lnk_file_perms lock ioctl };
 allow domain self:file rw_file_perms;
 kernel_read_proc_symlinks(domain)
+# Every domain gets the key ring, so we should default
+# to no one allowed to look at it; afs kernel support creates
+# a keyring
+kernel_dontaudit_search_key(domain)
+kernel_dontaudit_link_key(domain)
 
 # create child processes in the domain
 allow domain self:process { fork sigchld };
@@ -102,6 +107,12 @@ tunable_policy(`global_ssp',`
 
 optional_policy(`
 	setrans_translate_context(domain)
+')
+
+# xdm passes an open file descriptor to xsession-errors.log which is then audited by all confined domains.
+optional_policy(`
+	xserver_dontaudit_use_xdm_fds(domain)
+	xserver_dontaudit_rw_xdm_pipes(domain)
 ')
 
 ########################################
