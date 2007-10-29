@@ -26,7 +26,8 @@ template(`authlogin_common_auth_domain_template',`
 	type $1_chkpwd_t, can_read_shadow_passwords;
 	application_domain($1_chkpwd_t,chkpwd_exec_t)
 
-	allow $1_chkpwd_t self:capability { audit_control setuid };
+	allow $1_chkpwd_t self:capability { dac_override setuid };
+	dontaudit $1_chkpwd_t self:capability sys_tty_config;
 	allow $1_chkpwd_t self:process getattr;
 
 	files_list_etc($1_chkpwd_t)
@@ -106,9 +107,6 @@ template(`authlogin_per_role_template',`
 	role $3 types $1_chkpwd_t;
 	role $3 types system_chkpwd_t;
 
-	# cjp: is this really needed?
-	allow $2 self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
-
 	dontaudit $2 shadow_t:file { getattr read };
 
 	# Transition from the user domain to this domain.
@@ -169,6 +167,9 @@ template(`auth_domtrans_user_chk_passwd',`
 ## </param>
 #
 interface(`auth_login_pgm_domain',`
+	gen_require(`
+		type var_auth_t;
+	')
 
 	domain_type($1)
 	domain_subj_id_change_exemption($1)
@@ -176,10 +177,21 @@ interface(`auth_login_pgm_domain',`
 	domain_obj_id_change_exemption($1)
 	role system_r types $1;
 
+	files_list_var_lib($1)
+	manage_files_pattern($1, var_auth_t, var_auth_t)
+
+	# needed for afs - https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=253321
+	kernel_rw_afs_state($1)
+
 	# for SSP/ProPolice
 	dev_read_urand($1)
+	# for fingerprint readers
+	dev_rw_input_dev($1)
+	dev_rw_generic_usb_dev($1)
 
 	files_read_etc_files($1)
+
+	fs_list_auto_mountpoints($1)
 
 	selinux_get_fs_mount($1)
 	selinux_validate_context($1)
@@ -196,16 +208,20 @@ interface(`auth_login_pgm_domain',`
 	mls_fd_share_all_levels($1)
 
 	auth_domtrans_chk_passwd($1)
+	auth_domtrans_upd_passwd($1)
 	auth_dontaudit_read_shadow($1)
 	auth_read_login_records($1)
 	auth_append_login_records($1)
 	auth_rw_lastlog($1)
-	auth_append_faillog($1)
+	auth_rw_faillog($1)
 	auth_exec_pam($1)
+	auth_use_nsswitch($1)
 
 	init_rw_utmp($1)
 
+	logging_send_audit_msgs($1)
 	logging_send_syslog_msg($1)
+#	logging_set_loginuid($1)
 
 	seutil_read_config($1)
 	seutil_read_default_contexts($1)
@@ -309,11 +325,8 @@ interface(`auth_domtrans_chk_passwd',`
 		type system_chkpwd_t, chkpwd_exec_t, shadow_t;
 	')
 
-	# cjp: is this really needed?
-	allow $1 self:capability audit_control;
-
 	corecmd_search_bin($1)
-	domtrans_pattern($1,chkpwd_exec_t,system_chkpwd_t)
+	domtrans_pattern($1, chkpwd_exec_t, system_chkpwd_t)
 
 	dontaudit $1 shadow_t:file { getattr read };
 
@@ -343,6 +356,86 @@ interface(`auth_domtrans_chk_passwd',`
 	optional_policy(`
 		samba_stream_connect_winbind($1)
 	')
+')
+
+########################################
+## <summary>
+##	Execute chkpwd programs in the chkpwd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to allow the updpwd domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the updpwd domain to use.
+##	</summary>
+## </param>
+#
+interface(`auth_run_chk_passwd',`
+	gen_require(`
+		type system_chkpwd_t;
+	')
+
+	auth_domtrans_chk_passwd($1)
+	role $2 types system_chkpwd_t;
+	allow system_chkpwd_t $3:chr_file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run unix_update.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`auth_domtrans_upd_passwd',`
+	gen_require(`
+		type updpwd_t, updpwd_exec_t;
+	')
+
+	domtrans_pattern($1,updpwd_exec_t,updpwd_t)
+	auth_dontaudit_read_shadow($1)
+
+')
+
+########################################
+## <summary>
+##	Execute updpwd programs in the updpwd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to allow the updpwd domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the updpwd domain to use.
+##	</summary>
+## </param>
+#
+interface(`auth_run_upd_passwd',`
+	gen_require(`
+		type updpwd_t;
+	')
+
+	auth_domtrans_upd_passwd($1)
+	role $2 types updpwd_t;
+	allow updpwd_t $3:chr_file rw_file_perms;
 ')
 
 ########################################
@@ -691,6 +784,24 @@ interface(`auth_domtrans_pam',`
 	')
 
 	domtrans_pattern($1,pam_exec_t,pam_t)
+')
+
+########################################
+## <summary>
+##	Execute pam programs in the pam domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_signal_pam',`
+	gen_require(`
+		type pam_t;
+	')
+
+	allow $1 pam_t:process signal;
 ')
 
 ########################################
@@ -1318,15 +1429,13 @@ interface(`auth_manage_login_records',`
 ## </param>
 #
 interface(`auth_use_nsswitch',`
-	gen_require(`
-		type var_auth_t;
-	')
 
 	allow $1 self:netlink_route_socket r_netlink_socket_perms;
 
-	allow $1 var_auth_t:dir list_dir_perms;
-	allow $1 var_auth_t:file manage_file_perms;
 	files_list_var_lib($1)
+
+	# read /etc/nsswitch.conf
+	files_read_etc_files($1)
 
 	miscfiles_read_certs($1)
 
@@ -1347,6 +1456,7 @@ interface(`auth_use_nsswitch',`
 
 	optional_policy(`
 		samba_stream_connect_winbind($1)
+		samba_read_var_files($1)
 	')
 ')
 
