@@ -1,5 +1,5 @@
 
-policy_module(logging,1.8.1)
+policy_module(logging,1.8.2)
 
 ########################################
 #
@@ -41,12 +41,18 @@ files_tmp_file(klogd_tmp_t)
 type klogd_var_run_t;
 files_pid_file(klogd_var_run_t)
 
+type syslog_conf_t;
+files_type(syslog_conf_t)
+
 type syslogd_t;
 type syslogd_exec_t;
 init_daemon_domain(syslogd_t,syslogd_exec_t)
 
 type syslogd_tmp_t;
 files_tmp_file(syslogd_tmp_t)
+
+type syslogd_var_lib_t;
+files_type(syslogd_var_lib_t)
 
 type syslogd_var_run_t;
 files_pid_file(syslogd_var_run_t)
@@ -64,8 +70,8 @@ ifdef(`enable_mls',`
 # Auditctl local policy
 #
 
-allow auditctl_t self:capability { fsetid dac_read_search dac_override audit_write audit_control };
-allow auditctl_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay nlmsg_readpriv };
+allow auditctl_t self:capability { fsetid dac_read_search dac_override };
+allow auditctl_t self:netlink_audit_socket nlmsg_readpriv;
 
 read_files_pattern(auditctl_t,auditd_etc_t,auditd_etc_t)
 allow auditctl_t auditd_etc_t:dir list_dir_perms;
@@ -92,6 +98,7 @@ libs_use_shared_libs(auditctl_t)
 
 locallogin_dontaudit_use_fds(auditctl_t)
 
+logging_set_audit_parameters(auditctl_t)
 logging_send_syslog_msg(auditctl_t)
 
 ########################################
@@ -99,12 +106,12 @@ logging_send_syslog_msg(auditctl_t)
 # Auditd local policy
 #
 
-allow auditd_t self:capability { audit_write audit_control fsetid sys_nice sys_resource };
+allow auditd_t self:capability { chown fsetid sys_nice sys_resource };
 dontaudit auditd_t self:capability sys_tty_config;
 allow auditd_t self:process { signal_perms setpgid setsched };
+allow auditd_t self:file { getattr read write };
 allow auditd_t self:unix_dgram_socket create_socket_perms;
-allow auditd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay nlmsg_readpriv };
-allow auditd_t self:fifo_file rw_fifo_file_perms;
+allow auditd_t self:fifo_file rw_file_perms;
 
 allow auditd_t auditd_etc_t:dir list_dir_perms;
 allow auditd_t auditd_etc_t:file read_file_perms;
@@ -141,6 +148,7 @@ files_list_usr(auditd_t)
 
 init_telinit(auditd_t)
 
+logging_set_audit_parameters(auditd_t)
 logging_send_syslog_msg(auditd_t)
 
 libs_use_ld_so(auditd_t)
@@ -241,6 +249,8 @@ allow syslogd_t self:fifo_file rw_file_perms;
 allow syslogd_t self:udp_socket create_socket_perms;
 allow syslogd_t self:tcp_socket create_stream_socket_perms;
 
+allow syslogd_t syslog_conf_t:file read_file_perms;
+
 # Create and bind to /dev/log or /var/run/log.
 allow syslogd_t devlog_t:sock_file manage_sock_file_perms;
 files_pid_filetrans(syslogd_t,devlog_t,sock_file)
@@ -256,6 +266,9 @@ allow syslogd_t var_log_t:dir { create setattr };
 manage_dirs_pattern(syslogd_t,syslogd_tmp_t,syslogd_tmp_t)
 manage_files_pattern(syslogd_t,syslogd_tmp_t,syslogd_tmp_t)
 files_tmp_filetrans(syslogd_t,syslogd_tmp_t,{ dir file })
+
+manage_files_pattern(syslogd_t, syslogd_var_lib_t, syslogd_var_lib_t)
+files_search_var_lib(syslogd_t)
 
 allow syslogd_t syslogd_var_run_t:file manage_file_perms;
 files_pid_filetrans(syslogd_t,syslogd_var_run_t,file)
