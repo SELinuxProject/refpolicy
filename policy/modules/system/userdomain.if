@@ -45,7 +45,7 @@ template(`userdom_base_user_template',`
 	type $1_tty_device_t; 
 	term_user_tty($1_t,$1_tty_device_t)
 
-	allow $1_t self:process { signal_perms getsched setsched share getpgid setpgid setcap getsession };
+	allow $1_t self:process { signal_perms getsched setsched share getpgid setpgid setcap getsession getattr };
 	allow $1_t self:fd use;
 	allow $1_t self:fifo_file rw_fifo_file_perms;
 	allow $1_t self:unix_dgram_socket { create_socket_perms sendto };
@@ -71,6 +71,9 @@ template(`userdom_base_user_template',`
 	kernel_dontaudit_getattr_unlabeled_blk_files($1_t)
 	kernel_dontaudit_getattr_unlabeled_chr_files($1_t)
 
+	dev_dontaudit_getattr_all_blk_files($1_t)
+	dev_dontaudit_getattr_all_chr_files($1_t)
+
 	# When the user domain runs ps, there will be a number of access
 	# denials when ps tries to search /proc.  Do not audit these denials.
 	domain_dontaudit_read_all_domains_state($1_t)
@@ -93,8 +96,6 @@ template(`userdom_base_user_template',`
 	files_dontaudit_getattr_non_security_symlinks($1_t)
 	files_dontaudit_getattr_non_security_pipes($1_t)
 	files_dontaudit_getattr_non_security_sockets($1_t)
-	files_dontaudit_getattr_non_security_blk_files($1_t)
-	files_dontaudit_getattr_non_security_chr_files($1_t)
 
 	libs_use_ld_so($1_t)
 	libs_use_shared_libs($1_t)
@@ -184,7 +185,7 @@ template(`userdom_ro_home_template',`
 	files_list_home($1_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
-		fs_list_nfs_dirs($1_t)
+		fs_list_nfs($1_t)
 		fs_read_nfs_files($1_t)
 		fs_read_nfs_symlinks($1_t)
 		fs_read_nfs_named_sockets($1_t)
@@ -195,7 +196,7 @@ template(`userdom_ro_home_template',`
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
-		fs_list_cifs_dirs($1_t)
+		fs_list_cifs($1_t)
 		fs_read_cifs_files($1_t)
 		fs_read_cifs_symlinks($1_t)
 		fs_read_cifs_named_sockets($1_t)
@@ -566,29 +567,27 @@ template(`userdom_xwindows_client_template',`
 		type $1_t, $1_tmpfs_t;
 	')
 
-	optional_policy(`
-		dev_rw_xserver_misc($1_t)
-		dev_rw_power_management($1_t)
-		dev_read_input($1_t)
-		dev_read_misc($1_t)
-		dev_write_misc($1_t)
-		# open office is looking for the following
-		dev_getattr_agp_dev($1_t)
-		dev_dontaudit_rw_dri($1_t)
-		# GNOME checks for usb and other devices:
-		dev_rw_usbfs($1_t)
+	dev_rw_xserver_misc($1_t)
+	dev_rw_power_management($1_t)
+	dev_read_input($1_t)
+	dev_read_misc($1_t)
+	dev_write_misc($1_t)
+	# open office is looking for the following
+	dev_getattr_agp_dev($1_t)
+	dev_dontaudit_rw_dri($1_t)
+	# GNOME checks for usb and other devices:
+	dev_rw_usbfs($1_t)
 
-		xserver_user_client_template($1,$1_t,$1_tmpfs_t)
-		xserver_xsession_entry_type($1_t)
-		xserver_dontaudit_write_log($1_t)
-		xserver_stream_connect_xdm($1_t)
-		# certain apps want to read xdm.pid file
-		xserver_read_xdm_pid($1_t)
-		# gnome-session creates socket under /tmp/.ICE-unix/
-		xserver_create_xdm_tmp_sockets($1_t)
-		# Needed for escd, remove if we get escd policy
-		xserver_manage_xdm_tmp_files($1_t)
-	')
+	xserver_user_client_template($1,$1_t,$1_tmpfs_t)
+	xserver_xsession_entry_type($1_t)
+	xserver_dontaudit_write_log($1_t)
+	xserver_stream_connect_xdm($1_t)
+	# certain apps want to read xdm.pid file
+	xserver_read_xdm_pid($1_t)
+	# gnome-session creates socket under /tmp/.ICE-unix/
+	xserver_create_xdm_tmp_sockets($1_t)
+	# Needed for escd, remove if we get escd policy
+	xserver_manage_xdm_tmp_files($1_t)
 ')
 
 #######################################
@@ -664,37 +663,20 @@ template(`userdom_common_user_template',`
 		attribute unpriv_userdomain;
 	')
 
-	userdom_base_user_template($1)
-
-	userdom_manage_home_template($1)
-	userdom_exec_home_template($1)
-
-	userdom_manage_tmp_template($1)
-	userdom_exec_tmp_template($1)
-
-	userdom_manage_tmpfs_template($1)
-
 	userdom_untrusted_content_template($1)
 
 	userdom_basic_networking_template($1)
 
 	userdom_exec_generic_pgms_template($1)
 
-	userdom_xwindows_client_template($1)
-
-	userdom_change_password_template($1)
+	optional_policy(`
+		userdom_xwindows_client_template($1)
+	')
 
 	##############################
 	#
 	# User domain Local policy
 	#
-
-	allow $1_t self:capability { setgid chown fowner };
-	dontaudit $1_t self:capability { sys_nice fsetid };
-	allow $1_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_t self:process { ptrace setfscreate };
-
-	allow $1_t self:context contains;
 
 	# evolution and gnome-session try to create a netlink socket
 	dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
@@ -713,17 +695,11 @@ template(`userdom_common_user_template',`
 	corenet_udp_bind_all_nodes($1_t)
 	corenet_udp_bind_generic_port($1_t)
 
-	dev_read_sysfs($1_t)
 	dev_read_rand($1_t)
-	dev_read_urand($1_t)
 	dev_write_sound($1_t)
 	dev_read_sound($1_t)
 	dev_read_sound_mixer($1_t)
 	dev_write_sound_mixer($1_t)
-
-	domain_use_interactive_fds($1_t)
-	# Command completion can fire hundreds of denials
-	domain_dontaudit_exec_all_entry_files($1_t)
 
 	files_exec_etc_files($1_t)
 	files_search_locks($1_t)
@@ -737,12 +713,6 @@ template(`userdom_common_user_template',`
 	# Stat lost+found.
 	files_getattr_lost_found_dirs($1_t)
 
-	fs_get_all_fs_quotas($1_t)
-	fs_getattr_all_fs($1_t)
-	fs_getattr_all_dirs($1_t)
-	fs_search_auto_mountpoints($1_t)
-	fs_list_inotifyfs($1_t)
-
 	# cjp: some of this probably can be removed
 	selinux_get_fs_mount($1_t)
 	selinux_validate_context($1_t)
@@ -754,32 +724,16 @@ template(`userdom_common_user_template',`
 	# for eject
 	storage_getattr_fixed_disk_dev($1_t)
 
+	auth_use_nsswitch($1_t)
 	auth_read_login_records($1_t)
-	auth_dontaudit_write_login_records($1_t)
 	auth_search_pam_console_data($1_t)
 	auth_run_pam($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 	auth_run_utempter($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 
 	init_read_utmp($1_t)
-	# The library functions always try to open read-write first,
-	# then fall back to read-only if it fails. 
-	init_dontaudit_write_utmp($1_t)
-	# Stop warnings about access to /dev/console
-	init_dontaudit_use_fds($1_t)
-	init_dontaudit_use_script_fds($1_t)
-
-	libs_exec_lib_files($1_t)
-
-	logging_dontaudit_getattr_all_logs($1_t)
-
-	miscfiles_read_man_pages($1_t)
-	# for running TeX programs
-	miscfiles_read_tetex_data($1_t)
-	miscfiles_exec_tetex_data($1_t)
 
 	seutil_read_file_contexts($1_t)
 	seutil_read_default_contexts($1_t)
-	seutil_read_config($1_t)
 	seutil_run_newrole($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
 	seutil_exec_checkpolicy($1_t)
 	seutil_exec_setfiles($1_t)
@@ -794,9 +748,6 @@ template(`userdom_common_user_template',`
 		files_read_default_symlinks($1_t)
 		files_read_default_sockets($1_t)
 		files_read_default_pipes($1_t)
-	',`
-		files_dontaudit_list_default($1_t)
-		files_dontaudit_read_default_files($1_t)
 	')
 
 	tunable_policy(`user_direct_mouse',`
@@ -818,11 +769,6 @@ template(`userdom_common_user_template',`
 
 	optional_policy(`
 		canna_stream_connect($1_t)
-	')
-
-	optional_policy(`
-		cups_stream_connect($1_t)
-		cups_stream_connect_ptal($1_t)
 	')
 
 	optional_policy(`
@@ -874,18 +820,11 @@ template(`userdom_common_user_template',`
 		mta_rw_spool($1_t)
 	')
 
-	optional_policy(`
-		nis_use_ypbind($1_t)
-	')
 
 	optional_policy(`
 		tunable_policy(`allow_user_mysql_connect',`
 			mysql_stream_connect($1_t)
 		')
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_t)
 	')
 
 	optional_policy(`
@@ -905,21 +844,12 @@ template(`userdom_common_user_template',`
 	')
 
 	optional_policy(`
-		quota_dontaudit_getattr_db($1_t)
-	')
-
-	optional_policy(`
 		resmgr_stream_connect($1_t)
 	')
 
 	optional_policy(`
 		rpc_dontaudit_getattr_exports($1_t)
 		rpc_manage_nfs_rw_content($1_t)
-	')
-
-	optional_policy(`
-		rpm_read_db($1_t)
-		rpm_dontaudit_manage_db($1_t)
 	')
 
 	optional_policy(`
@@ -937,7 +867,7 @@ template(`userdom_common_user_template',`
 
 #######################################
 ## <summary>
-##	The template for creating a unprivileged user.
+##	The template for creating a login user.
 ## </summary>
 ## <desc>
 ##	<p>
@@ -953,19 +883,127 @@ template(`userdom_common_user_template',`
 ##	</summary>
 ## </param>
 #
-template(`userdom_unpriv_user_template', `
+template(`userdom_login_user_template', `
+	userdom_base_user_template($1)
 
-	gen_require(`
-		attribute privhome, user_ptynode, user_home_dir_type, user_home_type, user_tmpfile, user_ttynode;
-	')
+	userdom_manage_home_template($1)
+	userdom_poly_home_template($1)
+	userdom_poly_tmp_template($1)
+
+	userdom_manage_tmp_template($1)
+	userdom_manage_tmpfs_template($1)
+
+	userdom_exec_tmp_template($1)
+	userdom_exec_home_template($1)
+
+	userdom_change_password_template($1)
 
 	##############################
 	#
-	# Declarations
+	# User domain Local policy
 	#
 
-	# Inherit rules for ordinary users.
-	userdom_common_user_template($1)
+	allow $1_t self:capability { setgid chown fowner };
+	dontaudit $1_t self:capability { sys_nice fsetid };
+
+	allow $1_t self:process ~{ setcurrent setexec setrlimit execmem execstack execheap };
+	dontaudit $1_t self:process setrlimit;
+	dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+
+	allow $1_t self:context contains;
+
+	kernel_dontaudit_read_system_state($1_t)
+
+	dev_read_sysfs($1_t)
+	dev_read_urand($1_t)
+
+	domain_use_interactive_fds($1_t)
+	# Command completion can fire hundreds of denials
+	domain_dontaudit_exec_all_entry_files($1_t)
+
+	files_dontaudit_list_default($1_t)
+	files_dontaudit_read_default_files($1_t)
+	# Stat lost+found.
+	files_getattr_lost_found_dirs($1_t)
+
+	fs_get_all_fs_quotas($1_t)
+	fs_getattr_all_fs($1_t)
+	fs_getattr_all_dirs($1_t)
+	fs_search_auto_mountpoints($1_t)
+	fs_list_inotifyfs($1_t)
+	fs_rw_anon_inodefs_files($1_t)
+
+	auth_dontaudit_write_login_records($1_t)
+
+	application_exec_all($1_t)
+
+	# The library functions always try to open read-write first,
+	# then fall back to read-only if it fails. 
+	init_dontaudit_rw_utmp($1_t)
+	# Stop warnings about access to /dev/console
+	init_dontaudit_use_fds($1_t)
+	init_dontaudit_use_script_fds($1_t)
+
+	libs_exec_lib_files($1_t)
+
+	logging_dontaudit_getattr_all_logs($1_t)
+
+	miscfiles_read_man_pages($1_t)
+	# for running TeX programs
+	miscfiles_read_tetex_data($1_t)
+	miscfiles_exec_tetex_data($1_t)
+
+	seutil_read_config($1_t)
+
+	optional_policy(`
+		cups_read_config($1_t)
+		cups_stream_connect($1_t)
+		cups_stream_connect_ptal($1_t)
+	')
+
+	optional_policy(`
+		kerberos_use($1_t)
+	')
+
+	optional_policy(`
+		mta_dontaudit_read_spool_symlinks($1_t)
+	')
+
+	optional_policy(`
+		quota_dontaudit_getattr_db($1_t)
+	')
+
+	optional_policy(`
+		rpm_read_db($1_t)
+		rpm_dontaudit_manage_db($1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	The template for creating a unprivileged login user.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a user domain, types, and
+##	rules for the user's tty, pty, home directories,
+##	tmp, and tmpfs files.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
+template(`userdom_restricted_user_template',`
+	gen_require(`
+		attribute unpriv_userdomain;
+		attribute privhome, user_ptynode, user_home_dir_type, user_home_type, user_tmpfile, user_ttynode;
+	')
+
+	userdom_login_user_template($1)
 
 	typeattribute $1_t unpriv_userdomain;
 	domain_interactive_fd($1_t)
@@ -975,9 +1013,6 @@ template(`userdom_unpriv_user_template', `
 	typeattribute $1_home_t user_home_type;
 	typeattribute $1_tmp_t user_tmpfile;
 	typeattribute $1_tty_device_t user_ttynode;
-
-	userdom_poly_home_template($1)
-	userdom_poly_tmp_template($1)
 
 	##############################
 	#
@@ -992,7 +1027,126 @@ template(`userdom_unpriv_user_template', `
 	manage_fifo_files_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
 	filetrans_pattern(privhome,$1_home_dir_t,$1_home_t,{ dir file lnk_file sock_file fifo_file })
 
-	corecmd_exec_all_executables($1_t)
+	optional_policy(`
+		loadkeys_run($1_t,$1_r,$1_tty_device_t)
+	')
+')
+
+#######################################
+## <summary>
+##	The template for creating a unprivileged xwindows login user.
+## </summary>
+## <desc>
+##	<p>
+##	The template for creating a unprivileged xwindows login user.
+##	</p>
+##	<p>
+##	This template creates a user domain, types, and
+##	rules for the user's tty, pty, home directories,
+##	tmp, and tmpfs files.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
+template(`userdom_restricted_xwindows_user_template',`
+
+	userdom_restricted_user_template($1)
+
+	userdom_xwindows_client_template($1)
+
+	##############################
+	#
+	# Local policy
+	#
+
+	authlogin_per_role_template($1, $1_t, $1_r)
+	auth_search_pam_console_data($1_t)
+
+	dev_read_sound($1_t)
+	dev_write_sound($1_t)
+	# gnome keyring wants to read this.
+	dev_dontaudit_read_rand($1_t)
+
+	logging_send_syslog_msg($1_t)
+	logging_dontaudit_send_audit_msgs($1_t)
+
+	# Need to to this just so screensaver will work. Should be moved to screensaver domain
+	logging_send_audit_msgs($1_t)
+	selinux_get_enforce_mode($1_t)
+
+	optional_policy(`
+		alsa_read_rw_config($1_t)
+	')
+
+	optional_policy(`
+		dbus_per_role_template($1, $1_t, $1_r)
+		dbus_system_bus_client_template($1, $1_t)
+
+		optional_policy(`
+			consolekit_dbus_chat($1_t)
+		')
+
+		optional_policy(`
+			cups_dbus_chat($1_t)
+		')
+	')
+
+	optional_policy(`
+		java_per_role_template($1, $1_t, $1_r)
+	')
+
+	optional_policy(`
+		mono_per_role_template($1, $1_t, $1_r)
+	')
+
+	optional_policy(`
+		setroubleshoot_dontaudit_stream_connect($1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	The template for creating a unprivileged user roughly
+##	equivalent to a regular linux user.
+## </summary>
+## <desc>
+##	<p>
+##	The template for creating a unprivileged user roughly
+##	equivalent to a regular linux user.
+##	</p>
+##	<p>
+##	This template creates a user domain, types, and
+##	rules for the user's tty, pty, home directories,
+##	tmp, and tmpfs files.
+##	</p>
+## </desc>
+## <param name="userdomain_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+#
+template(`userdom_unpriv_user_template', `
+
+	##############################
+	#
+	# Declarations
+	#
+
+	# Inherit rules for ordinary users.
+	userdom_restricted_user_template($1)
+	userdom_common_user_template($1)
+
+	##############################
+	#
+	# Local policy
+	#
 
 	# port access is audited even if dac would not have allowed it, so dontaudit it here
 	corenet_dontaudit_tcp_bind_all_reserved_ports($1_t)
@@ -1032,14 +1186,6 @@ template(`userdom_unpriv_user_template', `
 	')
 
 	optional_policy(`
-		kerberos_use($1_t)
-	')
-
-	optional_policy(`
-		loadkeys_run($1_t,$1_r,$1_tty_device_t)
-	')
-
-	optional_policy(`
 		netutils_run_ping_cond($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 		netutils_run_traceroute_cond($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
 	')
@@ -1052,18 +1198,6 @@ template(`userdom_unpriv_user_template', `
 	optional_policy(`
 		setroubleshoot_stream_connect($1_t)
 	')
-
-	ifdef(`TODO',`
-	ifdef(`xdm.te', `
-		# this should cause the .xsession-errors file to be written to /tmp
-		dontaudit xdm_t $1_home_t:file rw_file_perms;
-	')
-
-	# Do not audit write denials to /etc/ld.so.cache.
-	dontaudit $1_t ld_so_cache_t:file write;
-
-	dontaudit $1_t sysadm_home_t:file { read append };
-	') dnl end TODO
 ')
 
 #######################################
@@ -1107,6 +1241,7 @@ template(`userdom_admin_user_template',`
 	#
 
 	# Inherit rules for ordinary users.
+	userdom_login_user_template($1)
 	userdom_common_user_template($1)
 
 	typeattribute $1_t privhome;
@@ -1126,7 +1261,7 @@ template(`userdom_admin_user_template',`
 	# $1_t local policy
 	#
 
-	allow $1_t self:capability ~sys_module;
+	allow $1_t self:capability ~{ sys_module audit_control audit_write };
 	allow $1_t self:process { setexec setfscreate };
 
 	# Set password information for other users.
@@ -3077,7 +3212,7 @@ template(`userdom_user_tmp_filetrans',`
 #
 template(`userdom_tmp_filetrans_user_tmp',`
 	gen_require(`
-		type $1_home_dir_t;
+		type $1_tmp_t;
 	')
 
 	files_tmp_filetrans($2,$1_tmp_t,$3)
@@ -5322,7 +5457,7 @@ interface(`userdom_read_unpriv_users_tmp_files',`
 		attribute user_tmpfile;
 	')
 
-	allow $1 user_tmpfile:file { read getattr };
+	allow $1 user_tmpfile:file read_file_perms;
 ')
 
 ########################################
