@@ -1231,6 +1231,54 @@ interface(`domain_entry_file_spec_domtrans',`
 
 ########################################
 ## <summary>
+##	Ability to mmap a low area of the address space,
+##      as configured by /proc/sys/kernel/mmap_min_addr.
+##      Preventing such mappings helps protect against
+##      exploiting null deref bugs in the kernel.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to mmap low memory.
+##	</summary>
+## </param>
+#
+interface(`domain_mmap_low',`
+	gen_require(`
+		attribute mmap_low_domain_type;
+	')
+
+	allow $1 self:memprotect mmap_zero;
+
+	typeattribute $1 mmap_low_domain_type;
+')
+
+########################################
+## <summary>
+##	Allow specified type to receive labeled
+##	networking packets from all domains, over
+##	all protocols (TCP, UDP, etc)
+## </summary>
+## <param name="type">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`domain_all_recvfrom_all_domains',`
+	gen_require(`
+		attribute domain;
+ 	')
+
+	# IPSEC-based labeled networking 
+	allow $1 domain:association recvfrom;
+
+	# Netlabel (CIPSO)-based labeled networking
+	# currently only supports MLS portion of label
+	corenet_all_recvfrom_netlabel($1)
+')
+
+########################################
+## <summary>
 ##	Unconfined access to domains.
 ## </summary>
 ## <param name="domain">
@@ -1255,43 +1303,3 @@ interface(`domain_unconfined',`
 	typeattribute $1 process_uncond_exempt;
 ')
 
-########################################
-## <summary>
-##	Ability to mmap a low area of the address space,
-##      as configured by /proc/sys/kernel/mmap_min_addr.
-##      Preventing such mappings helps protect against
-##      exploiting null deref bugs in the kernel.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed to mmap low memory.
-##	</summary>
-## </param>
-#
-interface(`domain_mmap_low',`
-	gen_require(`
-		attribute mmap_low_domain_type;
-	')
-
-	allow $1 self:memprotect mmap_zero;
-
-	typeattribute $1 mmap_low_domain_type;
-')
-
-########################################
-## <summary>
-##	Allow specified type to associate ipsec packets from any domain
-## </summary>
-## <param name="type">
-##	<summary>
-##	Type of subject to be allowed this.
-##	</summary>
-## </param>
-#
-interface(`domain_ipsec_labels',`
-	gen_require(`
-		attribute domain;
- 	')
- 
-	allow $1 domain:association { sendto recvfrom };
-')
