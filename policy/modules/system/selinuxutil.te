@@ -1,5 +1,5 @@
 
-policy_module(selinuxutil,1.7.1)
+policy_module(selinuxutil,1.7.2)
 
 gen_require(`
 	bool secure_mode;
@@ -160,9 +160,6 @@ allow load_policy_t self:capability dac_override;
 # only allow read of policy config files
 read_files_pattern(load_policy_t,{ policy_src_t policy_config_t },policy_config_t)
 
-read_files_pattern(load_policy_t,selinux_config_t,selinux_config_t)
-read_lnk_files_pattern(load_policy_t,selinux_config_t,selinux_config_t)
-
 domain_use_interactive_fds(load_policy_t)
 
 # for mcs.conf
@@ -173,7 +170,6 @@ fs_getattr_xattr_fs(load_policy_t)
 
 mls_file_read_all_levels(load_policy_t)
 
-selinux_get_fs_mount(load_policy_t)
 selinux_load_policy(load_policy_t)
 selinux_set_boolean(load_policy_t)
 
@@ -187,6 +183,8 @@ libs_use_ld_so(load_policy_t)
 libs_use_shared_libs(load_policy_t)
 
 miscfiles_read_localization(load_policy_t)
+
+seutil_libselinux_linked(load_policy_t)
 
 userdom_use_all_users_fds(load_policy_t)
 
@@ -217,9 +215,6 @@ allow newrole_t self:unix_dgram_socket sendto;
 allow newrole_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow newrole_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 
-read_files_pattern(newrole_t,selinux_config_t,selinux_config_t)
-read_lnk_files_pattern(newrole_t,selinux_config_t,selinux_config_t)
-
 read_files_pattern(newrole_t,default_context_t,default_context_t)
 read_lnk_files_pattern(newrole_t,default_context_t,default_context_t)
 
@@ -238,7 +233,6 @@ mls_file_downgrade(newrole_t)
 mls_process_set_level(newrole_t)
 mls_fd_share_all_levels(newrole_t)
 
-selinux_get_fs_mount(newrole_t)
 selinux_validate_context(newrole_t)
 selinux_compute_access_vector(newrole_t)
 selinux_compute_create_context(newrole_t)
@@ -277,6 +271,8 @@ logging_send_syslog_msg(newrole_t)
 
 miscfiles_read_localization(newrole_t)
 
+seutil_libselinux_linked(newrole_t)
+
 userdom_use_unpriv_users_fds(newrole_t)
 # for some PAM modules and for cwd
 userdom_dontaudit_search_all_users_home_content(newrole_t)
@@ -309,7 +305,6 @@ optional_policy(`
 
 allow restorecond_t self:capability { dac_override dac_read_search fowner };
 allow restorecond_t self:fifo_file rw_fifo_file_perms;
-allow restorecond_t self:netlink_route_socket r_netlink_socket_perms;
 
 allow restorecond_t restorecond_var_run_t:file manage_file_perms;
 files_pid_filetrans(restorecond_t,restorecond_var_run_t, file)
@@ -323,7 +318,6 @@ fs_dontaudit_list_nfs(restorecond_t)
 fs_getattr_xattr_fs(restorecond_t)
 fs_list_inotifyfs(restorecond_t)
 
-selinux_get_fs_mount(restorecond_t)
 selinux_validate_context(restorecond_t)
 selinux_compute_access_vector(restorecond_t)
 selinux_compute_create_context(restorecond_t)
@@ -343,14 +337,10 @@ logging_send_syslog_msg(restorecond_t)
 
 miscfiles_read_localization(restorecond_t)
 
-optional_policy(`
-	rpm_use_script_fds(restorecond_t)
-')
+seutil_libselinux_linked(restorecond_t)
 
 optional_policy(`
-	# restorecond watches for users logging in, 
-	# so it getspwnam when a user logs in to find his homedir
-	nis_use_ypbind(restorecond_t)
+	rpm_use_script_fds(restorecond_t)
 ')
 
 #################################
@@ -385,7 +375,6 @@ domain_use_interactive_fds(run_init_t)
 files_read_etc_files(run_init_t)
 files_dontaudit_search_all_dirs(run_init_t)
 
-selinux_get_fs_mount(run_init_t)
 selinux_validate_context(run_init_t)
 selinux_compute_access_vector(run_init_t)
 selinux_compute_create_context(run_init_t)
@@ -401,7 +390,7 @@ init_rw_utmp(run_init_t)
 libs_use_ld_so(run_init_t)
 libs_use_shared_libs(run_init_t)
 
-seutil_read_config(run_init_t)
+seutil_libselinux_linked(run_init_t)
 seutil_read_default_contexts(run_init_t)
 
 miscfiles_read_localization(run_init_t)
@@ -476,11 +465,11 @@ logging_send_syslog_msg(semanage_t)
 
 miscfiles_read_localization(semanage_t)
 
+seutil_libselinux_linked(semanage_t)
 seutil_manage_file_contexts(semanage_t)
 seutil_manage_selinux_config(semanage_t)
 seutil_domtrans_setfiles(semanage_t)
 seutil_domtrans_loadpolicy(semanage_t)
-seutil_read_config(semanage_t)
 seutil_manage_bin_policy(semanage_t)
 seutil_use_newrole_fds(semanage_t)
 seutil_manage_module_store(semanage_t)
@@ -517,9 +506,9 @@ allow setfiles_t self:capability { dac_override dac_read_search fowner };
 dontaudit setfiles_t self:capability sys_tty_config;
 allow setfiles_t self:fifo_file rw_file_perms;
 
-allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:dir list_dir_perms;
-allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:file read_file_perms;
-allow setfiles_t { policy_src_t policy_config_t file_context_t selinux_config_t default_context_t }:lnk_file { read_lnk_file_perms ioctl lock };
+allow setfiles_t { policy_src_t policy_config_t file_context_t default_context_t }:dir list_dir_perms;
+allow setfiles_t { policy_src_t policy_config_t file_context_t default_context_t }:file read_file_perms;
+allow setfiles_t { policy_src_t policy_config_t file_context_t default_context_t }:lnk_file { read_lnk_file_perms ioctl lock };
 
 kernel_read_system_state(setfiles_t)
 kernel_relabelfrom_unlabeled_dirs(setfiles_t)
@@ -545,7 +534,6 @@ mls_file_write_all_levels(setfiles_t)
 mls_file_upgrade(setfiles_t)
 mls_file_downgrade(setfiles_t)
 
-selinux_get_fs_mount(setfiles_t)
 selinux_validate_context(setfiles_t)
 selinux_compute_access_vector(setfiles_t)
 selinux_compute_create_context(setfiles_t)
@@ -578,6 +566,8 @@ files_relabel_all_files(setfiles_t)
 logging_send_syslog_msg(setfiles_t)
 
 miscfiles_read_localization(setfiles_t)
+
+seutil_libselinux_linked(setfiles_t)
 
 userdom_use_all_users_fds(setfiles_t)
 # for config files in a home directory
