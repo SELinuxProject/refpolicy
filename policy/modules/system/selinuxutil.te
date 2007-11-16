@@ -54,7 +54,6 @@ domain_role_change_exemption(newrole_t)
 domain_obj_id_change_exemption(newrole_t)
 domain_interactive_fd(newrole_t)
 
-
 #
 # policy_config_t is the type of /etc/security/selinux/*
 # the security server policy configuration.
@@ -132,15 +131,15 @@ read_files_pattern(checkpolicy_t,policy_src_t,policy_src_t)
 read_lnk_files_pattern(checkpolicy_t,policy_src_t,policy_src_t)
 allow checkpolicy_t selinux_config_t:dir search_dir_perms;
 
-fs_getattr_xattr_fs(checkpolicy_t)
-
-term_use_console(checkpolicy_t)
-
 domain_use_interactive_fds(checkpolicy_t)
 
 files_list_usr(checkpolicy_t)
 # directory search permissions for path to source and binary policy files
 files_search_etc(checkpolicy_t)
+
+fs_getattr_xattr_fs(checkpolicy_t)
+
+term_use_console(checkpolicy_t)
 
 init_use_fds(checkpolicy_t)
 init_use_script_ptys(checkpolicy_t)
@@ -191,6 +190,7 @@ userdom_use_all_users_fds(load_policy_t)
 ifdef(`hide_broken_symptoms',`
 	# cjp: cover up stray file descriptors.
 	dontaudit load_policy_t selinux_config_t:file write;
+
 	optional_policy(`
 		unconfined_dontaudit_read_pipes(load_policy_t)
 	')
@@ -221,7 +221,18 @@ read_lnk_files_pattern(newrole_t,default_context_t,default_context_t)
 kernel_read_system_state(newrole_t)
 kernel_read_kernel_sysctls(newrole_t)
 
+corecmd_list_bin(newrole_t)
+corecmd_read_bin_symlinks(newrole_t)
+
 dev_read_urand(newrole_t)
+
+domain_use_interactive_fds(newrole_t)
+# for when the user types "exec newrole" at the command line:
+domain_sigchld_interactive_fds(newrole_t)
+
+files_read_etc_files(newrole_t)
+files_read_var_files(newrole_t)
+files_read_var_symlinks(newrole_t)
 
 fs_getattr_xattr_fs(newrole_t)
 fs_search_auto_mountpoints(newrole_t)
@@ -249,20 +260,9 @@ term_dontaudit_use_unallocated_ttys(newrole_t)
 auth_domtrans_chk_passwd(newrole_t)
 auth_rw_faillog(newrole_t)
 
-corecmd_list_bin(newrole_t)
-corecmd_read_bin_symlinks(newrole_t)
-
-domain_use_interactive_fds(newrole_t)
-# for when the user types "exec newrole" at the command line:
-domain_sigchld_interactive_fds(newrole_t)
-
 # Write to utmp.
 init_rw_utmp(newrole_t)
 init_use_fds(newrole_t)
-
-files_read_etc_files(newrole_t)
-files_read_var_files(newrole_t)
-files_read_var_symlinks(newrole_t)
 
 libs_use_ld_so(newrole_t)
 libs_use_shared_libs(newrole_t)
@@ -358,22 +358,19 @@ allow run_init_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_r
 # the failed access to the current directory
 dontaudit run_init_t self:capability { dac_override dac_read_search };
 
-fs_getattr_xattr_fs(run_init_t)
-
-dev_dontaudit_list_all_dev_nodes(run_init_t)
-
-term_dontaudit_list_ptys(run_init_t)
-
-auth_domtrans_chk_passwd(run_init_t)
-auth_dontaudit_read_shadow(run_init_t)
-
 corecmd_exec_bin(run_init_t)
 corecmd_exec_shell(run_init_t)
+
+dev_dontaudit_list_all_dev_nodes(run_init_t)
 
 domain_use_interactive_fds(run_init_t)
 
 files_read_etc_files(run_init_t)
 files_dontaudit_search_all_dirs(run_init_t)
+
+fs_getattr_xattr_fs(run_init_t)
+
+mls_rangetrans_source(run_init_t)
 
 selinux_validate_context(run_init_t)
 selinux_compute_access_vector(run_init_t)
@@ -381,7 +378,10 @@ selinux_compute_create_context(run_init_t)
 selinux_compute_relabel_context(run_init_t)
 selinux_compute_user_contexts(run_init_t)
 
-mls_rangetrans_source(run_init_t)
+term_dontaudit_list_ptys(run_init_t)
+
+auth_domtrans_chk_passwd(run_init_t)
+auth_dontaudit_read_shadow(run_init_t)
 
 init_spec_domtrans_script(run_init_t)
 # for utmp
@@ -390,12 +390,12 @@ init_rw_utmp(run_init_t)
 libs_use_ld_so(run_init_t)
 libs_use_shared_libs(run_init_t)
 
-seutil_libselinux_linked(run_init_t)
-seutil_read_default_contexts(run_init_t)
+logging_send_syslog_msg(run_init_t)
 
 miscfiles_read_localization(run_init_t)
 
-logging_send_syslog_msg(run_init_t)
+seutil_libselinux_linked(run_init_t)
+seutil_read_default_contexts(run_init_t)
 
 ifndef(`direct_sysadm_daemon',`
 	ifdef(`distro_gentoo',`
@@ -467,7 +467,7 @@ miscfiles_read_localization(semanage_t)
 
 seutil_libselinux_linked(semanage_t)
 seutil_manage_file_contexts(semanage_t)
-seutil_manage_selinux_config(semanage_t)
+seutil_manage_config(semanage_t)
 seutil_domtrans_setfiles(semanage_t)
 seutil_domtrans_loadpolicy(semanage_t)
 seutil_manage_bin_policy(semanage_t)
@@ -524,6 +524,14 @@ kernel_dontaudit_list_all_sysctls(setfiles_t)
 
 dev_relabel_all_dev_nodes(setfiles_t)
 
+domain_use_interactive_fds(setfiles_t)
+domain_dontaudit_search_all_domains_state(setfiles_t)
+
+files_read_etc_runtime_files(setfiles_t)
+files_read_etc_files(setfiles_t)
+files_list_all(setfiles_t)
+files_relabel_all_files(setfiles_t)
+
 fs_getattr_xattr_fs(setfiles_t)
 fs_list_all(setfiles_t)
 fs_search_auto_mountpoints(setfiles_t)
@@ -552,16 +560,8 @@ init_use_script_fds(setfiles_t)
 init_use_script_ptys(setfiles_t)
 init_exec_script_files(setfiles_t)
 
-domain_use_interactive_fds(setfiles_t)
-domain_dontaudit_search_all_domains_state(setfiles_t)
-
 libs_use_ld_so(setfiles_t)
 libs_use_shared_libs(setfiles_t)
-
-files_read_etc_runtime_files(setfiles_t)
-files_read_etc_files(setfiles_t)
-files_list_all(setfiles_t)
-files_relabel_all_files(setfiles_t)
 
 logging_send_syslog_msg(setfiles_t)
 
