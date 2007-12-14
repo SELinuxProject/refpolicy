@@ -1,5 +1,5 @@
 
-policy_module(apache,1.8.3)
+policy_module(apache,1.9.0)
 
 #
 # NOTES: 
@@ -23,7 +23,8 @@ policy_module(apache,1.8.3)
 ## <desc>
 ## <p>
 ## Allow Apache to modify public files
-## used for public file transfer services.
+## used for public file transfer services. Directories/Files must
+## be labeled public_content_rw_t.
 ## </p>
 ## </desc>
 gen_tunable(allow_httpd_anon_write,false)
@@ -44,14 +45,14 @@ gen_tunable(httpd_builtin_scripting,false)
 
 ## <desc>
 ## <p>
-## Allow http daemon to tcp connect
+## Allow HTTPD scripts and modules to connect to the network using TCP.
 ## </p>
 ## </desc>
 gen_tunable(httpd_can_network_connect,false)
 
 ## <desc>
 ## <p>
-## Allow httpd to connect to mysql/posgresql
+## Allow HTTPD scripts and modules to connect to databases over the network.
 ## </p>
 ## </desc>
 gen_tunable(httpd_can_network_connect_db, false)
@@ -87,21 +88,23 @@ gen_tunable(httpd_enable_homedirs,false)
 
 ## <desc>
 ## <p>
-## Run SSI execs in system CGI script domain.
+## Allow HTTPD to run SSI executables in the same domain as system CGI scripts.
 ## </p>
 ## </desc>
 gen_tunable(httpd_ssi_exec,false)
 
 ## <desc>
 ## <p>
-## Allow http daemon to communicate with the TTY
+## Unify HTTPD to communicate with the terminal.
+## Needed for entering the passphrase for certificates at
+## the terminal.
 ## </p>
 ## </desc>
 gen_tunable(httpd_tty_comm,false)
 
 ## <desc>
 ## <p>
-## Run CGI in the main httpd domain
+## Unify HTTPD handling of all content files.
 ## </p>
 ## </desc>
 gen_tunable(httpd_unified,false)
@@ -346,8 +349,6 @@ miscfiles_read_certs(httpd_t)
 
 seutil_dontaudit_search_config(httpd_t)
 
-sysnet_read_config(httpd_t)
-
 userdom_use_unpriv_users_fds(httpd_t)
 
 mta_send_mail(httpd_t)
@@ -571,7 +572,6 @@ optional_policy(`
 allow httpd_suexec_t self:capability { setuid setgid };
 allow httpd_suexec_t self:process signal_perms;
 allow httpd_suexec_t self:unix_stream_socket create_stream_socket_perms;
-allow httpd_suexec_t self:netlink_route_socket r_netlink_socket_perms;
 
 domtrans_pattern(httpd_t, httpd_suexec_exec_t, httpd_suexec_t)
 
@@ -602,6 +602,8 @@ files_read_usr_files(httpd_suexec_t)
 files_dontaudit_search_pids(httpd_suexec_t)
 files_search_home(httpd_suexec_t)
 
+auth_use_nsswitch(httpd_suexec_t)
+
 libs_use_ld_so(httpd_suexec_t)
 libs_use_shared_libs(httpd_suexec_t)
 
@@ -624,8 +626,6 @@ tunable_policy(`httpd_can_network_connect',`
 	corenet_udp_sendrecv_all_ports(httpd_suexec_t)
 	corenet_tcp_connect_all_ports(httpd_suexec_t)
 	corenet_sendrecv_all_client_packets(httpd_suexec_t)
-
-	sysnet_read_config(httpd_suexec_t)
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified',`
@@ -657,14 +657,6 @@ optional_policy(`
 
 optional_policy(`
 	nagios_domtrans_cgi(httpd_suexec_t)
-')
-
-optional_policy(`
-	nis_use_ypbind(httpd_suexec_t)
-')
-
-optional_policy(`
-	nscd_socket_use(httpd_suexec_t)
 ')
 
 ########################################
