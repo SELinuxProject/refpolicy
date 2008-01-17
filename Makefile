@@ -513,37 +513,13 @@ $(contextpath)/files/media: $(appconf)/media
 	@mkdir -p $(contextpath)/files/
 	$(verbose) $(INSTALL) -m 644 $< $@
 
-$(appdir)/default_contexts: $(appconf)/default_contexts
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/removable_context: $(appconf)/removable_context
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/default_type: $(appconf)/default_type
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/userhelper_context: $(appconf)/userhelper_context
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/initrc_context: $(tmpdir)/initrc_context
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/failsafe_context: $(appconf)/failsafe_context
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
-$(appdir)/dbus_contexts: $(appconf)/dbus_contexts
-	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
-
 $(contextpath)/users/%: $(appconf)/%_default_contexts
 	@mkdir -p $(appdir)/users
 	$(verbose) $(INSTALL) -m 644 $^ $@
+
+$(appdir)/%: $(appconf)/%
+	@mkdir -p $(appdir)
+	$(verbose) $(INSTALL) -m 644 $< $@
 
 ########################################
 #
