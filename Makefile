@@ -101,6 +101,7 @@ setbools := $(AWK) -f $(support)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(support)/comment_move_decl.sed
 gennetfilter := $(PYTHON) -E $(support)/gennetfilter.py
+m4iferror := $(support)/iferror.m4
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) -E $(support)/genhomedircon
