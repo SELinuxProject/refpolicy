@@ -74,6 +74,7 @@ make NAME=%{polname2} TYPE=%{type2} DISTRO=%{distro} DIRECT_INITRC=%{direct_init
 %config(noreplace) %{_sysconfdir}/selinux/*/contexts/initrc_context
 %config(noreplace) %{_sysconfdir}/selinux/*/contexts/removable_context
 %config(noreplace) %{_sysconfdir}/selinux/*/contexts/userhelper_context
+%config(noreplace) %{_sysconfdir}/selinux/*/contexts/x_contexts
 %dir %{_sysconfdir}/selinux/*/contexts/files
 #%ghost %config %{_sysconfdir}/selinux/*/contexts/files/file_contexts
 #%ghost %config %{_sysconfdir}/selinux/*/contexts/files/homedir_template
@@ -117,6 +118,7 @@ SELinux Reference policy targeted base module.
 %config(noreplace) %{_sysconfdir}/selinux/%{polname1}/contexts/initrc_context
 %config(noreplace) %{_sysconfdir}/selinux/%{polname1}/contexts/removable_context
 %config(noreplace) %{_sysconfdir}/selinux/%{polname1}/contexts/userhelper_context
+%config(noreplace) %{_sysconfdir}/selinux/%{polname1}/contexts/x_contexts
 %dir %{_sysconfdir}/selinux/%{polname1}/contexts/files
 #%ghost %config %{_sysconfdir}/selinux/%{polname1}/contexts/files/file_contexts
 #%ghost %config %{_sysconfdir}/selinux/%{polname1}/contexts/files/homedir_template
@@ -162,6 +164,7 @@ SELinux Reference policy strict base module.
 %config(noreplace) %{_sysconfdir}/selinux/%{polname2}/contexts/initrc_context
 %config(noreplace) %{_sysconfdir}/selinux/%{polname2}/contexts/removable_context
 %config(noreplace) %{_sysconfdir}/selinux/%{polname2}/contexts/userhelper_context
+%config(noreplace) %{_sysconfdir}/selinux/%{polname2}/contexts/x_contexts
 %dir %{_sysconfdir}/selinux/%{polname2}/contexts/files
 #%ghost %config %{_sysconfdir}/selinux/%{polname2}/contexts/files/file_contexts
 #%ghost %config %{_sysconfdir}/selinux/%{polname2}/contexts/files/homedir_template

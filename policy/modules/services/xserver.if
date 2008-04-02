@@ -15,6 +15,11 @@
 template(`xserver_common_domain_template',`
 	gen_require(`
 		type xkb_var_lib_t, xserver_exec_t, xserver_log_t;
+
+		attribute x_server_domain;
+		class x_drawable all_x_drawable_perms;
+		class x_colormap all_x_colormap_perms;
+		class x_screen all_x_screen_perms;
 	')
 
 	##############################
@@ -22,7 +27,12 @@ template(`xserver_common_domain_template',`
 	# Declarations
 	#
 
-	type $1_xserver_t;
+	attribute $1_x_domain;
+	attribute $1_input_xevent_type;
+
+	type $1_rootwindow_t, rootwindow_type;
+
+	type $1_xserver_t, x_server_domain;
 	domain_type($1_xserver_t)
 	domain_entry_file($1_xserver_t,xserver_exec_t)
 
@@ -83,6 +93,9 @@ template(`xserver_common_domain_template',`
 	manage_files_pattern($1_xserver_t,xserver_log_t,xserver_log_t)
 	logging_log_filetrans($1_xserver_t,xserver_log_t,file)
 
+	# Labeling rules for default windows and colormaps
+	type_transition $1_xserver_t $1_xserver_t:{ x_drawable x_colormap } $1_rootwindow_t;
+
 	kernel_read_system_state($1_xserver_t)
 	kernel_read_device_sysctls($1_xserver_t)
 	kernel_read_modprobe_sysctls($1_xserver_t)
@@ -142,6 +155,10 @@ template(`xserver_common_domain_template',`
 	fs_search_auto_mountpoints($1_xserver_t)
 	fs_search_ramfs($1_xserver_t)
 
+	selinux_validate_context($1_xserver_t)
+	selinux_compute_access_vector($1_xserver_t)
+	selinux_compute_create_context($1_xserver_t)
+
 	auth_use_nsswitch($1_xserver_t)
 
 	init_getpgid($1_xserver_t)
@@ -153,13 +170,15 @@ template(`xserver_common_domain_template',`
 	libs_use_shared_libs($1_xserver_t)
 
 	logging_send_syslog_msg($1_xserver_t)
+	logging_send_audit_msgs($1_xserver_t)
 
 	miscfiles_read_localization($1_xserver_t)
 	miscfiles_read_fonts($1_xserver_t)
 
 	modutils_domtrans_insmod($1_xserver_t)
 
-	seutil_dontaudit_search_config($1_xserver_t)
+	# read x_contexts
+	seutil_read_default_contexts($1_xserver_t)
 
 	ifndef(`distro_redhat',`
 		allow $1_xserver_t self:process { execmem execheap execstack };
@@ -167,6 +186,32 @@ template(`xserver_common_domain_template',`
 
 	ifdef(`distro_rhel4',`
 		allow $1_xserver_t self:process { execmem execheap execstack };
+	')
+
+	tunable_policy(`!xserver_object_manager',`
+		# should be xserver_unconfined($1_xserver_t),
+		# but typeattribute doesnt work in conditionals
+		gen_require(`
+			attribute x_server_domain, x_domain;
+			attribute xproperty_type, xselection_type;
+			attribute xextension_type, xevent_type;
+			attribute rootwindow_type;
+
+			type remote_xclient_t;
+		')
+		allow $1_xserver_t x_server_domain:x_server *;
+		allow $1_xserver_t { x_domain rootwindow_type }:x_drawable *;
+		allow $1_xserver_t x_server_domain:x_screen *;
+		allow $1_xserver_t x_domain:x_gc *;
+		allow $1_xserver_t { x_domain rootwindow_type }:x_colormap *;
+		allow $1_xserver_t xproperty_type:x_property *;
+		allow $1_xserver_t xselection_type:x_selection *;
+		allow $1_xserver_t x_domain:x_cursor *;
+		allow $1_xserver_t { x_domain remote_xclient_t }:x_client *;
+		allow $1_xserver_t { x_domain x_server_domain }:x_device *;
+		allow $1_xserver_t xextension_type:x_extension *;
+		allow $1_xserver_t { x_domain x_server_domain }:x_resource *;
+		allow $1_xserver_t xevent_type:{ x_event x_synthetic_event } *;
 	')
 
 	optional_policy(`
@@ -415,6 +460,47 @@ template(`xserver_per_role_template',`
 	tunable_policy(`use_samba_home_dirs',`
 		fs_manage_cifs_files($1_iceauth_t)
 	')
+
+	##############################
+	#
+	# User X object manager local policy
+	#
+
+	# Device rules
+	allow $1_x_domain $1_xserver_t:x_device { read getattr use setattr setfocus grab bell };
+
+	allow $1_xserver_t { input_xevent_t $1_input_xevent_type }:x_event send;
+	allow $1_xserver_t { $1_rootwindow_t $1_x_domain }:x_drawable send;
+
+	# manage: xhost X11:ChangeHosts
+	# freeze: metacity X11:GrabKey
+	# force_cursor: metacity X11:GrabPointer
+	allow $2 $1_xserver_t:x_device { manage freeze force_cursor };
+
+	# gnome-settings-daemon XKEYBOARD:SetControls
+	allow $2 $1_xserver_t:x_server manage;
+
+	# gnome-settings-daemon RANDR:SelectInput
+	allow $2 $1_xserver_t:x_resource write;
+
+	# metacity X11:InstallColormap X11:UninstallColormap
+	allow $2 $1_rootwindow_t:x_colormap { install uninstall };
+
+	# read: gnome-settings-daemon RANDR:GetScreenSizeRange
+	# write: gnome-settings-daemon RANDR:SelectInput
+	# setattr: gnome-settings-daemon X11:GrabKey
+	# manage: metacity X11:ChangeWindowAttributes
+	allow $2 $1_rootwindow_t:x_drawable { read write manage setattr };
+
+	# setattr: metacity X11:InstallColormap
+	allow $2 $1_xserver_t:x_screen { saver_setattr saver_getattr setattr };
+
+	# xrdb X11:ChangeProperty prop=RESOURCE_MANAGER
+	allow $2 info_xproperty_t:x_property { create write append };
+
+	mls_xwin_read_to_clearance($1_xserver_t)
+
+	xserver_common_x_domain_template($1,$1,$2)
 ')
 
 #######################################
@@ -521,7 +607,7 @@ template(`xserver_rw_session_template',`
 ## </param>
 #
 template(`xserver_user_client_template',`
-
+#	refpolicywarn(`$0() has been deprecated, please use xserver_user_x_domain_template instead.')
 	gen_require(`
 		type xdm_t, xdm_tmp_t;
 		type $1_xauth_home_t, $1_iceauth_home_t, $1_xserver_t, $1_xserver_tmpfs_t;
@@ -561,6 +647,279 @@ template(`xserver_user_client_template',`
 	tunable_policy(`allow_write_xshm',`
 		allow $2 $1_xserver_t:shm rw_shm_perms;
 		allow $2 $1_xserver_tmpfs_t:file rw_file_perms;
+	')
+')
+
+#######################################
+## <summary>
+##	Interface to provide X object permissions on a given X server to
+##	an X client domain.  Provides the minimal set required by a basic
+##	X client application.
+## </summary>
+## <param name="user">
+##	<summary>
+##	The prefix of the X server domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the X client domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Client domain allowed access.
+##	</summary>
+## </param>
+#
+template(`xserver_common_x_domain_template',`
+	gen_require(`
+		type $1_rootwindow_t, std_xext_t, shmem_xext_t;
+		type xproperty_t, info_xproperty_t, clipboard_xproperty_t;
+		type input_xevent_t, focus_xevent_t, property_xevent_t, manage_xevent_t;
+		type xevent_t, client_xevent_t;
+		type clipboard_xselection_t, xselection_t;
+
+		attribute x_server_domain, x_domain;
+		attribute xproperty_type;
+		attribute xevent_type, xextension_type;
+		attribute $1_x_domain, $1_input_xevent_type;
+
+		class x_drawable all_x_drawable_perms;
+		class x_screen all_x_screen_perms;
+		class x_gc all_x_gc_perms;
+		class x_font all_x_font_perms;
+		class x_colormap all_x_colormap_perms;
+		class x_property all_x_property_perms;
+		class x_selection all_x_selection_perms;
+		class x_cursor all_x_cursor_perms;	
+		class x_client all_x_client_perms;
+		class x_device all_x_device_perms;
+		class x_server all_x_server_perms;
+		class x_extension all_x_extension_perms;
+		class x_resource all_x_resource_perms;
+		class x_event all_x_event_perms;
+		class x_synthetic_event all_x_synthetic_event_perms;
+	')
+
+	##############################
+	#
+	# Declarations
+	#
+
+	# Type attributes
+	typeattribute $3 $1_x_domain, x_domain;
+
+	# Types for properties
+	type $2_xproperty_t alias $2_default_xproperty_t, xproperty_type;
+
+	# Types for events
+	type $2_input_xevent_t, $1_input_xevent_type, xevent_type;
+	type $2_property_xevent_t, xevent_type;
+	type $2_focus_xevent_t, xevent_type;
+	type $2_manage_xevent_t, xevent_type;
+	type $2_default_xevent_t, xevent_type;
+	type $2_client_xevent_t, xevent_type;
+
+	##############################
+	#
+	# Local Policy
+	#
+
+	# Hacks
+	# everyone can get the input focus of everyone else
+	# this is a fundamental brokenness in the X protocol
+	allow $3 { x_domain x_server_domain }:x_device getfocus;
+	# everyone can grab the server
+	# everyone does it, it is basically a free DOS attack
+	allow $3 x_server_domain:x_server grab;
+	# everyone can get the font path, etc.
+	# this could leak out sensitive information
+	allow $3 x_server_domain:x_server getattr;
+	# everyone can do override-redirect windows.
+	# this could be used to spoof labels
+	allow $3 self:x_drawable override;
+	# everyone can receive management events on the root window
+	# allows to know when new windows appear, among other things
+	allow $3 manage_xevent_t:x_event receive;
+
+	# X Server
+	# can read server-owned resources
+	allow $3 x_server_domain:x_resource read;
+	# can mess with own clients
+	allow $3 self:x_client { manage destroy };
+
+	# X Protocol Extensions
+	allow $3 std_xext_t:x_extension { query use };
+	allow $3 shmem_xext_t:x_extension { query use };
+	dontaudit $3 xextension_type:x_extension { query use };
+
+	# X Properties
+	# can read and write client properties
+	allow $3 $2_xproperty_t:x_property { create destroy read write append };
+	type_transition $3 xproperty_t:x_property $2_xproperty_t;
+	# can read and write cut buffers
+	allow $3 clipboard_xproperty_t:x_property { create read write append };
+	# can read info properties
+	allow $3 info_xproperty_t:x_property read;
+	# can change properties of root window
+	allow $3 $1_rootwindow_t:x_drawable { list_property get_property set_property };
+	# can change properties of own windows
+	allow $3 self:x_drawable { list_property get_property set_property };
+
+	# X Windows
+	# operations allowed on root windows
+	allow $3 $1_rootwindow_t:x_drawable { getattr list_child add_child remove_child send receive };
+	# operations allowed on my windows
+	allow $3 self:x_drawable { create destroy getattr setattr read write show hide list_child add_child remove_child manage send receive };
+	type_transition $3 $1_rootwindow_t:x_drawable $3;
+
+	# X Colormaps
+	# can use the default colormap
+	allow $3 $1_rootwindow_t:x_colormap { read use add_color };
+
+	# X Input
+	# can receive own events
+	allow $3 $2_input_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $3 $2_property_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $3 $2_focus_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $3 $2_manage_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $3 $2_default_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $3 $2_client_xevent_t:{ x_event x_synthetic_event } receive;
+	type_transition $3 input_xevent_t:x_event $2_input_xevent_t;
+	type_transition $3 property_xevent_t:x_event $2_property_xevent_t;
+	type_transition $3 focus_xevent_t:x_event $2_focus_xevent_t;
+	type_transition $3 manage_xevent_t:x_event $2_manage_xevent_t;
+	type_transition $3 client_xevent_t:x_event $2_client_xevent_t;
+	type_transition $3 xevent_t:x_event $2_default_xevent_t;
+	# can receive certain root window events
+	allow $3 focus_xevent_t:x_event receive;
+	allow $3 property_xevent_t:x_event receive;
+	allow $3 client_xevent_t:x_synthetic_event receive;
+	allow $3 manage_xevent_t:x_synthetic_event receive;
+	# can send ICCCM events to myself
+	allow $3 $2_manage_xevent_t:x_synthetic_event send;
+	# can send ICCCM events to the root window
+	allow $3 manage_xevent_t:x_synthetic_event send;
+	allow $3 client_xevent_t:x_synthetic_event send;
+
+	# X Selections
+	# can use the clipboard
+	allow $3 clipboard_xselection_t:x_selection { getattr setattr read };
+	# can query all other selections
+	allow $3 xselection_t:x_selection { getattr read };
+
+	# Other X Objects
+	# can create and use cursors
+	allow $3 self:x_cursor *;
+	# can create and use graphics contexts
+	allow $3 self:x_gc *;
+	# can create and use colormaps
+	allow $3 self:x_colormap *;
+	# can read and write own objects
+	allow $3 self:x_resource { read write };
+
+	tunable_policy(`! xserver_object_manager',`
+		# should be xserver_unconfined($3),
+		# but typeattribute doesnt work in conditionals
+		gen_require(`
+			attribute x_server_domain, x_domain;
+			attribute xproperty_type, xselection_type;
+			attribute xextension_type, xevent_type;
+			attribute rootwindow_type;
+
+			type remote_xclient_t;
+		')
+		allow $3 x_server_domain:x_server *;
+		allow $3 { x_domain rootwindow_type }:x_drawable *;
+		allow $3 x_server_domain:x_screen *;
+		allow $3 x_domain:x_gc *;
+		allow $3 { x_domain rootwindow_type }:x_colormap *;
+		allow $3 xproperty_type:x_property *;
+		allow $3 xselection_type:x_selection *;
+		allow $3 x_domain:x_cursor *;
+		allow $3 { x_domain remote_xclient_t }:x_client *;
+		allow $3 { x_domain x_server_domain }:x_device *;
+		allow $3 xextension_type:x_extension *;
+		allow $3 { x_domain x_server_domain }:x_resource *;
+		allow $3 xevent_type:{ x_event x_synthetic_event } *;
+	')
+')
+
+#######################################
+## <summary>
+##	Interface to provide X object permissions on a given X server to
+##	an X client domain.  Provides the minimal set required by a basic
+##	X client application.
+## </summary>
+## <param name="user">
+##	<summary>
+##	The prefix of the X server domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="prefix">
+##	<summary>
+##	The prefix of the X client domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Client domain allowed access.
+##	</summary>
+## </param>
+## <param name="tmpfs_type">
+##	<summary>
+##	The type of the domain SYSV tmpfs files.
+##	</summary>
+## </param>
+#
+template(`xserver_user_x_domain_template',`
+	gen_require(`
+		type xdm_t, xdm_tmp_t;
+		type $1_xauth_home_t, $1_iceauth_home_t, $1_xserver_t, $1_xserver_tmpfs_t;
+	')
+
+	allow $3 self:shm create_shm_perms;
+	allow $3 self:unix_dgram_socket create_socket_perms;
+	allow $3 self:unix_stream_socket { connectto create_stream_socket_perms };
+
+	# Read .Xauthority file
+	allow $3 $1_xauth_home_t:file { getattr read };
+	allow $3 $1_iceauth_home_t:file { getattr read };
+
+	# for when /tmp/.X11-unix is created by the system
+	allow $3 xdm_t:fd use;
+	allow $3 xdm_t:fifo_file { getattr read write ioctl };
+	allow $3 xdm_tmp_t:dir search;
+	allow $3 xdm_tmp_t:sock_file { read write };
+	dontaudit $3 xdm_t:tcp_socket { read write };
+
+	# Allow connections to X server.
+	files_search_tmp($3)
+
+	miscfiles_read_fonts($3)
+
+	userdom_search_user_home_dirs($1,$3)
+	# for .xsession-errors
+	userdom_dontaudit_write_user_home_content_files($1,$3)
+
+	xserver_ro_session_template(xdm,$3,$4)
+	xserver_rw_session_template($1,$3,$4)
+	xserver_use_user_fonts($1,$3)
+
+	xserver_read_xdm_tmp_files($3)
+
+	# X object manager
+	xserver_common_x_domain_template($1,$2,$3)
+
+	# Client write xserver shm
+	tunable_policy(`allow_write_xshm',`
+		allow $3 $1_xserver_t:shm rw_shm_perms;
+		allow $3 $1_xserver_tmpfs_t:file rw_file_perms;
 	')
 ')
 
@@ -1311,4 +1670,24 @@ interface(`xserver_stream_connect_xdm_xserver',`
 
 	files_search_tmp($1)
 	stream_connect_pattern($1,xdm_xserver_tmp_t,xdm_xserver_tmp_t,xdm_xserver_t)
+')
+
+########################################
+## <summary>
+##	Interface to provide X object permissions on a given X server to
+##	an X client domain.  Gives the domain complete control over the
+##	display.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xserver_unconfined',`
+	gen_require(`
+		attribute xserver_unconfined_type;
+	')
+
+	typeattribute $1 xserver_unconfined_type;
 ')
