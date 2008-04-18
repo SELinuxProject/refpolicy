@@ -130,6 +130,7 @@ globaltun = $(poldir)/global_tunables
 globalbool = $(poldir)/global_booleans
 rolemap = $(poldir)/rolemap
 user_files := $(poldir)/users
+policycaps := $(poldir)/policy_capabilities
 
 # local config file paths
 ifndef LOCAL_ROOT
