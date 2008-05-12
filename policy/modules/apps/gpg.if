@@ -207,6 +207,12 @@ template(`gpg_per_role_template',`
 	allow $1_gpg_agent_t self:unix_stream_socket create_stream_socket_perms ;
 	allow $1_gpg_agent_t self:fifo_file rw_fifo_file_perms;
 
+	# Allow the gpg-agent to manage its tmp files (socket)
+	manage_dirs_pattern($1_gpg_agent_t,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
+	manage_files_pattern($1_gpg_agent_t,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
+	manage_sock_files_pattern($1_gpg_agent_t,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
+	files_tmp_filetrans($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
+
 	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
 	manage_dirs_pattern($1_gpg_agent_t,$1_gpg_secret_t,$1_gpg_secret_t)
 	manage_files_pattern($1_gpg_agent_t,$1_gpg_secret_t,$1_gpg_secret_t)
@@ -219,12 +225,12 @@ template(`gpg_per_role_template',`
 	ps_process_pattern($2,$1_gpg_agent_t)
 
 	# Allow the user shell to signal the gpg-agent program.
-	allow $2 $1_gpg_agent_t:process { signal sigkill };
+	allow $2 $1_gpg_agent_t:process { signal sigkill signull };
 
+	# Allow the user to manage gpg-agent tmp files (socket)
 	manage_dirs_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
 	manage_files_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
 	manage_sock_files_pattern($2,$1_gpg_agent_tmp_t,$1_gpg_agent_tmp_t)
-	files_tmp_filetrans($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
 
 	# Transition from the user domain to the derived domain.
 	domtrans_pattern($2, gpg_agent_exec_t, $1_gpg_agent_t)
@@ -242,6 +248,15 @@ template(`gpg_per_role_template',`
 	userdom_use_user_terminals($1,$1_gpg_agent_t)
 	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
 	userdom_search_user_home_dirs($1,$1_gpg_agent_t)
+
+	tunable_policy(`gpg_agent_env_file',`
+		# write ~/.gpg-agent-info or a similar to the users home dir
+		# or subdir (gpg-agent --write-env-file option)
+		#
+		userdom_user_home_dir_filetrans_user_home_content($1,$1_gpg_agent_t,file)
+		userdom_manage_user_home_content_dirs($1,$1_gpg_agent_t)
+		userdom_manage_user_home_content_files($1,$1_gpg_agent_t)
+	')
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_manage_nfs_dirs($1_gpg_agent_t)
