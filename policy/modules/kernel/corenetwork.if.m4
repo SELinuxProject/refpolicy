@@ -28,7 +28,7 @@ interface(`corenet_tcp_sendrecv_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { tcp_send tcp_recv };
+	allow dollarsone $1_$2:netif { tcp_send tcp_recv egress ingress };
 ')
 
 ########################################
@@ -47,7 +47,7 @@ interface(`corenet_udp_send_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif udp_send;
+	allow dollarsone $1_$2:netif { udp_send egress };
 ')
 
 ########################################
@@ -66,7 +66,7 @@ interface(`corenet_udp_receive_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif udp_recv;
+	allow dollarsone $1_$2:netif { udp_recv ingress };
 ')
 
 ########################################
@@ -101,7 +101,7 @@ interface(`corenet_raw_send_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif rawip_send;
+	allow dollarsone $1_$2:netif { rawip_send egress };
 ')
 
 ########################################
@@ -120,7 +120,7 @@ interface(`corenet_raw_receive_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif rawip_recv;
+	allow dollarsone $1_$2:netif { rawip_recv ingress };
 ')
 
 ########################################
@@ -163,7 +163,7 @@ interface(`corenet_tcp_sendrecv_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { tcp_send tcp_recv };
+	allow dollarsone $1_$2:node { tcp_send tcp_recv sendto recvfrom };
 ')
 
 ########################################
@@ -182,7 +182,7 @@ interface(`corenet_udp_send_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node udp_send;
+	allow dollarsone $1_$2:node { udp_send sendto };
 ')
 
 ########################################
@@ -201,7 +201,7 @@ interface(`corenet_udp_receive_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node udp_recv;
+	allow dollarsone $1_$2:node { udp_recv recvfrom };
 ')
 
 ########################################
@@ -236,7 +236,7 @@ interface(`corenet_raw_send_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node rawip_send;
+	allow dollarsone $1_$2:node { rawip_send sendto };
 ')
 
 ########################################
@@ -255,7 +255,7 @@ interface(`corenet_raw_receive_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node rawip_recv;
+	allow dollarsone $1_$2:node { rawip_recv recvfrom };
 ')
 
 ########################################
