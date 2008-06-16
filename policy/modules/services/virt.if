@@ -1,0 +1,256 @@
+## <summary>Libvirt virtualization API</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run virt.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`virt_domtrans',`
+	gen_require(`
+		type virtd_t, virtd_exec_t;
+	')
+
+	domtrans_pattern($1, virtd_exec_t, virtd_t)
+')
+
+########################################
+## <summary>
+##	Read virt config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_read_config',`
+	gen_require(`
+		type virt_etc_t;
+		type virt_etc_rw_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, virt_etc_t, virt_etc_t)
+	read_files_pattern($1, virt_etc_rw_t, virt_etc_rw_t)
+')
+
+########################################
+## <summary>
+##	Read virt PID files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_read_pid_files',`
+	gen_require(`
+		type virt_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 virt_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Manage virt pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_manage_pids_files',`
+	gen_require(`
+		type virt_var_run_t;
+	')
+
+         manage_files_pattern($1, virt_var_run_t, virt_var_run_t)
+')
+
+########################################
+## <summary>
+##	Search virt lib directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_search_lib',`
+	gen_require(`
+		type virt_var_lib_t;
+	')
+
+	allow $1 virt_var_lib_t:dir search_dir_perms;
+	files_search_var_lib($1)
+')
+
+########################################
+## <summary>
+##	Read virt lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_read_lib_files',`
+	gen_require(`
+		type virt_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+        read_files_pattern($1, virt_var_lib_t, virt_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	virt lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_manage_lib_files',`
+	gen_require(`
+		type virt_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+        manage_files_pattern($1, virt_var_lib_t, virt_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read virt's log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`virt_read_log',`
+	gen_require(`
+		type virt_log_t;
+	')
+
+	logging_search_logs($1)
+        read_files_pattern($1, virt_log_t, virt_log_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to append
+##	virt log files.
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`virt_append_log',`
+	gen_require(`
+		type var_log_t, virt_log_t;
+	')
+
+	logging_search_logs($1)
+        append_files_pattern($1, virt_log_t, virt_log_t)
+')
+
+########################################
+## <summary>
+##	Allow domain to manage virt log files
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`virt_manage_log',`
+	gen_require(`
+		type virt_log_t;
+	')
+
+         manage_dirs_pattern($1, virt_log_t, virt_log_t)
+         manage_files_pattern($1, virt_log_t, virt_log_t)
+         manage_lnk_files_pattern($1, virt_log_t, virt_log_t)
+')
+
+########################################
+## <summary>
+##	Allow domain to manage virt image files
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`virt_manage_images',`
+	gen_require(`
+		type virt_image_t, virt_var_lib_t;
+	')
+
+	virt_search_lib($1)
+	allow $1 virt_image_t:dir list_dir_perms;
+	manage_dirs_pattern($1, virt_image_t, virt_image_t)
+	manage_files_pattern($1, virt_image_t, virt_image_t)
+	read_lnk_files_pattern($1, virt_image_t, virt_image_t)
+
+	tunable_policy(`virt_use_nfs',`
+		fs_manage_nfs_dirs($1)
+		fs_manage_nfs_files($1)
+		fs_read_nfs_symlinks($1)
+	')
+
+	tunable_policy(`virt_use_samba',`
+		fs_manage_nfs_files($1)
+		fs_manage_cifs_files($1)
+		fs_read_cifs_symlinks($1)
+	')
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an virt environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`virt_admin',`
+	gen_require(`
+		type virtd_t;
+	')
+
+	allow $1 virtd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, virtd_t)
+
+	virt_manage_pid_files($1)
+
+	virt_manage_lib_files($1)
+
+	virt_manage_log($1)
+')
