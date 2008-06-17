@@ -1,5 +1,5 @@
 
-policy_module(hal,1.9.2)
+policy_module(hal,1.9.3)
 
 ########################################
 #
@@ -57,7 +57,7 @@ files_type(hald_var_lib_t)
 # execute openvt which needs setuid
 allow hald_t self:capability { chown setuid setgid kill net_admin sys_admin sys_nice dac_override dac_read_search mknod sys_rawio sys_tty_config };
 dontaudit hald_t self:capability {sys_ptrace sys_tty_config };
-allow hald_t self:process signal_perms;
+allow hald_t self:process { getattr signal_perms };
 allow hald_t self:fifo_file rw_fifo_file_perms;
 allow hald_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow hald_t self:unix_dgram_socket create_socket_perms;
@@ -70,7 +70,7 @@ allow hald_t self:netlink_socket create_socket_perms;
 manage_files_pattern(hald_t,hald_cache_t,hald_cache_t)
 
 # log files for hald
-allow hald_t hald_log_t:file manage_file_perms;
+manage_files_pattern(hald_t, hald_log_t, hald_log_t)
 logging_log_filetrans(hald_t,hald_log_t,file)
 
 manage_dirs_pattern(hald_t,hald_tmp_t,hald_tmp_t)
@@ -82,8 +82,9 @@ manage_dirs_pattern(hald_t,hald_var_lib_t,hald_var_lib_t)
 manage_files_pattern(hald_t,hald_var_lib_t,hald_var_lib_t)
 manage_sock_files_pattern(hald_t,hald_var_lib_t,hald_var_lib_t)
 
+manage_dirs_pattern(hald_t, hald_var_run_t, hald_var_run_t)
 manage_files_pattern(hald_t,hald_var_run_t,hald_var_run_t)
-files_pid_filetrans(hald_t,hald_var_run_t,file)
+files_pid_filetrans(hald_t, hald_var_run_t, { dir file })
 
 kernel_read_system_state(hald_t)
 kernel_read_network_state(hald_t)
@@ -93,6 +94,7 @@ kernel_read_fs_sysctls(hald_t)
 kernel_rw_irq_sysctls(hald_t)
 kernel_rw_vm_sysctls(hald_t)
 kernel_write_proc_files(hald_t)
+kernel_setsched(hald_t)
 
 auth_read_pam_console_data(hald_t)
 
@@ -119,8 +121,10 @@ dev_rw_generic_usb_dev(hald_t)
 dev_setattr_generic_usb_dev(hald_t)
 dev_setattr_usbfs_files(hald_t)
 dev_rw_power_management(hald_t)
+dev_read_raw_memory(hald_t)
 # hal is now execing pm-suspend
 dev_rw_sysfs(hald_t)
+dev_read_video_dev(hald_t)
 
 domain_use_interactive_fds(hald_t)
 domain_read_all_domains_state(hald_t)
@@ -165,6 +169,8 @@ term_setattr_unallocated_ttys(hald_t)
 term_dontaudit_use_unallocated_ttys(hald_t)
 
 auth_use_nsswitch(hald_t)
+
+fstools_getattr_swap_files(hald_t)
 
 init_domtrans_script(hald_t)
 init_read_utmp(hald_t)
@@ -245,6 +251,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	gpm_dontaudit_getattr_gpmctl(hald_t)
+')
+
+optional_policy(`
 	hotplug_read_config(hald_t)
 ')
 
@@ -263,6 +273,10 @@ optional_policy(`
 optional_policy(`
 	pcmcia_manage_pid(hald_t)
 	pcmcia_manage_pid_chr_files(hald_t)
+')
+
+optional_policy(`
+	podsleuth_domtrans(hald_t)
 ')
 
 optional_policy(`
@@ -292,7 +306,8 @@ optional_policy(`
 #
 
 allow hald_acl_t self:capability { dac_override fowner };
-allow hald_acl_t self:fifo_file read_fifo_file_perms;
+allow hald_acl_t self:process { getattr signal };
+allow hald_acl_t self:fifo_file rw_fifo_file_perms;
 
 domtrans_pattern(hald_t, hald_acl_exec_t, hald_acl_t)
 allow hald_t hald_acl_t:process signal;
@@ -302,9 +317,14 @@ manage_dirs_pattern(hald_acl_t,hald_var_lib_t,hald_var_lib_t)
 manage_files_pattern(hald_acl_t,hald_var_lib_t,hald_var_lib_t)
 files_search_var_lib(hald_acl_t)
 
+manage_dirs_pattern(hald_acl_t, hald_var_run_t, hald_var_run_t)
+manage_files_pattern(hald_acl_t, hald_var_run_t, hald_var_run_t)
+files_pid_filetrans(hald_acl_t, hald_var_run_t, { dir file })
+
 corecmd_exec_bin(hald_acl_t)
 
 dev_getattr_all_chr_files(hald_acl_t)
+dev_setattr_all_chr_files(hald_acl_t)
 dev_getattr_generic_usb_dev(hald_acl_t)
 dev_getattr_video_dev(hald_acl_t)
 dev_setattr_video_dev(hald_acl_t)
@@ -339,7 +359,11 @@ manage_dirs_pattern(hald_mac_t,hald_var_lib_t,hald_var_lib_t)
 manage_files_pattern(hald_mac_t,hald_var_lib_t,hald_var_lib_t)
 files_search_var_lib(hald_mac_t)
 
+kernel_read_system_state(hald_mac_t)
+
+dev_read_raw_memory(hald_mac_t)
 dev_write_raw_memory(hald_mac_t)
+dev_read_sysfs(hald_mac_t)
 
 files_read_usr_files(hald_mac_t)
 
@@ -392,3 +416,7 @@ libs_use_ld_so(hald_keymap_t)
 libs_use_shared_libs(hald_keymap_t)
 
 miscfiles_read_localization(hald_keymap_t)
+
+# This is caused by a bug in hald and PolicyKit.  
+# Should be removed when this is fixed
+#cron_read_system_job_lib_files(hald_t)
