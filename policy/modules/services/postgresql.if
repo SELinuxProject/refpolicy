@@ -1,5 +1,206 @@
 ## <summary>PostgreSQL relational database</summary>
 
+#######################################
+## <summary>
+##      The userdomain template for the SE-PostgreSQL.
+## </summary>
+## <desc>
+##      This template creates a delivered types which are used
+##	for given userdomains.
+## </desc>
+## <param name="userdomain_prefix">
+##      <summary>
+##      The prefix of the user domain (e.g., user
+##      is the prefix for user_t).
+##      </summary>
+## </param>
+## <param name="user_domain">
+## 	<summary>
+##      The type of the user domain.
+##      </summary>
+## </param>
+## <param name="user_role">
+##      <summary>
+##      The role associated with the user domain.
+##      </summary>
+## </param>
+#
+template(`postgresql_userdom_template',`
+	gen_require(`
+		class db_database all_db_database_perms;
+		class db_table all_db_table_perms;
+		class db_procedure all_db_procedure_perms;
+		class db_column all_db_column_perms;
+		class db_tuple all_db_tuple_perms;
+		class db_blob all_db_blob_perms;
+
+		attribute sepgsql_client_type, sepgsql_database_type;
+		attribute sepgsql_sysobj_table_type;
+
+		type sepgsql_trusted_proc_exec_t, sepgsql_trusted_proc_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	typeattribute $2 sepgsql_client_type;
+
+	type $1_sepgsql_blob_t;
+	postgresql_blob_object($1_sepgsql_blob_t)
+
+	type $1_sepgsql_proc_exec_t;
+	postgresql_procedure_object($1_sepgsql_proc_exec_t)
+
+	type $1_sepgsql_sysobj_t;
+	postgresql_system_table_object($1_sepgsql_sysobj_t)
+
+	type $1_sepgsql_table_t;
+	postgresql_table_object($1_sepgsql_table_t)
+
+	role $3 types sepgsql_trusted_proc_t;
+
+	##############################
+	#
+	# Client local policy
+	#
+
+	tunable_policy(`sepgsql_enable_users_ddl',`
+		allow $2 $1_sepgsql_table_t  : db_table { create drop };
+		type_transition $2 sepgsql_database_type:db_table $1_sepgsql_table_t;
+
+		allow $2 $1_sepgsql_table_t  : db_column { create drop };
+
+		allow $2 $1_sepgsql_sysobj_t : db_tuple { update insert delete };
+		type_transition $2 sepgsql_sysobj_table_type:db_tuple $1_sepgsql_sysobj_t;
+	')
+
+	allow $2 $1_sepgsql_table_t  : db_table  { getattr setattr use select update insert delete };
+	allow $2 $1_sepgsql_table_t  : db_column { getattr setattr use select update insert };
+	allow $2 $1_sepgsql_table_t  : db_tuple  { use select update insert delete };
+	allow $2 $1_sepgsql_sysobj_t : db_tuple  { use select };
+
+	allow $2 $1_sepgsql_proc_exec_t : db_procedure { create drop getattr setattr execute };
+	type_transition $2 sepgsql_database_type:db_procedure $1_sepgsql_proc_exec_t;
+
+	allow $2 $1_sepgsql_blob_t : db_blob { create drop getattr setattr read write };
+	type_transition $2 sepgsql_database_type:db_blob $1_sepgsql_blob_t;
+
+	allow $2 sepgsql_trusted_proc_t:process transition;
+	type_transition $2 sepgsql_trusted_proc_exec_t:process sepgsql_trusted_proc_t;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL loadable shared library module
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a database object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_loadable_module',`
+	gen_require(`
+		attribute sepgsql_module_type;
+	')
+
+	typeattribute $1 sepgsql_module_type;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL database object type
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a database object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_database_object',`
+	gen_require(`
+		attribute sepgsql_database_type;
+	')
+
+	typeattribute $1 sepgsql_database_type;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL table/column/tuple object type
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a table/column/tuple object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_table_object',`
+	gen_require(`
+		attribute sepgsql_table_type;
+	')
+
+	typeattribute $1 sepgsql_table_type;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL system table/column/tuple object type
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a table/column/tuple object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_system_table_object',`
+	gen_require(`
+		attribute sepgsql_table_type;
+		attribute sepgsql_sysobj_table_type;
+	')
+
+	typeattribute $1 sepgsql_table_type;
+	typeattribute $1 sepgsql_sysobj_table_type;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL procedure object type
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a database object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_procedure_object',`
+	gen_require(`
+		attribute sepgsql_procedure_type;
+	')
+
+	typeattribute $1 sepgsql_procedure_type;
+')
+
+########################################
+## <summary>
+##     Marks as a SE-PostgreSQL binary large object type
+## </summary>
+## <param name="type">
+##     <summary>
+##     Type marked as a database binary large object type.
+##     </summary>
+## </param>
+#
+interface(`postgresql_blob_object',`
+	gen_require(`
+		attribute sepgsql_blob_type;
+	')
+
+	typeattribute $1 sepgsql_blob_type;
+')
+
 ########################################
 ## <summary>
 ##	Allow the specified domain to search postgresql's database directory.
@@ -119,4 +320,57 @@ interface(`postgresql_stream_connect',`
 	allow $1 postgresql_var_run_t:sock_file write;
         # Some versions of postgresql put the sock file in /tmp
 	allow $1 postgresql_tmp_t:sock_file write;
+')
+
+########################################
+## <summary>
+##      Allow the specified domain unprivileged accesses to unifined database objects
+##	managed by SE-PostgreSQL,
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`postgresql_unpriv_client',`
+	gen_require(`
+		class db_table all_db_table_perms;
+		class db_procedure all_db_procedure_perms;
+		class db_blob all_db_blob_perms;
+
+		attribute sepgsql_client_type;
+
+		type sepgsql_db_t, sepgsql_table_t, sepgsql_proc_t, sepgsql_blob_t;
+
+		type sepgsql_trusted_proc_t, sepgsql_trusted_proc_exec_t;
+	')
+
+	typeattribute $1 sepgsql_client_type;
+
+	type_transition $1 sepgsql_db_t:db_table sepgsql_table_t;
+	type_transition $1 sepgsql_db_t:db_procedure sepgsql_proc_t;
+	type_transition $1 sepgsql_db_t:db_blob sepgsql_blob_t;
+
+	type_transition $1 sepgsql_trusted_proc_exec_t:process sepgsql_trusted_proc_t;
+	allow $1 sepgsql_trusted_proc_t:process transition;
+')
+
+########################################
+## <summary>
+##      Allow the specified domain unconfined accesses to any database objects
+##	managed by SE-PostgreSQL,
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`postgresql_unconfined',`
+	gen_require(`
+		attribute sepgsql_unconfined_type;
+	')
+
+	typeattribute $1 sepgsql_unconfined_type;
 ')

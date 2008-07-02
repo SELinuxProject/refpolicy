@@ -1,0 +1,197 @@
+
+policy_module(virt, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+## <p>
+## Allow virt to manage nfs files
+## </p>
+## </desc>
+gen_tunable(virt_use_nfs, false)
+
+## <desc>
+## <p>
+## Allow virt to manage cifs files
+## </p>
+## </desc>
+gen_tunable(virt_use_samba, false)
+
+type virt_etc_t;
+files_config_file(virt_etc_t)
+
+type virt_etc_rw_t;
+files_type(virt_etc_rw_t)
+
+# virt Image files
+type virt_image_t; # customizable
+files_type(virt_image_t)
+# virt_image_t can be assigned to blk devices
+dev_node(virt_image_t)
+
+type virt_log_t;
+logging_log_file(virt_log_t)
+
+type virt_var_run_t;
+files_pid_file(virt_var_run_t)
+
+type virt_var_lib_t;
+files_type(virt_var_lib_t)
+
+type virtd_t;
+type virtd_exec_t;
+init_daemon_domain(virtd_t, virtd_exec_t)
+
+########################################
+#
+# virtd local policy
+#
+
+allow virtd_t self:capability { dac_override kill net_admin setgid sys_nice sys_ptrace };
+allow virtd_t self:process { sigkill signal execmem };
+allow virtd_t self:fifo_file rw_file_perms;
+allow virtd_t self:unix_stream_socket create_stream_socket_perms;
+allow virtd_t self:tcp_socket create_stream_socket_perms;
+
+read_files_pattern(virtd_t, virt_etc_t, virt_etc_t)
+read_lnk_files_pattern(virtd_t, virt_etc_t, virt_etc_t)
+
+manage_dirs_pattern(virtd_t, virt_etc_rw_t, virt_etc_rw_t)
+manage_files_pattern(virtd_t, virt_etc_rw_t, virt_etc_rw_t)
+manage_lnk_files_pattern(virtd_t, virt_etc_rw_t, virt_etc_rw_t)
+filetrans_pattern(virtd_t, virt_etc_t, virt_etc_rw_t, dir)
+
+manage_files_pattern(virtd_t, virt_image_t, virt_image_t)
+
+manage_dirs_pattern(virtd_t, virt_log_t, virt_log_t)
+manage_files_pattern(virtd_t, virt_log_t, virt_log_t)
+logging_log_filetrans(virtd_t, virt_log_t, { file dir })
+
+manage_dirs_pattern(virtd_t, virt_var_lib_t, virt_var_lib_t)
+manage_files_pattern(virtd_t, virt_var_lib_t, virt_var_lib_t)
+files_var_lib_filetrans(virtd_t, virt_var_lib_t, { file dir })
+
+manage_dirs_pattern(virtd_t, virt_var_run_t, virt_var_run_t)
+manage_files_pattern(virtd_t, virt_var_run_t, virt_var_run_t)
+manage_sock_files_pattern(virtd_t, virt_var_run_t, virt_var_run_t)
+files_pid_filetrans(virtd_t, virt_var_run_t, { file dir })
+
+kernel_read_system_state(virtd_t)
+kernel_read_network_state(virtd_t)
+kernel_rw_net_sysctls(virtd_t)
+kernel_load_module(virtd_t)
+
+corecmd_exec_bin(virtd_t)
+corecmd_exec_shell(virtd_t)
+
+corenet_all_recvfrom_unlabeled(virtd_t)
+corenet_all_recvfrom_netlabel(virtd_t)
+corenet_tcp_sendrecv_all_if(virtd_t)
+corenet_tcp_sendrecv_all_nodes(virtd_t)
+corenet_tcp_sendrecv_all_ports(virtd_t)
+corenet_tcp_bind_all_nodes(virtd_t)
+#corenet_tcp_bind_virt_port(virtd_t)
+corenet_tcp_bind_vnc_port(virtd_t)
+corenet_tcp_connect_vnc_port(virtd_t)
+corenet_tcp_connect_soundd_port(virtd_t)
+corenet_rw_tun_tap_dev(virtd_t)
+
+dev_read_sysfs(virtd_t)
+dev_read_rand(virtd_t)
+
+# Init script handling
+domain_use_interactive_fds(virtd_t)
+
+files_read_usr_files(virtd_t)
+files_read_etc_files(virtd_t)
+files_read_etc_runtime_files(virtd_t)
+files_search_all(virtd_t)
+
+fs_list_auto_mountpoints(virtd_t)
+
+storage_raw_write_removable_device(virtd_t)
+storage_raw_read_removable_device(virtd_t)
+
+term_getattr_pty_fs(virtd_t)
+term_use_ptmx(virtd_t)
+
+auth_use_nsswitch(virtd_t)
+
+libs_use_ld_so(virtd_t)
+libs_use_shared_libs(virtd_t)
+
+miscfiles_read_localization(virtd_t)
+miscfiles_read_certs(virtd_t)
+
+logging_send_syslog_msg(virtd_t)
+
+userdom_read_all_users_state(virtd_t)
+
+tunable_policy(`virt_use_nfs',`
+	fs_manage_nfs_dirs(virtd_t)
+	fs_manage_nfs_files(virtd_t)
+	fs_read_nfs_symlinks(virtd_t)
+')
+
+tunable_policy(`virt_use_samba',`
+	fs_manage_nfs_files(virtd_t)
+	fs_manage_cifs_files(virtd_t)
+	fs_read_cifs_symlinks(virtd_t)
+')
+
+optional_policy(`
+	brctl_domtrans(virtd_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client_template(virtd, virtd_t)
+
+	optional_policy(`
+		avahi_dbus_chat(virtd_t)
+	')
+
+	optional_policy(`
+		consolekit_dbus_chat(virtd_t)
+	')
+
+	optional_policy(`
+		hal_dbus_chat(virtd_t)
+	')
+')
+
+#optional_policy(`
+#	dnsmasq_domtrans(virtd_t)
+#	dnsmasq_signal(virtd_t)
+#	dnsmasq_sigkill(virtd_t)
+#')
+
+optional_policy(`
+	iptables_domtrans(virtd_t)
+')
+
+#optional_policy(`
+#	polkit_domtrans_auth(virtd_t)
+#	polkit_domtrans_resolve(virtd_t)
+#')
+
+optional_policy(`
+	qemu_domtrans(virtd_t)
+	qemu_read_state(virtd_t)
+	qemu_signal(virtd_t)
+	qemu_kill(virtd_t)
+')
+
+optional_policy(`
+	sasl_connect(virtd_t)
+')
+
+optional_policy(`
+	kernel_read_xen_state(virtd_t)
+	kernel_write_xen_state(virtd_t)
+
+	xen_stream_connect(virtd_t)
+	xen_stream_connect_xenstore(virtd_t)
+')

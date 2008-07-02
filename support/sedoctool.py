@@ -465,9 +465,14 @@ def gen_docs(doc, working_dir, templatedir):
 					paramopt = "Yes"
 				else:
 					paramopt = "No"
+				if args.getAttribute("unused") == "true":
+					paramunused = "Yes"
+				else:
+					paramunused = "No"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
-					      "optional" : paramopt }
+					      "optional" : paramopt,
+					      "unused" : paramunused }
 				interface_parameters.append(parameter)
 			interfaces.append( { "interface_name" : interface_name,
 					   "interface_summary" : interface_summary,
@@ -506,9 +511,14 @@ def gen_docs(doc, working_dir, templatedir):
 					paramopt = "Yes"
 				else:
 					paramopt = "No"
+				if args.getAttribute("unused") == "true":
+					paramunused = "Yes"
+				else:
+					paramunused = "No"
 				parameter = { "name" : paramname,
 					      "desc" : paramdesc,
-					      "optional" : paramopt }
+					      "optional" : paramopt,
+					      "unused": paramunused }
 				template_parameters.append(parameter)
 			templates.append( { "template_name" : template_name,
 					   "template_summary" : template_summary,

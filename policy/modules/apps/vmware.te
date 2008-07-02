@@ -1,5 +1,5 @@
 
-policy_module(vmware,1.5.1)
+policy_module(vmware, 1.6.0)
 
 ########################################
 #
@@ -15,6 +15,9 @@ type vmware_host_t;
 type vmware_host_exec_t;
 init_daemon_domain(vmware_host_t,vmware_host_exec_t)
 
+type vmware_log_t;
+logging_log_file(vmware_log_t)
+
 # Systemwide configuration files
 type vmware_sys_conf_t;
 files_type(vmware_sys_conf_t)
@@ -27,12 +30,13 @@ files_pid_file(vmware_var_run_t)
 # VMWare host local policy
 #
 
-allow vmware_host_t self:capability { setuid net_raw };
+allow vmware_host_t self:capability { setgid setuid net_raw };
 dontaudit vmware_host_t self:capability sys_tty_config;
 allow vmware_host_t self:process signal_perms;
 allow vmware_host_t self:fifo_file rw_fifo_file_perms;
 allow vmware_host_t self:unix_stream_socket create_stream_socket_perms;
 allow vmware_host_t self:rawip_socket create_socket_perms;
+allow vmware_host_t self:tcp_socket create_socket_perms;
 
 # cjp: the ro and rw files should be split up
 manage_files_pattern(vmware_host_t,vmware_sys_conf_t,vmware_sys_conf_t)
@@ -40,6 +44,9 @@ manage_files_pattern(vmware_host_t,vmware_sys_conf_t,vmware_sys_conf_t)
 manage_files_pattern(vmware_host_t,vmware_var_run_t,vmware_var_run_t)
 manage_sock_files_pattern(vmware_host_t,vmware_var_run_t,vmware_var_run_t)
 files_pid_filetrans(vmware_host_t,vmware_var_run_t,{ file sock_file })
+
+manage_files_pattern(vmware_host_t, vmware_log_t, vmware_log_t)	
+logging_log_filetrans(vmware_host_t, vmware_log_t, { file dir })
 
 kernel_read_kernel_sysctls(vmware_host_t)
 kernel_list_proc(vmware_host_t)
@@ -63,6 +70,7 @@ corenet_sendrecv_all_client_packets(vmware_host_t)
 corenet_sendrecv_all_server_packets(vmware_host_t)
 
 dev_read_sysfs(vmware_host_t)
+dev_read_urand(vmware_host_t)
 dev_rw_vmware(vmware_host_t)
 
 domain_use_interactive_fds(vmware_host_t)
@@ -90,6 +98,8 @@ userdom_dontaudit_use_unpriv_user_fds(vmware_host_t)
 
 sysadm_dontaudit_search_home_dirs(vmware_host_t)
 
+netutils_domtrans_ping(vmware_host_t)
+
 optional_policy(`
 	seutil_sigchld_newrole(vmware_host_t)
 
@@ -97,17 +107,4 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(vmware_host_t)
-')
-netutils_domtrans_ping(vmware_host_t)
-
-ifdef(`TODO',`
-# VMWare need access to pcmcia devices for network
-optional_policy(`
-allow kernel_t cardmgr_var_lib_t:dir { getattr search };
-allow kernel_t cardmgr_var_lib_t:file { getattr ioctl read };
-')
-# Vmware create network devices
-allow kernel_t self:capability net_admin;
-allow kernel_t self:netlink_route_socket { bind create getattr nlmsg_read nlmsg_write read write };
-allow kernel_t self:socket create;
 ')
