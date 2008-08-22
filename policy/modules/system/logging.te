@@ -1,5 +1,5 @@
 
-policy_module(logging, 1.11.1)
+policy_module(logging, 1.11.2)
 
 ########################################
 #
@@ -26,6 +26,17 @@ init_daemon_domain(auditd_t,auditd_exec_t)
 
 type auditd_var_run_t;
 files_pid_file(auditd_var_run_t)
+
+type audisp_t;
+type audisp_exec_t;
+init_system_domain(audisp_t, audisp_exec_t)
+
+type audisp_var_run_t;
+files_pid_file(audisp_var_run_t)
+
+type audisp_remote_t;
+type audisp_remote_exec_t;
+logging_dispatcher_domain(audisp_remote_t, audisp_remote_exec_t)
 
 type devlog_t;
 files_type(devlog_t)
@@ -62,7 +73,8 @@ logging_log_file(var_log_t)
 files_mountpoint(var_log_t)
 
 ifdef(`enable_mls',`
-	init_ranged_daemon_domain(auditd_t,auditd_exec_t,mls_systemhigh)
+	init_ranged_daemon_domain(auditd_t, auditd_exec_t, mls_systemhigh)
+	init_ranged_daemon_domain(syslogd_t, syslogd_exec_t, mls_systemhigh)
 ')
 
 ########################################
@@ -150,6 +162,8 @@ init_telinit(auditd_t)
 
 logging_set_audit_parameters(auditd_t)
 logging_send_syslog_msg(auditd_t)
+logging_domtrans_dispatcher(auditd_t)
+logging_signal_dispatcher(auditd_t)
 
 libs_use_ld_so(auditd_t)
 libs_use_shared_libs(auditd_t)
@@ -160,6 +174,8 @@ mls_file_read_all_levels(auditd_t)
 mls_file_write_all_levels(auditd_t) # Need to be able to write to /var/run/ directory
 
 seutil_dontaudit_read_config(auditd_t)
+
+sysnet_dns_name_resolve(auditd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(auditd_t)
 
@@ -172,12 +188,70 @@ ifdef(`distro_ubuntu',`
 ')
 
 optional_policy(`
+	mta_send_mail(auditd_t)
+')
+
+optional_policy(`
 	seutil_sigchld_newrole(auditd_t)
 ')
 
 optional_policy(`
 	udev_read_db(auditd_t)
 ')
+
+########################################
+#
+# audit dispatcher local policy
+#
+
+allow audisp_t self:capability sys_nice;
+allow audisp_t self:process setsched;
+allow audisp_t self:fifo_file rw_file_perms;
+allow audisp_t self:unix_stream_socket create_stream_socket_perms;
+allow audisp_t self:unix_dgram_socket create_socket_perms;
+
+allow audisp_t auditd_t:unix_stream_socket rw_file_perms;
+
+manage_sock_files_pattern(audisp_t, audisp_var_run_t, audisp_var_run_t)
+files_pid_filetrans(audisp_t, audisp_var_run_t, sock_file)
+
+corecmd_search_bin(audisp_t)
+
+domain_use_interactive_fds(audisp_t)
+
+files_read_etc_files(audisp_t)
+
+mls_file_write_all_levels(audisp_t)
+
+libs_use_ld_so(audisp_t)
+libs_use_shared_libs(audisp_t)
+
+logging_send_syslog_msg(audisp_t)
+
+miscfiles_read_localization(audisp_t)
+
+########################################
+#
+# Audit remote logger local policy
+#
+
+allow audisp_remote_t self:tcp_socket create_socket_perms;
+
+corenet_all_recvfrom_unlabeled(audisp_remote_t)
+corenet_all_recvfrom_netlabel(audisp_remote_t)
+corenet_tcp_sendrecv_all_if(audisp_remote_t)
+corenet_tcp_sendrecv_all_nodes(audisp_remote_t)
+
+files_read_etc_files(audisp_remote_t)
+
+libs_use_ld_so(audisp_remote_t)
+libs_use_shared_libs(audisp_remote_t)
+
+logging_send_syslog_msg(audisp_remote_t)
+
+miscfiles_read_localization(audisp_remote_t)
+
+sysnet_dns_name_resolve(audisp_remote_t)
 
 ########################################
 #
@@ -253,7 +327,6 @@ allow syslogd_t self:capability { dac_override sys_resource sys_tty_config net_a
 dontaudit syslogd_t self:capability sys_tty_config;
 # setpgid for metalog
 allow syslogd_t self:process { signal_perms setpgid };
-allow syslogd_t self:netlink_route_socket r_netlink_socket_perms;
 # receive messages to be logged
 allow syslogd_t self:unix_dgram_socket create_socket_perms;
 allow syslogd_t self:unix_stream_socket create_stream_socket_perms;
@@ -290,26 +363,13 @@ files_pid_filetrans(syslogd_t,syslogd_var_run_t,file)
 manage_files_pattern(syslogd_t,syslogd_var_run_t,syslogd_var_run_t)
 files_pid_filetrans(syslogd_t,syslogd_var_run_t,file)
 
+kernel_read_system_state(syslogd_t)
 kernel_read_kernel_sysctls(syslogd_t)
 kernel_read_proc_symlinks(syslogd_t)
 # Allow access to /proc/kmsg for syslog-ng
 kernel_read_messages(syslogd_t)
 kernel_clear_ring_buffer(syslogd_t)
 kernel_change_ring_buffer_level(syslogd_t)
-
-dev_filetrans(syslogd_t,devlog_t,sock_file)
-dev_read_sysfs(syslogd_t)
-
-fs_search_auto_mountpoints(syslogd_t)
-
-term_write_console(syslogd_t)
-# Allow syslog to a terminal
-term_write_unallocated_ttys(syslogd_t)
-
-# for sending messages to logged in users
-init_read_utmp(syslogd_t)
-init_dontaudit_write_utmp(syslogd_t)
-term_write_all_user_ttys(syslogd_t)
 
 corenet_all_recvfrom_unlabeled(syslogd_t)
 corenet_all_recvfrom_netlabel(syslogd_t)
@@ -328,30 +388,51 @@ corenet_tcp_connect_rsh_port(syslogd_t)
 # Allow users to define additional syslog ports to connect to
 corenet_tcp_bind_syslogd_port(syslogd_t)
 corenet_tcp_connect_syslogd_port(syslogd_t)
+corenet_tcp_connect_postgresql_port(syslogd_t)
+corenet_tcp_connect_mysqld_port(syslogd_t)
 
 # syslog-ng can send or receive logs
 corenet_sendrecv_syslogd_client_packets(syslogd_t)
 corenet_sendrecv_syslogd_server_packets(syslogd_t)
+corenet_sendrecv_postgresql_client_packets(syslogd_t)
+corenet_sendrecv_mysqld_client_packets(syslogd_t)
 
-fs_getattr_all_fs(syslogd_t)
-
-init_use_fds(syslogd_t)
+dev_filetrans(syslogd_t,devlog_t,sock_file)
+dev_read_sysfs(syslogd_t)
 
 domain_use_interactive_fds(syslogd_t)
 
 files_read_etc_files(syslogd_t)
+files_read_usr_files(syslogd_t)
 files_read_var_files(syslogd_t)
 files_read_etc_runtime_files(syslogd_t)
 # /initrd is not umounted before minilog starts
 files_dontaudit_search_isid_type_dirs(syslogd_t)
+files_read_kernel_symbol_table(syslogd_t)
+
+fs_getattr_all_fs(syslogd_t)
+fs_search_auto_mountpoints(syslogd_t)
+
+mls_file_write_all_levels(syslogd_t) # Need to be able to write to /var/run/ and /var/log directories
+
+term_write_console(syslogd_t)
+# Allow syslog to a terminal
+term_write_unallocated_ttys(syslogd_t)
+
+# for sending messages to logged in users
+init_read_utmp(syslogd_t)
+init_dontaudit_write_utmp(syslogd_t)
+term_write_all_user_ttys(syslogd_t)
+
+auth_use_nsswitch(syslogd_t)
+
+init_use_fds(syslogd_t)
 
 libs_use_ld_so(syslogd_t)
 libs_use_shared_libs(syslogd_t)
 
 # cjp: this doesnt make sense
 logging_send_syslog_msg(syslogd_t)
-
-sysnet_read_config(syslogd_t)
 
 miscfiles_read_localization(syslogd_t)
 
@@ -382,11 +463,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	nis_use_ypbind(syslogd_t)
-')
-
-optional_policy(`
-	nscd_socket_use(syslogd_t)
+	postgresql_stream_connect(syslogd_t)
 ')
 
 optional_policy(`

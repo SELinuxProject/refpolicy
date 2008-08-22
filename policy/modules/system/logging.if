@@ -213,12 +213,97 @@ interface(`logging_run_auditd',`
 ## </param>
 #
 interface(`logging_stream_connect_auditd',`
+	refpolicywarn(`$0($*) has been deprecated, logging_stream_connect_dispatcher() should be used instead.')
+	logging_stream_connect_dispatcher($1)
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run the audit dispatcher.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`logging_domtrans_dispatcher',`
 	gen_require(`
-		type auditd_t, auditd_var_run_t;
+		type audisp_t, audisp_exec_t;
+	')
+
+	domtrans_pattern($1, audisp_exec_t, audisp_t)
+')
+
+########################################
+## <summary>
+##	Signal the audit dispatcher.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`logging_signal_dispatcher',`
+	gen_require(`
+		type audisp_t;
+	')
+
+	allow $1 audisp_t:process signal;
+')
+
+########################################
+## <summary>
+##	Create a domain for processes
+##	which can be started by the system audit dispatcher
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`logging_dispatcher_domain',`
+	gen_require(`
+		type audisp_t;
+		role system_r;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, $2)
+
+	role system_r types $1;
+
+	domtrans_pattern(audisp_t, $2, $1)
+	allow $1 audisp_t:process signal;
+
+	allow audisp_t $2:file getattr;
+	allow $1 audisp_t:unix_stream_socket rw_socket_perms;
+')
+
+########################################
+## <summary>
+##	Connect to the audit dispatcher over an unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`logging_stream_connect_dispatcher',`
+	gen_require(`
+		type audisp_t, audisp_var_run_t;
 	')
 
 	files_search_pids($1)
-	stream_connect_pattern($1,auditd_var_run_t,auditd_var_run_t,auditd_t)
+	stream_connect_pattern($1, audisp_var_run_t, audisp_var_run_t, audisp_t)
 ')
 
 ########################################
@@ -530,8 +615,7 @@ interface(`logging_append_all_logs',`
 	')
 
 	files_search_var($1)
-	allow $1 var_log_t:dir list_dir_perms;
-	allow $1 logfile:file { getattr append };
+	append_files_pattern($1, var_log_t, logfile)
 ')
 
 ########################################
@@ -575,6 +659,25 @@ interface(`logging_exec_all_logs',`
 	files_search_var($1)
 	allow $1 logfile:dir list_dir_perms;
 	can_exec($1,logfile)
+')
+
+########################################
+## <summary>
+##	read/write to all log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`logging_rw_all_logs',`
+	gen_require(`
+		attribute logfile;
+	')
+
+	files_search_var($1)
+	rw_files_pattern($1, logfile, logfile)
 ')
 
 ########################################
@@ -641,6 +744,24 @@ interface(`logging_write_generic_logs',`
 
 ########################################
 ## <summary>
+##	Dontaudit Write generic log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`logging_dontaudit_write_generic_logs',`
+	gen_require(`
+		type var_log_t;
+	')
+
+	dontaudit $1 var_log_t:file write;
+')
+
+########################################
+## <summary>
 ##	Read and write generic log files.
 ## </summary>
 ## <param name="domain">
@@ -690,6 +811,16 @@ interface(`logging_manage_generic_logs',`
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
+## <param name="role">
+##	<summary>
+##	User role allowed access.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	User terminal type.
+##	</summary>
+## </param>
 ## <rolecap/>
 #
 interface(`logging_admin_audit',`
@@ -709,6 +840,8 @@ interface(`logging_admin_audit',`
 
 	manage_dirs_pattern($1, auditd_var_run_t, auditd_var_run_t)
 	manage_files_pattern($1, auditd_var_run_t, auditd_var_run_t)
+
+	logging_run_auditctl($1, $2, $3)
 ')
 
 ########################################
@@ -768,9 +901,19 @@ interface(`logging_admin_syslog',`
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
+## <param name="role">
+##	<summary>
+##	User role allowed access.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	User terminal type.
+##	</summary>
+## </param>
 ## <rolecap/>
 #
 interface(`logging_admin',`
-	logging_admin_audit($1)
+	logging_admin_audit($1, $2, $3)
 	logging_admin_syslog($1)
 ')
