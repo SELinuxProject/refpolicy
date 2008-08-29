@@ -1,5 +1,5 @@
 
-policy_module(inetd, 1.7.0)
+policy_module(inetd, 1.7.1)
 
 ########################################
 #
@@ -30,6 +30,10 @@ files_tmp_file(inetd_child_tmp_t)
 type inetd_child_var_run_t;
 files_pid_file(inetd_child_var_run_t)
 
+ifdef(`enable_mcs',`
+	init_ranged_daemon_domain(inetd_t, inetd_exec_t,s0 - mcs_systemhigh)
+')
+
 ########################################
 #
 # Local policy
@@ -59,6 +63,8 @@ kernel_read_proc_symlinks(inetd_t)
 kernel_read_system_state(inetd_t)
 kernel_tcp_recvfrom_unlabeled(inetd_t)
 
+corecmd_bin_domtrans(inetd_t, inetd_child_t)
+
 # base networking:
 corenet_all_recvfrom_unlabeled(inetd_t)
 corenet_all_recvfrom_netlabel(inetd_t)
@@ -84,6 +90,7 @@ corenet_tcp_bind_ftp_port(inetd_t)
 corenet_udp_bind_ftp_port(inetd_t)
 corenet_tcp_bind_inetd_child_port(inetd_t)
 corenet_udp_bind_inetd_child_port(inetd_t)
+corenet_tcp_bind_ircd_port(inetd_t)
 corenet_udp_bind_ktalkd_port(inetd_t)
 corenet_tcp_bind_printer_port(inetd_t)
 corenet_udp_bind_rlogind_port(inetd_t)
@@ -105,6 +112,7 @@ corenet_sendrecv_comsat_server_packets(inetd_t)
 corenet_sendrecv_dbskkd_server_packets(inetd_t)
 corenet_sendrecv_ftp_server_packets(inetd_t)
 corenet_sendrecv_inetd_child_server_packets(inetd_t)
+corenet_sendrecv_ircd_server_packets(inetd_t)
 corenet_sendrecv_ktalkd_server_packets(inetd_t)
 corenet_sendrecv_printer_server_packets(inetd_t)
 corenet_sendrecv_rsh_server_packets(inetd_t)
@@ -148,10 +156,17 @@ userdom_dontaudit_use_unpriv_user_fds(inetd_t)
 
 sysadm_dontaudit_search_home_dirs(inetd_t)
 
+ifdef(`distro_redhat',`
+	optional_policy(`
+		unconfined_domain(inetd_t)
+	')
+')
+
 ifdef(`enable_mls',`
 	corenet_tcp_recvfrom_netlabel(inetd_t)
 	corenet_udp_recvfrom_netlabel(inetd_t)
 ')
+
 optional_policy(`
 	amanda_search_lib(inetd_t)
 ')
