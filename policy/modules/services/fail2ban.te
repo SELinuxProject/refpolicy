@@ -1,5 +1,5 @@
 
-policy_module(fail2ban, 1.1.0)
+policy_module(fail2ban, 1.1.1)
 
 ########################################
 #
@@ -18,6 +18,9 @@ logging_log_file(fail2ban_log_t)
 type fail2ban_var_run_t;
 files_pid_file(fail2ban_var_run_t)
 
+type fail2ban_script_exec_t;
+init_script_file(fail2ban_script_exec_t)
+
 ########################################
 #
 # fail2ban local policy
@@ -25,7 +28,8 @@ files_pid_file(fail2ban_var_run_t)
 
 allow fail2ban_t self:process signal;
 allow fail2ban_t self:fifo_file rw_fifo_file_perms;
-allow fail2ban_t self:unix_stream_socket create_stream_socket_perms;
+allow fail2ban_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow fail2ban_t self:tcp_socket create_stream_socket_perms;
 
 # log files
 allow fail2ban_t fail2ban_log_t:dir setattr;
@@ -33,27 +37,46 @@ manage_files_pattern(fail2ban_t, fail2ban_log_t, fail2ban_log_t)
 logging_log_filetrans(fail2ban_t, fail2ban_log_t, file)
 
 # pid file
+manage_sock_files_pattern(fail2ban_t, fail2ban_var_run_t, fail2ban_var_run_t)
 manage_files_pattern(fail2ban_t, fail2ban_var_run_t, fail2ban_var_run_t)
-files_pid_filetrans(fail2ban_t, fail2ban_var_run_t, file)
+files_pid_filetrans(fail2ban_t, fail2ban_var_run_t, { file sock_file })
 
 kernel_read_system_state(fail2ban_t)
 
 corecmd_exec_bin(fail2ban_t)
 corecmd_exec_shell(fail2ban_t)
 
+corenet_all_recvfrom_unlabeled(fail2ban_t)
+corenet_all_recvfrom_netlabel(fail2ban_t)
+corenet_tcp_sendrecv_generic_if(fail2ban_t)
+corenet_tcp_sendrecv_all_nodes(fail2ban_t)
+corenet_tcp_sendrecv_all_ports(fail2ban_t)
+corenet_tcp_connect_whois_port(fail2ban_t)
+corenet_sendrecv_whois_client_packets(fail2ban_t)
+
 dev_read_urand(fail2ban_t)
 
 domain_use_interactive_fds(fail2ban_t)
 
 files_read_etc_files(fail2ban_t)
+files_read_etc_runtime_files(fail2ban_t)
 files_read_usr_files(fail2ban_t)
+files_list_var(fail2ban_t)
+files_search_var_lib(fail2ban_t)
+
+fs_list_inotifyfs(fail2ban_t)
+fs_getattr_all_fs(fail2ban_t)
+
+auth_use_nsswitch(fail2ban_t)
 
 libs_use_ld_so(fail2ban_t)
 libs_use_shared_libs(fail2ban_t)
 
-logging_read_generic_logs(fail2ban_t)
+logging_read_all_logs(fail2ban_t)
 
 miscfiles_read_localization(fail2ban_t)
+
+mta_send_mail(fail2ban_t)
 
 optional_policy(`
 	apache_read_log(fail2ban_t)
