@@ -90,3 +90,44 @@ interface(`openvpn_read_config',`
 	read_files_pattern($1, openvpn_etc_t, openvpn_etc_t)
 	read_lnk_files_pattern($1, openvpn_etc_t, openvpn_etc_t)
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an openvpn environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the openvpn domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`openvpn_admin',`
+	gen_require(`
+		type openvpn_t, openvpn_etc_t, openvpn_var_log_t;
+		type openvpn_var_run_t, openvpn_initrc_exec_t;
+	')
+
+	allow $1 openvpn_t:process { ptrace signal_perms };
+	ps_process_pattern($1, openvpn_t)
+
+	init_labeled_script_domtrans($1, openvpn_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 openvpn_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_etc($1)
+	admin_pattern($1, openvpn_etc_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, openvpn_var_log_t)
+
+	files_list_pids($1)
+	admin_pattern($1, openvpn_var_run_t)
+')

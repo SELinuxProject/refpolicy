@@ -28,11 +28,13 @@ template(`ftp_per_role_template',`
 		type ftpd_t;
 	')
 
-	userdom_manage_user_home_content_files($1, ftpd_t)
-	userdom_manage_user_home_content_symlinks($1, ftpd_t)
-	userdom_manage_user_home_content_sockets($1, ftpd_t)
-	userdom_manage_user_home_content_pipes($1, ftpd_t)
-	userdom_user_home_dir_filetrans_user_home_content($1, ftpd_t, { dir file lnk_file sock_file fifo_file })
+	tunable_policy(`ftp_home_dir',`
+		userdom_manage_user_home_content_files($1, ftpd_t)
+		userdom_manage_user_home_content_symlinks($1, ftpd_t)
+		userdom_manage_user_home_content_sockets($1, ftpd_t)
+		userdom_manage_user_home_content_pipes($1, ftpd_t)
+		userdom_user_home_dir_filetrans_user_home_content($1, ftpd_t, { dir file lnk_file sock_file fifo_file })
+	')
 ')
 
 ########################################
@@ -154,4 +156,63 @@ interface(`ftp_run_ftpdctl',`
 	ftp_domtrans_ftpdctl($1)
 	role $2 types ftpdctl_t;
 	allow ftpdctl_t $3:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an ftp environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the ftp domain.
+##	</summary>
+## </param>
+## <param name="terminal">
+##	<summary>
+##	The type of the terminal allow the ftpdctl domain to use.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ftp_admin',`
+	gen_require(`
+		type ftpd_t, ftpdctl_t, ftpd_tmp_t;
+		type ftpd_etc_t, ftpd_lock_t;
+		type ftpd_var_run_t, xferlog_t;
+		type ftpd_initrc_exec_t;
+	')
+
+	allow $1 ftpd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ftpd_t)
+
+	init_labeled_script_domtrans($1, ftpd_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 ftpd_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	ps_process_pattern($1, ftpdctl_t)
+	ftp_run_ftpdctl($1, $2, $3)
+
+	miscfiles_manage_public_files($1)
+
+	files_list_tmp($1)
+	admin_pattern($1, ftpd_tmp_t)
+
+	files_list_etc($1)
+	admin_pattern($1, ftpd_etc_t)
+
+	files_list_var($1)
+	admin_pattern($1, ftpd_lock_t)
+
+	files_list_pids($1)
+	admin_pattern($1, ftpd_var_run_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, xferlog_t)
 ')
