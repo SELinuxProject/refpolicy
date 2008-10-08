@@ -97,3 +97,48 @@ interface(`apcupsd_cgi_script_domtrans',`
 
 	domtrans_pattern($1, httpd_apcupsd_cgi_script_exec_t, httpd_apcupsd_cgi_script_t)
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an apcupsd environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the apcupsd domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`apcupsd_admin',`
+	gen_require(`
+		type apcupsd_t,  apcupsd_tmp_t;
+		type apcupsd_log_t, apcupsd_lock_t;
+		type apcupsd_var_run_t, apcupsd_initrc_exec_t;
+	')
+
+	allow $1 apcupsd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, apcupsd_t)
+
+	init_labeled_script_domtrans($1, apcupsd_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 apcupsd_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_var($1)
+	admin_pattern($1, apcupsd_lock_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, apcupsd_log_t)
+
+	files_list_tmp($1)
+	admin_pattern($1, apcupsd_tmp_t)
+
+	files_list_pids($1)
+	admin_pattern($1, apcupsd_var_run_t)
+')

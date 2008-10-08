@@ -1,5 +1,5 @@
 
-policy_module(soundserver, 1.5.0)
+policy_module(soundserver, 1.5.1)
 
 ########################################
 #
@@ -11,7 +11,10 @@ type soundd_exec_t;
 init_daemon_domain(soundd_t, soundd_exec_t)
 
 type soundd_etc_t alias etc_soundd_t;
-files_type(soundd_etc_t)
+files_config_file(soundd_etc_t)
+
+type soundd_initrc_exec_t;
+init_script_file(soundd_initrc_exec_t)
 
 type soundd_state_t;
 files_type(soundd_state_t)
@@ -31,16 +34,18 @@ files_pid_file(soundd_var_run_t)
 # Declarations
 #
 
+allow soundd_t self:capability dac_override;
 dontaudit soundd_t self:capability sys_tty_config;
 allow soundd_t self:process { setpgid signal_perms };
 allow soundd_t self:tcp_socket create_stream_socket_perms;
 allow soundd_t self:udp_socket create_socket_perms;
+allow soundd_t self:unix_stream_socket { connectto create_stream_socket_perms };
+
 # for yiff
 allow soundd_t self:shm create_shm_perms;
 
-allow soundd_t soundd_etc_t:dir list_dir_perms;
-allow soundd_t soundd_etc_t:file read_file_perms;
-allow soundd_t soundd_etc_t:lnk_file { getattr read };
+read_files_pattern(soundd_t, soundd_etc_t, soundd_etc_t)
+read_lnk_files_pattern(soundd_t, soundd_etc_t, soundd_etc_t)
 
 manage_files_pattern(soundd_t, soundd_state_t, soundd_state_t)
 manage_lnk_files_pattern(soundd_t, soundd_state_t, soundd_state_t)
@@ -55,8 +60,10 @@ manage_fifo_files_pattern(soundd_t, soundd_tmpfs_t, soundd_tmpfs_t)
 manage_sock_files_pattern(soundd_t, soundd_tmpfs_t, soundd_tmpfs_t)
 fs_tmpfs_filetrans(soundd_t, soundd_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
+manage_sock_files_pattern(soundd_t, soundd_var_run_t, soundd_var_run_t)
 manage_files_pattern(soundd_t, soundd_var_run_t, soundd_var_run_t)
-files_pid_filetrans(soundd_t, soundd_var_run_t, file)
+manage_dirs_pattern(soundd_t, soundd_var_run_t, soundd_var_run_t)
+files_pid_filetrans(soundd_t, soundd_var_run_t, { file dir })
 
 kernel_read_kernel_sysctls(soundd_t)
 kernel_list_proc(soundd_t)
@@ -98,6 +105,10 @@ sysnet_read_config(soundd_t)
 userdom_dontaudit_use_unpriv_user_fds(soundd_t)
 
 sysadm_dontaudit_search_home_dirs(soundd_t)
+
+optional_policy(`
+	alsa_domtrans(soundd_t)
+')
 
 optional_policy(`
 	seutil_sigchld_newrole(soundd_t)
