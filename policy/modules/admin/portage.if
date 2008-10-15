@@ -15,20 +15,14 @@
 #
 interface(`portage_domtrans',`
 	gen_require(`
-		type portage_t, portage_t.merge, portage_exec_t;
+		type portage_t, portage_exec_t;
 	')
 
 	files_search_usr($1)
 	corecmd_search_bin($1)
 
-	# constraining domain
-	domain_trans($1,portage_exec_t,portage_t)
-	allow portage_t $1:fd use;
-	allow portage_t $1:fifo_file rw_fifo_file_perms;
-	allow portage_t $1:process sigchld;
-
 	# transition to portage
-	domtrans_pattern($1, portage_exec_t, portage_t.merge)
+	domtrans_pattern($1, portage_exec_t, portage_t)
 ')
 
 ########################################
@@ -55,21 +49,14 @@ interface(`portage_domtrans',`
 #
 interface(`portage_run',`
 	gen_require(`
-		type portage_t;
-		type portage_t.merge, portage_t.fetch, portage_t.sandbox;
+		type portage_t, portage_fetch_t, portage_sandbox_t;
 	')
 
 	portage_domtrans($1)
-
-	# constraining access
-	role $2 types portage_t;
+	role $2 types { portage_t portage_fetch_t portage_sandbox_t };
 	allow portage_t $3:chr_file rw_term_perms;
-
-	# specific access
-	role $2 types { portage_t.merge portage_t.fetch portage_t.sandbox };
-	allow portage_t.merge $3:chr_file rw_term_perms;
-	allow portage_t.fetch $3:chr_file rw_term_perms;
-	allow portage_t.sandbox $3:chr_file rw_term_perms;
+	allow portage_fetch_t $3:chr_file rw_term_perms;
+	allow portage_sandbox_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -212,156 +199,6 @@ interface(`portage_compile_domain',`
 
 ########################################
 ## <summary>
-##	Template for portage fetch.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain Allowed Access
-##	</summary>
-## </param>
-#
-interface(`portage_fetch_domain',`
-	gen_require(`
-		type portage_cache_t, portage_conf_t, portage_ebuild_t;
-		type portage_tmp_t, portage_fetch_tmp_t;
-	')
-
-	allow $1 self:capability { dac_override fowner fsetid };
-	allow $1 self:process signal;
-	allow $1 self:unix_stream_socket create_socket_perms;
-	allow $1 self:tcp_socket create_stream_socket_perms;
-
-	allow $1 portage_conf_t:dir list_dir_perms;
-	read_files_pattern($1, portage_conf_t, portage_conf_t)
-
-	manage_dirs_pattern($1, portage_ebuild_t, portage_ebuild_t)
-	manage_files_pattern($1, portage_ebuild_t, portage_ebuild_t)
-
-	manage_dirs_pattern($1, portage_fetch_tmp_t, portage_fetch_tmp_t)
-	manage_files_pattern($1, portage_fetch_tmp_t, portage_fetch_tmp_t)
-
-	# portage makes home dir the portage tmp dir, so
-	# wget looks for .wgetrc there
-	dontaudit $1 portage_tmp_t:dir search_dir_perms;
-
-	kernel_read_system_state($1)
-	kernel_read_kernel_sysctls($1)
-
-	corecmd_exec_bin($1)
-
-	corenet_all_recvfrom_unlabeled($1)
-	corenet_all_recvfrom_netlabel($1)
-	corenet_tcp_sendrecv_generic_if($1)
-	corenet_tcp_sendrecv_all_nodes($1)
-	corenet_tcp_sendrecv_all_ports($1)
-	# would rather not connect to unspecified ports, but
-	# it occasionally comes up
-	corenet_tcp_connect_all_reserved_ports($1)
-	corenet_tcp_connect_generic_port($1)
-
-	dev_dontaudit_read_rand($1)
-
-	domain_use_interactive_fds($1)
-
-	files_read_etc_files($1)
-	files_read_etc_runtime_files($1)
-	files_search_var($1)
-	files_dontaudit_search_pids($1)
-
-	term_search_ptys($1)
-
-	libs_use_ld_so($1)
-	libs_use_shared_libs($1)
-
-	miscfiles_read_localization($1)
-
-	sysnet_read_config($1)
-	sysnet_dns_name_resolve($1)
-
-	sysadm_dontaudit_read_home_content_files($1)
-
-	ifdef(`hide_broken_symptoms',`
-		dontaudit $1 portage_cache_t:file read;
-	')
-')
-
-########################################
-## <summary>
-##	Template for portage main.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain Allowed Access
-##	</summary>
-## </param>
-#
-interface(`portage_main_domain',`
-	gen_require(`
-		type portage_log_t, portage_tmp_t;
-	')
-
-	# - setfscreate for merging to live fs
-	# - setexec to run portage fetch
-	allow $1 self:process { setfscreate setexec };
-
-	# if sesandbox is disabled, compiles are
-	# performed in the main domain
-	portage_compile_domain($1)
-
-	allow $1 portage_log_t:file manage_file_perms;
-	logging_log_filetrans($1, portage_log_t, file)
-
-	# run scripts out of the build directory
-	can_exec($1, portage_tmp_t)
-
-	# merging baselayout will need this:
-	kernel_write_proc_files($1)
-
-	domain_dontaudit_read_all_domains_state($1)
-
-	# modify any files in the system
-	files_manage_all_files($1)
-
-	selinux_get_fs_mount($1)
-
-	auth_manage_shadow($1)
-
-	# merging baselayout will need this:
-	init_exec($1)
-
-	# run setfiles -r
-	seutil_domtrans_setfiles($1)
-	# run semodule
-	seutil_domtrans_semanage($1)
-
-	portage_domtrans_gcc_config($1)
-
-	optional_policy(`
-		bootloader_domtrans($1)
-	')
-
-	optional_policy(`
-		modutils_domtrans_depmod($1)
-		modutils_domtrans_update_mods($1)
-		#dontaudit update_modules_t portage_tmp_t:dir search_dir_perms;
-	')
-
-	optional_policy(`
-		usermanage_domtrans_groupadd($1)
-		usermanage_domtrans_useradd($1)
-	')
-
-	ifdef(`TODO',`
-	# seems to work ok without these
-	dontaudit portage_t device_t:{ blk_file chr_file } getattr;
-	dontaudit portage_t proc_t:dir setattr;
-	dontaudit portage_t device_type:chr_file read_chr_file_perms;
-	dontaudit portage_t device_type:blk_file read_blk_file_perms;
-	')
-')
-
-########################################
-## <summary>
 ##	Execute gcc-config in the gcc_config domain.
 ## </summary>
 ## <param name="domain">
@@ -409,8 +246,6 @@ interface(`portage_run_gcc_config',`
 	')
 
 	portage_domtrans_gcc_config($1)
-
-	# constraining access
 	role $2 types gcc_config_t;
 	allow gcc_config_t $3:chr_file rw_term_perms;
 ')
