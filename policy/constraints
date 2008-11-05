@@ -25,59 +25,219 @@
 # name_list : name | name_list name		
 #
 
+define(`basic_ubac_conditions',`
+	ifdef(`enable_ubac',`
+		u1 == u2
+		or u1 == system_u
+		or u2 == system_u
+		or t1 != ubac_constrained_type
+		or t2 != ubac_constrained_type
+	')
+')
+
+define(`basic_ubac_constraint',`
+	ifdef(`enable_ubac',`
+		constrain $1 all_$1_perms
+		(
+			basic_ubac_conditions
+		);
+	')
+')
+
+define(`exempted_ubac_constraint',`
+	ifdef(`enable_ubac',`
+		constrain $1 all_$1_perms
+		(
+			basic_ubac_conditions
+			or t1 == $2
+		);
+	')
+')
+
+########################################
 #
-# SELinux process identity change constraint:
+# File rules
 #
-constrain process transition
+
+exempted_ubac_constraint(dir, ubacfile)
+exempted_ubac_constraint(file, ubacfile)
+exempted_ubac_constraint(lnk_file, ubacfile)
+exempted_ubac_constraint(fifo_file, ubacfile)
+exempted_ubac_constraint(sock_file, ubacfile)
+exempted_ubac_constraint(chr_file, ubacfile)
+exempted_ubac_constraint(blk_file, ubacfile)
+
+# SElinux object identity change constraint:
+constrain dir_file_class_set { create relabelto relabelfrom } 
 (
 	u1 == u2
-
-	or ( t1 == can_change_process_identity and t2 == process_user_target )
-
-       	or ( t1 == cron_source_domain and ( t2 == cron_job_domain or u2 == system_u ) )
-
-	or ( t1 == can_system_change and u2 == system_u )
-
-	or ( t1 == process_uncond_exempt )
+	or t1 == can_change_object_identity
 );
 
+########################################
 #
-# SELinux process role change constraint:
+# Process rules
 #
-constrain process transition 
+
+constrain process { sigchld sigkill sigstop signull signal ptrace getsched setsched getsession getpgid setpgid getcap setcap share getattr setrlimit }
 (
-	r1 == r2 
+	basic_ubac_conditions
+	or t1 == ubacproc
+);
 
-	or ( t1 == can_change_process_role and t2 == process_user_target )
-
-   	or ( t1 == cron_source_domain and t2 == cron_job_domain )
-
-	or ( t1 == can_system_change and r2 == system_r )
-
+constrain process { transition noatsecure siginh rlimitinh }
+(
+	u1 == u2
+	or ( t1 == can_change_process_identity and t2 == process_user_target )
+       	or ( t1 == cron_source_domain and ( t2 == cron_job_domain or u2 == system_u ) )
+	or ( t1 == can_system_change and u2 == system_u )
 	or ( t1 == process_uncond_exempt )
 );
 
-#
-# SELinux dynamic transition constraint:
-#
+constrain process { transition noatsecure siginh rlimitinh }
+(
+	r1 == r2
+	or ( t1 == can_change_process_identity and t2 == process_user_target )
+	or ( t1 == cron_source_domain and ( t2 == cron_job_domain or u2 == system_u ) )
+	or ( t1 == can_system_change and u2 == system_u )
+	or ( t1 == process_uncond_exempt )
+);
+
 constrain process dyntransition
 (
 	u1 == u2 and r1 == r2
 );
 
-#
-# SElinux object identity change constraint:
-#
-constrain dir_file_class_set { create relabelto relabelfrom } 
-(
-	u1 == u2
+# These permissions do not have ubac constraints:
+# fork
+# setexec
+# setfscreate
+# setcurrent
+# execmem
+# execstack
+# execheap
+# setkeycreate
+# setsockcreate
 
-	or t1 == can_change_object_identity
-);
+########################################
+#
+# File descriptor rules
+#
+
+exempted_ubac_constraint(fd, ubacfd)
+
+########################################
+#
+# Socket rules
+#
+
+exempted_ubac_constraint(socket, ubacsock)
+exempted_ubac_constraint(tcp_socket, ubacsock)
+exempted_ubac_constraint(udp_socket, ubacsock)
+exempted_ubac_constraint(rawip_socket, ubacsock)
+exempted_ubac_constraint(netlink_socket, ubacsock)
+exempted_ubac_constraint(packet_socket, ubacsock)
+exempted_ubac_constraint(key_socket, ubacsock)
+exempted_ubac_constraint(unix_stream_socket, ubacsock)
+exempted_ubac_constraint(unix_dgram_socket, ubacsock)
+exempted_ubac_constraint(netlink_route_socket, ubacsock)
+exempted_ubac_constraint(netlink_firewall_socket, ubacsock)
+exempted_ubac_constraint(netlink_tcpdiag_socket, ubacsock)
+exempted_ubac_constraint(netlink_nflog_socket, ubacsock)
+exempted_ubac_constraint(netlink_xfrm_socket, ubacsock)
+exempted_ubac_constraint(netlink_selinux_socket, ubacsock)
+exempted_ubac_constraint(netlink_audit_socket, ubacsock)
+exempted_ubac_constraint(netlink_ip6fw_socket, ubacsock)
+exempted_ubac_constraint(netlink_dnrt_socket, ubacsock)
+exempted_ubac_constraint(netlink_kobject_uevent_socket, ubacsock)
+exempted_ubac_constraint(appletalk_socket, ubacsock)
+exempted_ubac_constraint(dccp_socket, ubacsock)
 
 constrain socket_class_set { create relabelto relabelfrom } 
 (
 	u1 == u2
-
 	or t1 == can_change_object_identity
 );
+
+########################################
+#
+# SysV IPC rules
+
+exempted_ubac_constraint(sem, ubacipc)
+exempted_ubac_constraint(msg, ubacipc)
+exempted_ubac_constraint(msgq, ubacipc)
+exempted_ubac_constraint(shm, ubacipc)
+exempted_ubac_constraint(ipc, ubacipc)
+
+########################################
+#
+# SE-X Windows rules
+#
+
+exempted_ubac_constraint(x_drawable, ubacxwin)
+exempted_ubac_constraint(x_screen, ubacxwin)
+exempted_ubac_constraint(x_gc, ubacxwin)
+exempted_ubac_constraint(x_font, ubacxwin)
+exempted_ubac_constraint(x_colormap, ubacxwin)
+exempted_ubac_constraint(x_property, ubacxwin)
+exempted_ubac_constraint(x_selection, ubacxwin)
+exempted_ubac_constraint(x_cursor, ubacxwin)
+exempted_ubac_constraint(x_client, ubacxwin)
+exempted_ubac_constraint(x_device, ubacxwin)
+exempted_ubac_constraint(x_server, ubacxwin)
+exempted_ubac_constraint(x_extension, ubacxwin)
+exempted_ubac_constraint(x_resource, ubacxwin)
+exempted_ubac_constraint(x_event, ubacxwin)
+exempted_ubac_constraint(x_synthetic_event, ubacxwin)
+exempted_ubac_constraint(x_application_data, ubacxwin)
+
+########################################
+#
+# D-BUS rules
+#
+
+exempted_ubac_constraint(dbus, ubacdbus)
+
+########################################
+#
+# Key rules
+#
+
+exempted_ubac_constraint(key, ubackey)
+
+########################################
+#
+# Database rules
+#
+
+exempted_ubac_constraint(db_database, ubacdb)
+exempted_ubac_constraint(db_table, ubacdb)
+exempted_ubac_constraint(db_procedure, ubacdb)
+exempted_ubac_constraint(db_column, ubacdb)
+exempted_ubac_constraint(db_tuple, ubacdb)
+exempted_ubac_constraint(db_blob, ubacdb)
+
+
+
+basic_ubac_constraint(association)
+basic_ubac_constraint(peer)
+
+
+# these classes have no UBAC restrictions
+#class security
+#class system
+#class capability
+#class memprotect
+#class passwd			# userspace
+#class node
+#class netif
+#class packet
+#class capability2
+#class nscd			# userspace
+#class context			# userspace
+
+
+
+undefine(`basic_ubac_constraint')
+undefine(`basic_ubac_conditions')
+undefine(`exempted_ubac_constraint')

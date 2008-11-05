@@ -1,5 +1,5 @@
 
-policy_module(pyzor, 1.6.0)
+policy_module(pyzor, 2.0.0)
 
 ########################################
 #
@@ -8,32 +8,50 @@ policy_module(pyzor, 1.6.0)
 
 type pyzor_t;
 type pyzor_exec_t;
+typealias pyzor_t alias { user_pyzor_t staff_pyzor_t sysadm_pyzor_t };
+typealias pyzor_t alias { auditadm_pyzor_t secadm_pyzor_t };
 application_domain(pyzor_t, pyzor_exec_t)
+ubac_constrained(pyzor_t)
 role system_r types pyzor_t;
-
-type pyzord_t;
-type pyzord_exec_t;
-domain_type(pyzord_t)
-init_daemon_domain(pyzord_t, pyzord_exec_t)
 
 type pyzor_etc_t;
 files_type(pyzor_etc_t)
 
+type pyzor_home_t;
+typealias pyzor_home_t alias { user_pyzor_home_t staff_pyzor_home_t sysadm_pyzor_home_t };
+typealias pyzor_home_t alias { auditadm_pyzor_home_t secadm_pyzor_home_t };
+userdom_user_home_content(pyzor_home_t)
+
+type pyzor_tmp_t;
+typealias pyzor_tmp_t alias { user_pyzor_tmp_t staff_pyzor_tmp_t sysadm_pyzor_tmp_t };
+typealias pyzor_tmp_t alias { auditadm_pyzor_tmp_t secadm_pyzor_tmp_t };
+files_tmp_file(pyzor_tmp_t)
+ubac_constrained(pyzor_tmp_t)
+
+type pyzor_var_lib_t;
+typealias pyzor_var_lib_t alias { user_pyzor_var_lib_t staff_pyzor_var_lib_t sysadm_pyzor_var_lib_t };
+typealias pyzor_var_lib_t alias { auditadm_pyzor_var_lib_t secadm_pyzor_var_lib_t };
+files_type(pyzor_var_lib_t)
+ubac_constrained(pyzor_var_lib_t)
+
+type pyzord_t;
+type pyzord_exec_t;
+init_daemon_domain(pyzord_t,pyzord_exec_t)
+
 type pyzord_log_t;
 logging_log_file(pyzord_log_t)
 
-type pyzor_tmp_t;
-files_tmp_file(pyzor_tmp_t)
-
-type pyzor_var_lib_t;
-files_type(pyzor_var_lib_t)
-
 ########################################
 #
-# Pyzor local policy
+# Pyzor client local policy
 #
 
 allow pyzor_t self:udp_socket create_socket_perms;
+
+manage_dirs_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+manage_files_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+manage_lnk_files_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+userdom_user_home_dir_filetrans(pyzor_t, pyzor_home_t, { dir file lnk_file })
 
 allow pyzor_t pyzor_var_lib_t:dir list_dir_perms;
 read_files_pattern(pyzor_t,pyzor_var_lib_t,pyzor_var_lib_t)
@@ -65,7 +83,7 @@ auth_use_nsswitch(pyzor_t)
 
 miscfiles_read_localization(pyzor_t)
 
-sysadm_dontaudit_search_home_dirs(pyzor_t)
+userdom_dontaudit_search_user_home_dirs(pyzor_t)
 
 optional_policy(`
 	amavis_manage_lib_files(pyzor_t)
@@ -79,7 +97,7 @@ optional_policy(`
 
 ########################################
 #
-# Pyzord local policy
+# Pyzor server local policy
 #
 
 allow pyzord_t self:udp_socket create_socket_perms;
@@ -121,11 +139,10 @@ locallogin_dontaudit_use_fds(pyzord_t)
 
 miscfiles_read_localization(pyzord_t)
 
-mta_manage_spool(pyzord_t)
-
 # Do not audit attempts to access /root.
-staff_dontaudit_search_home_dirs(pyzord_t)
-sysadm_dontaudit_search_home_dirs(pyzord_t)
+userdom_dontaudit_search_user_home_dirs(pyzord_t)
+
+mta_manage_spool(pyzord_t)
 
 optional_policy(`
 	logging_send_syslog_msg(pyzord_t)

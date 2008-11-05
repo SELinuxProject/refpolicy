@@ -2,38 +2,28 @@
 
 #######################################
 ## <summary>
-##	The per role template for the userhelper module.
+##	The role template for the userhelper module.
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for userhelper.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="userrole_prefix">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
 ## <param name="user_role">
 ##	<summary>
-##	The role associated with the user domain.
+##	The user role.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The user domain associated with the role.
 ##	</summary>
 ## </param>
 #
-template(`userhelper_per_role_template',`
+template(`userhelper_role_template',`
 	gen_require(`
+		attribute userhelper_type;
 		type userhelper_exec_t, userhelper_conf_t;
 	')
 
@@ -42,13 +32,14 @@ template(`userhelper_per_role_template',`
 	# Declarations
 	#
 
-	type $1_userhelper_t;
+	type $1_userhelper_t, userhelper_type;
 	application_domain($1_userhelper_t, userhelper_exec_t)
 	domain_role_change_exemption($1_userhelper_t)
 	domain_obj_id_change_exemption($1_userhelper_t)
 	domain_interactive_fd($1_userhelper_t)
 	domain_subj_id_change_exemption($1_userhelper_t)
-	role $3 types $1_userhelper_t;
+	ubac_constrained($1_userhelper_t)
+	role $2 types $1_userhelper_t;
 
 	########################################
 	#
@@ -70,14 +61,14 @@ template(`userhelper_per_role_template',`
 	allow $1_userhelper_t self:sock_file read_sock_file_perms;
 
 	#Transition to the derived domain.
-	domtrans_pattern($2, userhelper_exec_t, $1_userhelper_t)
+	domtrans_pattern($3, userhelper_exec_t, $1_userhelper_t)
 
 	allow $1_userhelper_t userhelper_conf_t:dir rw_dir_perms;
 	rw_files_pattern($1_userhelper_t, userhelper_conf_t, userhelper_conf_t)
 
 	can_exec($1_userhelper_t, userhelper_exec_t)
 
-	dontaudit $2 $1_userhelper_t:process signal;
+	dontaudit $3 $1_userhelper_t:process signal;
 
 	kernel_read_all_sysctls($1_userhelper_t)
 	kernel_getattr_debugfs($1_userhelper_t)
@@ -86,7 +77,7 @@ template(`userhelper_per_role_template',`
 	# Execute shells
 	corecmd_exec_shell($1_userhelper_t)
 	# By default, revert to the calling domain when a program is executed
-	corecmd_bin_domtrans($1_userhelper_t,$2)
+	corecmd_bin_domtrans($1_userhelper_t, $3)
 
 	# Inherit descriptors from the current session.
 	domain_use_interactive_fds($1_userhelper_t)
@@ -98,8 +89,6 @@ template(`userhelper_per_role_template',`
 	dev_list_all_dev_nodes($1_userhelper_t)
 
 	files_list_var_lib($1_userhelper_t)
-	# Write to utmp.
-	files_pid_filetrans($1_userhelper_t,initrc_var_run_t,file)
 	# Read the /etc/security/default_type file
 	files_read_etc_files($1_userhelper_t)
 	# Read /var.
@@ -138,13 +127,13 @@ template(`userhelper_per_role_template',`
 	init_use_fds($1_userhelper_t)
 	# Write to utmp.
 	init_manage_utmp($1_userhelper_t)
+	init_pid_filetrans_utmp($1_userhelper_t)
 
 	miscfiles_read_localization($1_userhelper_t)
 
 	seutil_read_config($1_userhelper_t)
 	seutil_read_default_contexts($1_userhelper_t)
 
-	userdom_use_unpriv_users_fds($1_userhelper_t)
 	# Allow $1_userhelper_t to transition to user domains.
 	userdom_bin_spec_domtrans_unpriv_users($1_userhelper_t)
 	userdom_entry_spec_domtrans_unpriv_users($1_userhelper_t)
@@ -156,14 +145,8 @@ template(`userhelper_per_role_template',`
 		')
 	')
 
-	tunable_policy(`! secure_mode',`
-		#if we are not in secure mode then we can transition to sysadm_t
-		sysadm_bin_spec_domtrans($1_userhelper_t)
-		sysadm_entry_spec_domtrans($1_userhelper_t)
-	')
-
 	optional_policy(`
-		ethereal_domtrans_user_ethereal($1, $1_userhelper_t)
+		ethereal_domtrans($1_userhelper_t)
 	')
 
 	optional_policy(`
@@ -176,6 +159,14 @@ template(`userhelper_per_role_template',`
 
 	optional_policy(`
 		nscd_socket_use($1_userhelper_t)
+	')
+
+	optional_policy(`
+		tunable_policy(`! secure_mode',`
+			#if we are not in secure mode then we can transition to sysadm_t
+			sysadm_bin_spec_domtrans($1_userhelper_t)
+			sysadm_entry_spec_domtrans($1_userhelper_t)
+		')
 	')
 ')
 
@@ -220,46 +211,36 @@ interface(`userhelper_dontaudit_search_config',`
 ## <summary>
 ##	Allow domain to use userhelper file descriptor.
 ## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the domain, example user is the prefix of user_t.
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userhelper_use_user_fd',`
+interface(`userhelper_use_fd',`
 	gen_require(`
-		type $1_userhelper_t;
+		attribute userhelper_type;
 	')
 
-	allow $2 $1_userhelper_t:fd use;
+	allow $1 userhelper_type:fd use;
 ')
 
 ########################################
 ## <summary>
 ##	Allow domain to send sigchld to userhelper.
 ## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the domain, example user is the prefix of user_t.
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userhelper_sigchld_user',`
+interface(`userhelper_sigchld',`
 	gen_require(`
-		type $1_userhelper_t;
+		attribute userhelper_type;
 	')
 
-	allow $2 $1_userhelper_t:process sigchld;
+	allow $1 userhelper_type:process sigchld;
 ')
 
 ########################################

@@ -1,382 +1,88 @@
 ## <summary>Policy for GNU Privacy Guard and related programs.</summary>
 
-#######################################
+############################################################
 ## <summary>
-##	The per role template for the gpg module.
+##	Role access for gpg
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates the types and rules for GPG,
-##	GPG-agent, and GPG helper programs.  This protects
-##	the user keys and secrets, and runs the programs
-##	in domains specific to the user type.
-##	</p>
-##	<p>
-##	This is invoked automatically for each user and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="userdomain">
-##	<summary>
-##	The user domain.
-##	</summary>
-## </param>
 ## <param name="role">
 ##	<summary>
-##	The role associated with the user.
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`gpg_per_role_template',`
+interface(`gpg_role',`
 	gen_require(`
-		type gpg_exec_t, gpg_helper_exec_t, gpg_agent_exec_t, pinentry_exec_t;
+		type gpg_t, gpg_exec_t;
+		type gpg_agent_t, gpg_agent_exec_t;
+		type gpg_agent_tmp_t;
+		type gpg_helper_t, gpg_pinentry_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_gpg_t;
-	application_domain($1_gpg_t, gpg_exec_t)
-	role $3 types $1_gpg_t;
-
-	type $1_gpg_agent_t;
-	application_domain($1_gpg_agent_t, gpg_agent_exec_t)
-	role $3 types $1_gpg_agent_t;
-
-	type $1_gpg_agent_tmp_t;
-	files_tmp_file($1_gpg_agent_tmp_t)
-
-	type $1_gpg_secret_t;
-	userdom_user_home_content($1, $1_gpg_secret_t)
-
-	type $1_gpg_helper_t;
-	application_domain($1_gpg_helper_t, gpg_helper_exec_t)
-	role $3 types $1_gpg_helper_t;
-
-	type $1_gpg_pinentry_t;
-	application_domain($1_gpg_pinentry_t, pinentry_exec_t)
-	role $3 types $1_gpg_pinentry_t;
-
-	########################################
-	#
-	# GPG local policy
-	#
-
-	allow $1_gpg_t self:capability { ipc_lock setuid };
-	allow { $2 $1_gpg_t } $1_gpg_t:process signal;
-	# setrlimit is for ulimit -c 0
-	allow $1_gpg_t self:process { setrlimit setcap setpgid };
-
-	allow $1_gpg_t self:fifo_file rw_fifo_file_perms;
-	allow $1_gpg_t self:tcp_socket create_stream_socket_perms;
-
-	# transition from the gpg domain to the helper domain
-	domtrans_pattern($1_gpg_t, gpg_helper_exec_t, $1_gpg_helper_t)
-
-	manage_files_pattern($1_gpg_t, $1_gpg_secret_t, $1_gpg_secret_t)
-	manage_lnk_files_pattern($1_gpg_t, $1_gpg_secret_t, $1_gpg_secret_t)
-	allow $1_gpg_t $1_gpg_secret_t:dir create_dir_perms;
- 	userdom_user_home_dir_filetrans($1, $1_gpg_t, $1_gpg_secret_t, dir)
+	role $1 types { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t };
 
 	# transition from the userdomain to the derived domain
-	domtrans_pattern($2, gpg_exec_t, $1_gpg_t)
+	domtrans_pattern($2, gpg_exec_t, gpg_t)
 
 	# allow ps to show gpg
-	ps_process_pattern($2, $1_gpg_t)
-
-	corenet_all_recvfrom_unlabeled($1_gpg_t)
-	corenet_all_recvfrom_netlabel($1_gpg_t)
-	corenet_tcp_sendrecv_all_if($1_gpg_t)
-	corenet_udp_sendrecv_all_if($1_gpg_t)
-	corenet_tcp_sendrecv_all_nodes($1_gpg_t)
-	corenet_udp_sendrecv_all_nodes($1_gpg_t)
-	corenet_tcp_sendrecv_all_ports($1_gpg_t)
-	corenet_udp_sendrecv_all_ports($1_gpg_t)
-	corenet_tcp_connect_all_ports($1_gpg_t)
-	corenet_sendrecv_all_client_packets($1_gpg_t)
-
-	dev_read_rand($1_gpg_t)
-	dev_read_urand($1_gpg_t)
-
-	fs_getattr_xattr_fs($1_gpg_t)
-
-	domain_use_interactive_fds($1_gpg_t)
-
-	files_read_etc_files($1_gpg_t)
-	files_read_usr_files($1_gpg_t)
-	files_dontaudit_search_var($1_gpg_t)
-
-	miscfiles_read_localization($1_gpg_t)
-
-	logging_send_syslog_msg($1_gpg_t)
-
-	sysnet_read_config($1_gpg_t)
-
-	userdom_use_user_terminals($1, $1_gpg_t)
-
-	optional_policy(`
-		nis_use_ypbind($1_gpg_t)
-	')
-
-	ifdef(`TODO',`
-	# Read content to encrypt/decrypt/sign
-	read_content($1_gpg_t, $1)
-
-	# Write content to encrypt/decrypt/sign
-	write_trusted($1_gpg_t, $1)
-	') dnl end TODO
-
-	########################################
-	#
-	# GPG helper local policy
-	#
-
-	# for helper programs (which automatically fetch keys)
-	# Note: this is only tested with the hkp interface. If you use eg the 
-	# mail interface you will likely need additional permissions.
-
-	allow $1_gpg_helper_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_gpg_helper_t self:tcp_socket { connect connected_socket_perms };
-	allow $1_gpg_helper_t self:udp_socket { connect connected_socket_perms };
+	ps_process_pattern($2, gpg_t)
+	allow $2 gpg_t:process signal;
 
 	# communicate with the user 
-	allow $1_gpg_helper_t $2:fd use;
-	allow $1_gpg_helper_t $2:fifo_file write;
-
-	dontaudit $1_gpg_helper_t $1_gpg_secret_t:file read;
-
-	corenet_all_recvfrom_unlabeled($1_gpg_helper_t)
-	corenet_all_recvfrom_netlabel($1_gpg_helper_t)
-	corenet_tcp_sendrecv_all_if($1_gpg_helper_t)
-	corenet_raw_sendrecv_all_if($1_gpg_helper_t)
-	corenet_udp_sendrecv_all_if($1_gpg_helper_t)
-	corenet_tcp_sendrecv_all_nodes($1_gpg_helper_t)
-	corenet_udp_sendrecv_all_nodes($1_gpg_helper_t)
-	corenet_raw_sendrecv_all_nodes($1_gpg_helper_t)
-	corenet_tcp_sendrecv_all_ports($1_gpg_helper_t)
-	corenet_udp_sendrecv_all_ports($1_gpg_helper_t)
-	corenet_tcp_bind_all_nodes($1_gpg_helper_t)
-	corenet_udp_bind_all_nodes($1_gpg_helper_t)
-	corenet_tcp_connect_all_ports($1_gpg_helper_t)
-
-	dev_read_urand($1_gpg_helper_t)
-
-	files_read_etc_files($1_gpg_helper_t)
-	# for nscd
-	files_dontaudit_search_var($1_gpg_helper_t)
-
-	sysnet_read_config($1_gpg_helper_t)
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_dontaudit_rw_nfs_files($1_gpg_helper_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_dontaudit_rw_cifs_files($1_gpg_helper_t)
-	')
-
-	optional_policy(`
-		xserver_use_xdm_fds($1_gpg_t)
-		xserver_rw_xdm_pipes($1_gpg_t)
-	')
-
-	########################################
-	#
-	# GPG agent local policy
-	#
-
-	# rlimit: gpg-agent wants to prevent coredumps
-	allow $1_gpg_agent_t self:process setrlimit;
-
-	allow $1_gpg_agent_t self:unix_stream_socket create_stream_socket_perms ;
-	allow $1_gpg_agent_t self:fifo_file rw_fifo_file_perms;
-
-	# Allow the gpg-agent to manage its tmp files (socket)
-	manage_dirs_pattern($1_gpg_agent_t, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
-	manage_files_pattern($1_gpg_agent_t, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
-	manage_sock_files_pattern($1_gpg_agent_t, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
-	files_tmp_filetrans($1_gpg_agent_t, $1_gpg_agent_tmp_t, { file sock_file dir })
-
-	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
-	manage_dirs_pattern($1_gpg_agent_t, $1_gpg_secret_t, $1_gpg_secret_t)
-	manage_files_pattern($1_gpg_agent_t, $1_gpg_secret_t, $1_gpg_secret_t)
-	manage_lnk_files_pattern($1_gpg_agent_t, $1_gpg_secret_t, $1_gpg_secret_t)
-
-	# allow gpg to connect to the gpg agent
-	stream_connect_pattern($1_gpg_t, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t, $1_gpg_agent_t)
+	allow gpg_helper_t $2:fd use;
+	allow gpg_helper_t $2:fifo_file write;
 
 	# allow ps to show gpg-agent
-	ps_process_pattern($2, $1_gpg_agent_t)
+	ps_process_pattern($2, gpg_agent_t)
 
 	# Allow the user shell to signal the gpg-agent program.
-	allow $2 $1_gpg_agent_t:process { signal sigkill signull };
+	allow $2 gpg_agent_t:process { signal sigkill };
 
-	# Allow the user to manage gpg-agent tmp files (socket)
-	manage_dirs_pattern($2, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
-	manage_files_pattern($2, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
-	manage_sock_files_pattern($2, $1_gpg_agent_tmp_t, $1_gpg_agent_tmp_t)
+	manage_dirs_pattern($2, gpg_agent_tmp_t, gpg_agent_tmp_t)
+	manage_files_pattern($2, gpg_agent_tmp_t, gpg_agent_tmp_t)
+	manage_sock_files_pattern($2, gpg_agent_tmp_t, gpg_agent_tmp_t)
+	files_tmp_filetrans(gpg_agent_t, gpg_agent_tmp_t, { file sock_file dir })
 
-	# Transition from the user domain to the derived domain.
-	domtrans_pattern($2, gpg_agent_exec_t, $1_gpg_agent_t)
-
-	corecmd_search_bin($1_gpg_agent_t)
-
-	domain_use_interactive_fds($1_gpg_agent_t)
-
-	miscfiles_read_localization($1_gpg_agent_t)
-
-	# Write to the user domain tty.
-	userdom_use_user_terminals($1, $1_gpg_agent_t)
-	# read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
-	userdom_search_user_home_dirs($1, $1_gpg_agent_t)
-
-	tunable_policy(`gpg_agent_env_file',`
-		# write ~/.gpg-agent-info or a similar to the users home dir
-		# or subdir (gpg-agent --write-env-file option)
-		#
-		userdom_user_home_dir_filetrans_user_home_content($1, $1_gpg_agent_t, file)
-		userdom_manage_user_home_content_dirs($1, $1_gpg_agent_t)
-		userdom_manage_user_home_content_files($1, $1_gpg_agent_t)
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_gpg_agent_t)
-		fs_manage_nfs_files($1_gpg_agent_t)
-		fs_manage_nfs_symlinks($1_gpg_agent_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_gpg_agent_t)
-		fs_manage_cifs_files($1_gpg_agent_t)
-		fs_manage_cifs_symlinks($1_gpg_agent_t)
-	')
-
-	##############################
-	#
-	# Pinentry local policy
-	#
-
-	allow $1_gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
-	allow $1_gpg_pinentry_t self:fifo_file rw_fifo_file_perms;
-
-	# we need to allow gpg-agent to call pinentry so it can get the passphrase 
-	# from the user.
-	domtrans_pattern($1_gpg_agent_t, pinentry_exec_t, $1_gpg_pinentry_t)
-
-	# read /proc/meminfo
-	kernel_read_system_state($1_gpg_pinentry_t)
-
-	files_read_usr_files($1_gpg_pinentry_t)
-	# read /etc/X11/qtrc
-	files_read_etc_files($1_gpg_pinentry_t)
-
-	miscfiles_read_fonts($1_gpg_pinentry_t)
-	miscfiles_read_localization($1_gpg_pinentry_t)
-
-	# for .Xauthority
-	userdom_read_user_home_content_files($1, $1_gpg_pinentry_t)
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_read_nfs_files($1_gpg_pinentry_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_read_cifs_files($1_gpg_pinentry_t)
-	')
-
-	optional_policy(`
-		xserver_stream_connect_xdm_xserver($1_gpg_pinentry_t)
-	')
-
-	ifdef(`TODO',`
-	allow $1_gpg_pinentry_t tmp_t:dir { getattr search };
-
-	# wants to put some lock files into the user home dir, seems to work fine without
-	dontaudit $1_gpg_pinentry_t $1_home_t:dir { read write };
-	dontaudit $1_gpg_pinentry_t $1_home_t:file write;
-
-	tunable_policy(`use_nfs_home_dirs',`
-		dontaudit $1_gpg_pinentry_t nfs_t:dir write;
-		dontaudit $1_gpg_pinentry_t nfs_t:file write;
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		dontaudit $1_gpg_pinentry_t cifs_t:dir write;
-		dontaudit $1_gpg_pinentry_t cifs_t:file write;
-	')
-
-	dontaudit $1_gpg_pinentry_t { sysctl_t sysctl_kernel_t }:dir { getattr search };
-	') dnl end TODO
+	# Transition from the user domain to the agent domain.
+	domtrans_pattern($2, gpg_agent_exec_t, gpg_agent_t)
 ')
 
 ########################################
 ## <summary>
 ##      Transition to a user gpg domain.
 ## </summary>
-## <desc>
-##      <p>
-##      Transition to a user gpg domain.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`gpg_domtrans_user_gpg',`
+interface(`gpg_domtrans',`
 	gen_require(`
-		type $1_gpg_t, gpg_exec_t;
+		type gpg_t, gpg_exec_t;
 	')
 
-	domtrans_pattern($2, gpg_exec_t, $1_gpg_t)
+	domtrans_pattern($1, gpg_exec_t, gpg_t)
 ')
 
 ########################################
 ## <summary>
 ##      Send generic signals to user gpg processes.
 ## </summary>
-## <desc>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`gpg_signal_user_gpg',`
+interface(`gpg_signal',`
 	gen_require(`
-		type $1_gpg_t;
+		type gpg_t;
 	')
 
-	allow $2 $1_gpg_t:process signal;
+	allow $1 gpg_t:process signal;
 ')

@@ -2,7 +2,7 @@
 
 #######################################
 ## <summary>
-##	The per role template for the sudo module.
+##	The role template for the sudo module.
 ## </summary>
 ## <desc>
 ##	<p>
@@ -10,30 +10,25 @@
 ##	to change the linux user id, to run commands as a different
 ##	user.
 ##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
+## <param name="role_prefix">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
 ## <param name="user_role">
 ##	<summary>
-##	The role associated with the user domain.
+##	The user role.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The user domain associated with the role.
 ##	</summary>
 ## </param>
 #
-template(`sudo_per_role_template',`
+template(`sudo_role_template',`
 
 	gen_require(`
 		type sudo_exec_t;
@@ -47,7 +42,8 @@ template(`sudo_per_role_template',`
 	type $1_sudo_t; 
 	application_domain($1_sudo_t, sudo_exec_t)
 	domain_interactive_fd($1_sudo_t)
-	role $3 types $1_sudo_t;
+	ubac_constrained($1_sudo_t)
+	role $2 types $1_sudo_t;
 
 	##############################
 	#
@@ -71,13 +67,13 @@ template(`sudo_per_role_template',`
 	allow $1_sudo_t self:netlink_audit_socket { create bind write nlmsg_read read };
 
 	# Enter this derived domain from the user domain
-	domtrans_pattern($2, sudo_exec_t, $1_sudo_t)
+	domtrans_pattern($3, sudo_exec_t, $1_sudo_t)
 
 	# By default, revert to the calling domain when a shell is executed.
-	corecmd_shell_domtrans($1_sudo_t, $2)
-	allow $2 $1_sudo_t:fd use;
-	allow $2 $1_sudo_t:fifo_file rw_file_perms;
-	allow $2 $1_sudo_t:process sigchld;
+	corecmd_shell_domtrans($1_sudo_t, $3)
+	allow $3 $1_sudo_t:fd use;
+	allow $3 $1_sudo_t:fifo_file rw_file_perms;
+	allow $3 $1_sudo_t:process sigchld;
 
 	kernel_read_kernel_sysctls($1_sudo_t)
 	kernel_read_system_state($1_sudo_t)
@@ -113,22 +109,11 @@ template(`sudo_per_role_template',`
 
 	miscfiles_read_localization($1_sudo_t)
 
-	userdom_manage_user_home_content_files($1, $1_sudo_t)
-	userdom_manage_user_home_content_symlinks($1, $1_sudo_t)
-	userdom_manage_user_tmp_files($1, $1_sudo_t)
-	userdom_manage_user_tmp_symlinks($1, $1_sudo_t)
-	userdom_use_user_terminals($1, $1_sudo_t)
-	userdom_use_unpriv_users_fds($1_sudo_t)
+	userdom_manage_user_home_content_files($1_sudo_t)
+	userdom_manage_user_home_content_symlinks($1_sudo_t)
+	userdom_manage_user_tmp_files($1_sudo_t)
+	userdom_manage_user_tmp_symlinks($1_sudo_t)
+	userdom_use_user_terminals($1_sudo_t)
 	# for some PAM modules and for cwd
-	userdom_dontaudit_search_all_users_home_content($1_sudo_t)
-
-	ifdef(`TODO',`
-	# for when the network connection is killed
-	dontaudit unpriv_userdomain $1_sudo_t:process signal;
-
-	ifdef(`mta.te', `
-	domain_auto_trans($1_sudo_t, sendmail_exec_t, $1_mail_t)
-	')
-
-	') dnl end TODO
+	userdom_dontaudit_search_user_home_content($1_sudo_t)
 ')

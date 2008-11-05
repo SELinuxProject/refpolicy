@@ -132,154 +132,36 @@ template(`mta_base_mail_template',`
 
 ')
 
-#######################################
-## <summary>
-##	The per role template for the mta module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domain which is
-##	a email transfer agent, which sends mail on
-##	behalf of the user.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
-#
-template(`mta_per_role_template',`
-	gen_require(`
-		attribute mta_user_agent;
-		attribute mailserver_delivery;
-		type sendmail_exec_t;
-	')
-
-	##############################
-	#
-	# Declarations
-	#
-
-	mta_base_mail_template($1)
-	role $3 types $1_mail_t;
-
-	##############################
-	#
-	# $1_mail_t local policy
-	#
-
-	# Transition from the user domain to the derived domain.
-	domtrans_pattern($2, sendmail_exec_t, $1_mail_t)
-	allow $2 sendmail_exec_t:lnk_file { getattr read };
-
-	domain_use_interactive_fds($1_mail_t)
-
-	userdom_use_user_terminals($1, $1_mail_t)
-	# Write to the user domain tty. cjp: why?
-	userdom_use_user_terminals($1, mta_user_agent)
-	# Create dead.letter in user home directories.
-	userdom_manage_user_home_content_files($1, $1_mail_t)
-	userdom_user_home_dir_filetrans_user_home_content($1, $1_mail_t, file)
-	# for reading .forward - maybe we need a new type for it?
-	# also for delivering mail to maildir
-	userdom_manage_user_home_content_dirs($1, mailserver_delivery)
-	userdom_manage_user_home_content_files($1, mailserver_delivery)
-	userdom_manage_user_home_content_symlinks($1, mailserver_delivery)
-	userdom_manage_user_home_content_pipes($1, mailserver_delivery)
-	userdom_manage_user_home_content_sockets($1, mailserver_delivery)
-	userdom_user_home_dir_filetrans_user_home_content($1, mailserver_delivery, { dir file lnk_file fifo_file sock_file })
-	# Read user temporary files.
-	userdom_read_user_tmp_files($1, $1_mail_t)
-	userdom_dontaudit_append_user_tmp_files($1, $1_mail_t)
-	# cjp: this should probably be read all user tmp
-	# files in an appropriate place for mta_user_agent
-	userdom_read_user_tmp_files($1, mta_user_agent)
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_files($1_mail_t)
-		fs_manage_cifs_symlinks($1_mail_t)
-	')
-
-	optional_policy(`
-		allow $1_mail_t self:capability dac_override;
-
-		# Read user temporary files.
-		# postfix seems to need write access if the file handle is opened read/write
-		userdom_rw_user_tmp_files($1, $1_mail_t)
-
-		postfix_read_config($1_mail_t)
-		postfix_list_spool($1_mail_t)
-	')
-')
-
 ########################################
 ## <summary>
-##	Provide extra permissions for admin users
-##	mail domain.
+##	Role access for mta
 ## </summary>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
-## <rolecap/>
 #
-template(`mta_admin_template',`
+interface(`mta_role',`
 	gen_require(`
-		type $1_mail_t;
+		attribute mta_user_agent;
+		type user_mail_t, sendmail_exec_t;
 	')
 
-	# allow the sysadmin to do "mail someone < /home/user/whatever"
-	userdom_read_unpriv_users_home_content_files($1_mail_t)
+	role $1 types { user_mail_t mta_user_agent };
 
-	optional_policy(`
-		gen_require(`
-			attribute mta_user_agent;
-			type etc_aliases_t;
-		')
+	# Transition from the user domain to the derived domain.
+	domtrans_pattern($2, sendmail_exec_t, user_mail_t)
+	allow $2 sendmail_exec_t:lnk_file { getattr read };
 
-		allow mta_user_agent $2:fifo_file { read write };
-
-		manage_dirs_pattern($1_mail_t, etc_aliases_t, etc_aliases_t)
-		manage_files_pattern($1_mail_t, etc_aliases_t, etc_aliases_t)
-		manage_lnk_files_pattern($1_mail_t, etc_aliases_t, etc_aliases_t)
-		manage_fifo_files_pattern($1_mail_t, etc_aliases_t, etc_aliases_t)
-		manage_sock_files_pattern($1_mail_t, etc_aliases_t, etc_aliases_t)
-		files_etc_filetrans($1_mail_t, etc_aliases_t, { file lnk_file sock_file fifo_file })
-
-		# postfix needs this for newaliases
-		files_getattr_tmp_dirs($1_mail_t)
-
-		postfix_exec_master($1_mail_t)
-
-		ifdef(`distro_redhat',`
-			# compatability for old default main.cf
-			postfix_config_filetrans($1_mail_t, etc_aliases_t, { dir file lnk_file sock_file fifo_file })
-		')
-	')
+	allow mta_user_agent $2:fd use;
+	allow mta_user_agent $2:process sigchld;
+	allow mta_user_agent $2:fifo_file { read write };
 ')
 
 ########################################

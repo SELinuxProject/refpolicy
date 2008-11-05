@@ -2,28 +2,12 @@
 
 #######################################
 ## <summary>
-##	The per role template for the screen module.
+##	The role template for the screen module.
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for screen sessions.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role_prefix">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
 ## <param name="user_role">
@@ -31,10 +15,16 @@
 ##	The role associated with the user domain.
 ##	</summary>
 ## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
 #
-template(`screen_per_role_template',`
+template(`screen_role_template',`
 	gen_require(`
-		type screen_dir_t, screen_exec_t;
+		type screen_dir_t, screen_exec_t, screen_tmp_t;
+		type screen_home_t, screen_var_run_t;
 	')
 
 	########################################
@@ -45,16 +35,8 @@ template(`screen_per_role_template',`
 	type $1_screen_t;
 	application_domain($1_screen_t, screen_exec_t)
 	domain_interactive_fd($1_screen_t)
-	role $3 types $1_screen_t;
-
-	type $1_screen_tmp_t;
-	files_tmp_file($1_screen_tmp_t)
-
-	type $1_screen_ro_home_t;
-	files_type($1_screen_ro_home_t)
-
-	type $1_screen_var_run_t;
-	files_pid_file($1_screen_var_run_t)
+	ubac_constrained($1_screen_t)
+	role $2 types $1_screen_t;
 
 	########################################
 	#
@@ -70,33 +52,33 @@ template(`screen_per_role_template',`
 	allow $1_screen_t self:unix_stream_socket create_socket_perms;
 	allow $1_screen_t self:unix_dgram_socket create_socket_perms;
 
-	manage_dirs_pattern($1_screen_t, $1_screen_tmp_t, $1_screen_tmp_t)
-	manage_files_pattern($1_screen_t, $1_screen_tmp_t, $1_screen_tmp_t)
-	manage_fifo_files_pattern($1_screen_t, $1_screen_tmp_t, $1_screen_tmp_t)
-	files_tmp_filetrans($1_screen_t, $1_screen_tmp_t, { file dir })
+	manage_dirs_pattern($1_screen_t, screen_tmp_t, screen_tmp_t)
+	manage_files_pattern($1_screen_t, screen_tmp_t, screen_tmp_t)
+	manage_fifo_files_pattern($1_screen_t, screen_tmp_t, screen_tmp_t)
+	files_tmp_filetrans($1_screen_t, screen_tmp_t, { file dir })
 
 	# Create fifo
-	manage_fifo_files_pattern($1_screen_t, screen_dir_t, $1_screen_var_run_t)
+	manage_fifo_files_pattern($1_screen_t, screen_dir_t, screen_var_run_t)
 	manage_dirs_pattern($1_screen_t, screen_dir_t, screen_dir_t)
-	filetrans_pattern($1_screen_t, screen_dir_t, $1_screen_var_run_t, fifo_file)
+	filetrans_pattern($1_screen_t, screen_dir_t, screen_var_run_t, fifo_file)
 	files_pid_filetrans($1_screen_t, screen_dir_t, dir)
 
-	allow $1_screen_t $1_screen_ro_home_t:dir list_dir_perms;
-	read_files_pattern($1_screen_t, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	read_lnk_files_pattern($1_screen_t, $1_screen_ro_home_t, $1_screen_ro_home_t)
+	allow $1_screen_t screen_home_t:dir list_dir_perms;
+	read_files_pattern($1_screen_t, screen_home_t, screen_home_t)
+	read_lnk_files_pattern($1_screen_t, screen_home_t, screen_home_t)
 
-	allow $1_screen_t $2:process signal;
+	allow $1_screen_t $3:process signal;
 
-	domtrans_pattern($2, screen_exec_t, $1_screen_t)
-	allow $2 $1_screen_t:process signal;
-	allow $1_screen_t $2:process signal;
+	domtrans_pattern($3, screen_exec_t, $1_screen_t)
+	allow $3 $1_screen_t:process signal;
+	allow $1_screen_t $3:process signal;
 
-	manage_dirs_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	manage_files_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	manage_lnk_files_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	relabel_dirs_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	relabel_files_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
-	relabel_lnk_files_pattern($2, $1_screen_ro_home_t, $1_screen_ro_home_t)
+	manage_dirs_pattern($3, screen_home_t, screen_home_t)
+	manage_files_pattern($3, screen_home_t, screen_home_t)
+	manage_lnk_files_pattern($3, screen_home_t, screen_home_t)
+	relabel_dirs_pattern($3, screen_home_t,  screen_home_t)
+	relabel_files_pattern($3, screen_home_t, screen_home_t)
+	relabel_lnk_files_pattern($3, screen_home_t, screen_home_t)
 
 	kernel_read_system_state($1_screen_t)
 	kernel_read_kernel_sysctls($1_screen_t)
@@ -107,8 +89,8 @@ template(`screen_per_role_template',`
 	corecmd_read_bin_pipes($1_screen_t)
 	corecmd_read_bin_sockets($1_screen_t)
 	# Revert to the user domain when a shell is executed.
-	corecmd_shell_domtrans($1_screen_t,$2)
-	corecmd_bin_domtrans($1_screen_t,$2)
+	corecmd_shell_domtrans($1_screen_t, $3)
+	corecmd_bin_domtrans($1_screen_t, $3)
 
 	corenet_all_recvfrom_unlabeled($1_screen_t)
 	corenet_all_recvfrom_netlabel($1_screen_t)
@@ -150,10 +132,10 @@ template(`screen_per_role_template',`
 
 	sysnet_read_config($1_screen_t)
 
-	userdom_use_user_terminals($1, $1_screen_t)
-	userdom_create_user_pty($1, $1_screen_t)
-	userdom_user_home_domtrans($1, $1_screen_t, $2)
-	userdom_setattr_user_ptys($1, $1_screen_t)
+	userdom_use_user_terminals($1_screen_t)
+	userdom_create_user_pty($1_screen_t)
+	userdom_user_home_domtrans($1_screen_t, $3)
+	userdom_setattr_user_ptys($1_screen_t)
 
 	tunable_policy(`read_default_t',`
 		files_list_default($1_screen_t)
@@ -164,13 +146,13 @@ template(`screen_per_role_template',`
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
-		fs_cifs_domtrans($1_screen_t, $2)
+		fs_cifs_domtrans($1_screen_t, $3)
 		fs_read_cifs_symlinks($1_screen_t)
 		fs_list_cifs($1_screen_t)
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
-		fs_nfs_domtrans($1_screen_t, $2)
+		fs_nfs_domtrans($1_screen_t, $3)
 		fs_list_nfs($1_screen_t)
 		fs_read_nfs_symlinks($1_screen_t)
 	')

@@ -1,504 +1,108 @@
 ## <summary>Policy for Mozilla and related web browsers</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the mozilla module.
+##	Role access for mozilla
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for mozilla web browser.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`mozilla_per_role_template',`
+interface(`mozilla_role',`
 	gen_require(`
-		type mozilla_conf_t, mozilla_exec_t;
+		type mozilla_t, mozilla_exec_t, mozilla_home_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-	type $1_mozilla_t;
-	application_domain($1_mozilla_t, mozilla_exec_t)
-	role $3 types $1_mozilla_t;
+	role $1 types mozilla_t;
 
-	type $1_mozilla_home_t alias $1_mozilla_rw_t;
-	files_poly_member($1_mozilla_home_t)
-	userdom_user_home_content($1, $1_mozilla_home_t)
-
-	type $1_mozilla_tmpfs_t;
-	files_tmpfs_file($1_mozilla_tmpfs_t)
-
-	########################################
-	#
-	# Local policy
-	#
-
-	allow $1_mozilla_t self:capability { sys_nice setgid setuid };
-	allow $1_mozilla_t self:process { sigkill signal setsched getsched setrlimit };
-	allow $1_mozilla_t self:fifo_file rw_fifo_file_perms;
-	allow $1_mozilla_t self:shm { unix_read unix_write read write destroy create };
-	allow $1_mozilla_t self:sem create_sem_perms;
-	allow $1_mozilla_t self:socket create_socket_perms;
-	allow $1_mozilla_t self:unix_stream_socket { listen accept };
-	# Browse the web, connect to printer
-	allow $1_mozilla_t self:tcp_socket create_socket_perms;
-	allow $1_mozilla_t self:netlink_route_socket r_netlink_socket_perms;
-
-	# for bash - old mozilla binary
-	can_exec($1_mozilla_t, mozilla_exec_t)
-
-	# X access, Home files
-	manage_dirs_pattern($1_mozilla_t, $1_mozilla_home_t, $1_mozilla_home_t)
-	manage_files_pattern($1_mozilla_t, $1_mozilla_home_t, $1_mozilla_home_t)
-	manage_lnk_files_pattern($1_mozilla_t, $1_mozilla_home_t, $1_mozilla_home_t)
-	userdom_search_user_home_dirs($1, $1_mozilla_t)
-
-	# Mozpluggerrc
-	allow $1_mozilla_t mozilla_conf_t:file read_file_perms;
-
-	allow $1_mozilla_t $2:fd use;
-	allow $1_mozilla_t $2:process sigchld;
-	allow $1_mozilla_t $2:unix_stream_socket connectto;
-	allow $2 $1_mozilla_t:fd use;
-	allow $2 $1_mozilla_t:shm { associate getattr };
-	allow $2 $1_mozilla_t:shm { unix_read unix_write };
-	allow $2 $1_mozilla_t:unix_stream_socket connectto;
-
-	# X access, Home files
-	manage_dirs_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-	manage_files_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-	manage_lnk_files_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-	relabel_dirs_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-	relabel_files_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-	relabel_lnk_files_pattern($2, $1_mozilla_home_t, $1_mozilla_home_t)
-
-	manage_files_pattern($1_mozilla_t, $1_mozilla_tmpfs_t, $1_mozilla_tmpfs_t)
-	manage_lnk_files_pattern($1_mozilla_t, $1_mozilla_tmpfs_t, $1_mozilla_tmpfs_t)
-	manage_fifo_files_pattern($1_mozilla_t, $1_mozilla_tmpfs_t, $1_mozilla_tmpfs_t)
-	manage_sock_files_pattern($1_mozilla_t, $1_mozilla_tmpfs_t, $1_mozilla_tmpfs_t)
-	fs_tmpfs_filetrans($1_mozilla_t, $1_mozilla_tmpfs_t, { file lnk_file sock_file fifo_file })
-
-	allow $1_mozilla_t $2:process signull;
-
-	domain_auto_trans($2, mozilla_exec_t, $1_mozilla_t)
+	domain_auto_trans($2, mozilla_exec_t, mozilla_t)
 	# Unrestricted inheritance from the caller.
-	allow $2 $1_mozilla_t:process { noatsecure siginh rlimitinh };
+	allow $2 mozilla_t:process { noatsecure siginh rlimitinh };
+	allow mozilla_t $2:fd use;
+	allow mozilla_t $2:process { sigchld signull };
+	allow mozilla_t $2:unix_stream_socket connectto;
 
 	# Allow the user domain to signal/ps.
-	ps_process_pattern($2, $1_mozilla_t)
-	allow $2 $1_mozilla_t:process signal_perms;
+	ps_process_pattern($2, mozilla_t)
+	allow $2 mozilla_t:process signal_perms;
 
-	kernel_read_kernel_sysctls($1_mozilla_t)
-	kernel_read_network_state($1_mozilla_t)
-	# Access /proc, sysctl
-	kernel_read_system_state($1_mozilla_t)
-	kernel_read_net_sysctls($1_mozilla_t)
+	allow $2 mozilla_t:fd use;
+	allow $2 mozilla_t:shm { associate getattr };
+	allow $2 mozilla_t:shm { unix_read unix_write };
+	allow $2 mozilla_t:unix_stream_socket connectto;
 
-	# Look for plugins 
-	corecmd_list_bin($1_mozilla_t)
-	# for bash - old mozilla binary
-	corecmd_exec_shell($1_mozilla_t)
-	corecmd_exec_bin($1_mozilla_t)
-
-	# Browse the web, connect to printer
-	corenet_all_recvfrom_unlabeled($1_mozilla_t)
-	corenet_all_recvfrom_netlabel($1_mozilla_t)
-	corenet_tcp_sendrecv_generic_if($1_mozilla_t)
-	corenet_raw_sendrecv_generic_if($1_mozilla_t)
-	corenet_tcp_sendrecv_all_nodes($1_mozilla_t)
-	corenet_raw_sendrecv_all_nodes($1_mozilla_t)
-	corenet_tcp_sendrecv_http_port($1_mozilla_t)
-	corenet_tcp_sendrecv_http_cache_port($1_mozilla_t)
-	corenet_tcp_sendrecv_ftp_port($1_mozilla_t)
-	corenet_tcp_sendrecv_ipp_port($1_mozilla_t)
-	corenet_tcp_connect_http_port($1_mozilla_t)
-	corenet_tcp_connect_http_cache_port($1_mozilla_t)
-	corenet_tcp_connect_ftp_port($1_mozilla_t)
-	corenet_tcp_connect_ipp_port($1_mozilla_t)
-	corenet_tcp_connect_generic_port($1_mozilla_t)
-	corenet_sendrecv_http_client_packets($1_mozilla_t)
-	corenet_sendrecv_http_cache_client_packets($1_mozilla_t)
-	corenet_sendrecv_ftp_client_packets($1_mozilla_t)
-	corenet_sendrecv_ipp_client_packets($1_mozilla_t)
-	corenet_sendrecv_generic_client_packets($1_mozilla_t)
-	# Should not need other ports
-	corenet_dontaudit_tcp_sendrecv_generic_port($1_mozilla_t)
-	corenet_dontaudit_tcp_bind_generic_port($1_mozilla_t)
-
-	dev_read_urand($1_mozilla_t)
-	dev_read_rand($1_mozilla_t)
-	dev_write_sound($1_mozilla_t)
-	dev_read_sound($1_mozilla_t)
-	dev_dontaudit_rw_dri($1_mozilla_t)
-	dev_getattr_sysfs_dirs($1_mozilla_t)
-
-	files_read_etc_runtime_files($1_mozilla_t)
-	files_read_usr_files($1_mozilla_t)
-	files_read_etc_files($1_mozilla_t)
-	# /var/lib
-	files_read_var_lib_files($1_mozilla_t)
-	# interacting with gstreamer
-	files_read_var_files($1_mozilla_t)
-	files_read_var_symlinks($1_mozilla_t)
- 	files_dontaudit_getattr_boot_dirs($1_mozilla_t)
-
-	fs_search_auto_mountpoints($1_mozilla_t)
-	fs_list_inotifyfs($1_mozilla_t)
-	fs_rw_tmpfs_files($1_mozilla_t)
-
-	term_dontaudit_getattr_pty_dirs($1_mozilla_t)
-
-	logging_send_syslog_msg($1_mozilla_t)
-
-	miscfiles_read_fonts($1_mozilla_t)
-	miscfiles_read_localization($1_mozilla_t)
-
-	# Browse the web, connect to printer
-	sysnet_dns_name_resolve($1_mozilla_t)
-	sysnet_read_config($1_mozilla_t)
-
-	userdom_manage_user_home_content_dirs($1, $1_mozilla_t)
-	userdom_manage_user_home_content_files($1, $1_mozilla_t)
-	userdom_manage_user_home_content_symlinks($1, $1_mozilla_t)
-	userdom_manage_user_tmp_dirs($1, $1_mozilla_t)
-	userdom_manage_user_tmp_files($1, $1_mozilla_t)
-	userdom_manage_user_tmp_sockets($1, $1_mozilla_t)
-
-	xserver_user_x_domain_template($1, $1_mozilla, $1_mozilla_t, $1_mozilla_tmpfs_t)
-	xserver_dontaudit_read_xdm_tmp_files($1_mozilla_t)
-	xserver_dontaudit_getattr_xdm_tmp_sockets($1_mozilla_t)
-
-	tunable_policy(`allow_execmem',`
-		allow $1_mozilla_t self:process { execmem execstack };
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_mozilla_t)
-		fs_manage_nfs_files($1_mozilla_t)
-		fs_manage_nfs_symlinks($1_mozilla_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_mozilla_t)
-		fs_manage_cifs_files($1_mozilla_t)
-		fs_manage_cifs_symlinks($1_mozilla_t)
-	')
-
-	# Uploads, local html
-	tunable_policy(`mozilla_read_content && use_nfs_home_dirs',`
-		fs_list_auto_mountpoints($1_mozilla_t)
-		files_list_home($1_mozilla_t)
-		fs_read_nfs_files($1_mozilla_t)
-		fs_read_nfs_symlinks($1_mozilla_t)
-
-	',`
-		files_dontaudit_list_home($1_mozilla_t)
-		fs_dontaudit_list_auto_mountpoints($1_mozilla_t)
-		fs_dontaudit_read_nfs_files($1_mozilla_t)
-		fs_dontaudit_list_nfs($1_mozilla_t)
-	')
-
-	tunable_policy(`mozilla_read_content && use_samba_home_dirs',`
-		fs_list_auto_mountpoints($1_mozilla_t)
-		files_list_home($1_mozilla_t)
-		fs_read_cifs_files($1_mozilla_t)
-		fs_read_cifs_symlinks($1_mozilla_t)
-	',`
-		files_dontaudit_list_home($1_mozilla_t)
-		fs_dontaudit_list_auto_mountpoints($1_mozilla_t)
-		fs_dontaudit_read_cifs_files($1_mozilla_t)
-		fs_dontaudit_list_cifs($1_mozilla_t)
-	')
-
-	tunable_policy(`mozilla_read_content',`
-		userdom_list_user_tmp($1, $1_mozilla_t)
-		userdom_read_user_tmp_files($1, $1_mozilla_t)
-		userdom_read_user_tmp_symlinks($1, $1_mozilla_t)
-		userdom_search_user_home_dirs($1, $1_mozilla_t)
-		userdom_read_user_home_content_files($1, $1_mozilla_t)
-		userdom_read_user_home_content_symlinks($1, $1_mozilla_t)
-
-		ifdef(`enable_mls',`',`
-			fs_search_removable($1_mozilla_t)
-			fs_read_removable_files($1_mozilla_t)
-			fs_read_removable_symlinks($1_mozilla_t)
-		')
-	',`
-		files_dontaudit_list_tmp($1_mozilla_t)
-		files_dontaudit_list_home($1_mozilla_t)
-		fs_dontaudit_list_removable($1_mozilla_t)
-		fs_dontaudit_read_removable_files($1_mozilla_t)
-		userdom_dontaudit_list_user_tmp($1, $1_mozilla_t)
-		userdom_dontaudit_read_user_tmp_files($1, $1_mozilla_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_mozilla_t)
-		userdom_dontaudit_read_user_home_content_files($1, $1_mozilla_t)
-	')
-
-	tunable_policy(`mozilla_read_content && read_default_t',`
-		files_list_default($1_mozilla_t)
-		files_read_default_files($1_mozilla_t)
-		files_read_default_symlinks($1_mozilla_t)
-	',`
-		files_dontaudit_read_default_files($1_mozilla_t)
-		files_dontaudit_list_default($1_mozilla_t)
-	')
-
-	tunable_policy(`mozilla_read_content && read_untrusted_content',`
-		files_list_tmp($1_mozilla_t)
-		files_list_home($1_mozilla_t)
-		userdom_search_user_home_dirs($1, $1_mozilla_t)
-
-		userdom_list_user_untrusted_content($1, $1_mozilla_t)
-		userdom_read_user_untrusted_content_files($1, $1_mozilla_t)
-		userdom_read_user_untrusted_content_symlinks($1, $1_mozilla_t)
-		userdom_list_user_tmp_untrusted_content($1, $1_mozilla_t)
-		userdom_read_user_tmp_untrusted_content_files($1, $1_mozilla_t)
-		userdom_read_user_tmp_untrusted_content_symlinks($1, $1_mozilla_t)
-	',`
-		files_dontaudit_list_tmp($1_mozilla_t)
-		files_dontaudit_list_home($1_mozilla_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_mozilla_t)
-		userdom_dontaudit_list_user_untrusted_content($1, $1_mozilla_t)
-		userdom_dontaudit_read_user_untrusted_content_files($1, $1_mozilla_t)
-		userdom_dontaudit_list_user_tmp_untrusted_content($1, $1_mozilla_t)
-		userdom_dontaudit_read_user_tmp_untrusted_content_files($1, $1_mozilla_t)
-	')
-
-	# Save web pages
-	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
-		files_search_home($1_mozilla_t)
-
-		fs_search_auto_mountpoints($1_mozilla_t)
-		fs_manage_nfs_dirs($1_mozilla_t)
-		fs_manage_nfs_files($1_mozilla_t)
-		fs_manage_nfs_symlinks($1_mozilla_t)
-	',`
-		fs_dontaudit_list_auto_mountpoints($1_mozilla_t)
-		fs_dontaudit_manage_nfs_dirs($1_mozilla_t)
-		fs_dontaudit_manage_nfs_files($1_mozilla_t)
-	')
-
-	tunable_policy(`write_untrusted_content && use_samba_home_dirs',`
-		files_search_home($1_mozilla_t)
-
-		fs_search_auto_mountpoints($1_mozilla_t)
-		fs_manage_cifs_dirs($1_mozilla_t)
-		fs_manage_cifs_files($1_mozilla_t)
-		fs_manage_cifs_symlinks($1_mozilla_t)
-	',`
-		fs_dontaudit_list_auto_mountpoints($1_mozilla_t)
-		fs_dontaudit_manage_cifs_dirs($1_mozilla_t)
-		fs_dontaudit_manage_cifs_files($1_mozilla_t)
-	')
-
-	tunable_policy(`write_untrusted_content',`
-		files_search_home($1_mozilla_t)
-		userdom_manage_user_untrusted_content_tmp_files($1, $1_mozilla_t)
-		files_tmp_filetrans($1_mozilla_t, $1_untrusted_content_tmp_t, file)
-		files_tmp_filetrans($1_mozilla_t, $1_untrusted_content_tmp_t, dir)
-
-		userdom_manage_user_untrusted_content_files($1, $1_mozilla_t)
-		userdom_user_home_dir_filetrans($1, $1_mozilla_t, $1_untrusted_content_tmp_t, { file dir })
-		userdom_user_home_content_filetrans($1, $1_mozilla_t, $1_untrusted_content_tmp_t, { file dir })
-		',`
-		files_dontaudit_list_home($1_mozilla_t)
-		files_dontaudit_list_tmp($1_mozilla_t)
-
-		userdom_dontaudit_list_user_home_dirs($1, $1_mozilla_t)
-		userdom_dontaudit_manage_user_tmp_dirs($1, $1_mozilla_t)
-		userdom_dontaudit_manage_user_tmp_files($1, $1_mozilla_t)
-		userdom_dontaudit_manage_user_home_content_dirs($1, $1_mozilla_t)
-
-	')
-
-	optional_policy(`
-		apache_read_user_scripts($1, $1_mozilla_t)
-		apache_read_user_content($1, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		automount_dontaudit_getattr_tmp_dirs($1_mozilla_t)
-	')
-
-	optional_policy(`
-		cups_read_rw_config($1_mozilla_t)
-		cups_dbus_chat($1_mozilla_t)
-	')
-
-	optional_policy(`
-		dbus_system_bus_client_template($1_mozilla, $1_mozilla_t)
-		dbus_user_bus_client_template($1, $1_mozilla, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		gnome_stream_connect_gconf_template($1, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		java_domtrans_user_javaplugin($1, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		lpd_domtrans_user_lpr($1, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		mplayer_domtrans_user_mplayer($1, $1_mozilla_t)
-		mplayer_read_user_home_files($1, $1_mozilla_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_mozilla_t)
-	')
-
-	optional_policy(`
-		thunderbird_domtrans_user_thunderbird($1, $1_mozilla_t)
-	')
-
-	ifdef(`TODO',`
-		#NOTE commented out in strict.
-		######### Launch email client, and make webcal links work
-		#ifdef(`evolution.te', `
-		#domain_auto_trans($1_mozilla_t, evolution_exec_t, $1_evolution_t)
-		#domain_auto_trans($1_mozilla_t, evolution_webcal_exec_t, $1_evolution_webcal_t)
-		#')
-
-		# Macros for mozilla/mozilla (or other browser) domains.
-		# FIXME: Rules were removed to centralize policy in a gnome_app macro
-		# A similar thing might be necessary for mozilla compiled without GNOME
-		# support (is this possible?). 
-
-		# GNOME integration
-		optional_policy(`
-			gnome_application($1_mozilla, $1)
-			gnome_file_dialog($1_mozilla, $1)
-		')
-	')
+	# X access, Home files
+	manage_dirs_pattern($2, mozilla_home_t, mozilla_home_t)
+	manage_files_pattern($2, mozilla_home_t, mozilla_home_t)
+	manage_lnk_files_pattern($2, mozilla_home_t, mozilla_home_t)
+	relabel_dirs_pattern($2, mozilla_home_t, mozilla_home_t)
+	relabel_files_pattern($2, mozilla_home_t, mozilla_home_t)
+	relabel_lnk_files_pattern($2, mozilla_home_t, mozilla_home_t)
 ')
 
 ########################################
 ## <summary>
-##	Read mozilla per user homedir
+##	Read mozilla home directory content
 ## </summary>
-## <desc>
-##	<p>
-##	Read mozilla per user homedir
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mozilla_read_user_home_files',`
+interface(`mozilla_read_user_home_files',`
 	gen_require(`
-		type $1_mozilla_home_t;
+		type mozilla_home_t;
 	')
 
-	allow $2 $1_mozilla_home_t:dir list_dir_perms;
-	allow $2 $1_mozilla_home_t:file read_file_perms;
+	allow $1 mozilla_home_t:dir list_dir_perms;
+	allow $1 mozilla_home_t:file read_file_perms;
+	userdom_search_user_home_dirs($1)
 ')
 
 ########################################
 ## <summary>
-##	write mozilla per user homedir
+##	Write mozilla home directory content
 ## </summary>
-## <desc>
-##	<p>
-##	Read mozilla per user homedir
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mozilla_write_user_home_files',`
+interface(`mozilla_write_user_home_files',`
 	gen_require(`
-		type $1_mozilla_home_t;
+		type mozilla_home_t;
 	')
 
-	allow $2 $1_mozilla_home_t:dir list_dir_perms;
-	allow $2 $1_mozilla_home_t:file write;
+	allow $1 mozilla_home_t:dir list_dir_perms;
+	allow $1 mozilla_home_t:file write;
+	userdom_search_user_home_dirs($1)
 ')
 
 ########################################
 ## <summary>
-##	Run mozilla in user mozilla domain.
+##	Run mozilla in the mozilla domain.
 ## </summary>
-## <desc>
-##	<p>
-##	Run mozilla in mozilla domain.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mozilla_domtrans_user_mozilla',`
+interface(`mozilla_domtrans',`
 	gen_require(`
-		type $1_mozilla_t, mozilla_exec_t;
+		type mozilla_t, mozilla_exec_t;
 	')
 
-	domtrans_pattern($2, mozilla_exec_t, $1_mozilla_t)
+	domtrans_pattern($1, mozilla_exec_t, mozilla_t)
 ')
 
 ########################################
@@ -506,67 +110,36 @@ template(`mozilla_domtrans_user_mozilla',`
 ##	Send and receive messages from
 ##	mozilla over dbus.
 ## </summary>
-## <desc>
-##	<p>
-##	Send and receive messages from
-##	mozilla over dbus.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mozilla_dbus_chat',`
+interface(`mozilla_dbus_chat',`
 	gen_require(`
-		type $1_mozilla_t;
+		type mozilla_t;
 		class dbus send_msg;
 	')
 
-	allow $2 $1_mozilla_t:dbus send_msg;
-	allow $1_mozilla_t $2:dbus send_msg;
+	allow $1 mozilla_t:dbus send_msg;
+	allow mozilla_t $1:dbus send_msg;
 ')
 
 ########################################
 ## <summary>
 ##	read/write mozilla per user tcp_socket
 ## </summary>
-## <desc>
-##	<p>
-##	read/write mozilla per user tcp_socket
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mozilla_rw_user_tcp_sockets',`
+interface(`mozilla_rw_tcp_sockets',`
 	gen_require(`
-		type $1_mozilla_t;
+		type mozilla_t;
 	')
 
-	allow $2 $1_mozilla_t:tcp_socket rw_socket_perms;
+	allow $1 mozilla_t:tcp_socket rw_socket_perms;
 ')

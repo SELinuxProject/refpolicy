@@ -1,230 +1,36 @@
 ## <summary>Line printer daemon</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the lpd module.
+##	Role access for lpd
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for lpr printing client.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`lpd_per_role_template',`
+interface(`lpd_role',`
 	gen_require(`
-		type lpr_exec_t, lpd_t, print_spool_t, printconf_t, lpd_var_run_t, printer_t;
+		type lpr_t, lpr_exec_t, print_spool_t;
 	')
 
-	##############################
-	#
-	# Declarations
-	#
-	# Derived domain based on the calling user domain and the program
-	type $1_lpr_t;
-	application_domain($1_lpr_t, lpr_exec_t)
-	role $3 types $1_lpr_t;
-
-	type $1_lpr_tmp_t;
-	files_tmp_file($1_lpr_tmp_t)
-
-	# Type for spool files.
-	type $1_print_spool_t;
-	files_type($1_print_spool_t)
-
-	##############################
-	#
-	# Local policy
-	#
-	allow $1_lpr_t self:capability { setuid dac_override net_bind_service chown };
-	allow $1_lpr_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_lpr_t self:tcp_socket create_socket_perms;
-	allow $1_lpr_t self:udp_socket create_socket_perms;
-	allow $1_lpr_t self:netlink_route_socket r_netlink_socket_perms;
-
-	can_exec($1_lpr_t,lpr_exec_t)
-
-	tunable_policy(`use_lpd_server',`
-		# lpr can run in lightweight mode, without a local print spooler.
-		allow $1_lpr_t lpd_var_run_t:dir search;
-		allow $1_lpr_t lpd_var_run_t:sock_file write;
-		files_read_var_files($1_lpr_t)
-
-		# Connect to lpd via a Unix domain socket.
-		allow $1_lpr_t printer_t:sock_file rw_sock_file_perms;
-		allow $1_lpr_t lpd_t:unix_stream_socket connectto;
-		# Send SIGHUP to lpd.
-		allow $1_lpr_t lpd_t:process signal;
-
-		manage_dirs_pattern($1_lpr_t, $1_lpr_tmp_t, $1_lpr_tmp_t)
-		manage_files_pattern($1_lpr_t, $1_lpr_tmp_t, $1_lpr_tmp_t)
-		files_tmp_filetrans($1_lpr_t, $1_lpr_tmp_t, { file dir })
-
-		manage_files_pattern($1_lpr_t, print_spool_t, $1_print_spool_t)
-		filetrans_pattern($1_lpr_t, print_spool_t, $1_print_spool_t, file)
-		# Read and write shared files in the spool directory.
-		allow $1_lpr_t print_spool_t:file rw_file_perms;
-
-		allow $1_lpr_t printconf_t:dir list_dir_perms;
-		read_files_pattern($1_lpr_t, printconf_t, printconf_t)
-		read_lnk_files_pattern($1_lpr_t, printconf_t, printconf_t)
-	')
-
-	dontaudit $1_lpr_t $2:unix_stream_socket { read write };
+	role $1 types lpr_t;
 
 	# Transition from the user domain to the derived domain.
-	domtrans_pattern($2, lpr_exec_t, $1_lpr_t)
+	domtrans_pattern($2, lpr_exec_t, lpr_t)
+	dontaudit lpr_t $2:unix_stream_socket { read write };
 
-	allow $2 $1_lpr_t:process signull;
-
-	# Allow lpd to read, rename, and unlink spool files.
-	allow lpd_t $1_print_spool_t:file { read_file_perms rename_file_perms delete_file_perms };
-
-	kernel_read_kernel_sysctls($1_lpr_t)
-
-	corenet_all_recvfrom_unlabeled($1_lpr_t)
-	corenet_all_recvfrom_netlabel($1_lpr_t)
-	corenet_tcp_sendrecv_generic_if($1_lpr_t)
-	corenet_udp_sendrecv_generic_if($1_lpr_t)
-	corenet_tcp_sendrecv_all_nodes($1_lpr_t)
-	corenet_udp_sendrecv_all_nodes($1_lpr_t)
-	corenet_tcp_sendrecv_all_ports($1_lpr_t)
-	corenet_udp_sendrecv_all_ports($1_lpr_t)
-	corenet_tcp_connect_all_ports($1_lpr_t)
-	corenet_sendrecv_all_client_packets($1_lpr_t)
-
-	dev_read_rand($1_lpr_t)
-	dev_read_urand($1_lpr_t)
-
-	domain_use_interactive_fds($1_lpr_t)
-
-	files_search_spool($1_lpr_t)
-	# for lpd config files (should have a new type)
-	files_read_etc_files($1_lpr_t)
-	# for test print
-	files_read_usr_files($1_lpr_t)
-	#Added to cover read_content macro
-	files_list_home($1_lpr_t)
-	files_read_generic_tmp_files($1_lpr_t)
-
-	fs_getattr_xattr_fs($1_lpr_t)
-
-	# Access the terminal.
-	term_use_controlling_term($1_lpr_t)
-	term_use_generic_ptys($1_lpr_t)
-
-	miscfiles_read_localization($1_lpr_t)
-
-	sysnet_read_config($1_lpr_t)
-
-	userdom_read_user_tmp_symlinks($1,$1_lpr_t)
-	# Write to the user domain tty.
-	userdom_use_user_terminals($1,$1_lpr_t)
-	userdom_read_user_home_content_files($1,$1_lpr_t)
-	userdom_read_user_tmp_files($1,$1_lpr_t)
-
-	tunable_policy(`read_default_t',`
-		files_list_default($1_lpr_t)
-		files_read_default_symlinks($1_lpr_t)
-		files_read_default_files($1_lpr_t)
-	')
-
-	tunable_policy(`read_untrusted_content',`
-		#list and read user specific untrusted content
-		userdom_read_user_untrusted_content_files($1, $1_lpr_t)
-
-		#list and read user specific temporary untrusted content
-		files_list_tmp($1_lpr_t)
-		userdom_read_user_tmp_untrusted_content_files($1, $1_lpr_t)
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		files_list_home($1_lpr_t)
-		fs_list_auto_mountpoints($1_lpr_t)
-		fs_read_nfs_files($1_lpr_t)
-		fs_read_nfs_symlinks($1_lpr_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		files_list_home($1_lpr_t)
-		fs_list_auto_mountpoints($1_lpr_t)
-		fs_read_cifs_files($1_lpr_t)
-		fs_read_cifs_symlinks($1_lpr_t)
-	')
+	ps_process_pattern($2, lpr_t)
+	allow $2 lpr_t:process signull;
 
 	optional_policy(`
-		cups_read_config($1_lpr_t)
 		cups_read_config($2)
-		cups_stream_connect($1_lpr_t)
-		cups_read_pid_files($1_lpr_t)
-	')
-
-	optional_policy(`
-		logging_send_syslog_msg($1_lpr_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_lpr_t)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1_lpr_t)
-	')
-')
-
-#######################################
-## <summary>
-##	The administrative functions template for the lpd module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates rules for administrating the ldp service,
-##	allowing the specified user to manage lpr files.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`lpr_admin_template',`
-	gen_require(`
-		type $1_lpr_t, print_spool_t;
-	')
-
-	userdom_read_all_users_home_content_files($1_lpr_t)
-
-	# Read and write shared files in the spool directory.
-	allow $1_lpr_t print_spool_t:file rw_file_perms;
-
-	# Allow per user lpr domain read acces for specific user.
-	tunable_policy(`read_untrusted_content',`
-		userdom_read_all_untrusted_content($1_lpr_t)
-		userdom_read_all_tmp_untrusted_content($1_lpr_t)
 	')
 ')
 
@@ -261,11 +67,6 @@ interface(`lpd_domtrans_checkpc',`
 ##	The role to be allowed the lpd domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the lpd domain to use.
-##	</summary>
-## </param>
 ## <rolecap/>
 #
 interface(`lpd_run_checkpc',`
@@ -275,7 +76,6 @@ interface(`lpd_run_checkpc',`
 
 	lpd_domtrans_checkpc($1)
 	role $2 types checkpc_t;
-	allow checkpc_t $3:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -379,33 +179,18 @@ interface(`lpd_read_config',`
 ## <summary>
 ##      Transition to a user lpr domain.
 ## </summary>
-## <desc>
-##      <p>
-##      Transition to a user lpr domain.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`lpd_domtrans_user_lpr',`
+template(`lpd_domtrans_lpr',`
 	gen_require(`
-		type $1_lpr_t, lpr_exec_t;
+		type lpr_t, lpr_exec_t;
 	')
 
-	domtrans_pattern($2, lpr_exec_t, $1_lpr_t)
+	domtrans_pattern($1, lpr_exec_t, lpr_t)
 ')
 
 ########################################

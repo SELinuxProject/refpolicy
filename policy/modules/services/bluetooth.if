@@ -1,111 +1,40 @@
 ## <summary>Bluetooth tools and system services.</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the bluetooth module.
+##	Role access for bluetooth
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates derived domains which are used
-##	for bluetooth.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`bluetooth_per_role_template',`
+interface(`bluetooth_role',`
 	gen_require(`
-		attribute bluetooth_helper_domain;
-		type bluetooth_helper_exec_t, bluetooth_t;
+		type bluetooth_helper_t, bluetooth_helper_exec_t;
+		type bluetooth_helper_tmp_t, bluetooth_helper_tmpfs_t;
 	')
 
-	type $1_bluetooth_t, bluetooth_helper_domain;
-	application_domain($1_bluetooth_t, bluetooth_helper_exec_t)
-	role $3 types $1_bluetooth_t;
+	role $1 types bluetooth_helper_t;
 
-	type $1_bluetooth_tmp_t;
-	files_tmp_file($1_bluetooth_tmp_t)
+	domtrans_pattern($2, bluetooth_helper_exec_t, bluetooth_helper_t)
 
-	type $1_bluetooth_tmpfs_t;
-	files_tmpfs_file($1_bluetooth_tmpfs_t)
+	# allow ps to show cdrecord and allow the user to kill it 
+	ps_process_pattern($2, bluetooth_helper_t)
+	allow $2 bluetooth_helper_t:process signal;
 
-	allow $1_bluetooth_t self:capability sys_nice;
-	allow $1_bluetooth_t self:process getsched;
-	allow $1_bluetooth_t self:fifo_file rw_fifo_file_perms;
-	allow $1_bluetooth_t self:shm create_shm_perms;
-	allow $1_bluetooth_t self:unix_stream_socket { create_stream_socket_perms connectto };
-	allow $1_bluetooth_t self:tcp_socket create_socket_perms;
-	allow $1_bluetooth_t self:netlink_route_socket r_netlink_socket_perms;
+	manage_dirs_pattern($2, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
+	manage_files_pattern($2, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
+	manage_sock_files_pattern($2, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
 
-	allow $1_bluetooth_t bluetooth_t:socket { read write };
-
-	manage_dirs_pattern($1_bluetooth_t, $1_bluetooth_tmp_t, $1_bluetooth_tmp_t)
-	manage_files_pattern($1_bluetooth_t, $1_bluetooth_tmp_t, $1_bluetooth_tmp_t)
-	manage_sock_files_pattern($1_bluetooth_t, $1_bluetooth_tmp_t, $1_bluetooth_tmp_t)
-	files_tmp_filetrans($1_bluetooth_t, $1_bluetooth_tmp_t, { file dir sock_file })
-
-	manage_dirs_pattern($1_bluetooth_t, $1_bluetooth_tmpfs_t, $1_bluetooth_tmpfs_t)
-	manage_files_pattern($1_bluetooth_t, $1_bluetooth_tmpfs_t, $1_bluetooth_tmpfs_t)
-	fs_tmpfs_filetrans($1_bluetooth_t, $1_bluetooth_tmpfs_t, { dir file })
-
-	kernel_read_system_state($1_bluetooth_t)
-	kernel_read_kernel_sysctls($1_bluetooth_t)
-
-	dev_read_urand($1_bluetooth_t)
-
-	term_dontaudit_use_all_user_ttys($1_bluetooth_t)
-
-	corecmd_exec_bin($1_bluetooth_t)
-	corecmd_exec_shell($1_bluetooth_t)
-
-	domain_read_all_domains_state($1_bluetooth_t)
-
-	files_read_etc_files($1_bluetooth_t)
-	files_read_etc_runtime_files($1_bluetooth_t)
-	files_read_usr_files($1_bluetooth_t)
-	files_dontaudit_list_default($1_bluetooth_t)
-
-	locallogin_dontaudit_use_fds($1_bluetooth_t)
-
-	logging_send_syslog_msg($1_bluetooth_t)
-
-	miscfiles_read_localization($1_bluetooth_t) 
-
-	sysnet_read_config($1_bluetooth_t)
-
-	optional_policy(`
-		bluetooth_dbus_chat($1_bluetooth_t)
-
-		dbus_system_bus_client_template($1_bluetooth, $1_bluetooth_t)
-		dbus_connect_system_bus($1_bluetooth_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_bluetooth_t)
-	')
-
-	optional_policy(`
-		xserver_user_x_domain_template($1, $1_bluetooth, $1_bluetooth_t, $1_bluetooth_tmpfs_t)
-	')
+	manage_dirs_pattern($2, bluetooth_helper_tmpfs_t, bluetooth_helper_tmpfs_t)
+	manage_files_pattern($2, bluetooth_helper_tmpfs_t, bluetooth_helper_tmpfs_t)
 ')
 
 ########################################
@@ -207,7 +136,7 @@ interface(`bluetooth_run_helper',`
 
 ########################################
 ## <summary>
-##	Read bluetooth helper files.
+##	Read bluetooth helper state files.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -215,11 +144,11 @@ interface(`bluetooth_run_helper',`
 ##	</summary>
 ## </param>
 #
-interface(`bluetooth_dontaudit_read_helper_files',`
+interface(`bluetooth_dontaudit_read_helper_state',`
 	gen_require(`
-		attribute bluetooth_helper_domain;
+		type bluetooth_helper_t;
 	')
 
-	dontaudit $1 bluetooth_helper_domain:dir search;
-	dontaudit $1 bluetooth_helper_domain:file { read getattr };
+	dontaudit $1 bluetooth_helper_t:dir search;
+	dontaudit $1 bluetooth_helper_t:file { read getattr };
 ')

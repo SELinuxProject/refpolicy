@@ -1,5 +1,5 @@
 
-policy_module(sysadm, 1.0.0)
+policy_module(sysadm, 2.0.0)
 
 ########################################
 #
@@ -18,7 +18,7 @@ role sysadm_r;
 userdom_admin_user_template(sysadm)
 
 ifndef(`enable_mls',`
-	userdom_security_admin_template(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	userdom_security_admin_template(sysadm_t, sysadm_r)
 ')
 
 ########################################
@@ -30,20 +30,24 @@ corecmd_exec_shell(sysadm_t)
 
 mls_process_read_up(sysadm_t)
 
+ubac_process_exempt(sysadm_t)
+ubac_file_exempt(sysadm_t)
+ubac_fd_exempt(sysadm_t)
+
 init_exec(sysadm_t)
 
-# For sending reboot and wall messages
-userdom_use_unpriv_users_ptys(sysadm_t)
-userdom_use_unpriv_users_ttys(sysadm_t)
+# Add/remove user home directories
+userdom_manage_user_home_dirs(sysadm_t)
+userdom_home_filetrans_user_home_dir(sysadm_t)
 
 ifdef(`direct_sysadm_daemon',`
 	optional_policy(`
-		init_run_daemon(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+		init_run_daemon(sysadm_t, sysadm_r)
 	')
 ',`
 	ifdef(`distro_gentoo',`
 		optional_policy(`
-			seutil_init_script_run_runinit(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+			seutil_init_script_run_runinit(sysadm_t, sysadm_r)
 		')
 	')
 ')
@@ -51,7 +55,7 @@ ifdef(`direct_sysadm_daemon',`
 ifndef(`enable_mls',`
 	logging_manage_audit_log(sysadm_t)
 	logging_manage_audit_config(sysadm_t)
-	logging_run_auditctl(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	logging_run_auditctl(sysadm_t, sysadm_r)
 ')
 
 tunable_policy(`allow_ptrace',`
@@ -59,13 +63,14 @@ tunable_policy(`allow_ptrace',`
 ')
 
 optional_policy(`
-	amanda_run_recover(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	amanda_run_recover(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	apache_run_helper(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	apache_run_helper(sysadm_t, sysadm_r)
 	#apache_run_all_scripts(sysadm_t, sysadm_r)
 	#apache_domtrans_sys_script(sysadm_t)
+	apache_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
@@ -74,43 +79,55 @@ optional_policy(`
 ')
 
 optional_policy(`
-	apt_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	apt_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	auditadm_role_change_template(sysadm)
+	auditadm_role_change(sysadm_r)
 ')
 
 optional_policy(`
-	backup_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	auth_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	bind_run_ndc(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	backup_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	bootloader_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	bind_run_ndc(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	certwatch_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	bluetooth_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	clock_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	bootloader_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	clockspeed_run_cli(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	cdrecord_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	consoletype_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	certwatch_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	cron_admin_template(sysadm)
+	clock_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	clockspeed_run_cli(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	consoletype_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	cron_admin_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
@@ -118,13 +135,17 @@ optional_policy(`
 ')
 
 optional_policy(`
-	dcc_run_cdcc(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	dcc_run_client(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	dcc_run_dbclean(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	dbus_role_template(sysadm, sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	ddcprobe_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	dcc_run_cdcc(sysadm_t, sysadm_r)
+	dcc_run_client(sysadm_t, sysadm_r)
+	dcc_run_dbclean(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	ddcprobe_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
@@ -132,28 +153,48 @@ optional_policy(`
 ')
 
 optional_policy(`
-	dmidecode_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	dmidecode_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	dpkg_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	dpkg_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	ethereal_run_tethereal(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	ethereal_admin_template(sysadm)
+	ethereal_role(sysadm_r, sysadm_t)
+	ethereal_run_tethereal(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	firstboot_run(sysadm_t, sysadm_r, sysadm_tty_device_t)
+	evolution_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	fstools_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	firstboot_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	hostname_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	fstools_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	games_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	gift_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	gnome_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	gpg_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	hostname_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
@@ -167,42 +208,62 @@ optional_policy(`
 ')
 
 optional_policy(`
-	iptables_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	iptables_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	kudzu_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	irc_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	libs_run_ldconfig(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	java_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	logrotate_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	kudzu_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	lpd_run_checkpc(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	lpr_admin_template(sysadm)
+	libs_run_ldconfig(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	lvm_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	lockdev_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	modutils_run_depmod(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	modutils_run_insmod(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	modutils_run_update_mods(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	logrotate_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	mount_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	lpd_run_checkpc(sysadm_t, sysadm_r)
+	lpd_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	mta_admin_template(sysadm, sysadm_t)
+	lvm_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	modutils_run_depmod(sysadm_t, sysadm_r)
+	modutils_run_insmod(sysadm_t, sysadm_r)
+	modutils_run_update_mods(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	mount_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	mozilla_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	mplayer_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	mta_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
@@ -214,9 +275,9 @@ optional_policy(`
 ')
 
 optional_policy(`
-	netutils_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	netutils_run_ping(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	netutils_run_traceroute(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	netutils_run(sysadm_t, sysadm_r)
+	netutils_run_ping(sysadm_t, sysadm_r)
+	netutils_run_traceroute(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
@@ -225,24 +286,33 @@ optional_policy(`
 ')
 
 optional_policy(`
-	oav_run_update(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	oav_run_update(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	pcmcia_run_cardctl(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	oident_manage_user_content(sysadm_t)
+	oident_relabel_user_content(sysadm_t)
 ')
 
 optional_policy(`
-	portage_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	portage_run_gcc_config(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	pcmcia_run_cardctl(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	portmap_run_helper(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	portage_run(sysadm_t, sysadm_r)
+	portage_run_gcc_config(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	quota_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	portmap_run_helper(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	pyzor_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	quota_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
@@ -250,11 +320,19 @@ optional_policy(`
 ')
 
 optional_policy(`
+	razor_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
 	rpc_domtrans_nfsd(sysadm_t)
 ')
 
 optional_policy(`
-	rpm_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	rpm_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	rssh_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
@@ -262,33 +340,61 @@ optional_policy(`
 ')
 
 optional_policy(`
-	samba_run_net(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	samba_run_winbind_helper(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	samba_run_net(sysadm_t, sysadm_r)
+	samba_run_winbind_helper(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	secadm_role_change_template(sysadm)
+	screen_role_template(sysadm, sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	seutil_run_setfiles(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	seutil_run_runinit(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	secadm_role_change(sysadm_r)
 ')
 
 optional_policy(`
-	staff_role_change_template(sysadm)
+	seutil_run_setfiles(sysadm_t, sysadm_r)
+	seutil_run_runinit(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	sysnet_run_ifconfig(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	sysnet_run_dhcpc(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	spamassassin_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	tripwire_run_siggen(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	tripwire_run_tripwire(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	tripwire_run_twadmin(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	tripwire_run_twprint(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	ssh_role_template(sysadm, sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	staff_role_change(sysadm_r)
+')
+
+optional_policy(`
+	su_role_template(sysadm, sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	sudo_role_template(sysadm, sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	sysnet_run_ifconfig(sysadm_t, sysadm_r)
+	sysnet_run_dhcpc(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	thunderbird_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	tripwire_run_siggen(sysadm_t, sysadm_r)
+	tripwire_run_tripwire(sysadm_t, sysadm_r)
+	tripwire_run_twadmin(sysadm_t, sysadm_r)
+	tripwire_run_twprint(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	tvtime_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
@@ -296,35 +402,51 @@ optional_policy(`
 ')
 
 optional_policy(`
+	uml_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
 	unconfined_domtrans(sysadm_t)
 ')
 
 optional_policy(`
-	# Add/remove user home directories
-	unprivuser_manage_home_dirs(sysadm_t)
-	unprivuser_home_filetrans_home_dir(sysadm_t)
-
-	unprivuser_role_change_template(sysadm)
+	unprivuser_role_change(sysadm_r)
 ')
 
 optional_policy(`
-	usbmodules_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	usbmodules_run(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	usermanage_run_admin_passwd(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	usermanage_run_groupadd(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
-	usermanage_run_useradd(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	userhelper_role_template(sysadm, sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	vpn_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	usermanage_run_admin_passwd(sysadm_t, sysadm_r)
+	usermanage_run_groupadd(sysadm_t, sysadm_r)
+	usermanage_run_useradd(sysadm_t, sysadm_r)
 ')
 
 optional_policy(`
-	webalizer_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	vmware_role(sysadm_r, sysadm_t)
 ')
 
 optional_policy(`
-	yam_run(sysadm_t, sysadm_r, { sysadm_tty_device_t sysadm_devpts_t })
+	vpn_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	webalizer_run(sysadm_t, sysadm_r)
+')
+
+optional_policy(`
+	wireshark_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	xserver_role(sysadm_r, sysadm_t)
+')
+
+optional_policy(`
+	yam_run(sysadm_t, sysadm_r)
 ')

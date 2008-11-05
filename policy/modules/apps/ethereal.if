@@ -1,244 +1,55 @@
 ## <summary>Ethereal packet capture tool.</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the ethereal module.
+##	Role access for ethereal
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for ethereal packet capture tool.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`ethereal_per_role_template',`
-
+interface(`ethereal_role',`
 	gen_require(`
-		type ethereal_exec_t;
+		type ethereal_t, ethereal_exec_t, ethereal_home_t;
 	')
 
-	##############################
-	#
-	# Declarations
-	#
+	role $1 types ethereal_t;
 
-	# Type for program
-	type $1_ethereal_t;
-	application_domain($1_ethereal_t, ethereal_exec_t)
-	role $3 types $1_ethereal_t;
+	domain_auto_trans($2, ethereal_exec_t, ethereal_t)
+	allow ethereal_t $2:fd use;
+	allow ethereal_t $2:process sigchld;
 
-	type $1_ethereal_home_t alias $1_ethereal_rw_t;
-	files_poly_member($1_ethereal_home_t)
-	userdom_user_home_content($1, $1_ethereal_home_t)
-
-	type $1_ethereal_tmp_t;
-	files_tmp_file($1_ethereal_tmp_t)
-
-	type $1_ethereal_tmpfs_t;
-	files_tmpfs_file($1_ethereal_tmpfs_t)
-
-	##############################
-	#
-	# Local Policy
-	#
-
-	allow $1_ethereal_t self:capability { net_admin net_raw setgid };
-	allow $1_ethereal_t self:process { signal getsched };
-	allow $1_ethereal_t self:fifo_file { getattr read write };
-	allow $1_ethereal_t self:shm destroy;
-	allow $1_ethereal_t self:shm create_shm_perms;
-	allow $1_ethereal_t self:netlink_route_socket { nlmsg_read create_socket_perms };
-	allow $1_ethereal_t self:packet_socket { setopt bind ioctl getopt create read };
-	allow $1_ethereal_t self:tcp_socket create_socket_perms;
-	allow $1_ethereal_t self:udp_socket create_socket_perms;
-
-	# Re-execute itself (why?)
-	can_exec($1_ethereal_t, ethereal_exec_t)
-	corecmd_search_bin($1_ethereal_t)
-
-	# /home/.ethereal
-	manage_dirs_pattern($1_ethereal_t, $1_ethereal_home_t, $1_ethereal_home_t)
-	manage_files_pattern($1_ethereal_t, $1_ethereal_home_t, $1_ethereal_home_t)
-	manage_lnk_files_pattern($1_ethereal_t, $1_ethereal_home_t, $1_ethereal_home_t)
-	userdom_user_home_dir_filetrans($1, $1_ethereal_t, $1_ethereal_home_t, dir)
-
-	# Store temporary files
-	manage_dirs_pattern($1_ethereal_t, $1_ethereal_tmp_t, $1_ethereal_tmp_t)
-	manage_files_pattern($1_ethereal_t, $1_ethereal_tmp_t, $1_ethereal_tmp_t)
-	files_tmp_filetrans($1_ethereal_t, $1_ethereal_tmp_t, { dir file })
-
-	manage_dirs_pattern($1_ethereal_t, $1_ethereal_tmpfs_t, $1_ethereal_tmpfs_t)
-	manage_files_pattern($1_ethereal_t, $1_ethereal_tmpfs_t, $1_ethereal_tmpfs_t)
-	manage_lnk_files_pattern($1_ethereal_t, $1_ethereal_tmpfs_t, $1_ethereal_tmpfs_t)
-	manage_sock_files_pattern($1_ethereal_t, $1_ethereal_tmpfs_t, $1_ethereal_tmpfs_t)
-	manage_fifo_files_pattern($1_ethereal_t, $1_ethereal_tmpfs_t, $1_ethereal_tmpfs_t)
-	fs_tmpfs_filetrans($1_ethereal_t, $1_ethereal_tmpfs_t, { dir file lnk_file sock_file fifo_file })
-
-	domain_auto_trans($2, ethereal_exec_t, $1_ethereal_t)
-	allow $1_ethereal_t $2:fd use;
-	allow $1_ethereal_t $2:process sigchld;
-
-	manage_dirs_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-	manage_files_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-	manage_lnk_files_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-	relabel_dirs_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-	relabel_files_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-	relabel_lnk_files_pattern($2, $1_ethereal_home_t, $1_ethereal_home_t)
-
-	kernel_read_kernel_sysctls($1_ethereal_t)
-	kernel_read_system_state($1_ethereal_t)
-	kernel_read_sysctl($1_ethereal_t)
-
-	corecmd_search_bin($1_ethereal_t)
-
-	corenet_tcp_connect_generic_port($1_ethereal_t)
-	corenet_tcp_sendrecv_generic_if($1_ethereal_t)
-
-	dev_read_urand($1_ethereal_t)
-
-	files_read_etc_files($1_ethereal_t)
-	files_read_usr_files($1_ethereal_t)
-
-	fs_list_inotifyfs($1_ethereal_t)
-	fs_search_auto_mountpoints($1_ethereal_t)
-
-	libs_read_lib_files($1_ethereal_t)
-
-	miscfiles_read_fonts($1_ethereal_t)
-	miscfiles_read_localization($1_ethereal_t)
-
-	seutil_use_newrole_fds($1_ethereal_t)
-
-	sysnet_read_config($1_ethereal_t)
-
-	userdom_manage_user_home_content_files($1, $1_ethereal_t)
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_ethereal_t)
-		fs_manage_nfs_files($1_ethereal_t)
-		fs_manage_nfs_symlinks($1_ethereal_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_ethereal_t)
-		fs_manage_cifs_files($1_ethereal_t)
-		fs_manage_cifs_symlinks($1_ethereal_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_ethereal_t)
-	')
-
-	# Manual transition from userhelper 
-	optional_policy(`
-		userhelper_use_user_fd($1, $1_ethereal_t)
-		userhelper_sigchld_user($1, $1_ethereal_t)
-	')
-
-	optional_policy(`
-		xserver_user_x_domain_template($1, $1_ethereal, $1_ethereal_t, $1_ethereal_tmpfs_t)
-		xserver_create_xdm_tmp_sockets($1_ethereal_t)
-	')
-
-	ifdef(`TODO',`
-		# Why does it write this?
-		optional_policy(`
-			dontaudit sysadm_ethereal_t snmpd_var_lib_t:file write;
-		')
-		#TODO
-		gnome_application($1_ethereal, $1)
-		gnome_file_dialog($1_ethereal, $1)
-		# FIXME: policy is incomplete
-	')
-
-')
-
-#######################################
-## <summary>
-##	The administrative functions template for the ethereal module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates rules for administrating ethereal,
-##	allowing the specified user to manage ethereal files.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-#
-template(`ethereal_admin_template',`
-	gen_require(`
-		type $1_ethereal_t;
-	')
-
-	# Create various types of sockets
-	allow $1_ethereal_t self:netlink_route_socket create_netlink_socket_perms;
-	allow $1_ethereal_t self:udp_socket create_socket_perms;
-	allow $1_ethereal_t self:packet_socket create_socket_perms;
-	allow $1_ethereal_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_ethereal_t self:tcp_socket create_socket_perms;
-
-	userdom_use_user_terminals($1, $1_ethereal_t)
-	# Ethereal tries to write to user terminal
-	userdom_dontaudit_use_user_terminals($1, $1_ethereal_t)
+	manage_dirs_pattern($2, ethereal_home_t, ethereal_home_t)
+	manage_files_pattern($2, ethereal_home_t, ethereal_home_t)
+	manage_lnk_files_pattern($2, ethereal_home_t, ethereal_home_t)
+	relabel_dirs_pattern($2, ethereal_home_t, ethereal_home_t)
+	relabel_files_pattern($2, ethereal_home_t, ethereal_home_t)
+	relabel_lnk_files_pattern($2, ethereal_home_t, ethereal_home_t)
 ')
 
 ########################################
 ## <summary>
 ##	Run ethereal in ethereal domain.
 ## </summary>
-## <desc>
-##	<p>
-##	Run ethereal in ethereal domain.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`ethereal_domtrans_user_ethereal',`
+interface(`ethereal_domtrans',`
 	gen_require(`
-		type $1_ethereal_t, ethereal_exec_t;
+		type ethereal_t, ethereal_exec_t;
 	')
 
-	domtrans_pattern($2, ethereal_exec_t, $1_ethereal_t)
+	domtrans_pattern($1, ethereal_exec_t, ethereal_t)
 ')
 
 ########################################
@@ -251,7 +62,7 @@ template(`ethereal_domtrans_user_ethereal',`
 ##	</summary>
 ## </param>
 #
-template(`ethereal_domtrans_tethereal',`
+interface(`ethereal_domtrans_tethereal',`
 	gen_require(`
 		type tethereal_t, tethereal_exec_t;
 	')
@@ -274,11 +85,6 @@ template(`ethereal_domtrans_tethereal',`
 ##	The role to be allowed the tethereal domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the tethereal domain to use.
-##	</summary>
-## </param>
 #
 interface(`ethereal_run_tethereal',`
 	gen_require(`
@@ -287,5 +93,4 @@ interface(`ethereal_run_tethereal',`
 
 	ethereal_domtrans_tethereal($1)
 	role $2 types tethereal_t;
-	allow tethereal_t $3:chr_file rw_term_perms;
 ')

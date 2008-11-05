@@ -2,16 +2,11 @@
 
 #######################################
 ## <summary>
-##      The userdomain template for the SE-PostgreSQL.
+##      Role access for SE-PostgreSQL.
 ## </summary>
-## <desc>
-##      This template creates a delivered types which are used
-##	for given userdomains.
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="user_role">
 ##      <summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
+##      The role associated with the user domain.
 ##      </summary>
 ## </param>
 ## <param name="user_domain">
@@ -19,13 +14,8 @@
 ##      The type of the user domain.
 ##      </summary>
 ## </param>
-## <param name="user_role">
-##      <summary>
-##      The role associated with the user domain.
-##      </summary>
-## </param>
 #
-template(`postgresql_userdom_template',`
+interface(`postgresql_role',`
 	gen_require(`
 		class db_database all_db_database_perms;
 		class db_table all_db_table_perms;
@@ -38,6 +28,8 @@ template(`postgresql_userdom_template',`
 		attribute sepgsql_sysobj_table_type;
 
 		type sepgsql_trusted_proc_exec_t, sepgsql_trusted_proc_t;
+		type user_sepgsql_blob_t, user_sepgsql_proc_exec_t;
+		type user_sepgsql_sysobj_t, user_sepgsql_table_t;
 	')
 
 	########################################
@@ -46,20 +38,7 @@ template(`postgresql_userdom_template',`
 	#
 
 	typeattribute $2 sepgsql_client_type;
-
-	type $1_sepgsql_blob_t;
-	postgresql_blob_object($1_sepgsql_blob_t)
-
-	type $1_sepgsql_proc_exec_t;
-	postgresql_procedure_object($1_sepgsql_proc_exec_t)
-
-	type $1_sepgsql_sysobj_t;
-	postgresql_system_table_object($1_sepgsql_sysobj_t)
-
-	type $1_sepgsql_table_t;
-	postgresql_table_object($1_sepgsql_table_t)
-
-	role $3 types sepgsql_trusted_proc_t;
+	role $1 types sepgsql_trusted_proc_t;
 
 	##############################
 	#
@@ -67,25 +46,25 @@ template(`postgresql_userdom_template',`
 	#
 
 	tunable_policy(`sepgsql_enable_users_ddl',`
-		allow $2 $1_sepgsql_table_t:db_table { create drop };
-		type_transition $2 sepgsql_database_type:db_table $1_sepgsql_table_t;
+		allow $2 user_sepgsql_table_t:db_table { create drop };
+		type_transition $2 sepgsql_database_type:db_table user_sepgsql_table_t;
 
-		allow $2 $1_sepgsql_table_t:db_column { create drop };
+		allow $2 user_sepgsql_table_t:db_column { create drop };
 
-		allow $2 $1_sepgsql_sysobj_t:db_tuple { update insert delete };
-		type_transition $2 sepgsql_sysobj_table_type:db_tuple $1_sepgsql_sysobj_t;
+		allow $2 user_sepgsql_sysobj_t:db_tuple { update insert delete };
+		type_transition $2 sepgsql_sysobj_table_type:db_tuple user_sepgsql_sysobj_t;
 	')
 
-	allow $2 $1_sepgsql_table_t:db_table { getattr setattr use select update insert delete };
-	allow $2 $1_sepgsql_table_t:db_column { getattr setattr use select update insert };
-	allow $2 $1_sepgsql_table_t:db_tuple { use select update insert delete };
-	allow $2 $1_sepgsql_sysobj_t:db_tuple { use select };
+	allow $2 user_sepgsql_table_t:db_table  { getattr setattr use select update insert delete };
+	allow $2 user_sepgsql_table_t:db_column { getattr setattr use select update insert };
+	allow $2 user_sepgsql_table_t:db_tuple  { use select update insert delete };
+	allow $2 user_sepgsql_sysobj_t:db_tuple  { use select };
 
-	allow $2 $1_sepgsql_proc_exec_t:db_procedure { create drop getattr setattr execute };
-	type_transition $2 sepgsql_database_type:db_procedure $1_sepgsql_proc_exec_t;
+	allow $2 user_sepgsql_proc_exec_t:db_procedure { create drop getattr setattr execute };
+	type_transition $2 sepgsql_database_type:db_procedure user_sepgsql_proc_exec_t;
 
-	allow $2 $1_sepgsql_blob_t:db_blob { create drop getattr setattr read write };
-	type_transition $2 sepgsql_database_type:db_blob $1_sepgsql_blob_t;
+	allow $2 user_sepgsql_blob_t:db_blob { create drop getattr setattr read write };
+	type_transition $2 sepgsql_database_type:db_blob user_sepgsql_blob_t;
 
 	allow $2 sepgsql_trusted_proc_t:process transition;
 	type_transition $2 sepgsql_trusted_proc_exec_t:process sepgsql_trusted_proc_t;

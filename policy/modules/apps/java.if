@@ -1,218 +1,70 @@
 ## <summary>Java virtual machine</summary>
 
-#######################################
-## <summary>
-##	The per role template for the java module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for java plugins that are executed by a browser.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
-#
-template(`java_per_role_template',`
-	gen_require(`
-		type java_exec_t;
-	')
-
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_javaplugin_t;
-	application_domain($1_javaplugin_t, java_exec_t)
-	role $3 types $1_javaplugin_t;
-
-	type $1_javaplugin_tmp_t;
-	files_tmp_file($1_javaplugin_tmp_t)
-
-	type $1_javaplugin_tmpfs_t;
-	files_tmpfs_file($1_javaplugin_tmpfs_t)
-
-	########################################
-	#
-	# Local policy
-	#
-
-	allow $1_javaplugin_t self:process { signal_perms getsched setsched execmem };
-	allow $1_javaplugin_t self:fifo_file rw_fifo_file_perms;
-	allow $1_javaplugin_t self:tcp_socket create_socket_perms;
-	allow $1_javaplugin_t self:udp_socket create_socket_perms;
-
-	allow $1_javaplugin_t $2:unix_stream_socket connectto;
-	allow $1_javaplugin_t $2:unix_stream_socket { read write };
-	userdom_write_user_tmp_sockets($1, $1_javaplugin_t)
-
-	manage_dirs_pattern($1_javaplugin_t, $1_javaplugin_tmp_t, $1_javaplugin_tmp_t)
-	manage_files_pattern($1_javaplugin_t, $1_javaplugin_tmp_t, $1_javaplugin_tmp_t)
-	files_tmp_filetrans($1_javaplugin_t, $1_javaplugin_tmp_t, { file dir })
-
-	manage_files_pattern($1_javaplugin_t, $1_javaplugin_tmpfs_t, $1_javaplugin_tmpfs_t)
-	manage_lnk_files_pattern($1_javaplugin_t, $1_javaplugin_tmpfs_t, $1_javaplugin_tmpfs_t)
-	manage_fifo_files_pattern($1_javaplugin_t, $1_javaplugin_tmpfs_t, $1_javaplugin_tmpfs_t)
-	manage_sock_files_pattern($1_javaplugin_t, $1_javaplugin_tmpfs_t, $1_javaplugin_tmpfs_t)
-	fs_tmpfs_filetrans($1_javaplugin_t, $1_javaplugin_tmpfs_t, { file lnk_file sock_file fifo_file })
-
-	rw_files_pattern($1_javaplugin_t, $1_home_t, $1_home_t)
-	read_files_pattern($1_javaplugin_t, $1_home_t, $1_home_t)
-
-	can_exec($1_javaplugin_t, java_exec_t)
-
-	# The user role is authorized for this domain.
-	domain_auto_trans($1_t, java_exec_t, $1_javaplugin_t)
-	allow $1_javaplugin_t $2:fd use;
-	# Unrestricted inheritance from the caller.
-	allow $2 $1_javaplugin_t:process { noatsecure siginh rlimitinh };
-	allow $1_javaplugin_t $2:process signull;
-
-	kernel_read_all_sysctls($1_javaplugin_t)
-	kernel_search_vm_sysctl($1_javaplugin_t)
-	kernel_read_network_state($1_javaplugin_t)
-	kernel_read_system_state($1_javaplugin_t)
-
-	# Search bin directory under javaplugin for javaplugin executable
-	corecmd_search_bin($1_javaplugin_t)
-
-	corenet_all_recvfrom_unlabeled($1_javaplugin_t)
-	corenet_all_recvfrom_netlabel($1_javaplugin_t)
-	corenet_tcp_sendrecv_generic_if($1_javaplugin_t)
-	corenet_udp_sendrecv_generic_if($1_javaplugin_t)
-	corenet_tcp_sendrecv_all_nodes($1_javaplugin_t)
-	corenet_udp_sendrecv_all_nodes($1_javaplugin_t)
-	corenet_tcp_sendrecv_all_ports($1_javaplugin_t)
-	corenet_udp_sendrecv_all_ports($1_javaplugin_t)
-	corenet_tcp_connect_all_ports($1_javaplugin_t)
-	corenet_sendrecv_all_client_packets($1_javaplugin_t)
-
-	dev_read_sound($1_javaplugin_t)
-	dev_write_sound($1_javaplugin_t)
-	dev_read_urand($1_javaplugin_t)
-	dev_read_rand($1_javaplugin_t)
-
-	files_read_etc_files($1_javaplugin_t)
-	files_read_usr_files($1_javaplugin_t)
-	files_search_home($1_javaplugin_t)
-	files_search_var_lib($1_javaplugin_t)
-	files_read_etc_runtime_files($1_javaplugin_t)
-	# Read global fonts and font config
-	files_read_etc_files($1_javaplugin_t)
-
-	fs_getattr_xattr_fs($1_javaplugin_t)
-	fs_dontaudit_rw_tmpfs_files($1_javaplugin_t)
-
-	logging_send_syslog_msg($1_javaplugin_t)
-
-	miscfiles_read_localization($1_javaplugin_t)
-	# Read global fonts and font config
-	miscfiles_read_fonts($1_javaplugin_t)
-
-	sysnet_read_config($1_javaplugin_t)
-
-	userdom_dontaudit_use_user_terminals($1, $1_javaplugin_t)
-	userdom_dontaudit_setattr_user_home_content_files($1, $1_javaplugin_t)
-	userdom_dontaudit_exec_user_home_content_files($1, $1_javaplugin_t)
-	userdom_manage_user_home_content_dirs($1, $1_javaplugin_t)
-	userdom_manage_user_home_content_files($1, $1_javaplugin_t)
-	userdom_manage_user_home_content_symlinks($1, $1_javaplugin_t)
-	userdom_manage_user_home_content_pipes($1, $1_javaplugin_t)
-	userdom_manage_user_home_content_sockets($1, $1_javaplugin_t)
-	userdom_user_home_dir_filetrans_user_home_content($1, $1_javaplugin_t, { file lnk_file sock_file fifo_file })
-
-	tunable_policy(`allow_java_execstack',`
-		allow $1_javaplugin_t self:process execstack;
-
-		allow $1_javaplugin_t $1_javaplugin_tmp_t:file execute;
-
-		libs_legacy_use_shared_libs($1_javaplugin_t)
-		libs_legacy_use_ld_so($1_javaplugin_t)
-
-		miscfiles_legacy_read_localization($1_javaplugin_t)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1_javaplugin_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_javaplugin_t)
-	')
-
-	optional_policy(`
-		xserver_user_x_domain_template($1, $1_javaplugin, $1_javaplugin_t, $1_javaplugin_tmpfs_t)
-	')
-')
-
 ########################################
 ## <summary>
-##	Run java in javaplugin domain.
+##	Role access for java
 ## </summary>
-## <desc>
-##	<p>
-##	Run java in javaplugin domain.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
 ## <param name="domain">
 ##	<summary>
-##	Domain allowed access.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`java_domtrans_user_javaplugin',`
-	gen_require(`
-		type $1_javaplugin_t, java_exec_t;
-	')
-
-	domtrans_pattern($2, java_exec_t, $1_javaplugin_t)
-')
-
-########################################
-## <summary>
-##	Execute the java program in the java domain.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`java_domtrans',`
+interface(`java_role',`
 	gen_require(`
 		type java_t, java_exec_t;
 	')
 
-	corecmd_search_bin($1)
+	role $1 types java_t;
+
+	# The user role is authorized for this domain.
+	domtrans_pattern($2, java_exec_t, java_t)
+	allow java_t $2:process signull;
+	# Unrestricted inheritance from the caller.
+	allow $2 java_t:process { noatsecure siginh rlimitinh };
+
+	allow java_t $2:unix_stream_socket connectto;
+	allow java_t $2:unix_stream_socket { read write };
+')
+
+########################################
+## <summary>
+##	Run java in javaplugin domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`java_domtrans',`
+	gen_require(`
+		type java_t, java_exec_t;
+	')
+
 	domtrans_pattern($1, java_exec_t, java_t)
+')
+
+########################################
+## <summary>
+##	Execute the java program in the unconfined java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_domtrans_unconfined',`
+	gen_require(`
+		type unconfined_java_t, java_exec_t;
+	')
+
+	domtrans_pattern($1, java_exec_t, unconfined_java_t)
+	corecmd_search_bin($1)
 ')

@@ -125,29 +125,12 @@ template(`su_restricted_domain_template', `
 
 #######################################
 ## <summary>
-##	The per role template for the su module.
+##	The role template for the su module.
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domain which is allowed
-##	to change the linux user id, to run shells as a different
-##	user.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role_prefix">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
 ## <param name="user_role">
@@ -155,8 +138,13 @@ template(`su_restricted_domain_template', `
 ##	The role associated with the user domain.
 ##	</summary>
 ## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
 #
-template(`su_per_role_template',`
+template(`su_role_template',`
 	gen_require(`
 		attribute su_domain_type;
 		type su_exec_t;
@@ -167,9 +155,10 @@ template(`su_per_role_template',`
 	domain_entry_file($1_su_t,su_exec_t)
 	domain_type($1_su_t)
 	domain_interactive_fd($1_su_t)
-	role $3 types $1_su_t;
+	ubac_constrained($1_su_t)
+	role $2 types $1_su_t;
 
-	allow $2 $1_su_t:process signal;
+	allow $3 $1_su_t:process signal;
 
 	allow $1_su_t self:capability { audit_control audit_write setuid setgid net_bind_service chown dac_override fowner sys_nice sys_resource };
 	dontaudit $1_su_t self:capability sys_tty_config;
@@ -179,13 +168,15 @@ template(`su_per_role_template',`
 	allow $1_su_t self:key { search write };
 
 	# Transition from the user domain to this domain.
-	domtrans_pattern($2, su_exec_t, $1_su_t)
+	domtrans_pattern($3, su_exec_t, $1_su_t)
+
+	ps_process_pattern($3, $1_su_t)
 
 	# By default, revert to the calling domain when a shell is executed.
-	corecmd_shell_domtrans($1_su_t, $2)
-	allow $2 $1_su_t:fd use;
-	allow $2 $1_su_t:fifo_file rw_file_perms;
-	allow $2 $1_su_t:process sigchld;
+	corecmd_shell_domtrans($1_su_t, $3)
+	allow $3 $1_su_t:fd use;
+	allow $3 $1_su_t:fifo_file rw_file_perms;
+	allow $3 $1_su_t:process sigchld;
 
 	kernel_read_system_state($1_su_t)
 	kernel_read_kernel_sysctls($1_su_t)
@@ -200,7 +191,7 @@ template(`su_per_role_template',`
 	# needed for pam_rootok
 	selinux_compute_access_vector($1_su_t)
 
-	auth_domtrans_user_chk_passwd($1, $1_su_t)
+	auth_domtrans_chk_passwd($1_su_t)
 	auth_dontaudit_read_shadow($1_su_t)
 	auth_use_nsswitch($1_su_t)
 	auth_rw_faillog($1_su_t)
@@ -224,8 +215,8 @@ template(`su_per_role_template',`
 
 	miscfiles_read_localization($1_su_t)
 
-	userdom_use_user_terminals($1, $1_su_t)
-	userdom_search_user_home_dirs($1, $1_su_t)
+	userdom_use_user_terminals($1_su_t)
+	userdom_search_user_home_dirs($1_su_t)
 
 	ifdef(`distro_rhel4',`
 		domain_role_change_exemption($1_su_t)
@@ -285,17 +276,9 @@ template(`su_per_role_template',`
 
 	# Modify .Xauthority file (via xauth program).
 	optional_policy(`
-		xserver_user_home_dir_filetrans_user_xauth($1, su_domain_type)
-		xserver_domtrans_user_xauth($1, $1_su_t)
+		xserver_user_home_dir_filetrans_user_xauth($1_su_t)
+		xserver_domtrans_xauth($1_su_t)
 	')
-
-	ifdef(`TODO',`
-	allow $1_su_t $1_home_t:file manage_file_perms;
-
-	# Access sshd cookie files.
-	allow $1_su_t sshd_tmp_t:file rw_file_perms;
-	file_type_auto_trans($1_su_t, sshd_tmp_t, $1_tmp_t)
-	') dnl end TODO
 ')
 
 #######################################

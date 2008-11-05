@@ -1,503 +1,85 @@
 ## <summary>Mplayer media player and encoder</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the mplayer module.
+##	Role access for mplayer
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for mplayer media player.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`mplayer_per_role_template',`
+interface(`mplayer_role',`
 	gen_require(`
-		type mencoder_exec_t, mplayer_exec_t, mplayer_etc_t;
+		type mencoder_t, mencoder_exec_t;
+		type mplayer_t, mplayer_exec_t;
+		type mplayer_home_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_mencoder_t;
-	application_domain($1_mencoder_t, mencoder_exec_t)
-	role $3 types $1_mencoder_t;
-
-	type $1_mplayer_t;
-	application_domain($1_mplayer_t, mplayer_exec_t)
-	role $3 types $1_mplayer_t;
-
-	type $1_mplayer_home_t alias $1_mplayer_rw_t;
-	files_poly_member($1_mplayer_home_t)
-	userdom_user_home_content($1,$1_mplayer_home_t)
-
-	type $1_mplayer_tmpfs_t;
-	files_tmpfs_file($1_mplayer_tmpfs_t)
-
-	########################################
-	#
-	# mencoder local policy
-	#
-
-	manage_dirs_pattern($1_mencoder_t, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_files_pattern($1_mencoder_t, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_lnk_files_pattern($1_mencoder_t, $1_mplayer_home_t, $1_mplayer_home_t)
-
-	# Read global config
-	allow $1_mencoder_t mplayer_etc_t:dir list_dir_perms;
-	read_files_pattern($1_mencoder_t, mplayer_etc_t, mplayer_etc_t)
-	read_lnk_files_pattern($1_mencoder_t, mplayer_etc_t, mplayer_etc_t)
+	role $1 types { mencoder_t mplayer_t };
 
 	# domain transition
-	domtrans_pattern($2, mencoder_exec_t, $1_mencoder_t)
+	domtrans_pattern($2, mencoder_exec_t, mencoder_t)
 
 	# Allow the user domain to signal/ps.
-	ps_process_pattern($2,$1_mencoder_t)
-	allow $2 $1_mencoder_t:process signal_perms;
-
-	# Read /proc files and directories
-	# Necessary for /proc/meminfo, /proc/cpuinfo, etc..
-	kernel_read_system_state($1_mencoder_t)
-	# Sysctl on kernel version 
-	kernel_read_kernel_sysctls($1_mencoder_t)
-
-	# Required for win32 binary loader 
-	dev_rwx_zero($1_mencoder_t)
-	# Access to DVD/CD/V4L
-	dev_read_video_dev($1_mencoder_t)
-
-	# Read data in /usr/share (fonts, icons..)
-	files_read_usr_files($1_mencoder_t)
-	files_read_usr_symlinks($1_mencoder_t)
-
-	fs_search_auto_mountpoints($1_mencoder_t)
-
-	# Access to DVD/CD/V4L
-	storage_raw_read_removable_device($1_mencoder_t)
-
-	miscfiles_read_localization($1_mencoder_t)
-
-	userdom_use_user_terminals($1,$1_mencoder_t)
-	# Handle removable media, /tmp, and /home
-	userdom_list_user_tmp($1,$1_mencoder_t)
-	userdom_read_user_tmp_files($1,$1_mencoder_t)
-	userdom_read_user_tmp_symlinks($1,$1_mencoder_t)
-	userdom_read_user_home_content_files($1,$1_mencoder_t)
-	userdom_read_user_home_content_symlinks($1,$1_mencoder_t)
-
-	# Read content to encode
-	ifdef(`enable_mls',`',`
-		fs_search_removable($1_mencoder_t)
-		fs_read_removable_files($1_mencoder_t)
-		fs_read_removable_symlinks($1_mencoder_t)
-	')
-
-	tunable_policy(`allow_execmem',`
-		allow $1_mencoder_t self:process execmem;
-	')
-
-	tunable_policy(`allow_execmod',`
-		dev_execmod_zero($1_mencoder_t)
-	')
-
-	tunable_policy(`allow_mplayer_execstack',`
-		allow $1_mencoder_t self:process { execmem execstack };
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_mencoder_t)
-		fs_manage_nfs_files($1_mencoder_t)
-		fs_manage_nfs_symlinks($1_mencoder_t)
-
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_mencoder_t)
-		fs_manage_cifs_files($1_mencoder_t)
-		fs_manage_cifs_symlinks($1_mencoder_t)
-
-	')
-
-	# Read content to encode
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_list_auto_mountpoints($1_mencoder_t)
-		files_list_home($1_mencoder_t)
-		fs_read_nfs_files($1_mencoder_t)
-		fs_read_nfs_symlinks($1_mencoder_t)
-
-	',`
-		files_dontaudit_list_home($1_mencoder_t)
-		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
-		fs_dontaudit_read_nfs_files($1_mencoder_t)
-		fs_dontaudit_list_nfs($1_mencoder_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_list_auto_mountpoints($1_mencoder_t)
-		files_list_home($1_mencoder_t)
-		fs_read_cifs_files($1_mencoder_t)
-		fs_read_cifs_symlinks($1_mencoder_t)
-	',`
-		files_dontaudit_list_home($1_mencoder_t)
-		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
-		fs_dontaudit_read_cifs_files($1_mencoder_t)
-		fs_dontaudit_list_cifs($1_mencoder_t)
-	')
-
-	tunable_policy(`read_default_t',`
-		files_list_default($1_mencoder_t)
-		files_read_default_files($1_mencoder_t)
-		files_read_default_symlinks($1_mencoder_t)
-	',`
-		files_dontaudit_read_default_files($1_mencoder_t)
-		files_dontaudit_list_default($1_mencoder_t)
-	')
-
-	tunable_policy(`read_untrusted_content',`
-		files_list_tmp($1_mencoder_t)
-		files_list_home($1_mencoder_t)
-
-		userdom_list_user_untrusted_content($1, $1_mencoder_t)
-		userdom_read_user_untrusted_content_files($1, $1_mencoder_t)
-		userdom_read_user_untrusted_content_symlinks($1, $1_mencoder_t)
-		userdom_list_user_tmp_untrusted_content($1, $1_mencoder_t)
-		userdom_read_user_tmp_untrusted_content_files($1, $1_mencoder_t)
-		userdom_read_user_tmp_untrusted_content_symlinks($1, $1_mencoder_t)
-	',`
-		files_dontaudit_list_tmp($1_mencoder_t)
-		files_dontaudit_list_home($1_mencoder_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_mencoder_t)
-		userdom_dontaudit_list_user_untrusted_content($1, $1_mencoder_t)
-		userdom_dontaudit_read_user_untrusted_content_files($1, $1_mencoder_t)
-		userdom_dontaudit_list_user_tmp_untrusted_content($1, $1_mencoder_t)
-		userdom_dontaudit_read_user_tmp_untrusted_content_files($1, $1_mencoder_t)
-	')
-
-	tunable_policy(`write_untrusted_content',`
-		userdom_manage_user_untrusted_content_files($1, $1_mplayer_t)
-	')
-
-	# Save encoded files
-	tunable_policy(`write_untrusted_content && use_nfs_home_dirs',`
-		files_search_home($1_mencoder_t)
-
-		fs_search_auto_mountpoints($1_mencoder_t)
-		fs_manage_nfs_dirs($1_mencoder_t)
-		fs_manage_nfs_files($1_mencoder_t)
-		fs_manage_nfs_symlinks($1_mencoder_t)
-	',`
-		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
-		fs_dontaudit_manage_nfs_dirs($1_mencoder_t)
-		fs_dontaudit_manage_nfs_files($1_mencoder_t)
-	')
-
-	tunable_policy(`write_untrusted_content && use_samba_home_dirs',`
-		files_search_home($1_mencoder_t)
-
-		fs_search_auto_mountpoints($1_mencoder_t)
-		fs_manage_cifs_dirs($1_mencoder_t)
-		fs_manage_cifs_files($1_mencoder_t)
-		fs_manage_cifs_symlinks($1_mencoder_t)
-	',`
-		fs_dontaudit_list_auto_mountpoints($1_mencoder_t)
-		fs_dontaudit_manage_cifs_dirs($1_mencoder_t)
-		fs_dontaudit_manage_cifs_files($1_mencoder_t)
-	')
-
-	tunable_policy(`write_untrusted_content',`
-		files_search_home($1_mencoder_t)
-		files_tmp_filetrans($1_mencoder_t, $1_untrusted_content_tmp_t, file)
-		files_tmp_filetrans($1_mencoder_t, $1_untrusted_content_tmp_t ,dir)
-
-		userdom_manage_user_untrusted_content_dirs($1, $1_mencoder_t)
-		userdom_manage_user_untrusted_content_files($1, $1_mencoder_t)
-	',`
-		files_dontaudit_list_home($1_mencoder_t)
-		files_dontaudit_list_tmp($1_mencoder_t)
-
-		userdom_dontaudit_list_user_home_dirs($1, $1_mencoder_t)
-		userdom_dontaudit_manage_user_tmp_files($1, $1_mencoder_t)
-		userdom_dontaudit_manage_user_home_content_dirs($1, $1_mencoder_t)
-	')
-
-	########################################
-	#
-	# mplayer local policy
-	#
-
-	allow $1_mplayer_t self:process { signal_perms getsched };
-	allow $1_mplayer_t self:fifo_file rw_fifo_file_perms;
- 	allow $1_mplayer_t self:sem create_sem_perms;
-
-	manage_dirs_pattern($1_mplayer_t, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_files_pattern($1_mplayer_t, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_lnk_files_pattern($1_mplayer_t, $1_mplayer_home_t, $1_mplayer_home_t)
-	userdom_search_user_home_dirs($1, $1_mplayer_t)
-
-	manage_files_pattern($1_mplayer_t, $1_mplayer_tmpfs_t, $1_mplayer_tmpfs_t)
-	manage_lnk_files_pattern($1_mplayer_t, $1_mplayer_tmpfs_t, $1_mplayer_tmpfs_t)
-	manage_fifo_files_pattern($1_mplayer_t, $1_mplayer_tmpfs_t, $1_mplayer_tmpfs_t)
-	manage_sock_files_pattern($1_mplayer_t, $1_mplayer_tmpfs_t, $1_mplayer_tmpfs_t)
-	fs_tmpfs_filetrans($1_mplayer_t, $1_mplayer_tmpfs_t, { dir file lnk_file sock_file fifo_file })
-
-	# Read global config
-	allow $1_mplayer_t mplayer_etc_t:dir list_dir_perms;
-	read_files_pattern($1_mplayer_t, mplayer_etc_t, mplayer_etc_t)
-	read_lnk_files_pattern($1_mplayer_t, mplayer_etc_t, mplayer_etc_t)
+	ps_process_pattern($2, mencoder_t)
+	allow $2 mencoder_t:process signal_perms;
 
 	# Home access
-	manage_dirs_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_files_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
-	manage_lnk_files_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
-	relabel_dirs_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
-	relabel_files_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
-	relabel_lnk_files_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
+	manage_dirs_pattern($2, mplayer_home_t, mplayer_home_t)
+	manage_files_pattern($2, mplayer_home_t, mplayer_home_t)
+	manage_lnk_files_pattern($2, mplayer_home_t, mplayer_home_t)
+	relabel_dirs_pattern($2, mplayer_home_t, mplayer_home_t)
+	relabel_files_pattern($2, mplayer_home_t, mplayer_home_t)
+	relabel_lnk_files_pattern($2, mplayer_home_t, mplayer_home_t)
 
 	# domain transition
-	domtrans_pattern($2, mplayer_exec_t, $1_mplayer_t)
+	domtrans_pattern($2, mplayer_exec_t, mplayer_t)
 
 	# Allow the user domain to signal/ps.
-	ps_process_pattern($2,$1_mplayer_t)
-	allow $2 $1_mplayer_t:process signal_perms;
-
-	kernel_dontaudit_list_unlabeled($1_mplayer_t)
-	kernel_dontaudit_getattr_unlabeled_files($1_mplayer_t)
-	kernel_dontaudit_read_unlabeled_files($1_mplayer_t)
-	# Necessary for /proc/meminfo, /proc/cpuinfo, etc..
-	kernel_read_system_state($1_mplayer_t)
-	# Sysctl on kernel version 
-	kernel_read_kernel_sysctls($1_mplayer_t)
-
-	# Run bash/sed (??) 
-	corecmd_exec_bin($1_mplayer_t)
-	corecmd_exec_shell($1_mplayer_t)
-
-	# Required for win32 binary loader 
-	dev_rwx_zero($1_mplayer_t)
-	# Access to DVD/CD/V4L
-	dev_read_video_dev($1_mplayer_t)
-	# Audio, alsa.conf
-	dev_read_sound_mixer($1_mplayer_t)
-	dev_write_sound_mixer($1_mplayer_t)
-	# RTC clock 
-	dev_read_realtime_clock($1_mplayer_t)
-
-	# Access to DVD/CD/V4L
-	storage_raw_read_removable_device($1_mplayer_t)
-
-	files_read_etc_files($1_mplayer_t)
-	files_dontaudit_list_non_security($1_mplayer_t)
-	files_dontaudit_getattr_non_security_files($1_mplayer_t)
-	files_read_non_security_files($1_mplayer_t)
-	# Unfortunately the ancient file dialog starts in /
-	files_list_home($1_mplayer_t)
-	# Read /etc/mtab
-	files_read_etc_runtime_files($1_mplayer_t)
-	# Read data in /usr/share (fonts, icons..)
-	files_read_usr_files($1_mplayer_t)
-	files_read_usr_symlinks($1_mplayer_t)
-
-	fs_dontaudit_getattr_all_fs($1_mplayer_t)
-	fs_search_auto_mountpoints($1_mplayer_t)
-	fs_list_inotifyfs($1_mplayer_t)
-
-	miscfiles_read_localization($1_mplayer_t)
-	miscfiles_read_fonts($1_mplayer_t)
-
-	userdom_use_user_terminals($1, $1_mplayer_t)
-	# Read media files
-	userdom_list_user_tmp($1, $1_mplayer_t)
-	userdom_read_user_tmp_files($1, $1_mplayer_t)
-	userdom_read_user_tmp_symlinks($1, $1_mplayer_t)
-	userdom_read_user_home_content_files($1, $1_mplayer_t)
-	userdom_read_user_home_content_symlinks($1, $1_mplayer_t)
-
-	xserver_user_x_domain_template($1, $1_mplayer, $1_mplayer_t, $1_mplayer_tmpfs_t)
-
-	# Read songs
-	ifdef(`enable_mls',`',`
-		fs_search_removable($1_mplayer_t)
-		fs_read_removable_files($1_mplayer_t)
-		fs_read_removable_symlinks($1_mplayer_t)
-	')
-
-	tunable_policy(`allow_execmem',`
-		allow $1_mplayer_t self:process execmem;
-	')
-
-	tunable_policy(`allow_execmod',`
-		dev_execmod_zero($1_mplayer_t)
-	')
-
-	tunable_policy(`allow_mplayer_execstack',`
-		allow $1_mplayer_t self:process { execmem execstack };
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_mplayer_t)
-		fs_manage_nfs_files($1_mplayer_t)
-		fs_manage_nfs_symlinks($1_mplayer_t)
-	')
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_mplayer_t)
-		fs_manage_cifs_files($1_mplayer_t)
-		fs_manage_cifs_symlinks($1_mplayer_t)
-	')
-
-	# Legacy domain issues
-	tunable_policy(`allow_mplayer_execstack',`
-		allow $1_mplayer_t $1_mplayer_tmpfs_t:file execute;
-	')
-
-	# Read songs
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_list_auto_mountpoints($1_mplayer_t)
-		files_list_home($1_mplayer_t)
-		fs_read_nfs_files($1_mplayer_t)
-		fs_read_nfs_symlinks($1_mplayer_t)
-
-	',`
-		files_dontaudit_list_home($1_mplayer_t)
-		fs_dontaudit_list_auto_mountpoints($1_mplayer_t)
-		fs_dontaudit_read_nfs_files($1_mplayer_t)
-		fs_dontaudit_list_nfs($1_mplayer_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_list_auto_mountpoints($1_mplayer_t)
-		files_list_home($1_mplayer_t)
-		fs_read_cifs_files($1_mplayer_t)
-		fs_read_cifs_symlinks($1_mplayer_t)
-	',`
-		files_dontaudit_list_home($1_mplayer_t)
-		fs_dontaudit_list_auto_mountpoints($1_mplayer_t)
-		fs_dontaudit_read_cifs_files($1_mplayer_t)
-		fs_dontaudit_list_cifs($1_mplayer_t)
-	')
-
-	tunable_policy(`read_default_t',`
-		files_list_default($1_mplayer_t)
-		files_read_default_files($1_mplayer_t)
-		files_read_default_symlinks($1_mplayer_t)
-	',`
-		files_dontaudit_read_default_files($1_mplayer_t)
-		files_dontaudit_list_default($1_mplayer_t)
-	')
-
-	tunable_policy(`read_untrusted_content',`
-		files_list_tmp($1_mplayer_t)
-		files_list_home($1_mplayer_t)
-
-		userdom_list_user_untrusted_content($1, $1_mplayer_t)
-		userdom_read_user_untrusted_content_files($1, $1_mplayer_t)
-		userdom_read_user_untrusted_content_symlinks($1, $1_mplayer_t)
-		userdom_list_user_tmp_untrusted_content($1, $1_mplayer_t)
-		userdom_read_user_tmp_untrusted_content_files($1, $1_mplayer_t)
-		userdom_read_user_tmp_untrusted_content_symlinks($1, $1_mplayer_t)
-	',`
-		files_dontaudit_list_tmp($1_mplayer_t)
-		files_dontaudit_list_home($1_mplayer_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_mplayer_t)
-		userdom_dontaudit_list_user_untrusted_content($1, $1_mplayer_t)
-		userdom_dontaudit_read_user_untrusted_content_files($1, $1_mplayer_t)
-		userdom_dontaudit_list_user_tmp_untrusted_content($1, $1_mplayer_t)
-		userdom_dontaudit_read_user_tmp_untrusted_content_files($1, $1_mplayer_t)
-	')
-
-	optional_policy(`
-		alsa_read_rw_config($1_mplayer_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_mplayer_t)
-	')
+	ps_process_pattern($2, mplayer_t)
+	allow $2 mplayer_t:process signal_perms;
 ')
 
 ########################################
 ## <summary>
 ##	Run mplayer in mplayer domain.
 ## </summary>
-## <desc>
-##	<p>
-##	Run mplayer in mplayer domain.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mplayer_domtrans_user_mplayer',`
+interface(`mplayer_domtrans',`
 	gen_require(`
-		type $1_mplayer_t, mplayer_exec_t;
+		type mplayer_t, mplayer_exec_t;
 	')
 
-	domtrans_pattern($2, mplayer_exec_t, $1_mplayer_t)
+	domtrans_pattern($1, mplayer_exec_t, mplayer_t)
 ')
 
 ########################################
 ## <summary>
 ##	Read mplayer per user homedir
 ## </summary>
-## <desc>
-##	<p>
-##	Read mplayer per user homedir
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`mplayer_read_user_home_files',`
+interface(`mplayer_read_user_home_files',`
 	gen_require(`
-		type $1_mplayer_home_t;
+		type mplayer_home_t;
 	')
 
-	read_files_pattern($2, $1_mplayer_home_t, $1_mplayer_home_t)
+	read_files_pattern($1, mplayer_home_t, mplayer_home_t)
+	userdom_search_user_home_dirs($1)
 ')

@@ -166,247 +166,6 @@ template(`ssh_basic_client_template',`
 
 #######################################
 ## <summary>
-##	The per role template for the ssh module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for ssh client sessions and user ssh agents.  A derived
-##	type is also created to protect the user ssh keys.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
-#
-template(`ssh_per_role_template',`
-	gen_require(`
-		type ssh_agent_exec_t, ssh_keysign_exec_t, sshd_t, sshd_key_t;
-	')
-
-	##############################
-	#
-	# Declarations
-	#
-
-	ssh_basic_client_template($1, $2, $3)
-
-	userdom_user_home_content($1, $1_home_ssh_t)
-
-	type $1_ssh_agent_t;
-	application_domain($1_ssh_agent_t, ssh_agent_exec_t)
-	domain_interactive_fd($1_ssh_agent_t)
-	role $3 types $1_ssh_agent_t;
-
-	type $1_ssh_agent_tmp_t;
-	files_tmp_file($1_ssh_agent_tmp_t)
-
-	type $1_ssh_keysign_t;
-	application_domain($1_ssh_keysign_t, ssh_keysign_exec_t)
-	role $3 types $1_ssh_keysign_t;
-
-	type $1_ssh_tmpfs_t;
-	files_tmpfs_file($1_ssh_tmpfs_t)
-
-	##############################
-	#
-	# Client local policy
-	#
-
-	manage_files_pattern($1_ssh_t, $1_ssh_tmpfs_t, $1_ssh_tmpfs_t)
-	manage_lnk_files_pattern($1_ssh_t, $1_ssh_tmpfs_t, $1_ssh_tmpfs_t)
-	manage_fifo_files_pattern($1_ssh_t, $1_ssh_tmpfs_t, $1_ssh_tmpfs_t)
-	manage_sock_files_pattern($1_ssh_t, $1_ssh_tmpfs_t, $1_ssh_tmpfs_t)
-	fs_tmpfs_filetrans($1_ssh_t, $1_ssh_tmpfs_t, { dir file lnk_file sock_file fifo_file })
-
-	manage_dirs_pattern($1_ssh_t, $1_home_ssh_t, $1_home_ssh_t)
-	manage_sock_files_pattern($1_ssh_t, $1_home_ssh_t, $1_home_ssh_t)
-	userdom_user_home_dir_filetrans($1, $1_ssh_t, $1_home_ssh_t, { dir sock_file })
-
-	# Allow the ssh program to communicate with ssh-agent.
-	stream_connect_pattern($1_ssh_t, $1_ssh_agent_tmp_t, $1_ssh_agent_tmp_t, $1_ssh_agent_t)
-
-	allow $1_ssh_t sshd_t:unix_stream_socket connectto;
-
-	allow $2 $1_ssh_t:process signal;
-
-	userdom_use_unpriv_users_fds($1_ssh_t)
-	userdom_dontaudit_list_user_home_dirs($1,$1_ssh_t)
-	userdom_search_user_home_dirs($1,$1_ssh_t)
-	# Write to the user domain tty.
-	userdom_use_user_terminals($1,$1_ssh_t)
-	# needs to read krb tgt
-	userdom_read_user_tmp_files($1, $1_ssh_t)
-
-	tunable_policy(`allow_ssh_keysign',`
-		domain_auto_trans($1_ssh_t, ssh_keysign_exec_t, $1_ssh_keysign_t)
-		allow $1_ssh_keysign_t $1_ssh_t:fd use;
-		allow $1_ssh_keysign_t $1_ssh_t:process sigchld;
-		allow $1_ssh_keysign_t $1_ssh_t:fifo_file rw_file_perms;
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_ssh_t)
-		fs_manage_nfs_files($1_ssh_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_ssh_t)
-		fs_manage_cifs_files($1_ssh_t)
-	')
-
-	# for port forwarding
-	tunable_policy(`user_tcp_server',`
-		corenet_tcp_bind_ssh_port($1_ssh_t)
-	')
-
-	optional_policy(`
-		xserver_user_x_domain_template($1, $1_ssh, $1_ssh_t, $1_ssh_tmpfs_t)
-		xserver_domtrans_user_xauth($1, $1_ssh_t)
-	')
-
-	ifdef(`TODO',`
-	# for /bin/sh used to execute xauth
-	dontaudit $1_ssh_t proc_t:{ lnk_file file } { getattr read };
-
-	#allow ssh to access keys stored on removable media
-	# Should we have a boolean around this?
-	files_search_mnt($1_ssh_t)
-	r_dir_file($1_ssh_t, removable_t) 
-
-	') dnl endif TODO
-
-	##############################
-	#
-	# $1_ssh_agent_t local policy
-	#
-
-	allow $1_ssh_agent_t self:process setrlimit;
-	allow $1_ssh_agent_t self:capability setgid;
-
-	allow $1_ssh_agent_t { $1_ssh_agent_t $2 }:process signull;
-
-	allow $1_ssh_agent_t self:unix_stream_socket { create_stream_socket_perms connectto };
-
-	manage_dirs_pattern($1_ssh_agent_t, $1_ssh_agent_tmp_t, $1_ssh_agent_tmp_t)
-	manage_sock_files_pattern($1_ssh_agent_t, $1_ssh_agent_tmp_t, $1_ssh_agent_tmp_t)
-	files_tmp_filetrans($1_ssh_agent_t, $1_ssh_agent_tmp_t, { dir sock_file })
-
-	# for ssh-add
-	stream_connect_pattern($2, $1_ssh_agent_tmp_t, $1_ssh_agent_tmp_t, $1_ssh_agent_t)
-
-	# Allow the user shell to signal the ssh program.
-	allow $2 $1_ssh_agent_t:process signal;
-
-	# allow ps to show ssh
-	ps_process_pattern($2, $1_ssh_agent_t)
-
-	domtrans_pattern($2, ssh_agent_exec_t, $1_ssh_agent_t)
-
-	kernel_read_kernel_sysctls($1_ssh_agent_t)
-
-	dev_read_urand($1_ssh_agent_t)
-	dev_read_rand($1_ssh_agent_t)
-
-	fs_search_auto_mountpoints($1_ssh_agent_t)
-
-	# transition back to normal privs upon exec
-	corecmd_shell_domtrans($1_ssh_agent_t, $1_t)
-	corecmd_bin_domtrans($1_ssh_agent_t, $1_t)
-
-	domain_use_interactive_fds($1_ssh_agent_t)
-
-	files_read_etc_files($1_ssh_agent_t)
-	files_read_etc_runtime_files($1_ssh_agent_t)
-	files_search_home($1_ssh_agent_t)
-
-	libs_read_lib_files($1_ssh_agent_t)
-
-	logging_send_syslog_msg($1_ssh_agent_t)
-
-	miscfiles_read_localization($1_ssh_agent_t)
-
-	seutil_dontaudit_read_config($1_ssh_agent_t)
-
-	# Write to the user domain tty.
-	userdom_use_user_terminals($1,$1_ssh_agent_t)
-
-	# for the transition back to normal privs upon exec
-	userdom_user_home_domtrans($1, $1_ssh_agent_t, $2)
-	allow $2 $1_ssh_agent_t:fd use;
-	allow $2 $1_ssh_agent_t:fifo_file rw_file_perms;
-	allow $2 $1_ssh_agent_t:process sigchld;
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_files($1_ssh_agent_t)
-
-		# transition back to normal privs upon exec
-		fs_nfs_domtrans($1_ssh_agent_t, $1_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_files($1_ssh_agent_t)
-
-		# transition back to normal privs upon exec
-		fs_cifs_domtrans($1_ssh_agent_t, $1_t)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1_ssh_agent_t)
-	')
-
-	optional_policy(`
-		xserver_use_xdm_fds($1_ssh_agent_t)
-		xserver_rw_xdm_pipes($1_ssh_agent_t)
-	')
-
-	ifdef(`TODO',`
-	dontaudit $1_ssh_agent_t proc_t:{ lnk_file file } { getattr read };
-	') dnl endif TODO
-
-	##############################
-	#
-	# $1_ssh_keysign_t local policy
-	#
-
-	tunable_policy(`allow_ssh_keysign',`
-		allow $1_ssh_keysign_t self:capability { setgid setuid };
-		allow $1_ssh_keysign_t self:unix_stream_socket create_socket_perms;
-
-		allow $1_ssh_keysign_t sshd_key_t:file read_file_perms;
-
-		dev_read_urand($1_ssh_keysign_t)
-
-		files_read_etc_files($1_ssh_keysign_t)
-	')
-
-	optional_policy(`
-		tunable_policy(`allow_ssh_keysign',`
-			nscd_socket_use($1_ssh_keysign_t)
-		')
-	')
-')
-
-#######################################
-## <summary>
 ##	The template to define a ssh server.
 ## </summary>
 ## <desc>
@@ -493,8 +252,8 @@ template(`ssh_server_template', `
 
 	sysnet_read_config($1_t)
 
-	userdom_dontaudit_relabelfrom_unpriv_users_ptys($1_t)
-	userdom_search_all_users_home_dirs($1_t)
+	userdom_dontaudit_relabelfrom_user_ptys($1_t)
+	userdom_search_user_home_dirs($1_t)
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_read_nfs_files($1_t)
@@ -519,6 +278,159 @@ template(`ssh_server_template', `
 
 	optional_policy(`
 		nx_spec_domtrans_server($1_t)
+	')
+')
+
+########################################
+## <summary>
+##	Role access for ssh
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+template(`ssh_role_template',`
+	gen_require(`
+		attribute ssh_server, ssh_agent_type;
+
+		type ssh_t, ssh_exec_t, ssh_tmpfs_t, home_ssh_t;
+		type ssh_agent_exec_t, ssh_keysign_t, ssh_tmpfs_t;
+		type ssh_agent_tmp_t;
+	')
+
+	##############################
+	#
+	# Declarations
+	#
+
+	role $2 types ssh_t;
+
+	type $1_ssh_agent_t, ssh_agent_type;
+	application_domain($1_ssh_agent_t, ssh_agent_exec_t)
+	domain_interactive_fd($1_ssh_agent_t)
+	ubac_constrained($1_ssh_agent_t)
+	role $2 types $1_ssh_agent_t;
+
+	##############################
+	#
+	# Local policy
+	#
+
+	# Transition from the domain to the derived domain.
+	domtrans_pattern($3, ssh_exec_t, ssh_t)
+
+	# inheriting stream sockets is needed for "ssh host command" as no pty
+	# is allocated
+	allow $3 ssh_server:unix_stream_socket rw_stream_socket_perms;
+
+	# allow ps to show ssh
+	ps_process_pattern($3, ssh_t)
+	allow $3 ssh_t:process signal;
+
+	# for rsync
+	allow ssh_t $3:unix_stream_socket rw_socket_perms;
+	allow ssh_t $3:unix_stream_socket connectto;
+
+	# user can manage the keys and config
+	manage_files_pattern($3, home_ssh_t, home_ssh_t)
+	manage_lnk_files_pattern($3, home_ssh_t, home_ssh_t)
+	manage_sock_files_pattern($3, home_ssh_t, home_ssh_t)
+
+	##############################
+	#
+	# SSH agent local policy
+	#
+
+	allow $1_ssh_agent_t self:process setrlimit;
+	allow $1_ssh_agent_t self:capability setgid;
+
+	allow $1_ssh_agent_t { $1_ssh_agent_t $3 }:process signull;
+
+	allow $1_ssh_agent_t self:unix_stream_socket { create_stream_socket_perms connectto };
+
+	manage_dirs_pattern($1_ssh_agent_t, ssh_agent_tmp_t, ssh_agent_tmp_t)
+	manage_sock_files_pattern($1_ssh_agent_t, ssh_agent_tmp_t, ssh_agent_tmp_t)
+	files_tmp_filetrans($1_ssh_agent_t, ssh_agent_tmp_t, { dir sock_file })
+
+	# for ssh-add
+	stream_connect_pattern($3, ssh_agent_tmp_t, ssh_agent_tmp_t, $1_ssh_agent_t)
+
+	# Allow the user shell to signal the ssh program.
+	allow $3 $1_ssh_agent_t:process signal;
+
+	# allow ps to show ssh
+	ps_process_pattern($3, $1_ssh_agent_t)
+
+	domtrans_pattern($3, ssh_agent_exec_t, $1_ssh_agent_t)
+
+	kernel_read_kernel_sysctls($1_ssh_agent_t)
+
+	dev_read_urand($1_ssh_agent_t)
+	dev_read_rand($1_ssh_agent_t)
+
+	fs_search_auto_mountpoints($1_ssh_agent_t)
+
+	# transition back to normal privs upon exec
+	corecmd_shell_domtrans($1_ssh_agent_t, $3)
+	corecmd_bin_domtrans($1_ssh_agent_t, $3)
+
+	domain_use_interactive_fds($1_ssh_agent_t)
+
+	files_read_etc_files($1_ssh_agent_t)
+	files_read_etc_runtime_files($1_ssh_agent_t)
+	files_search_home($1_ssh_agent_t)
+
+	libs_read_lib_files($1_ssh_agent_t)
+
+	logging_send_syslog_msg($1_ssh_agent_t)
+
+	miscfiles_read_localization($1_ssh_agent_t)
+
+	seutil_dontaudit_read_config($1_ssh_agent_t)
+
+	# Write to the user domain tty.
+	userdom_use_user_terminals($1_ssh_agent_t)
+
+	# for the transition back to normal privs upon exec
+	userdom_user_home_domtrans($1_ssh_agent_t, $3)
+	allow $3 $1_ssh_agent_t:fd use;
+	allow $3 $1_ssh_agent_t:fifo_file rw_file_perms;
+	allow $3 $1_ssh_agent_t:process sigchld;
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_manage_nfs_files($1_ssh_agent_t)
+
+		# transition back to normal privs upon exec
+		fs_nfs_domtrans($1_ssh_agent_t, $3)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_manage_cifs_files($1_ssh_agent_t)
+
+		# transition back to normal privs upon exec
+		fs_cifs_domtrans($1_ssh_agent_t, $3)
+	')
+
+	optional_policy(`
+		nis_use_ypbind($1_ssh_agent_t)
+	')
+
+	optional_policy(`
+		xserver_use_xdm_fds($1_ssh_agent_t)
+		xserver_rw_xdm_pipes($1_ssh_agent_t)
 	')
 ')
 

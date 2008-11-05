@@ -1,136 +1,40 @@
 ## <summary> tvtime - a high quality television application </summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the tvtime module.
+##	Role access for tvtime
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domains which are used
-##	for tvtime.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`tvtime_per_role_template',`
+interface(`tvtime_role',`
 	gen_require(`
-		type tvtime_exec_t;
+		type tvtime_t, tvtime_exec_t;
+		type tvtime_home_t, tvtime_tmpfs_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_tvtime_t;
-	application_domain($1_tvtime_t, tvtime_exec_t)
-	role $3 types $1_tvtime_t;
-
-	type $1_tvtime_home_t alias $1_tvtime_rw_t;
-	userdom_user_home_content($1, $1_tvtime_home_t)
-	files_poly_member($1_tvtime_home_t)
-
-	type $1_tvtime_tmp_t;
-	files_tmp_file($1_tvtime_tmp_t)
-
-	type $1_tvtime_tmpfs_t;
-	files_tmpfs_file($1_tvtime_tmpfs_t)
-
-	########################################
-	#
-	# Local policy
-	#
-
-	allow $1_tvtime_t self:capability { setuid sys_nice sys_resource };
-	allow $1_tvtime_t self:process setsched;
-	allow $1_tvtime_t self:unix_dgram_socket rw_socket_perms;
-	allow $1_tvtime_t self:unix_stream_socket rw_stream_socket_perms;
-
-	# X access, Home files
-	manage_dirs_pattern($1_tvtime_t, $1_tvtime_home_t, $1_tvtime_home_t)
-	manage_files_pattern($1_tvtime_t, $1_tvtime_home_t, $1_tvtime_home_t)
-	manage_lnk_files_pattern($1_tvtime_t, $1_tvtime_home_t, $1_tvtime_home_t)
-	userdom_user_home_dir_filetrans($1, $1_tvtime_t, $1_tvtime_home_t, dir)
-
-	manage_dirs_pattern($1_tvtime_t, $1_tvtime_tmp_t, $1_tvtime_tmp_t)
-	manage_files_pattern($1_tvtime_t, $1_tvtime_tmp_t, $1_tvtime_tmp_t)
-	files_tmp_filetrans($1_tvtime_t, $1_tvtime_tmp_t, { file dir })
-
-	manage_files_pattern($1_tvtime_t, $1_tvtime_tmpfs_t, $1_tvtime_tmpfs_t)
-	manage_lnk_files_pattern($1_tvtime_t, $1_tvtime_tmpfs_t, $1_tvtime_tmpfs_t)
-	manage_fifo_files_pattern($1_tvtime_t, $1_tvtime_tmpfs_t, $1_tvtime_tmpfs_t)
-	manage_sock_files_pattern($1_tvtime_t, $1_tvtime_tmpfs_t, $1_tvtime_tmpfs_t)
-	fs_tmpfs_filetrans($1_tvtime_t, $1_tvtime_tmpfs_t, { file lnk_file sock_file fifo_file })
+	role $1 types tvtime_t;
 
 	# Type transition
-	domtrans_pattern($2, tvtime_exec_t, $1_tvtime_t)
+	domtrans_pattern($2, tvtime_exec_t, tvtime_t)
 
 	# X access, Home files
-	manage_dirs_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
-	manage_files_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
-	manage_lnk_files_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
-	relabel_dirs_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
-	relabel_files_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
-	relabel_lnk_files_pattern($2, $1_tvtime_home_t, $1_tvtime_home_t)
+	manage_dirs_pattern($2, tvtime_home_t, tvtime_home_t)
+	manage_files_pattern($2, tvtime_home_t, tvtime_home_t)
+	manage_lnk_files_pattern($2, tvtime_home_t, tvtime_home_t)
+	relabel_dirs_pattern($2, tvtime_home_t, tvtime_home_t)
+	relabel_files_pattern($2, tvtime_home_t, tvtime_home_t)
+	relabel_lnk_files_pattern($2, tvtime_home_t, tvtime_home_t)
 
 	# Allow the user domain to signal/ps.
-	ps_process_pattern($2,$1_tvtime_t)
-	allow $2 $1_tvtime_t:process signal_perms;
-
-	kernel_read_all_sysctls($1_tvtime_t)
-	kernel_get_sysvipc_info($1_tvtime_t)
-
-	dev_read_urand($1_tvtime_t)
-	dev_read_realtime_clock($1_tvtime_t)
-	dev_read_sound($1_tvtime_t)
-
-	files_read_usr_files($1_tvtime_t)
-	files_search_pids($1_tvtime_t)
-	# Read /etc/tvtime
-	files_read_etc_files($1_tvtime_t)
-
-	# X access, Home files
-	fs_search_auto_mountpoints($1_tvtime_t)
-
-	miscfiles_read_localization($1_tvtime_t)
-	miscfiles_read_fonts($1_tvtime_t)
-
-	userdom_use_user_terminals($1, $1_tvtime_t)
-	userdom_read_user_home_content_files($1, $1_tvtime_t)
-
-	# X access, Home files
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_tvtime_t)
-		fs_manage_nfs_files($1_tvtime_t)
-		fs_manage_nfs_symlinks($1_tvtime_t)
-	')
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_tvtime_t)
-		fs_manage_cifs_files($1_tvtime_t)
-		fs_manage_cifs_symlinks($1_tvtime_t)
-	')
-
-	optional_policy(`
-		xserver_user_x_domain_template($1, $1_tvtime, $1_tvtime_t, $1_tvtime_tmpfs_t)
-	')
+	ps_process_pattern($2, tvtime_t)
+	allow $2 tvtime_t:process signal_perms;
 ')

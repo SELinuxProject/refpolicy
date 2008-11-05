@@ -1,315 +1,41 @@
 ## <summary>Filter used for removing unsolicited email.</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the spamassassin module.
+##	Role access for spamassassin
 ## </summary>
-## <desc>
-##	<p>
-##	The per role template for the spamassassin module.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-# cjp: when tunables are available, spamc stuff should be
-# toggled on activation of spamc, and similarly for spamd.
-template(`spamassassin_per_role_template',`
-
+interface(`spamassassin_role',`
 	gen_require(`
-		type spamc_exec_t, spamassassin_exec_t;
-		type spamd_t, spamd_tmp_t;
+		type spamc_t, spamc_exec_t, spamc_tmp_t;
+		type spamassassin_t, spamassassin_exec_t;
+		type spamassassin_home_t, spamassassin_tmp_t;
 	')
 
-	##############################
-	#
-	# Declarations
-	#
+	role $1 types { spamc_t spamassassin_t };
 
-	type $1_spamc_t;
-	application_domain($1_spamc_t, spamc_exec_t)
-	role $3 types $1_spamc_t;
+	domtrans_pattern($2, spamassassin_exec_t, spamassassin_t)
+	ps_process_pattern($2, spamassassin_t)
 
-	type $1_spamc_tmp_t;
-	files_tmp_file($1_spamc_tmp_t)
+	domtrans_pattern($2, spamc_exec_t, spamc_t)
+	ps_process_pattern($2, spamc_t)
 
-	type $1_spamassassin_t;
-	application_domain($1_spamassassin_t, spamassassin_exec_t)
-	role $3 types $1_spamassassin_t;
-
-	type $1_spamassassin_home_t alias $1_spamassassin_rw_t;
-	userdom_user_home_content($1, $1_spamassassin_home_t)
-	files_poly_member($1_spamassassin_home_t)
-
-	type $1_spamassassin_tmp_t;
-	files_tmp_file($1_spamassassin_tmp_t)
-
-	##############################
-	#
-	# $1_spamc_t local policy
-	#
-
-	allow $1_spamc_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_spamc_t self:fd use;
-	allow $1_spamc_t self:fifo_file rw_fifo_file_perms;
-	allow $1_spamc_t self:sock_file read_sock_file_perms;
-	allow $1_spamc_t self:shm create_shm_perms;
-	allow $1_spamc_t self:sem create_sem_perms;
-	allow $1_spamc_t self:msgq create_msgq_perms;
-	allow $1_spamc_t self:msg { send receive };
-	allow $1_spamc_t self:unix_dgram_socket create_socket_perms;
-	allow $1_spamc_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_spamc_t self:unix_dgram_socket sendto;
-	allow $1_spamc_t self:unix_stream_socket connectto;
-	allow $1_spamc_t self:tcp_socket create_stream_socket_perms;
-	allow $1_spamc_t self:udp_socket create_socket_perms;
-
-	manage_dirs_pattern($1_spamc_t, $1_spamc_tmp_t, $1_spamc_tmp_t)
-	manage_files_pattern($1_spamc_t, $1_spamc_tmp_t, $1_spamc_tmp_t)
-	files_tmp_filetrans($1_spamc_t, $1_spamc_tmp_t, { file dir })
-
-	# Allow connecting to a local spamd
-	stream_connect_pattern($1_spamc_t, spamd_tmp_t, spamd_tmp_t, spamd_t)
-
-	domtrans_pattern($2, spamc_exec_t, $1_spamc_t)
-
-	kernel_read_kernel_sysctls($1_spamc_t)
-
-	corenet_all_recvfrom_unlabeled($1_spamc_t)
-	corenet_all_recvfrom_netlabel($1_spamc_t)
-	corenet_tcp_sendrecv_generic_if($1_spamc_t)
-	corenet_udp_sendrecv_generic_if($1_spamc_t)
-	corenet_tcp_sendrecv_all_nodes($1_spamc_t)
-	corenet_udp_sendrecv_all_nodes($1_spamc_t)
-	corenet_tcp_sendrecv_all_ports($1_spamc_t)
-	corenet_udp_sendrecv_all_ports($1_spamc_t)
-	corenet_tcp_connect_all_ports($1_spamc_t)
-	corenet_sendrecv_all_client_packets($1_spamc_t)
-
-	fs_search_auto_mountpoints($1_spamc_t)
-
-	# cjp: these should probably be removed:
-	corecmd_list_bin($1_spamc_t)
-	corecmd_read_bin_symlinks($1_spamc_t)
-	corecmd_read_bin_files($1_spamc_t)
-	corecmd_read_bin_pipes($1_spamc_t)
-	corecmd_read_bin_sockets($1_spamc_t)
-
-	domain_use_interactive_fds($1_spamc_t)
-
-	files_read_etc_files($1_spamc_t)
-	files_read_etc_runtime_files($1_spamc_t)
-	files_read_usr_files($1_spamc_t)
-	files_dontaudit_search_var($1_spamc_t)
-	# cjp: this may be removable:
-	files_list_home($1_spamc_t)
-
-	logging_send_syslog_msg($1_spamc_t)
-
-	miscfiles_read_localization($1_spamc_t)
-
-	# cjp: this should probably be removed:
-	seutil_read_config($1_spamc_t)
-
-	sysnet_read_config($1_spamc_t)
-
-	userdom_use_unpriv_users_fds($1_spamc_t)
-	# cjp: this really should just be the
-	# terminal specific to the role
-	userdom_use_unpriv_users_ptys($1_spamc_t)
-
-	# cjp: this should probably be removed:
-	tunable_policy(`read_default_t',`
-		files_list_default($1_spamc_t)
-		files_read_default_files($1_spamc_t)
-		files_read_default_symlinks($1_spamc_t)
-		files_read_default_sockets($1_spamc_t)
-		files_read_default_pipes($1_spamc_t)
-	')
-
-	optional_policy(`
-		# Allow connection to spamd socket above
-		evolution_stream_connect($1, $1_spamc_t)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1_spamc_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_spamc_t)
-	')
-
-	optional_policy(`
-		mta_read_config($1_spamc_t)
-		sendmail_stub($1_spamc_t)
-	')
-
-	##############################
-	#
-	# $1_spamassassin_t local policy
-	#
-
-	allow $1_spamassassin_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_spamassassin_t self:fd use;
-	allow $1_spamassassin_t self:fifo_file rw_fifo_file_perms;
-	allow $1_spamassassin_t self:sock_file read_sock_file_perms;
-	allow $1_spamassassin_t self:unix_dgram_socket create_socket_perms;
-	allow $1_spamassassin_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_spamassassin_t self:unix_dgram_socket sendto;
-	allow $1_spamassassin_t self:unix_stream_socket connectto;
-	allow $1_spamassassin_t self:shm create_shm_perms;
-	allow $1_spamassassin_t self:sem create_sem_perms;
-	allow $1_spamassassin_t self:msgq create_msgq_perms;
-	allow $1_spamassassin_t self:msg { send receive };
-
-	manage_dirs_pattern($1_spamassassin_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_files_pattern($1_spamassassin_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_lnk_files_pattern($1_spamassassin_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_fifo_files_pattern($1_spamassassin_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_sock_files_pattern($1_spamassassin_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	userdom_user_home_dir_filetrans($1,$1_spamassassin_t,$1_spamassassin_home_t, { dir file lnk_file sock_file fifo_file })
-
-	manage_dirs_pattern($1_spamassassin_t, $1_spamassassin_tmp_t, $1_spamassassin_tmp_t)
-	manage_files_pattern($1_spamassassin_t, $1_spamassassin_tmp_t, $1_spamassassin_tmp_t)
-	files_tmp_filetrans($1_spamassassin_t, $1_spamassassin_tmp_t, { file dir })
-
-	manage_dirs_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_files_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_lnk_files_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	relabel_dirs_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	relabel_files_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	relabel_lnk_files_pattern($2, $1_spamassassin_home_t, $1_spamassassin_home_t)
-
-	domtrans_pattern($2, spamassassin_exec_t, $1_spamassassin_t)
-
-	manage_dirs_pattern(spamd_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_files_pattern(spamd_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_lnk_files_pattern(spamd_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_fifo_files_pattern(spamd_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	manage_sock_files_pattern(spamd_t, $1_spamassassin_home_t, $1_spamassassin_home_t)
-	userdom_user_home_dir_filetrans($1, spamd_t, $1_spamassassin_home_t, { dir file lnk_file sock_file fifo_file })
-
-	kernel_read_kernel_sysctls($1_spamassassin_t)
-
-	dev_read_urand($1_spamassassin_t)
-
-	fs_search_auto_mountpoints($1_spamassassin_t)
-
-	# this should probably be removed
-	corecmd_list_bin($1_spamassassin_t)
-	corecmd_read_bin_symlinks($1_spamassassin_t)
-	corecmd_read_bin_files($1_spamassassin_t)
-	corecmd_read_bin_pipes($1_spamassassin_t)
-	corecmd_read_bin_sockets($1_spamassassin_t)
-
-	domain_use_interactive_fds($1_spamassassin_t)
-
-	files_read_etc_files($1_spamassassin_t)
-	files_read_etc_runtime_files($1_spamassassin_t)
-	files_list_home($1_spamassassin_t)
-	files_read_usr_files($1_spamassassin_t)
-	files_dontaudit_search_var($1_spamassassin_t)
-
-	logging_send_syslog_msg($1_spamassassin_t)
-
-	miscfiles_read_localization($1_spamassassin_t)
-
-	# cjp: this could probably be removed
-	seutil_read_config($1_spamassassin_t)
-
-	sysnet_dns_name_resolve($1_spamassassin_t)
-
-	userdom_use_unpriv_users_fds($1_spamassassin_t)
-	userdom_search_user_home_dirs($1,$1_spamassassin_t)
-	# cjp: this really should just be the
-	# terminal specific to the role
-	userdom_use_unpriv_users_ptys($1_spamassassin_t)
-
-	# this should probably be removed:
-	tunable_policy(`read_default_t',`
-		files_list_default($1_spamassassin_t)
-		files_read_default_files($1_spamassassin_t)
-		files_read_default_symlinks($1_spamassassin_t)
-		files_read_default_sockets($1_spamassassin_t)
-		files_read_default_pipes($1_spamassassin_t)
-	')
-
-	# set tunable if you have spamassassin do DNS lookups
-	tunable_policy(`spamassassin_can_network',`
-		allow $1_spamassassin_t self:tcp_socket create_stream_socket_perms;
-		allow $1_spamassassin_t self:udp_socket create_socket_perms;
-
-		corenet_all_recvfrom_unlabeled($1_spamassassin_t)
-		corenet_all_recvfrom_netlabel($1_spamassassin_t)
-		corenet_tcp_sendrecv_generic_if($1_spamassassin_t)
-		corenet_udp_sendrecv_generic_if($1_spamassassin_t)
-		corenet_tcp_sendrecv_all_nodes($1_spamassassin_t)
-		corenet_udp_sendrecv_all_nodes($1_spamassassin_t)
-		corenet_tcp_sendrecv_all_ports($1_spamassassin_t)
-		corenet_udp_sendrecv_all_ports($1_spamassassin_t)
-		corenet_tcp_connect_all_ports($1_spamassassin_t)
-		corenet_sendrecv_all_client_packets($1_spamassassin_t)
-
-		sysnet_read_config($1_spamassassin_t)
-	')
-
-	tunable_policy(`spamd_enable_home_dirs',`
-		userdom_manage_user_home_content_dirs($1,spamd_t)
-		userdom_manage_user_home_content_files($1,spamd_t)
-		userdom_manage_user_home_content_symlinks($1,spamd_t)
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_spamassassin_t)
-		fs_manage_nfs_files($1_spamassassin_t)
-		fs_manage_nfs_symlinks($1_spamassassin_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_spamassassin_t)
-		fs_manage_cifs_files($1_spamassassin_t)
-		fs_manage_cifs_symlinks($1_spamassassin_t)
-	')
-
-	optional_policy(`
-		# Write pid file and socket in ~/.evolution/cache/tmp
-		evolution_home_filetrans($1, spamd_t, spamd_tmp_t, { file sock_file })
-	')
-
-	optional_policy(`
-		# cjp: clearly some redundancy here
-
-		nis_use_ypbind($1_spamassassin_t)
-
-		tunable_policy(`spamassassin_can_network && allow_ypbind',`
-			nis_use_ypbind_uncond($1_spamassassin_t)
-		')
-	')
-
-	optional_policy(`
-		mta_read_config($1_spamassassin_t)
-		sendmail_stub($1_spamassassin_t)
-	')
+	manage_dirs_pattern($2, spamassassin_home_t, spamassassin_home_t)
+	manage_files_pattern($2, spamassassin_home_t, spamassassin_home_t)
+	manage_lnk_files_pattern($2, spamassassin_home_t, spamassassin_home_t)
+	relabel_dirs_pattern($2, spamassassin_home_t, spamassassin_home_t)
+	relabel_files_pattern($2, spamassassin_home_t, spamassassin_home_t)
+	relabel_lnk_files_pattern($2, spamassassin_home_t, spamassassin_home_t)
 ')
 
 ########################################
@@ -371,31 +97,20 @@ interface(`spamassassin_exec_spamd',`
 
 ########################################
 ## <summary>
-##      Execute spamassassin client in the user spamassassin client domain.
+##      Execute spamassassin client in the spamassassin client domain.
 ## </summary>
-## <desc>
-##	<p>
-##	This is a template and should only be called 
-##	from per user domain tempaltes.
-##	</p>
-## </desc>
-## <param name="prefix">
-##      <summary>
-##      The prefix of the user domain. eg user would be the prefix of user_t.
-##      </summary>
-## </param>
 ## <param name="domain">
-##      <summary>
-##      The type of the process performing this action.
-##      </summary>
+##	<summary>
+##	Domain allowed access.
+##	</summary>
 ## </param>
 #
-template(`spamassassin_domtrans_user_client',`
+interface(`spamassassin_domtrans_client',`
 	gen_require(`
-		type $1_spamc_t, spamc_exec_t;
+		type spamc_t, spamc_exec_t;
 	')
 
-	domtrans_pattern($2, spamc_exec_t, $1_spamc_t)
+	domtrans_pattern($1, spamc_exec_t, spamc_t)
 ')
 
 ########################################
@@ -419,31 +134,20 @@ interface(`spamassassin_exec_client',`
 
 ########################################
 ## <summary>
-##      Execute spamassassin in the user spamassassin domain.
+##	Execute spamassassin standalone client in the user spamassassin domain.
 ## </summary>
-## <desc>
-##	<p>
-##	This is a template and should only be called 
-##	from per user domain tempaltes.
-##	</p>
-## </desc>
-## <param name="prefix">
-##      <summary>
-##	The prefix of the user domain. eg user would be the prefix of user_t.
-##      </summary>
-## </param>
 ## <param name="domain">
-##      <summary>
-##      The type of the process performing this action.
-##      </summary>
+##	<summary>
+##	Domain allowed access.
+##	</summary>
 ## </param>
 #
-template(`spamassassin_domtrans_user_local_client',`
+interface(`spamassassin_domtrans_local_client',`
 	gen_require(`
-		type $1_spamassassin_t, spamassassin_exec_t;
+		type spamassassin_t, spamassassin_exec_t;
 	')
 
-	domtrans_pattern($2, spamassassin_exec_t, $1_spamassassin_t)
+	domtrans_pattern($1, spamassassin_exec_t, spamassassin_t)
 ')
 
 ########################################

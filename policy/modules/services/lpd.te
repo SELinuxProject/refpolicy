@@ -1,5 +1,5 @@
 
-policy_module(lpd, 1.10.0)
+policy_module(lpd, 1.10.1)
 
 ########################################
 #
@@ -31,11 +31,25 @@ files_tmp_file(lpd_tmp_t)
 type lpd_var_run_t;
 files_pid_file(lpd_var_run_t)
 
+type lpr_t;
 type lpr_exec_t;
-application_executable_file(lpr_exec_t)
+typealias lpr_t alias { user_lpr_t staff_lpr_t sysadm_lpr_t };
+typealias lpr_t alias { auditadm_lpr_t secadm_lpr_t };
+application_domain(lpr_t, lpr_exec_t)
+ubac_constrained(lpr_t)
 
+type lpr_tmp_t;
+typealias lpr_tmp_t alias { user_lpr_tmp_t staff_lpr_tmp_t sysadm_lpr_tmp_t };
+typealias lpr_tmp_t alias { auditadm_lpr_tmp_t secadm_lpr_tmp_t };
+files_tmp_file(lpr_tmp_t)
+ubac_constrained(lpr_tmp_t)
+
+# Type for spool files.
 type print_spool_t;
-files_tmp_file(print_spool_t)
+typealias print_spool_t alias { user_print_spool_t staff_print_spool_t sysadm_print_spool_t };
+typealias print_spool_t alias { auditadm_print_spool_t secadm_print_spool_t };
+files_type(print_spool_t)
+ubac_constrained(print_spool_t)
 
 type printer_t;
 files_type(printer_t)
@@ -100,6 +114,8 @@ init_use_fds(checkpc_t)
 
 sysnet_read_config(checkpc_t)
 
+userdom_use_user_terminals(checkpc_t)
+
 optional_policy(`
 	cron_system_entry(checkpc_t, checkpc_exec_t)
 ')
@@ -132,7 +148,7 @@ files_tmp_filetrans(lpd_t, lpd_tmp_t, { file dir })
 
 manage_files_pattern(lpd_t, lpd_var_run_t, lpd_var_run_t)
 manage_sock_files_pattern(lpd_t, lpd_var_run_t, lpd_var_run_t)
-files_pid_filetrans(lpd_t, lpd_var_run_t, file)
+files_pid_filetrans(lpd_t, lpd_var_run_t,file)
 
 # Write to /var/spool/lpd.
 manage_files_pattern(lpd_t, print_spool_t, print_spool_t)
@@ -194,8 +210,7 @@ miscfiles_read_localization(lpd_t)
 sysnet_read_config(lpd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(lpd_t)
-
-sysadm_dontaudit_search_home_dirs(lpd_t)
+userdom_dontaudit_search_user_home_dirs(lpd_t)
 
 optional_policy(`
 	nis_use_ypbind(lpd_t)
@@ -207,4 +222,127 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(lpd_t)
+')
+
+##############################
+#
+# Local policy
+#
+
+allow lpr_t self:capability { setuid dac_override net_bind_service chown };
+allow lpr_t self:unix_stream_socket create_stream_socket_perms;
+allow lpr_t self:tcp_socket create_socket_perms;
+allow lpr_t self:udp_socket create_socket_perms;
+allow lpr_t self:netlink_route_socket r_netlink_socket_perms;
+
+can_exec(lpr_t, lpr_exec_t)
+
+# Allow lpd to read, rename, and unlink spool files.
+allow lpd_t print_spool_t:file { read_file_perms rename_file_perms delete_file_perms };
+
+kernel_read_kernel_sysctls(lpr_t)
+
+corenet_all_recvfrom_unlabeled(lpr_t)
+corenet_all_recvfrom_netlabel(lpr_t)
+corenet_tcp_sendrecv_generic_if(lpr_t)
+corenet_udp_sendrecv_generic_if(lpr_t)
+corenet_tcp_sendrecv_all_nodes(lpr_t)
+corenet_udp_sendrecv_all_nodes(lpr_t)
+corenet_tcp_sendrecv_all_ports(lpr_t)
+corenet_udp_sendrecv_all_ports(lpr_t)
+corenet_tcp_connect_all_ports(lpr_t)
+corenet_sendrecv_all_client_packets(lpr_t)
+
+dev_read_rand(lpr_t)
+dev_read_urand(lpr_t)
+
+domain_use_interactive_fds(lpr_t)
+
+files_search_spool(lpr_t)
+# for lpd config files (should have a new type)
+files_read_etc_files(lpr_t)
+# for test print
+files_read_usr_files(lpr_t)
+#Added to cover read_content macro
+files_list_home(lpr_t)
+files_read_generic_tmp_files(lpr_t)
+
+fs_getattr_xattr_fs(lpr_t)
+
+# Access the terminal.
+term_use_controlling_term(lpr_t)
+term_use_generic_ptys(lpr_t)
+
+miscfiles_read_localization(lpr_t)
+
+sysnet_read_config(lpr_t)
+
+userdom_read_user_tmp_symlinks(lpr_t)
+# Write to the user domain tty.
+userdom_use_user_terminals(lpr_t)
+userdom_read_user_home_content_files(lpr_t)
+userdom_read_user_tmp_files(lpr_t)
+
+tunable_policy(`read_default_t',`
+	files_list_default(lpr_t)
+	files_read_default_symlinks(lpr_t)
+	files_read_default_files(lpr_t)
+')
+
+tunable_policy(`use_lpd_server',`
+	# lpr can run in lightweight mode, without a local print spooler.
+	allow lpr_t lpd_var_run_t:dir search;
+	allow lpr_t lpd_var_run_t:sock_file write;
+	files_read_var_files(lpr_t)
+
+	# Connect to lpd via a Unix domain socket.
+	allow lpr_t printer_t:sock_file rw_sock_file_perms;
+	allow lpr_t lpd_t:unix_stream_socket connectto;
+	# Send SIGHUP to lpd.
+	allow lpr_t lpd_t:process signal;
+
+	manage_dirs_pattern(lpr_t, lpr_tmp_t, lpr_tmp_t)
+	manage_files_pattern(lpr_t, lpr_tmp_t, lpr_tmp_t)
+	files_tmp_filetrans(lpr_t, lpr_tmp_t, { file dir })
+
+	manage_files_pattern(lpr_t,print_spool_t,print_spool_t)
+	filetrans_pattern(lpr_t,print_spool_t,print_spool_t,file)
+	# Read and write shared files in the spool directory.
+	allow lpr_t print_spool_t:file rw_file_perms;
+
+	allow lpr_t printconf_t:dir list_dir_perms;
+	read_files_pattern(lpr_t,printconf_t,printconf_t)
+	read_lnk_files_pattern(lpr_t,printconf_t,printconf_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	files_list_home(lpr_t)
+	fs_list_auto_mountpoints(lpr_t)
+	fs_read_nfs_files(lpr_t)
+	fs_read_nfs_symlinks(lpr_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	files_list_home(lpr_t)
+	fs_list_auto_mountpoints(lpr_t)
+	fs_read_cifs_files(lpr_t)
+	fs_read_cifs_symlinks(lpr_t)
+')
+
+optional_policy(`
+	cups_read_config(lpr_t)
+	cups_stream_connect(lpr_t)
+	cups_read_pid_files(lpr_t)
+')
+
+optional_policy(`
+	logging_send_syslog_msg(lpr_t)
+')
+
+optional_policy(`
+	nscd_socket_use(lpr_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(lpr_t)
 ')

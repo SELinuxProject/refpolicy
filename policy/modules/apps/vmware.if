@@ -1,168 +1,33 @@
 ## <summary>VMWare Workstation virtual machines</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the vmware module.
+##	Role access for vmware
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domain which is used
-##	for vmware sessions.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`vmware_per_role_template',`
+interface(`vmware_role',`
 	gen_require(`
-		type vmware_exec_t, vmware_sys_conf_t;
+		type vmware_t, vmware_exec_t;
 	')
 
-	##############################
-	#
-	# Declarations
-	#
+	role $1 types vmware_t;
 
-	type $1_vmware_t;
-	domain_type($1_vmware_t)
-	domain_entry_file($1_vmware_t, vmware_exec_t)
-	role $3 types $1_vmware_t;
+	# Transition from the user domain to the derived domain.
+	domtrans_pattern($2, vmware_exec_t, vmware_t)
 
-	type $1_vmware_conf_t;
-	userdom_user_home_content($1, $1_vmware_conf_t)
-
-	type $1_vmware_file_t;
-	userdom_user_home_content($1, $1_vmware_file_t)
-
-	type $1_vmware_tmp_t;
-	files_tmp_file($1_vmware_tmp_t)
-
-	type $1_vmware_tmpfs_t;
-	files_tmpfs_file($1_vmware_tmpfs_t)
-
-	type $1_vmware_var_run_t;
-	files_pid_file($1_vmware_var_run_t)
-
-	##############################
-	#
-	# Local policy
-	#
-
-	allow $1_vmware_t self:capability { dac_override setgid sys_nice sys_resource setuid sys_admin sys_rawio chown };
-	dontaudit $1_vmware_t self:capability sys_tty_config;
-	allow $1_vmware_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
-	allow $1_vmware_t self:process { execmem execstack };
-	allow $1_vmware_t self:fd use;
-	allow $1_vmware_t self:fifo_file rw_fifo_file_perms;
-	allow $1_vmware_t self:unix_dgram_socket create_socket_perms;
-	allow $1_vmware_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_vmware_t self:unix_dgram_socket sendto;
-	allow $1_vmware_t self:unix_stream_socket connectto;
-	allow $1_vmware_t self:shm create_shm_perms;
-	allow $1_vmware_t self:sem create_sem_perms;
-	allow $1_vmware_t self:msgq create_msgq_perms;
-	allow $1_vmware_t self:msg { send receive };
-
-	can_exec($1_vmware_t, vmware_exec_t)
-
-	# User configuration files
-	allow $1_vmware_t $1_vmware_conf_t:file manage_file_perms;
-
-	# VMWare disks
-	manage_files_pattern($1_vmware_t, $1_vmware_file_t, $1_vmware_file_t)
-	manage_lnk_files_pattern($1_vmware_t, $1_vmware_file_t, $1_vmware_file_t)
-
-	allow $1_vmware_t $1_vmware_tmp_t:file execute;
-	manage_dirs_pattern($1_vmware_t, $1_vmware_tmp_t, $1_vmware_tmp_t)
-	manage_files_pattern($1_vmware_t, $1_vmware_tmp_t, $1_vmware_tmp_t)
-	manage_sock_files_pattern($1_vmware_t, $1_vmware_tmp_t, $1_vmware_tmp_t)
-	files_tmp_filetrans($1_vmware_t, $1_vmware_tmp_t, { file dir })
-
-	manage_files_pattern($1_vmware_t, $1_vmware_tmpfs_t, $1_vmware_tmpfs_t)
-	manage_lnk_files_pattern($1_vmware_t, $1_vmware_tmpfs_t, $1_vmware_tmpfs_t)
-	manage_fifo_files_pattern($1_vmware_t, $1_vmware_tmpfs_t, $1_vmware_tmpfs_t)
-	manage_sock_files_pattern($1_vmware_t, $1_vmware_tmpfs_t, $1_vmware_tmpfs_t)
-	fs_tmpfs_filetrans($1_vmware_t, $1_vmware_tmpfs_t, { dir file lnk_file sock_file fifo_file })
-
-	# Read clobal configuration files
-	allow $1_vmware_t vmware_sys_conf_t:dir list_dir_perms;
-	read_files_pattern($1_vmware_t, vmware_sys_conf_t, vmware_sys_conf_t)
-	read_lnk_files_pattern($1_vmware_t, vmware_sys_conf_t, vmware_sys_conf_t)
-
-	manage_dirs_pattern($1_vmware_t, $1_vmware_var_run_t, $1_vmware_var_run_t)
-	manage_files_pattern($1_vmware_t, $1_vmware_var_run_t, $1_vmware_var_run_t)
-	manage_lnk_files_pattern($1_vmware_t, $1_vmware_var_run_t, $1_vmware_var_run_t)
-	manage_sock_files_pattern($1_vmware_t, $1_vmware_var_run_t, $1_vmware_var_run_t)
-	files_pid_filetrans($1_vmware_t, $1_vmware_var_run_t, { dir file lnk_file })
-
-	domtrans_pattern($2, vmware_exec_t, $1_vmware_t)
-
-	kernel_read_system_state($1_vmware_t)
-	kernel_read_network_state($1_vmware_t)
-	kernel_read_kernel_sysctls($1_vmware_t)
-
-	# startup scripts
-	corecmd_exec_bin($1_vmware_t)
-	corecmd_exec_shell($1_vmware_t)
-
-	dev_read_raw_memory($1_vmware_t)
-	dev_write_raw_memory($1_vmware_t)
-	dev_read_mouse($1_vmware_t)
-	dev_write_sound($1_vmware_t)
-	dev_read_realtime_clock($1_vmware_t)
-	dev_rwx_vmware($1_vmware_t)
-	dev_rw_usbfs($1_vmware_t)
-	dev_search_sysfs($1_vmware_t)
-
-	domain_use_interactive_fds($1_vmware_t)
-
-	files_read_etc_files($1_vmware_t)
-	files_read_etc_runtime_files($1_vmware_t)
-	files_read_usr_files($1_vmware_t)
-	files_list_home($1_vmware_t)
-
-	fs_getattr_xattr_fs($1_vmware_t)
-	fs_search_auto_mountpoints($1_vmware_t)
-
-	storage_raw_read_removable_device($1_vmware_t)
-	storage_raw_write_removable_device($1_vmware_t)
-
-	# startup scripts run ldd
-	libs_exec_ld_so($1_vmware_t)
-	# Access X11 config files
-	libs_read_lib_files($1_vmware_t)
-
-	miscfiles_read_localization($1_vmware_t)
-
-	userdom_use_user_terminals($1, $1_vmware_t)
-	userdom_use_unpriv_users_fds($1_vmware_t)
-	userdom_list_user_home_dirs($1, $1_vmware_t)
-	# cjp: why?
-	userdom_read_user_home_content_files($1, $1_vmware_t)
-
-	sysnet_dns_name_resolve($1_vmware_t)
-	sysnet_read_config($1_vmware_t)
-
-	xserver_user_x_domain_template($1, $1_vmware, $1_vmware_t, $1_vmware_tmpfs_t)
+	# allow ps to show vmware and allow the user to kill it 
+	ps_process_pattern($2, vmware_t)
+	allow $2 vmware_t:process signal;
 ')
 
 ########################################
@@ -180,7 +45,7 @@ interface(`vmware_read_system_config',`
 		type vmware_sys_conf_t;
 	')
 
-	allow $1 vmware_sys_conf_t:file read_file_perms;
+	allow $1 vmware_sys_conf_t:file { getattr read };
 ')
 
 ########################################

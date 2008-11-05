@@ -25,6 +25,7 @@ template(`userdom_base_user_template',`
 
 	gen_require(`
 		attribute userdomain;
+		type user_devpts_t, user_tty_device_t;
 		class context contains;
 	')
 
@@ -35,15 +36,13 @@ template(`userdom_base_user_template',`
 	corecmd_shell_entry_type($1_t)
 	corecmd_bin_entry_type($1_t)
 	domain_user_exemption_target($1_t)
+	ubac_constrained($1_t)
 	role $1_r types $1_t;
 	allow system_r $1_r;
 
-	type $1_devpts_t;
-	term_user_pty($1_t,$1_devpts_t)
-	files_type($1_devpts_t)
+	term_user_pty($1_t, user_devpts_t)
 
-	type $1_tty_device_t; 
-	term_user_tty($1_t,$1_tty_device_t)
+	term_user_tty($1_t, user_tty_device_t)
 
 	allow $1_t self:process { signal_perms getsched setsched share getpgid setpgid setcap getsession getattr };
 	allow $1_t self:fd use;
@@ -57,10 +56,13 @@ template(`userdom_base_user_template',`
 	allow $1_t self:context contains;
 	dontaudit $1_t self:socket create;
 
-	allow $1_t $1_devpts_t:chr_file { setattr rw_chr_file_perms };
-	term_create_pty($1_t,$1_devpts_t)
+	allow $1_t user_devpts_t:chr_file { setattr rw_chr_file_perms };
+	# avoid annoying messages on terminal hangup on role change
+	dontaudit $1_t user_devpts_t:chr_file ioctl;
 
-	allow $1_t $1_tty_device_t:chr_file { setattr rw_chr_file_perms };
+	allow $1_t user_tty_device_t:chr_file { setattr rw_chr_file_perms };
+	# avoid annoying messages on terminal hangup on role change
+	dontaudit $1_t user_tty_device_t:chr_file ioctl;
 
 	kernel_read_kernel_sysctls($1_t)
 	kernel_dontaudit_list_unlabeled($1_t)
@@ -117,402 +119,250 @@ template(`userdom_base_user_template',`
 
 #######################################
 ## <summary>
-##	The template for creating a home directory
-##	that the user has read-only access.
+##	Allow a home directory for which the
+##	role has read-only access.
 ## </summary>
 ## <desc>
 ##	<p>
-##	The template for creating a home directory
-##	that the user has read-only access.
+##	Allow a home directory for which the
+##	role has read-only access.
 ##	</p>
 ##	<p>
 ##	This does not allow execute access.
 ##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	The user role
+##	</summary>
+## </param>
+## <param name="userdomain">
+##	<summary>
+##	The user domain
 ##	</summary>
 ## </param>
 ## <rolebase/>
 #
-template(`userdom_ro_home_template',`
+interface(`userdom_ro_home_role',`
 	gen_require(`
-		attribute home_type, home_dir_type, $1_file_type;
+		type user_home_t, user_home_dir_t;
 	')
 
-	# type for contents of home directory
-	type $1_home_t, $1_file_type, home_type;
-	files_type($1_home_t)
-	files_associate_tmp($1_home_t)
-	fs_associate_tmpfs($1_home_t)
-	files_mountpoint($1_home_t)
-
-	# type of home directory
-	type $1_home_dir_t, home_dir_type, home_type;
-	files_type($1_home_dir_t)
-	files_mountpoint($1_home_dir_t)
-	files_associate_tmp($1_home_dir_t)
-	fs_associate_tmpfs($1_home_dir_t)
-	files_poly_member($1_home_dir_t)
-
-	##############################
-	#
-	# User home directory file rules
-	#
-
-	allow $1_file_type $1_home_t:filesystem associate;
-
-	# Rules used to associate a homedir as a mountpoint
-	allow $1_home_t self:filesystem associate;
+	role $1 types { user_home_t user_home_dir_t };
 
 	##############################
 	#
 	# Domain access to home dir
 	#
+
+	type_member $2 user_home_dir_t:dir user_home_dir_t;
 
 	# read-only home directory
-	allow $1_t $1_home_dir_t:dir list_dir_perms;
-	allow $1_t $1_home_t:dir list_dir_perms;
-	allow $1_t $1_home_t:file entrypoint;
-	read_files_pattern($1_t,{ $1_home_t $1_home_dir_t },$1_home_t)
-	read_lnk_files_pattern($1_t,{ $1_home_t $1_home_dir_t },$1_home_t)
-	read_fifo_files_pattern($1_t,{ $1_home_t $1_home_dir_t },$1_home_t)
-	read_sock_files_pattern($1_t,{ $1_home_t $1_home_dir_t },$1_home_t)
-	files_list_home($1_t)
+	allow $2 user_home_dir_t:dir list_dir_perms;
+	allow $2 user_home_t:dir list_dir_perms;
+	allow $2 user_home_t:file entrypoint;
+	read_files_pattern($2, { user_home_t user_home_dir_t }, user_home_t)
+	read_lnk_files_pattern($2, { user_home_t user_home_dir_t }, user_home_t)
+	read_fifo_files_pattern($2, { user_home_t user_home_dir_t }, user_home_t)
+	read_sock_files_pattern($2, { user_home_t user_home_dir_t }, user_home_t)
+	files_list_home($2)
 
 	tunable_policy(`use_nfs_home_dirs',`
-		fs_list_nfs($1_t)
-		fs_read_nfs_files($1_t)
-		fs_read_nfs_symlinks($1_t)
-		fs_read_nfs_named_sockets($1_t)
-		fs_read_nfs_named_pipes($1_t)
+		fs_list_nfs($2)
+		fs_read_nfs_files($2)
+		fs_read_nfs_symlinks($2)
+		fs_read_nfs_named_sockets($2)
+		fs_read_nfs_named_pipes($2)
 	',`
-		fs_dontaudit_list_nfs($1_t)
-		fs_dontaudit_read_nfs_files($1_t)
+		fs_dontaudit_list_nfs($2)
+		fs_dontaudit_read_nfs_files($2)
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
-		fs_list_cifs($1_t)
-		fs_read_cifs_files($1_t)
-		fs_read_cifs_symlinks($1_t)
-		fs_read_cifs_named_sockets($1_t)
-		fs_read_cifs_named_pipes($1_t)
+		fs_list_cifs($2)
+		fs_read_cifs_files($2)
+		fs_read_cifs_symlinks($2)
+		fs_read_cifs_named_sockets($2)
+		fs_read_cifs_named_pipes($2)
 	',`
-		fs_dontaudit_list_cifs($1_t)
-		fs_dontaudit_read_cifs_files($1_t)
+		fs_dontaudit_list_cifs($2)
+		fs_dontaudit_read_cifs_files($2)
 	')
 ')
 
 #######################################
 ## <summary>
-##	The template for creating a home directory
-##	that the user has full access.
+##	Allow a home directory for which the
+##	role has full access.
 ## </summary>
 ## <desc>
 ##	<p>
-##	The template for creating a home directory
-##	that the user has full access.
+##	Allow a home directory for which the
+##	role has full access.
 ##	</p>
 ##	<p>
 ##	This does not allow execute access.
 ##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	The user role
+##	</summary>
+## </param>
+## <param name="userdomain">
+##	<summary>
+##	The user domain
 ##	</summary>
 ## </param>
 ## <rolebase/>
 #
-template(`userdom_manage_home_template',`
+interface(`userdom_manage_home_role',`
 	gen_require(`
-		attribute home_type, home_dir_type, $1_file_type;
+		type user_home_t, user_home_dir_t;
 	')
 
-	# type for contents of home directory
-	type $1_home_t, $1_file_type, home_type;
-	files_type($1_home_t)
-	files_associate_tmp($1_home_t)
-	fs_associate_tmpfs($1_home_t)
-
-	# type of home directory
-	type $1_home_dir_t, home_dir_type, home_type;
-	files_type($1_home_dir_t)
-	files_associate_tmp($1_home_dir_t)
-	fs_associate_tmpfs($1_home_dir_t)
-
-	##############################
-	#
-	# User home directory file rules
-	#
-
-	allow $1_file_type $1_home_t:filesystem associate;
-
-	# Rules used to associate a homedir as a mountpoint
-	allow $1_home_t self:filesystem associate;
+	role $1 types { user_home_t user_home_dir_t };
 
 	##############################
 	#
 	# Domain access to home dir
 	#
 
+	type_member $2 user_home_dir_t:dir user_home_dir_t;
+
 	# full control of the home directory
-	allow $1_t $1_home_t:file entrypoint;
-	manage_dirs_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_lnk_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_sock_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_fifo_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	relabel_dirs_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	relabel_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	relabel_lnk_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	relabel_sock_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	relabel_fifo_files_pattern($1_t,{ $1_home_dir_t $1_home_t },$1_home_t)
-	filetrans_pattern($1_t,$1_home_dir_t,$1_home_t,{ dir file lnk_file sock_file fifo_file })
-	files_list_home($1_t)
+	allow $2 user_home_t:file entrypoint;
+	manage_dirs_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	manage_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	manage_lnk_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	manage_sock_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	manage_fifo_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	relabel_dirs_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	relabel_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	relabel_lnk_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	relabel_sock_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	relabel_fifo_files_pattern($2, { user_home_dir_t user_home_t }, user_home_t)
+	filetrans_pattern($2, user_home_dir_t, user_home_t, { dir file lnk_file sock_file fifo_file })
+	files_list_home($2)
 
 	# cjp: this should probably be removed:
-	allow $1_t $1_home_dir_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 user_home_dir_t:dir { manage_dir_perms relabel_dir_perms };
 
 	tunable_policy(`use_nfs_home_dirs',`
-		fs_manage_nfs_dirs($1_t)
-		fs_manage_nfs_files($1_t)
-		fs_manage_nfs_symlinks($1_t)
-		fs_manage_nfs_named_sockets($1_t)
-		fs_manage_nfs_named_pipes($1_t)
+		fs_manage_nfs_dirs($2)
+		fs_manage_nfs_files($2)
+		fs_manage_nfs_symlinks($2)
+		fs_manage_nfs_named_sockets($2)
+		fs_manage_nfs_named_pipes($2)
 	',`
-		fs_dontaudit_manage_nfs_dirs($1_t)
-		fs_dontaudit_manage_nfs_files($1_t)
+		fs_dontaudit_manage_nfs_dirs($2)
+		fs_dontaudit_manage_nfs_files($2)
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
-		fs_manage_cifs_dirs($1_t)
-		fs_manage_cifs_files($1_t)
-		fs_manage_cifs_symlinks($1_t)
-		fs_manage_cifs_named_sockets($1_t)
-		fs_manage_cifs_named_pipes($1_t)
+		fs_manage_cifs_dirs($2)
+		fs_manage_cifs_files($2)
+		fs_manage_cifs_symlinks($2)
+		fs_manage_cifs_named_sockets($2)
+		fs_manage_cifs_named_pipes($2)
 	',`
-		fs_dontaudit_manage_cifs_dirs($1_t)
-		fs_dontaudit_manage_cifs_files($1_t)
+		fs_dontaudit_manage_cifs_dirs($2)
+		fs_dontaudit_manage_cifs_files($2)
 	')
 ')
 
 #######################################
 ## <summary>
-##	The template for allowing the user
-##	to execute files in their home directory.
+##	Manage user temporary files
 ## </summary>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
 ##	</summary>
 ## </param>
 ## <rolebase/>
 #
-template(`userdom_exec_home_template',`
-	can_exec($1_t,$1_home_t)
-
-	tunable_policy(`use_nfs_home_dirs',`
-		fs_exec_nfs_files($1_t)
-	')
-
-	tunable_policy(`use_samba_home_dirs',`
-		fs_exec_cifs_files($1_t)
-	')
-')
-
-#######################################
-## <summary>
-##	The template for polyinstantiating
-##	a user home directory.
-## </summary>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <rolebase/>
-#
-template(`userdom_poly_home_template',`
-	type_member $1_t $1_home_dir_t:dir $1_home_dir_t;
-	files_poly($1_home_dir_t)
-	files_poly_parent($1_home_dir_t)
-	files_poly_parent($1_home_t)
-	files_poly_member($1_home_t)
-')
-
-#######################################
-## <summary>
-##	The template for full access to the temporary directories.
-## </summary>
-## <desc>
-##	<p>
-##	The template for full access to the temporary directories.
-##	This creates a derived type for the user
-##	temporary type.  Execute access is not given.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <rolebase/>
-#
-template(`userdom_manage_tmp_template',`
+interface(`userdom_manage_tmp_role',`
 	gen_require(`
-		attribute $1_file_type;
+		type user_tmp_t;
 	')
 
-	type $1_tmp_t, $1_file_type;
-	files_tmp_file($1_tmp_t)
+	role $1 types user_tmp_t;
 
-	manage_dirs_pattern($1_t,$1_tmp_t,$1_tmp_t)
-	manage_files_pattern($1_t,$1_tmp_t,$1_tmp_t)
-	manage_lnk_files_pattern($1_t,$1_tmp_t,$1_tmp_t)
-	manage_sock_files_pattern($1_t,$1_tmp_t,$1_tmp_t)
-	manage_fifo_files_pattern($1_t,$1_tmp_t,$1_tmp_t)
-	files_tmp_filetrans($1_t, $1_tmp_t, { dir file lnk_file sock_file fifo_file })
+	files_poly_member_tmp($2, user_tmp_t)
+
+	manage_dirs_pattern($2, user_tmp_t, user_tmp_t)
+	manage_files_pattern($2, user_tmp_t, user_tmp_t)
+	manage_lnk_files_pattern($2, user_tmp_t, user_tmp_t)
+	manage_sock_files_pattern($2, user_tmp_t, user_tmp_t)
+	manage_fifo_files_pattern($2, user_tmp_t, user_tmp_t)
+	files_tmp_filetrans($2, user_tmp_t, { dir file lnk_file sock_file fifo_file })
 ')
 
 #######################################
 ## <summary>
-##	The template for execute access to the user temporary files.
+##	The execute access user temporary files.
 ## </summary>
-## <param name="userdomain_prefix">
+## <param name="domain">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Domain allowed access.
 ##	</summary>
 ## </param>
 ## <rolebase/>
 #
-template(`userdom_exec_tmp_template',`
-	exec_files_pattern($1_t,$1_tmp_t,$1_tmp_t)
+interface(`userdom_exec_user_tmp_files',`
+	gen_require(`
+		type user_tmp_t;
+	')
+
+	exec_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 #######################################
 ## <summary>
-##	The template for a polyinstantiated temporary directory.
-## </summary>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <rolebase/>
-#
-template(`userdom_poly_tmp_template',`
-	files_poly_member_tmp($1_t,tmp_t)
-')
-
-#######################################
-## <summary>
-##	The template for creating a tmpfs type
+##	Role access for the user tmpfs type
 ##	that the user has full access.
 ## </summary>
 ## <desc>
 ##	<p>
-##	The template for creating a tmpfs type
+##	Role access for the user tmpfs type
 ##	that the user has full access.
 ##	</p>
 ##	<p>
 ##	This does not allow execute access.
 ##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access.
 ##	</summary>
 ## </param>
-## <rolebase/>
-#
-template(`userdom_manage_tmpfs_template',`
-	gen_require(`
-		attribute $1_file_type;
-	')
-
-	type $1_tmpfs_t, $1_file_type;
-	files_tmpfs_file($1_tmpfs_t)
-
-	manage_dirs_pattern($1_t,$1_tmpfs_t,$1_tmpfs_t)
-	manage_files_pattern($1_t,$1_tmpfs_t,$1_tmpfs_t)
-	manage_lnk_files_pattern($1_t,$1_tmpfs_t,$1_tmpfs_t)
-	manage_sock_files_pattern($1_t,$1_tmpfs_t,$1_tmpfs_t)
-	manage_fifo_files_pattern($1_t,$1_tmpfs_t,$1_tmpfs_t)
-	fs_tmpfs_filetrans($1_t,$1_tmpfs_t, { dir file lnk_file sock_file fifo_file })
-')
-
-#######################################
-## <summary>
-##	The template for creating a set of types
-##	for untrusted content.
-## </summary>
-## <param name="userdomain_prefix">
+## <param name="domain">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Domain allowed access.
 ##	</summary>
 ## </param>
-## <rolebase/>
+## <rolecap/>
 #
-template(`userdom_untrusted_content_template',`
+interface(`userdom_manage_tmpfs_role',`
 	gen_require(`
-		attribute $1_file_type;
-		attribute untrusted_content_type, untrusted_content_tmp_type;
-		type $1_t;
+		type user_tmpfs_t;
 	')
 
-	# types for network-obtained content
-	type $1_untrusted_content_t, $1_file_type, untrusted_content_type; #, customizable
-	files_type($1_untrusted_content_t)
-	files_poly_member($1_untrusted_content_t)
+	role $1 types user_tmpfs_t;
 
-	type $1_untrusted_content_tmp_t, $1_file_type, untrusted_content_tmp_type; # customizable
-	files_tmp_file($1_untrusted_content_tmp_t)
-
-	# Allow user to relabel untrusted content
-	allow $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:dir { manage_dir_perms relabel_dir_perms };
-	allow $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:file { getattr unlink relabel_file_perms rename };
-
-	tunable_policy(`read_untrusted_content',`
-		allow $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:dir list_dir_perms;
-		read_files_pattern($1_t,{ $1_untrusted_content_t $1_untrusted_content_tmp_t },{ $1_untrusted_content_t $1_untrusted_content_tmp_t })
-		read_lnk_files_pattern($1_t,{ $1_untrusted_content_t $1_untrusted_content_tmp_t },{ $1_untrusted_content_t $1_untrusted_content_tmp_t })
-	',`
-		dontaudit $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:dir list_dir_perms;
-		dontaudit $1_t { $1_untrusted_content_t $1_untrusted_content_tmp_t }:file read_file_perms;
-	')
-')
-
-#######################################
-## <summary>
-##	The template allowing the user to execute
-##	generic programs, such as those found in /bin,
-##	/sbin, /usr/bin, and /usr/sbin.
-## </summary>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <rolebase/>
-#
-template(`userdom_exec_generic_pgms_template',`
-	gen_require(`
-		type $1_t;
-	')
-
-	corecmd_exec_bin($1_t)
+	manage_dirs_pattern($2, user_tmpfs_t, user_tmpfs_t)
+	manage_files_pattern($2, user_tmpfs_t, user_tmpfs_t)
+	manage_lnk_files_pattern($2, user_tmpfs_t, user_tmpfs_t)
+	manage_sock_files_pattern($2, user_tmpfs_t, user_tmpfs_t)
+	manage_fifo_files_pattern($2, user_tmpfs_t, user_tmpfs_t)
+	fs_tmpfs_filetrans($2, user_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 ')
 
 #######################################
@@ -573,7 +423,7 @@ template(`userdom_basic_networking_template',`
 #
 template(`userdom_xwindows_client_template',`
 	gen_require(`
-		type $1_t, $1_tmpfs_t;
+		type $1_t, user_tmpfs_t;
 	')
 
 	dev_rw_xserver_misc($1_t)
@@ -587,7 +437,7 @@ template(`userdom_xwindows_client_template',`
 	# GNOME checks for usb and other devices:
 	dev_rw_usbfs($1_t)
 
-	xserver_user_client_template($1,$1_t,$1_tmpfs_t)
+	xserver_user_client($1_t, user_tmpfs_t)
 	xserver_xsession_entry_type($1_t)
 	xserver_dontaudit_write_log($1_t)
 	xserver_stream_connect_xdm($1_t)
@@ -613,46 +463,14 @@ template(`userdom_xwindows_client_template',`
 #
 template(`userdom_change_password_template',`
 	gen_require(`
-		type $1_t, $1_devpts_t, $1_tty_device_t;
+		type $1_t;
 		role $1_r;
 	')
 
 	optional_policy(`
-		usermanage_run_chfn($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
-		usermanage_run_passwd($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+		usermanage_run_chfn($1_t,$1_r)
+		usermanage_run_passwd($1_t,$1_r)
 	')
-')
-
-#######################################
-## <summary>
-##	The template for allowing the user to change roles.
-## </summary>
-## <param name="src_role_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="tgt_role_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-#
-template(`userdom_role_change_template',`
-	gen_require(`
-		role $1_r, $2_r;
-		type $1_t, $2_t;
-		type $1_devpts_t, $2_devpts_t;
-		type $1_tty_device_t, $2_tty_device_t;
-	')
-
-	allow $1_r $2_r;
-	type_change $2_t $1_devpts_t:chr_file $2_devpts_t;
-	type_change $2_t $1_tty_device_t:chr_file $2_tty_device_t;
-	# avoid annoying messages on terminal hangup
-	dontaudit $1_t { $2_devpts_t $2_tty_device_t }:chr_file ioctl;
 ')
 
 #######################################
@@ -678,11 +496,7 @@ template(`userdom_common_user_template',`
 		attribute unpriv_userdomain;
 	')
 
-	userdom_untrusted_content_template($1)
-
 	userdom_basic_networking_template($1)
-
-	userdom_exec_generic_pgms_template($1)
 
 	optional_policy(`
 		userdom_xwindows_client_template($1)
@@ -706,6 +520,8 @@ template(`userdom_common_user_template',`
 	kernel_get_sysvipc_info($1_t)
 	# Find CDROM devices:
 	kernel_read_device_sysctls($1_t)
+
+	corecmd_exec_bin($1_t)
 
 	corenet_udp_bind_all_nodes($1_t)
 	corenet_udp_bind_generic_port($1_t)
@@ -742,14 +558,14 @@ template(`userdom_common_user_template',`
 	auth_use_nsswitch($1_t)
 	auth_read_login_records($1_t)
 	auth_search_pam_console_data($1_t)
-	auth_run_pam($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
-	auth_run_utempter($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+	auth_run_pam($1_t,$1_r)
+	auth_run_utempter($1_t,$1_r)
 
 	init_read_utmp($1_t)
 
 	seutil_read_file_contexts($1_t)
 	seutil_read_default_contexts($1_t)
-	seutil_run_newrole($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+	seutil_run_newrole($1_t,$1_r)
 	seutil_exec_checkpolicy($1_t)
 	seutil_exec_setfiles($1_t)
 	# for when the network connection is killed
@@ -787,15 +603,15 @@ template(`userdom_common_user_template',`
 	')
 
 	optional_policy(`
-		dbus_system_bus_client_template($1,$1_t)
+		dbus_system_bus_client($1_t)
 
 		optional_policy(`
 			bluetooth_dbus_chat($1_t)
 		')
 
 		optional_policy(`
-			evolution_dbus_chat($1,$1_t)
-			evolution_alarm_dbus_chat($1,$1_t)
+			evolution_dbus_chat($1_t)
+			evolution_alarm_dbus_chat($1_t)
 		')
 
 		optional_policy(`
@@ -876,7 +692,7 @@ template(`userdom_common_user_template',`
 	')
 
 	optional_policy(`
-		usernetctl_run($1_t,$1_r,{ $1_devpts_t $1_tty_device_t })
+		usernetctl_run($1_t,$1_r)
 	')
 ')
 
@@ -905,15 +721,13 @@ template(`userdom_login_user_template', `
 
 	userdom_base_user_template($1)
 
-	userdom_manage_home_template($1)
-	userdom_poly_home_template($1)
-	userdom_poly_tmp_template($1)
+	userdom_manage_home_role($1_r, $1_t)
 
-	userdom_manage_tmp_template($1)
-	userdom_manage_tmpfs_template($1)
+	userdom_manage_tmp_role($1_r, $1_t)
+	userdom_manage_tmpfs_role($1_r, $1_t)
 
-	userdom_exec_tmp_template($1)
-	userdom_exec_home_template($1)
+	userdom_exec_user_tmp_files($1_t)
+	userdom_exec_user_home_content_files($1_t)
 
 	userdom_change_password_template($1)
 
@@ -1019,7 +833,6 @@ template(`userdom_login_user_template', `
 template(`userdom_restricted_user_template',`
 	gen_require(`
 		attribute unpriv_userdomain;
-		attribute privhome, user_ptynode, user_home_dir_type, user_home_type, user_tmpfile, user_ttynode;
 	')
 
 	userdom_login_user_template($1)
@@ -1027,27 +840,13 @@ template(`userdom_restricted_user_template',`
 	typeattribute $1_t unpriv_userdomain;
 	domain_interactive_fd($1_t)
 
-	typeattribute $1_devpts_t user_ptynode;
-	typeattribute $1_home_dir_t user_home_dir_type;
-	typeattribute $1_home_t user_home_type;
-	typeattribute $1_tmp_t user_tmpfile;
-	typeattribute $1_tty_device_t user_ttynode;
-
 	##############################
 	#
 	# Local policy
 	#
 
-	# privileged home directory writers
-	manage_dirs_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_files_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_lnk_files_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_sock_files_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
-	manage_fifo_files_pattern(privhome,{ $1_home_dir_t $1_home_t },$1_home_t)
-	filetrans_pattern(privhome,$1_home_dir_t,$1_home_t,{ dir file lnk_file sock_file fifo_file })
-
 	optional_policy(`
-		loadkeys_run($1_t,$1_r,$1_tty_device_t)
+		loadkeys_run($1_t,$1_r)
 	')
 ')
 
@@ -1083,7 +882,7 @@ template(`userdom_restricted_xwindows_user_template',`
 	# Local policy
 	#
 
-	authlogin_per_role_template($1, $1_t, $1_r)
+	auth_role($1_r, $1_t)
 	auth_search_pam_console_data($1_t)
 
 	dev_read_sound($1_t)
@@ -1103,8 +902,8 @@ template(`userdom_restricted_xwindows_user_template',`
 	')
 
 	optional_policy(`
-		dbus_per_role_template($1, $1_t, $1_r)
-		dbus_system_bus_client_template($1, $1_t)
+		dbus_role_template($1, $1_r, $1_t)
+		dbus_system_bus_client($1_t)
 
 		optional_policy(`
 			consolekit_dbus_chat($1_t)
@@ -1116,7 +915,7 @@ template(`userdom_restricted_xwindows_user_template',`
 	')
 
 	optional_policy(`
-		java_per_role_template($1, $1_t, $1_r)
+		java_role($1_r, $1_t)
 	')
 
 	optional_policy(`
@@ -1201,17 +1000,17 @@ template(`userdom_unpriv_user_template', `
 	')
 
 	optional_policy(`
-		netutils_run_ping_cond($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
-		netutils_run_traceroute_cond($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+		netutils_run_ping_cond($1_t,$1_r)
+		netutils_run_traceroute_cond($1_t,$1_r)
 	')
 
 	optional_policy(`
-		postgresql_userdom_template($1,$1_t,$1_r)
+		postgresql_role($1_r,$1_t)
 	')
 
 	# Run pppd in pppd_t by default for user
 	optional_policy(`
-		ppp_run_cond($1_t,$1_r,{ $1_tty_device_t $1_devpts_t })
+		ppp_run_cond($1_t,$1_r)
 	')
 
 	optional_policy(`
@@ -1250,8 +1049,7 @@ template(`userdom_unpriv_user_template', `
 #
 template(`userdom_admin_user_template',`
 	gen_require(`
-		attribute admin_terminal, privhome;
-		class passwd { passwd chfn chsh rootok crontab };
+		class passwd { passwd chfn chsh rootok };
 	')
 
 	##############################
@@ -1263,17 +1061,12 @@ template(`userdom_admin_user_template',`
 	userdom_login_user_template($1)
 	userdom_common_user_template($1)
 
-	typeattribute $1_t privhome;
 	domain_obj_id_change_exemption($1_t)
 	role system_r types $1_t;
 
 	ifdef(`direct_sysadm_daemon',`
 		domain_system_change_exemption($1_t)
 	')
-
-	typeattribute $1_devpts_t admin_terminal;
-
-	typeattribute $1_tty_device_t admin_terminal;
 
 	##############################
 	#
@@ -1288,9 +1081,6 @@ template(`userdom_admin_user_template',`
 
 	# Skip authentication when pam_rootok is specified.
 	allow $1_t self:passwd rootok;
-
-	# Manipulate other users crontab.
-	allow $1_t self:passwd crontab;
 
 	allow $1_t self:netlink_audit_socket nlmsg_readpriv;
 
@@ -1371,6 +1161,13 @@ template(`userdom_admin_user_template',`
 	# But presently necessary for installing the file_contexts file.
 	seutil_manage_bin_policy($1_t)
 
+	userdom_manage_user_home_content_dirs($1_t)
+	userdom_manage_user_home_content_files($1_t)
+	userdom_manage_user_home_content_symlinks($1_t)
+	userdom_manage_user_home_content_pipes($1_t)
+	userdom_manage_user_home_content_sockets($1_t)
+	userdom_user_home_dir_filetrans_user_home_content($1_t, { dir file lnk_file fifo_file sock_file })
+
 	tunable_policy(`user_rw_noexattrfile',`
 		fs_manage_noxattr_fs_files($1_t)
 		fs_manage_noxattr_fs_dirs($1_t)
@@ -1402,12 +1199,6 @@ template(`userdom_admin_user_template',`
 ##	be called from a per-userdomain template.
 ##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -1453,17 +1244,13 @@ template(`userdom_security_admin_template',`
 	logging_read_audit_config($1)
 
 	seutil_manage_bin_policy($1)
-	seutil_run_checkpolicy($1,$2,$3)
-	seutil_run_loadpolicy($1,$2,$3)
-	seutil_run_semanage($1,$2,$3)
-	seutil_run_setfiles($1, $2, $3)
-
-	staff_dontaudit_append_home_content_files($1)
-
-	sysadm_dontaudit_read_home_content_files($1)
+	seutil_run_checkpolicy($1,$2)
+	seutil_run_loadpolicy($1,$2)
+	seutil_run_semanage($1,$2)
+	seutil_run_setfiles($1, $2)
 
 	optional_policy(`
-		aide_run($1,$2, $3)
+		aide_run($1,$2)
 	')
 
 	optional_policy(`
@@ -1475,260 +1262,19 @@ template(`userdom_security_admin_template',`
 	')
 
 	optional_policy(`	
-		ipsec_run_setkey($1,$2,$3)
+		ipsec_run_setkey($1,$2)
 	')
 
 	optional_policy(`
-		netlabel_run_mgmt($1,$2, $3)
+		netlabel_run_mgmt($1,$2)
 	')
 ')
 
 ########################################
 ## <summary>
-##	Change to the generic user role.
-## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_generic_user',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_role_change_template() instead.')
-	unprivuser_role_change_template($1)
-')
-
-########################################
-## <summary>
-##	Change from the generic user role.
-## </summary>
-## <desc>
-##	<p>
-##	Change from the generic user role to
-##	the specified role.
-##	</p>
-##	<p>
-##	This is a template to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_from_generic_user',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_role_change_to_template() instead.')
-	unprivuser_role_change_to_template($1)
-')
-
-########################################
-## <summary>
-##	Change to the staff user role.
-## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_staff',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_role_change_template() instead.')
-	staff_role_change_template($1)
-')
-
-########################################
-## <summary>
-##	Change from the staff user role.
-## </summary>
-## <desc>
-##	<p>
-##	Change from the staff user role to
-##	the specified role.
-##	</p>
-##	<p>
-##	This is a template to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_from_staff',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_role_change_to_template() instead.')
-	staff_role_change_to_template($1)
-')
-
-########################################
-## <summary>
-##	Change to the sysadm user role.
-## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_role_change_template() instead.')
-	sysadm_role_change_template($1)
-')
-
-########################################
-## <summary>
-##	Change from the sysadm user role.
-## </summary>
-## <desc>
-##	<p>
-##	Change from the sysadm user role to
-##	the specified role.
-##	</p>
-##	<p>
-##	This is a template to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_from_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_role_change_to_template() instead.')
-	sysadm_role_change_to_template($1)
-')
-
-########################################
-## <summary>
-##	Change to the secadm user role.
-## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_secadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use secadm_role_change_template() instead.')
-	secadm_role_change_template($1)
-')
-
-########################################
-## <summary>
-##	Change from the secadm user role.
-## </summary>
-## <desc>
-##	<p>
-##	Change from the secadm user role to
-##	the specified role.
-##	</p>
-##	<p>
-##	This is a template to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_from_secadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use secadm_role_change_to_template() instead.')
-	secadm_role_change_to_template($1)
-')
-
-########################################
-## <summary>
-##	Change to the auditadm user role.
-## </summary>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the auditadm role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_auditadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use auditadm_role_change_template() instead.')
-	auditadm_role_change_template($1)
-')
-
-########################################
-## <summary>
-##	Change from the auditadm user role.
-## </summary>
-## <desc>
-##	<p>
-##	Change from the auditadm user role to
-##	the specified role.
-##	</p>
-##	<p>
-##	This is a template to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="prefix">
-##	<summary>
-##	The prefix of the user role (e.g., user
-##	is the prefix for user_r).
-##	</summary>
-## </param>
-## <rolecap/>
-#
-template(`userdom_role_change_from_auditadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use auditadm_role_change_to_template() instead.')
-	auditadm_role_change_to_template($1)
-')
-
-########################################
-## <summary>
 ##	Make the specified type usable in a
 ##	user home directory.
 ## </summary>
-## <desc>
-##	<p>
-##	Make the specified type usable in a
-##	user home directory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="type">
 ##	<summary>
 ##	Type to be used as a file in the
@@ -1736,147 +1282,234 @@ template(`userdom_role_change_from_auditadm',`
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_home_content',`
+interface(`userdom_user_home_content',`
 	gen_require(`
-		attribute $1_file_type;
+		type user_home_t;
 	')
 
-	typeattribute $2 $1_file_type;
-	files_type($2)
+	allow $1 user_home_t:filesystem associate;
+	files_type($1)
+	ubac_constrained($1)
 ')
 
 ########################################
 ## <summary>
 ##	Set the attributes of a user pty.
 ## </summary>
-## <desc>
-##	<p>
-##	Set the attributes of a user pty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_setattr_user_ptys',`
+interface(`userdom_setattr_user_ptys',`
 	gen_require(`
-		type $1_devpts_t;
+		type user_devpts_t;
 	')
 
-	allow $2 $1_devpts_t:chr_file setattr;
+	allow $1 user_devpts_t:chr_file setattr;
 ')
 
 ########################################
 ## <summary>
 ##	Create a user pty.
 ## </summary>
-## <desc>
-##	<p>
-##	Create a user pty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_create_user_pty',`
+interface(`userdom_create_user_pty',`
 	gen_require(`
-		type $1_devpts_t;
+		type user_devpts_t;
 	')
 
-	term_create_pty($2, $1_devpts_t)
+	term_create_pty($1, user_devpts_t)
 ')
 
 ########################################
 ## <summary>
-##	Search user home directories.
+##	Get the attributes of user home directories.
 ## </summary>
-## <desc>
-##	<p>
-##	Search user home directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_search_user_home_dirs',`
+interface(`userdom_getattr_user_home_dirs',`
 	gen_require(`
-		type $1_home_dir_t;
+		type user_home_dir_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
+	allow $1 user_home_dir_t:dir getattr_dir_perms;
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get the attributes of user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_getattr_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	dontaudit $1 user_home_dir_t:dir getattr_dir_perms;
+')
+
+########################################
+## <summary>
+##	Search user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_search_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Search user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_search_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	dontaudit $1 user_home_dir_t:dir search_dir_perms;
 ')
 
 ########################################
 ## <summary>
 ##      List user home directories.
 ## </summary>
-## <desc>
-##      <p>
-##      List user home directories.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_list_user_home_dirs',`
+interface(`userdom_list_user_home_dirs',`
 	gen_require(`
-		type $1_home_dir_t;
+		type user_home_dir_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir list_dir_perms;
+	allow $1 user_home_dir_t:dir list_dir_perms;
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to list user home subdirectories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_list_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	dontaudit $1 user_home_dir_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Create user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_create_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	allow $1 user_home_dir_t:dir create_dir_perms;
+')
+
+########################################
+## <summary>
+##	Create user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_manage_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	allow $1 user_home_dir_t:dir manage_dir_perms;
+')
+
+########################################
+## <summary>
+##	Relabel to user home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_relabelto_user_home_dirs',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	allow $1 user_home_dir_t:dir relabelto;
+')
+
+########################################
+## <summary>
+##	Create directories in the home dir root with
+##	the user home directory type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_home_filetrans_user_home_dir',`
+	gen_require(`
+		type user_home_dir_t;
+	')
+
+	files_home_filetrans($1, user_home_dir_t, dir)
 ')
 
 ########################################
@@ -1896,17 +1529,7 @@ template(`userdom_list_user_home_dirs',`
 ##	etc.) is provided by this interface since
 ##	the domains are not owned by this module.
 ##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
 ## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="source_domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -1918,47 +1541,32 @@ template(`userdom_list_user_home_dirs',`
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_home_domtrans',`
+interface(`userdom_user_home_domtrans',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
-	domain_auto_trans($2,$1_home_t,$3)
+	domain_auto_trans($1, user_home_t, $2)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
 ')
 
 ########################################
 ## <summary>
-##	Do not audit attempts to list user home subdirectories.
+##	Do not audit attempts to search user home content directories.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to list user home subdirectories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_list_user_home_dirs',`
+interface(`userdom_dontaudit_search_user_home_content',`
 	gen_require(`
-		type $1_home_dir_t;
+		type user_home_t;
 	')
 
-	dontaudit $2 $1_home_dir_t:dir list_dir_perms;
+	dontaudit $1 user_home_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -1966,35 +1574,19 @@ template(`userdom_dontaudit_list_user_home_dirs',`
 ##	Create, read, write, and delete directories
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete directories
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_home_content_dirs',`
+interface(`userdom_manage_user_home_content_dirs',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	manage_dirs_pattern($2,{ $1_home_dir_t $1_home_t },$1_home_t)
+	manage_dirs_pattern($1, { user_home_dir_t user_home_t }, user_home_t)
+	files_search_home($1)
 ')
 
 ########################################
@@ -2002,236 +1594,194 @@ template(`userdom_manage_user_home_content_dirs',`
 ##	Do not audit attempts to set the
 ##	attributes of user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to set the
-##	attributes of user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_setattr_user_home_content_files',`
+interface(`userdom_dontaudit_setattr_user_home_content_files',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_t;
 	')
 
-	dontaudit $2 $1_home_t:file setattr;
+	dontaudit $1 user_home_t:file setattr;
+')
+
+########################################
+## <summary>
+##	Mmap user home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_mmap_user_home_content_files',`
+	gen_require(`
+		type user_home_dir_t, user_home_t;
+	')
+
+	mmap_files_pattern($1, { user_home_dir_t user_home_t }, user_home_t)
+	files_search_home($1)
 ')
 
 ########################################
 ## <summary>
 ##	Read user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Read user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_read_user_home_content_files',`
+interface(`userdom_read_user_home_content_files',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	read_files_pattern($2,{ $1_home_dir_t $1_home_t },$1_home_t)
+	read_files_pattern($1, { user_home_dir_t user_home_t }, user_home_t)
+	files_search_home($1)
 ')
 
 ########################################
 ## <summary>
 ##	Do not audit attempts to read user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_read_user_home_content_files',`
+interface(`userdom_dontaudit_read_user_home_content_files',`
 	gen_require(`
-		type $1_home_t;
+		type user_home_t;
 	')
 
-	dontaudit $2 $1_home_t:dir list_dir_perms;
-	dontaudit $2 $1_home_t:file read_file_perms;
+	dontaudit $1 user_home_t:dir list_dir_perms;
+	dontaudit $1 user_home_t:file read_file_perms;
 ')
 
 ########################################
 ## <summary>
-##	Do not audit attempts to write user home files.
+##	Do not audit attempts to append user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to write user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_write_user_home_content_files',`
+interface(`userdom_dontaudit_append_user_home_content_files',`
 	gen_require(`
-		type $1_home_t;
+		type user_home_t;
 	')
 
-	dontaudit $2 $1_home_t:file write;
+	dontaudit $1 user_home_t:file append;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write user home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_write_user_home_content_files',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	dontaudit $1 user_home_t:file write;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write user home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_relabel_user_home_content_files',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	dontaudit $1 user_home_t:file relabel_file_perms;
 ')
 
 ########################################
 ## <summary>
 ##	Read user home subdirectory symbolic links.
 ## </summary>
-## <desc>
-##	<p>
-##	Read user home subdirectory symbolic links.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_read_user_home_content_symlinks',`
+interface(`userdom_read_user_home_content_symlinks',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	read_lnk_files_pattern($2,{ $1_home_dir_t $1_home_t },$1_home_t)
+	read_lnk_files_pattern($1, { user_home_dir_t user_home_t }, user_home_t)
+	files_search_home($1)
 ')
 
 ########################################
 ## <summary>
 ##	Execute user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Execute user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
+## <rolecap/>
 #
-template(`userdom_exec_user_home_content_files',`
+interface(`userdom_exec_user_home_content_files',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	exec_files_pattern($2,{ $1_home_dir_t $1_home_t },$1_home_t)
+	files_search_home($1)
+	exec_files_pattern($1, { user_home_dir_t user_home_t }, user_home_t)
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_exec_nfs_files($1)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_exec_cifs_files($1)
+	')
 ')
 
 ########################################
 ## <summary>
 ##	Do not audit attempts to execute user home files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to execute user home files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_exec_user_home_content_files',`
+interface(`userdom_dontaudit_exec_user_home_content_files',`
 	gen_require(`
-		type $1_home_t;
+		type user_home_t;
 	')
 
-	dontaudit $2 $1_home_t:file execute;
+	dontaudit $1 user_home_t:file execute;
 ')
 
 ########################################
@@ -2239,36 +1789,20 @@ template(`userdom_dontaudit_exec_user_home_content_files',`
 ##	Create, read, write, and delete files
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete files
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_home_content_files',`
+interface(`userdom_manage_user_home_content_files',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
-	manage_files_pattern($2,$1_home_t,$1_home_t)
+	manage_files_pattern($1, user_home_t, user_home_t)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
 ')
 
 ########################################
@@ -2276,34 +1810,18 @@ template(`userdom_manage_user_home_content_files',`
 ##	Do not audit attempts to create, read, write, and delete directories
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to create, read, write, and delete directories
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_manage_user_home_content_dirs',`
+interface(`userdom_dontaudit_manage_user_home_content_dirs',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	dontaudit $2 $1_home_t:dir manage_dir_perms;
+	dontaudit $1 user_home_t:dir manage_dir_perms;
 ')
 
 ########################################
@@ -2311,36 +1829,20 @@ template(`userdom_dontaudit_manage_user_home_content_dirs',`
 ##	Create, read, write, and delete symbolic links
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete symbolic links
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_home_content_symlinks',`
+interface(`userdom_manage_user_home_content_symlinks',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
-	manage_lnk_files_pattern($2,$1_home_t,$1_home_t)
+	manage_lnk_files_pattern($1, user_home_t, user_home_t)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
 ')
 
 ########################################
@@ -2348,36 +1850,20 @@ template(`userdom_manage_user_home_content_symlinks',`
 ##	Create, read, write, and delete named pipes
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete named pipes
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_home_content_pipes',`
+interface(`userdom_manage_user_home_content_pipes',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
-	manage_fifo_files_pattern($2,$1_home_t,$1_home_t)
+	manage_fifo_files_pattern($1, user_home_t, user_home_t)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
 ')
 
 ########################################
@@ -2385,36 +1871,20 @@ template(`userdom_manage_user_home_content_pipes',`
 ##	Create, read, write, and delete named sockets
 ##	in a user home subdirectory.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete named sockets
-##	in a user home subdirectory.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_home_content_sockets',`
+interface(`userdom_manage_user_home_content_sockets',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	allow $2 $1_home_dir_t:dir search_dir_perms;
-	manage_sock_files_pattern($2,$1_home_t,$1_home_t)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	manage_sock_files_pattern($1, user_home_t, user_home_t)
+	files_search_home($1)
 ')
 
 ########################################
@@ -2423,23 +1893,6 @@ template(`userdom_manage_user_home_content_sockets',`
 ##	with an automatic type transition to
 ##	a specified private type.
 ## </summary>
-## <desc>
-##	<p>
-##	Create objects in a user home directory
-##	with an automatic type transition to
-##	a specified private type.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -2452,18 +1905,17 @@ template(`userdom_manage_user_home_content_sockets',`
 ## </param>
 ## <param name="object_class">
 ##	<summary>
-##	The class of the object to be created.  If not
-##	specified, file is used.
+##	The class of the object to be created.
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_home_dir_filetrans',`
+interface(`userdom_user_home_dir_filetrans',`
 	gen_require(`
-		type $1_home_dir_t;
+		type user_home_dir_t;
 	')
 
-	files_search_home($2)
-	filetrans_pattern($2,$1_home_dir_t,$3,$4)
+	filetrans_pattern($1, user_home_dir_t, $2, $3)
+	files_search_home($1)
 ')
 
 ########################################
@@ -2472,23 +1924,6 @@ template(`userdom_user_home_dir_filetrans',`
 ##	with an automatic type transition to
 ##	a specified private type.
 ## </summary>
-## <desc>
-##	<p>
-##	Create objects in a user home directory
-##	with an automatic type transition to
-##	a specified private type.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -2501,18 +1936,18 @@ template(`userdom_user_home_dir_filetrans',`
 ## </param>
 ## <param name="object_class">
 ##	<summary>
-##	The class of the object to be created.  If not
-##	specified, file is used.
+##	The class of the object to be created.
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_home_content_filetrans',`
+interface(`userdom_user_home_content_filetrans',`
 	gen_require(`
-		type $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	filetrans_pattern($2,$1_home_t,$3,$4)
+	filetrans_pattern($1, user_home_t, $2, $3)
+	allow $1 user_home_dir_t:dir search_dir_perms;
+	files_search_home($1)
 ')
 
 ########################################
@@ -2521,23 +1956,6 @@ template(`userdom_user_home_content_filetrans',`
 ##	with an automatic type transition to
 ##	the user home file type.
 ## </summary>
-## <desc>
-##	<p>
-##	Create objects in a user home directory
-##	with an automatic type transition to
-##	the user home file type.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -2545,86 +1963,55 @@ template(`userdom_user_home_content_filetrans',`
 ## </param>
 ## <param name="object_class">
 ##	<summary>
-##	The class of the object to be created.  If not
-##	specified, file is used.
+##	The class of the object to be created.
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_home_dir_filetrans_user_home_content',`
+interface(`userdom_user_home_dir_filetrans_user_home_content',`
 	gen_require(`
-		type $1_home_dir_t, $1_home_t;
+		type user_home_dir_t, user_home_t;
 	')
 
-	files_search_home($2)
-	filetrans_pattern($2,$1_home_dir_t,$1_home_t,$3)
+	filetrans_pattern($1, user_home_dir_t, user_home_t, $2)
+	files_search_home($1)
 ')
 
 ########################################
 ## <summary>
 ##      Write to user temporary named sockets.
 ## </summary>
-## <desc>
-##      <p>
-##      Write to user temporary named sockets.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##      Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_write_user_tmp_sockets',`
+interface(`userdom_write_user_tmp_sockets',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	allow $2 $1_tmp_t:sock_file write;
+	allow $1 user_tmp_t:sock_file write;
+	files_search_tmp($1)
 ')
 
 ########################################
 ## <summary>
 ##	List user temporary directories.
 ## </summary>
-## <desc>
-##	<p>
-##	List user temporary directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_list_user_tmp',`
+interface(`userdom_list_user_tmp',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	allow $2 $1_tmp_t:dir list_dir_perms;
+	allow $1 user_tmp_t:dir list_dir_perms;
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2632,34 +2019,18 @@ template(`userdom_list_user_tmp',`
 ##	Do not audit attempts to list user
 ##	temporary directories.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to list user
-##	temporary directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_list_user_tmp',`
+interface(`userdom_dontaudit_list_user_tmp',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	dontaudit $2 $1_tmp_t:dir list_dir_perms;
+	dontaudit $1 user_tmp_t:dir list_dir_perms;
 ')
 
 ########################################
@@ -2667,69 +2038,38 @@ template(`userdom_dontaudit_list_user_tmp',`
 ##	Do not audit attempts to manage users
 ##	temporary directories.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to manage users
-##	temporary directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_manage_user_tmp_dirs',`
+interface(`userdom_dontaudit_manage_user_tmp_dirs',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	dontaudit $2 $1_tmp_t:dir manage_dir_perms;
+	dontaudit $1 user_tmp_t:dir manage_dir_perms;
 ')
 
 ########################################
 ## <summary>
 ##	Read user temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Read user temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_read_user_tmp_files',`
+interface(`userdom_read_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	allow $2 $1_tmp_t:dir list_dir_perms;
-	read_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	read_files_pattern($1, user_tmp_t, user_tmp_t)
+	allow $1 user_tmp_t:dir list_dir_perms;
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2737,34 +2077,18 @@ template(`userdom_read_user_tmp_files',`
 ##	Do not audit attempts to read users
 ##	temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read users
-##	temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_read_user_tmp_files',`
+interface(`userdom_dontaudit_read_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	dontaudit $2 $1_tmp_t:file read_file_perms;
+	dontaudit $1 user_tmp_t:file read_file_perms;
 ')
 
 ########################################
@@ -2772,69 +2096,38 @@ template(`userdom_dontaudit_read_user_tmp_files',`
 ##	Do not audit attempts to append users
 ##	temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to append users
-##	temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_append_user_tmp_files',`
+interface(`userdom_dontaudit_append_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	dontaudit $2 $1_tmp_t:file append;
+	dontaudit $1 user_tmp_t:file append;
 ')
 
 ########################################
 ## <summary>
 ##	Read and write user temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Read and write user temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_rw_user_tmp_files',`
+interface(`userdom_rw_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	allow $2 $1_tmp_t:dir list_dir_perms;
-	rw_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	allow $1 user_tmp_t:dir list_dir_perms;
+	rw_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2842,71 +2135,38 @@ template(`userdom_rw_user_tmp_files',`
 ##	Do not audit attempts to manage users
 ##	temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to manage users
-##	temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain to not audit.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_manage_user_tmp_files',`
+interface(`userdom_dontaudit_manage_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	dontaudit $2 $1_tmp_t:file manage_file_perms;
+	dontaudit $1 user_tmp_t:file manage_file_perms;
 ')
 
 ########################################
 ## <summary>
-##	Read user
-##	temporary symbolic links.
+##	Read user temporary symbolic links.
 ## </summary>
-## <desc>
-##	<p>
-##	Read user
-##	temporary symbolic links.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_read_user_tmp_symlinks',`
+interface(`userdom_read_user_tmp_symlinks',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	allow $2 $1_tmp_t:dir list_dir_perms;
-	read_lnk_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	read_lnk_files_pattern($1, user_tmp_t, user_tmp_t)
+	allow $1 user_tmp_t:dir list_dir_perms;
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2914,35 +2174,19 @@ template(`userdom_read_user_tmp_symlinks',`
 ##	Create, read, write, and delete user
 ##	temporary directories.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete user
-##	temporary directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_tmp_dirs',`
+interface(`userdom_manage_user_tmp_dirs',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	manage_dirs_pattern($2,$1_tmp_t,$1_tmp_t)
+	manage_dirs_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2950,35 +2194,19 @@ template(`userdom_manage_user_tmp_dirs',`
 ##	Create, read, write, and delete user
 ##	temporary files.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete user
-##	temporary files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_tmp_files',`
+interface(`userdom_manage_user_tmp_files',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	manage_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	manage_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -2986,35 +2214,19 @@ template(`userdom_manage_user_tmp_files',`
 ##	Create, read, write, and delete user
 ##	temporary symbolic links.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete user
-##	temporary symbolic links.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_tmp_symlinks',`
+interface(`userdom_manage_user_tmp_symlinks',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	manage_lnk_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	manage_lnk_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -3022,35 +2234,19 @@ template(`userdom_manage_user_tmp_symlinks',`
 ##	Create, read, write, and delete user
 ##	temporary named pipes.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete user
-##	temporary named pipes.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_tmp_pipes',`
+interface(`userdom_manage_user_tmp_pipes',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	manage_fifo_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	manage_fifo_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -3058,35 +2254,19 @@ template(`userdom_manage_user_tmp_pipes',`
 ##	Create, read, write, and delete user
 ##	temporary named sockets.
 ## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete user
-##	temporary named sockets.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_manage_user_tmp_sockets',`
+interface(`userdom_manage_user_tmp_sockets',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_search_tmp($2)
-	manage_sock_files_pattern($2,$1_tmp_t,$1_tmp_t)
+	manage_sock_files_pattern($1, user_tmp_t, user_tmp_t)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -3095,23 +2275,6 @@ template(`userdom_manage_user_tmp_sockets',`
 ##	with an automatic type transition to
 ##	a specified private type.
 ## </summary>
-## <desc>
-##	<p>
-##	Create objects in a user temporary directory
-##	with an automatic type transition to
-##	a specified private type.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -3124,18 +2287,17 @@ template(`userdom_manage_user_tmp_sockets',`
 ## </param>
 ## <param name="object_class">
 ##	<summary>
-##	The class of the object to be created.  If not
-##	specified, file is used.
+##	The class of the object to be created.
 ##	</summary>
 ## </param>
 #
-template(`userdom_user_tmp_filetrans',`
+interface(`userdom_user_tmp_filetrans',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	filetrans_pattern($2,$1_tmp_t,$3,$4)
-	files_search_tmp($2)
+	filetrans_pattern($1, user_tmp_t, $2, $3)
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -3144,23 +2306,6 @@ template(`userdom_user_tmp_filetrans',`
 ##	with an automatic type transition to
 ##	the user temporary type.
 ## </summary>
-## <desc>
-##	<p>
-##	Create objects in the temporary directory
-##	with an automatic type transition to
-##	the user temporary type.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
@@ -3168,499 +2313,42 @@ template(`userdom_user_tmp_filetrans',`
 ## </param>
 ## <param name="object_class">
 ##	<summary>
-##	The class of the object to be created.  If not
-##	specified, file is used.
+##	The class of the object to be created.
 ##	</summary>
 ## </param>
 #
-template(`userdom_tmp_filetrans_user_tmp',`
+interface(`userdom_tmp_filetrans_user_tmp',`
 	gen_require(`
-		type $1_tmp_t;
+		type user_tmp_t;
 	')
 
-	files_tmp_filetrans($2,$1_tmp_t,$3)
+	files_tmp_filetrans($1, user_tmp_t, $2)
 ')
 
 ########################################
 ## <summary>
 ##	Read user tmpfs files.
 ## </summary>
-## <desc>
-##	<p>
-##	Read user tmpfs files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_rw_user_tmpfs_files',`
+interface(`userdom_rw_user_tmpfs_files',`
 	gen_require(`
-		type $1_tmpfs_t;
+		type user_tmpfs_t;
 	')
 
-	fs_search_tmpfs($2)
-	allow $2 $1_tmpfs_t:dir list_dir_perms;
-	rw_files_pattern($2,$1_tmpfs_t,$1_tmpfs_t)
-	read_lnk_files_pattern($2,$1_tmpfs_t,$1_tmpfs_t)
+	rw_files_pattern($1, user_tmpfs_t, user_tmpfs_t)
+	read_lnk_files_pattern($1, user_tmpfs_t, user_tmpfs_t)
+	allow $1 user_tmpfs_t:dir list_dir_perms;
+	fs_search_tmpfs($1)
 ')
 
 ########################################
 ## <summary>
-##	List users untrusted directories.
-## </summary>
-## <desc>
-##	<p>
-##	List users untrusted directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_list_user_untrusted_content',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	allow $2 $1_untrusted_content_t:dir list_dir_perms;
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to list user
-##	untrusted directories.
-## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read user
-##	untrusted directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-template(`userdom_dontaudit_list_user_untrusted_content',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	dontaudit $2 $1_untrusted_content_t:dir list_dir_perms;
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete users untrusted directories.
-## </summary>
-## <desc>
-##	<p>
-##	Create, read, write, and delete users untrusted directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_manage_user_untrusted_content_dirs',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	allow $2 $1_untrusted_content_t:dir manage_dir_perms;
-')
-
-########################################
-## <summary>
-##	Read user untrusted files.
-## </summary>
-## <desc>
-##	<p>
-##	Read user untrusted files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_read_user_untrusted_content_files',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	allow $2 $1_untrusted_content_t:dir list_dir_perms;
-	read_files_pattern($2,$1_untrusted_content_t,$1_untrusted_content_t)
-')
-
-########################################
-## <summary>
-##	Manage user untrusted files.
-## </summary>
-## <desc>
-##      <p>
-##      Create, read, write, and delete untrusted files.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##      Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_manage_user_untrusted_content_files',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	manage_files_pattern($2,$1_untrusted_content_t,$1_untrusted_content_t)
-')
-
-########################################
-## <summary>
-##	Manage user untrusted tmp files.
-## </summary>
-## <desc>
-##      <p>
-##      Create, read, write, and delete untrusted tmp files.
-##      </p>
-##      <p>
-##      This is a templated interface, and should only
-##      be called from a per-userdomain template.
-##      </p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##      The prefix of the user domain (e.g., user
-##      is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##      Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_manage_user_untrusted_content_tmp_files',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	manage_files_pattern($2,$1_untrusted_content_tmp_t,$1_untrusted_content_tmp_t)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to read users
-##	untrusted files.
-## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read users
-##	untrusted files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-template(`userdom_dontaudit_read_user_untrusted_content_files',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	dontaudit $2 $1_untrusted_content_t:file read_file_perms;
-')
-
-########################################
-## <summary>
-##	Read user untrusted symbolic links.
-## </summary>
-## <desc>
-##	<p>
-##	Read user untrusted symbolic links.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_read_user_untrusted_content_symlinks',`
-	gen_require(`
-		type $1_untrusted_content_t;
-	')
-
-	allow $2 $1_untrusted_content_t:dir list_dir_perms;
-	read_lnk_files_pattern($2,$1_untrusted_content_t,$1_untrusted_content_t)
-')
-
-########################################
-## <summary>
-##	List users temporary untrusted directories.
-## </summary>
-## <desc>
-##	<p>
-##	List users temporary untrusted directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_list_user_tmp_untrusted_content',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	allow $2 $1_untrusted_content_tmp_t:dir list_dir_perms;
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to list user
-##	temporary untrusted directories.
-## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to list user
-##	temporary directories.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-template(`userdom_dontaudit_list_user_tmp_untrusted_content',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	dontaudit $2 $1_untrusted_content_tmp_t:dir list_dir_perms;
-')
-
-########################################
-## <summary>
-##	Read user temporary untrusted files.
-## </summary>
-## <desc>
-##	<p>
-##	Read user temporary untrusted files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_read_user_tmp_untrusted_content_files',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	allow $2 $1_untrusted_content_tmp_t:dir list_dir_perms;
-	read_files_pattern($2,$1_untrusted_content_tmp_t,$1_untrusted_content_tmp_t)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to read users
-##	temporary untrusted files.
-## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read users
-##	temporary untrusted files.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-template(`userdom_dontaudit_read_user_tmp_untrusted_content_files',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	dontaudit $2 $1_untrusted_content_tmp_t:file read_file_perms;
-')
-
-########################################
-## <summary>
-##	Read user temporary untrusted symbolic links.
-## </summary>
-## <desc>
-##	<p>
-##	Read user temporary untrusted symbolic links.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-template(`userdom_read_user_tmp_untrusted_content_symlinks',`
-	gen_require(`
-		type $1_untrusted_content_tmp_t;
-	')
-
-	allow $2 $1_untrusted_content_tmp_t:dir list_dir_perms;
-	read_lnk_files_pattern($2,$1_untrusted_content_tmp_t,$1_untrusted_content_tmp_t)
-')
-
-########################################
-## <summary>
-##	Read all user untrusted content files.
+##	Get the attributes of a user domain tty.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -3668,19 +2356,17 @@ template(`userdom_read_user_tmp_untrusted_content_symlinks',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_read_all_untrusted_content',`
+interface(`userdom_getattr_user_ttys',`
 	gen_require(`
-		attribute untrusted_content_type;
+		type user_tty_device_t;
 	')
 
-	allow $1 untrusted_content_type:dir list_dir_perms;
-	read_files_pattern($1,untrusted_content_type,untrusted_content_type)
-	read_lnk_files_pattern($1,untrusted_content_type,untrusted_content_type)
+	allow $1 user_tty_device_t:chr_file getattr;
 ')
 
 ########################################
 ## <summary>
-##	Read all user temporary untrusted content files.
+##	Do not audit attempts to get the attributes of a user domain tty.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -3688,115 +2374,104 @@ interface(`userdom_read_all_untrusted_content',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_read_all_tmp_untrusted_content',`
+interface(`userdom_dontaudit_getattr_user_ttys',`
 	gen_require(`
-		attribute untrusted_content_tmp_type;
+		type user_tty_device_t;
 	')
 
-	allow $1 untrusted_content_tmp_type:dir list_dir_perms;
-	read_files_pattern($1,untrusted_content_tmp_type,untrusted_content_tmp_type)
-	read_lnk_files_pattern($1,untrusted_content_tmp_type,untrusted_content_tmp_type)
+	dontaudit $1 user_tty_device_t:chr_file getattr;
 ')
 
 ########################################
 ## <summary>
 ##	Set the attributes of a user domain tty.
 ## </summary>
-## <desc>
-##	<p>
-##	Set the attributes of a user domain tty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_setattr_user_ttys',`
+interface(`userdom_setattr_user_ttys',`
 	gen_require(`
-		type $1_tty_device_t;
+		type user_tty_device_t;
 	')
 
-	allow $2 $1_tty_device_t:chr_file setattr;
+	allow $1 user_tty_device_t:chr_file setattr;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to set the attributes of a user domain tty.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_setattr_user_ttys',`
+	gen_require(`
+		type user_tty_device_t;
+	')
+
+	dontaudit $1 user_tty_device_t:chr_file setattr;
 ')
 
 ########################################
 ## <summary>
 ##	Read and write a user domain tty.
 ## </summary>
-## <desc>
-##	<p>
-##	Read and write a user domain tty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_use_user_ttys',`
+interface(`userdom_use_user_ttys',`
 	gen_require(`
-		type $1_tty_device_t;
+		type user_tty_device_t;
 	')
 
-	allow $2 $1_tty_device_t:chr_file rw_term_perms;
+	allow $1 user_tty_device_t:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Read and write a user domain pty.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_use_user_ptys',`
+	gen_require(`
+		type user_devpts_t;
+	')
+
+	allow $1 user_devpts_t:chr_file rw_term_perms;
 ')
 
 ########################################
 ## <summary>
 ##	Read and write a user domain tty and pty.
 ## </summary>
-## <desc>
-##	<p>
-##	Read and write a user domain tty and pty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_use_user_terminals',`
+interface(`userdom_use_user_terminals',`
 	gen_require(`
-		type $1_tty_device_t, $1_devpts_t;
+		type user_tty_device_t, user_devpts_t;
 	')
 
-	allow $2 $1_tty_device_t:chr_file rw_term_perms;
-	allow $2 $1_devpts_t:chr_file rw_term_perms;
-	term_list_ptys($2)
+	allow $1 user_tty_device_t:chr_file rw_term_perms;
+	allow $1 user_devpts_t:chr_file rw_term_perms;
+	term_list_ptys($1)
 ')
 
 ########################################
@@ -3804,35 +2479,19 @@ template(`userdom_use_user_terminals',`
 ##	Do not audit attempts to read and write
 ##	a user domain tty and pty.
 ## </summary>
-## <desc>
-##	<p>
-##	Do not audit attempts to read and write
-##	a user domain tty and pty.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
 ##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-template(`userdom_dontaudit_use_user_terminals',`
+interface(`userdom_dontaudit_use_user_terminals',`
 	gen_require(`
-		type $1_tty_device_t, $1_devpts_t;
+		type user_tty_device_t, user_devpts_t;
 	')
 
-	dontaudit $2 $1_tty_device_t:chr_file rw_term_perms;
-	dontaudit $2 $1_devpts_t:chr_file rw_term_perms;
+	dontaudit $1 user_tty_device_t:chr_file rw_term_perms;
+	dontaudit $1 user_devpts_t:chr_file rw_term_perms;
 ')
 
 ########################################
@@ -3989,23 +2648,6 @@ interface(`userdom_bin_spec_domtrans_unpriv_users',`
 
 ########################################
 ## <summary>
-##	Execute generic sbin programs in all unprivileged user
-##	domains. This is an explicit transition, requiring the
-##	caller to use setexeccon().
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_sbin_spec_domtrans_unpriv_users',`
-	userdom_bin_spec_domtrans_unpriv_users($1)
-	refpolicywarn(`$0() has been deprecated, please use userdom_bin_spec_domtrans_unpriv_users() instead.')
-')
-
-########################################
-## <summary>
 ##	Execute all entrypoint files in unprivileged user
 ##	domains. This is an explicit transition, requiring the
 ##	caller to use setexeccon().
@@ -4029,7 +2671,7 @@ interface(`userdom_entry_spec_domtrans_unpriv_users',`
 
 ########################################
 ## <summary>
-##	Execute a shell in the sysadm domain.
+##	Search users home directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -4037,752 +2679,13 @@ interface(`userdom_entry_spec_domtrans_unpriv_users',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_shell_domtrans_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_shell_domtrans() instead.')
-	sysadm_shell_domtrans($1)
-')
-
-########################################
-## <summary>
-##	Execute a generic bin program in the sysadm domain.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_bin_spec_domtrans_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_bin_spec_domtrans() instead.')
-	sysadm_bin_spec_domtrans($1)
-')
-
-########################################
-## <summary>
-##	Execute a generic sbin program in the sysadm domain.  (Deprecated)
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_sbin_spec_domtrans_sysadm',`
-	refpolicywarn(`$0() has been deprecated, please use sysadm_bin_spec_domtrans() instead.')
-	sysadm_bin_spec_domtrans($1)
-')
-
-########################################
-## <summary>
-##	Execute all entrypoint files in the sysadm domain. This
-##	is an explicit transition, requiring the
-##	caller to use setexeccon().
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_entry_spec_domtrans_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_entry_spec_domtrans() instead.')
-	sysadm_entry_spec_domtrans($1)
-')
-
-########################################
-## <summary>
-##	Allow sysadm to execute a generic bin program in
-##	a specified domain.  This is an explicit transition,
-##	requiring the caller to use setexeccon().  (Deprecated)
-## </summary>
-## <desc>
-##	<p>
-##	Allow sysadm to execute a generic bin program in
-##	a specified domain.  (Deprecated)
-##	</p>
-##	<p>
-##	This is a interface to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	Domain to execute in.
-##	</summary>
-## </param>
-#
-interface(`userdom_sysadm_bin_spec_domtrans_to',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_bin_spec_domtrans_to() instead.')
-	sysadm_bin_spec_domtrans_to($1)
-')
-
-########################################
-## <summary>
-##	Allow sysadm to execute a generic sbin program in
-##	a specified domain.  This is an explicit transition,
-##	requiring the caller to use setexeccon().  (Deprecated)
-## </summary>
-## <desc>
-##	<p>
-##	Allow sysadm to execute a generic sbin program in
-##	a specified domain.  (Deprecated)
-##	</p>
-##	<p>
-##	This is a interface to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	Domain to execute in.
-##	</summary>
-## </param>
-#
-interface(`userdom_sysadm_sbin_spec_domtrans_to',`
-	refpolicywarn(`$0() has been deprecated, please use sysadm_bin_spec_domtrans_to() instead.')
-	sysadm_bin_spec_domtrans_to($1)
-')
-
-########################################
-## <summary>
-##	Allow sysadm to execute all entrypoint files
-##	in the specified domain. This is an explicit
-##	transition, requiring the caller to use setexeccon().
-## </summary>
-## <desc>
-##	<p>
-##	Allow sysadm to execute all entrypoint files
-##	in the specified domain. This is an explicit
-##	transition, requiring the caller to use setexeccon().
-##	</p>
-##	<p>
-##	This is a interface to support third party modules
-##	and its use is not allowed in upstream reference
-##	policy.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	Domain to execute in.
-##	</summary>
-## </param>
-#
-interface(`userdom_sysadm_entry_spec_domtrans_to',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_entry_spec_domtrans() instead.')
-	sysadm_entry_spec_domtrans($1)
-')
-
-########################################
-## <summary>
-##	Search the staff users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_staff_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_search_home_dirs() instead.')
-	staff_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to search the staff
-##	users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_search_staff_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_dontaudit_search_home_dirs() instead.')
-	staff_dontaudit_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete staff
-##	home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_staff_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_manage_home_dirs() instead.')
-	staff_manage_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Relabel to staff home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_relabelto_staff_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_relabelto_home_dirs() instead.')
-	staff_relabelto_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to append to the staff
-##	users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_append_staff_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_dontaudit_append_home_content_files() instead.')
-	staff_dontaudit_append_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Read files in the staff users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_staff_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use staff_read_home_content_files() instead.')
-	staff_read_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Send a SIGCHLD signal to sysadm users.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_sigchld_sysadm',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_sigchld() instead.')
-	sysadm_sigchld($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attepts to get the attributes
-##	of sysadm ttys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_getattr_sysadm_ttys',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_getattr_ttys() instead.')
-	sysadm_dontaudit_getattr_ttys($1)
-')
-
-########################################
-## <summary>
-##	Read and write sysadm ttys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_sysadm_ttys',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_use_ttys() instead.')
-	sysadm_use_ttys($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to use sysadm ttys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_use_sysadm_ttys',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_use_ttys() instead.')
-	sysadm_dontaudit_use_ttys($1)
-')
-
-########################################
-## <summary>
-##	Read and write sysadm ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_sysadm_ptys',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_use_ptys() instead.')
-	sysadm_use_ptys($1)
-')
-
-########################################
-## <summary>
-##	Dont audit attempts to read and write sysadm ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_use_sysadm_ptys',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_use_ptys() instead.')
-	sysadm_dontaudit_use_ptys($1)
-')
-
-########################################
-## <summary>
-##	Read and write sysadm ttys and ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_sysadm_terms',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_use_terms() instead.')
-	sysadm_use_terms($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to use sysadm ttys and ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_use_sysadm_terms',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_use_terms() instead.')
-	sysadm_dontaudit_use_terms($1)
-')
-
-########################################
-## <summary>
-##	Inherit and use sysadm file descriptors
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_sysadm_fds',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_use_fds() instead.')
-	sysadm_use_fds($1)
-')
-
-########################################
-## <summary>
-##	Read and write sysadm user unnamed pipes.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_rw_sysadm_pipes',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_rw_pipes() instead.')
-	sysadm_rw_pipes($1)
-')
-
-########################################
-## <summary>
-##	Get the attributes of the sysadm users
-##	home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_getattr_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_getattr_home_dirs() instead.')
-	sysadm_getattr_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to get the
-##	attributes of the sysadm users
-##	home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_getattr_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_getattr_home_dirs() instead.')
-	sysadm_dontaudit_getattr_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Search the sysadm users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_search_home_dirs() instead.')
-	sysadm_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to search the sysadm
-##	users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_search_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_search_home_dirs() instead.')
-	sysadm_dontaudit_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	List the sysadm users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_list_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_list_home_dirs() instead.')
-	sysadm_list_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to list the sysadm
-##	users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_list_sysadm_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_list_home_dirs() instead.')
-	sysadm_dontaudit_list_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to search the sysadm
-##	users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_read_sysadm_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_dontaudit_read_home_content_files() instead.')
-	sysadm_dontaudit_read_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Create objects in sysadm home directories
-##	with automatic file type transition.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-## <param name="private type">
-##	<summary>
-##	The type of the object to be created.
-##	</summary>
-## </param>
-## <param name="object_class">
-##	<summary>
-##	The class of the object to be created.
-##	If not specified, file is used.
-##	</summary>
-## </param>
-#
-interface(`userdom_sysadm_home_dir_filetrans',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_home_dir_filetrans() instead.')
-	sysadm_home_dir_filetrans($1,$2,$3)
-')
-
-########################################
-## <summary>
-##	Search the sysadm users home sub directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_sysadm_home_content_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_search_home_content_dirs() instead.')
-	sysadm_search_home_content_dirs($1)
-')
-
-########################################
-## <summary>
-##	Read files in the sysadm users home directory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_sysadm_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_read_home_content_files() instead.')
-	sysadm_read_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Read sysadm temporary files.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_sysadm_tmp_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use sysadm_read_tmp_files() instead.')
-	sysadm_read_tmp_files($1)
-')
-
-########################################
-## <summary>
-##	Search all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_all_users_home_dirs',`
+interface(`userdom_search_user_home_content',`
 	gen_require(`
-		attribute home_dir_type;
+		type user_home_dir_t, user_home_t;
 	')
 
 	files_list_home($1)
-	allow $1 home_dir_type:dir search_dir_perms;
-')
-
-########################################
-## <summary>
-##	List all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_list_all_users_home_dirs',`
-	gen_require(`
-		attribute home_dir_type;
-	')
-
-	files_list_home($1)
-	allow $1 home_dir_type:dir list_dir_perms;
-')
-
-########################################
-## <summary>
-##	Search all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_all_users_home_content',`
-	gen_require(`
-		attribute home_dir_type, home_type;
-	')
-
-	files_list_home($1)
-	allow $1 { home_dir_type home_type }:dir search_dir_perms;
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to search all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain to not audit.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_search_all_users_home_content',`
-	gen_require(`
-		attribute home_dir_type, home_type;
-	')
-
-	dontaudit $1 { home_dir_type home_type }:dir search_dir_perms;
-')
-
-########################################
-## <summary>
-##	Read all files in all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_all_users_home_content_files',`
-	gen_require(`
-		attribute home_type;
-	')
-
-	files_list_home($1)
-	allow $1 home_type:dir list_dir_perms;
-	read_files_pattern($1,home_type,home_type)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete all directories
-##	in all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_all_users_home_content_dirs',`
-	gen_require(`
-		attribute home_type;
-	')
-
-	files_list_home($1)
-	allow $1 home_type:dir manage_dir_perms;
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete all files
-##	in all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_all_users_home_content_files',`
-	gen_require(`
-		attribute home_type;
-	')
-
-	files_list_home($1)
-	manage_files_pattern($1,home_type,home_type)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete all symlinks
-##	in all users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_all_users_home_content_symlinks',`
-	gen_require(`
-		attribute home_type;
-	')
-
-	files_list_home($1)
-	manage_lnk_files_pattern($1,home_type,home_type)
-')
-
-########################################
-## <summary>
-##	Make the specified domain a privileged
-##	home directory manager.
-## </summary>
-## <desc>
-##	<p>
-##	Make the specified domain a privileged
-##	home directory manager.  This domain will be
-##	able to manage the contents of all users
-##	general home directory content, and create
-##	files with the correct context.
-##	</p>
-## </desc>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_priveleged_home_dir_manager',`
-	gen_require(`
-		attribute privhome;
-	')
-
-	files_list_home($1)
-	typeattribute $1 privhome;
+	allow $1 { user_home_dir_t user_home_t }:dir search_dir_perms;
 ')
 
 ########################################
@@ -4842,353 +2745,7 @@ interface(`userdom_dontaudit_use_unpriv_user_fds',`
 
 ########################################
 ## <summary>
-##	Create generic user home directories
-##	with automatic file type transition.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_home_filetrans_generic_user_home_dir',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_home_filetrans_home_dir() instead.')
-	unprivuser_home_filetrans_home_dir($1)
-')
-
-########################################
-## <summary>
-##	Search generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_generic_user_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_search_home_dirs() instead.')
-	unprivuser_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Create objects in generic user home directories
-##	with automatic file type transition.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-## <param name="object_class">
-##	<summary>
-##	The class of the object to be created.
-##	If not specified, file is used.
-##	</summary>
-## </param>
-#
-interface(`userdom_generic_user_home_dir_filetrans_generic_user_home_content',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_home_dir_filetrans_home_content() instead.')
-	unprivuser_home_dir_filetrans_home_content($1, $2)
-')
-
-########################################
-## <summary>
-##	Don't audit search on the user home subdirectory.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_search_generic_user_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_dontaudit_search_home_dirs() instead.')
-	unprivuser_dontaudit_search_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete generic user
-##	home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_dirs() instead.')
-	unprivuser_manage_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete
-##	subdirectories of generic user
-##	home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_content_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_content_dirs() instead.')
-	unprivuser_manage_home_content_dirs($1)
-')
-
-########################################
-## <summary>
-##	Relabel to generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_relabelto_generic_user_home_dirs',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_relabelto_home_dirs() instead.')
-	unprivuser_relabelto_home_dirs($1)
-')
-
-########################################
-## <summary>
-##	Read files in generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_generic_user_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_read_home_content_files() instead.')
-	unprivuser_read_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Mmap of generic user
-##	home files.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_mmap_generic_user_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_mmap_home_content_files() instead.')
-	unprivuser_mmap_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete files
-##	in generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_content_files() instead.')
-	unprivuser_manage_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to relabel generic user
-##	home files.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_relabel_generic_user_home_content_files',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_dontaudit_relabel_home_content_files() instead.')
-	unprivuser_dontaudit_relabel_home_content_files($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete symbolic
-##	links in generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_content_symlinks',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_content_symlinks() instead.')
-	unprivuser_manage_home_content_symlinks($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete named
-##	pipes in generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_content_pipes',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_content_pipes() instead.')
-	unprivuser_manage_home_content_pipes($1)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete named
-##	sockets in generic user home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_generic_user_home_content_sockets',`
-	refpolicywarn(`$0($*) has been deprecated.  Please use unprivuser_manage_home_content_sockets() instead.')
-	unprivuser_manage_home_content_sockets($1)
-')
-
-########################################
-## <summary>
-##	Search all unprivileged users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_search_unpriv_users_home_dirs',`
-	gen_require(`
-		attribute user_home_dir_type;
-	')
-
-	files_search_home($1)
-	allow $1 user_home_dir_type:dir search_dir_perms;
-')
-
-########################################
-## <summary>
-##	Read all unprivileged users home directory
-##	files.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_unpriv_users_home_content_files',`
-	gen_require(`
-		attribute user_home_dir_type, user_home_type;
-	')
-
-	files_search_home($1)
-	allow $1 user_home_type:dir list_dir_perms;
-	read_files_pattern($1,{ user_home_dir_type user_home_type },user_home_type)
-	read_lnk_files_pattern($1,{ user_home_dir_type user_home_type },user_home_type)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete directories in
-##	unprivileged users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_unpriv_users_home_content_dirs',`
-	gen_require(`
-		attribute user_home_dir_type, user_home_type;
-	')
-
-	files_search_home($1)
-	manage_dirs_pattern($1,{ user_home_dir_type user_home_type },user_home_type)
-')
-
-########################################
-## <summary>
-##	Create, read, write, and delete files in
-##	unprivileged users home directories.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_manage_unpriv_users_home_content_files',`
-	gen_require(`
-		attribute user_home_dir_type, user_home_type;
-	')
-
-	files_search_home($1)
-	manage_files_pattern($1,{ user_home_dir_type user_home_type },user_home_type)
-')
-
-########################################
-## <summary>
-##	Set the attributes of user ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_setattr_unpriv_users_ptys',`
-	gen_require(`
-		attribute user_ptynode;
-	')
-
-	allow $1 user_ptynode:chr_file setattr;
-')
-
-########################################
-## <summary>
-##	Read and write unprivileged user ptys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_unpriv_users_ptys',`
-	gen_require(`
-		attribute user_ptynode;
-	')
-
-	term_search_ptys($1)
-	allow $1 user_ptynode:chr_file rw_file_perms;
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to use unprivileged
-##	user ptys.
+##	Do not audit attempts to use user ptys.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -5196,12 +2753,12 @@ interface(`userdom_use_unpriv_users_ptys',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_dontaudit_use_unpriv_users_ptys',`
+interface(`userdom_dontaudit_use_user_ptys',`
 	gen_require(`
-		attribute user_ptynode;
+		type user_devpts_t;
 	')
 
-	dontaudit $1 user_ptynode:chr_file rw_file_perms;
+	dontaudit $1 user_devpts_t:chr_file rw_file_perms;
 ')
 
 ########################################
@@ -5214,18 +2771,18 @@ interface(`userdom_dontaudit_use_unpriv_users_ptys',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_relabelto_unpriv_users_ptys',`
+interface(`userdom_relabelto_user_ptys',`
 	gen_require(`
-		attribute user_ptynode;
+		type user_devpts_t;
 	')
 
-	allow $1 user_ptynode:chr_file relabelto;
+	allow $1 user_devpts_t:chr_file relabelto;
 ')
 
 ########################################
 ## <summary>
 ##	Do not audit attempts to relabel files from
-##	unprivileged user pty types.
+##	user pty types.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -5233,17 +2790,17 @@ interface(`userdom_relabelto_unpriv_users_ptys',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_dontaudit_relabelfrom_unpriv_users_ptys',`
+interface(`userdom_dontaudit_relabelfrom_user_ptys',`
 	gen_require(`
-		attribute user_ptynode;
+		type user_devpts_t;
 	')
 
-	dontaudit $1 user_ptynode:chr_file relabelfrom;
+	dontaudit $1 user_devpts_t:chr_file relabelfrom;
 ')
 
 ########################################
 ## <summary>
-##	Read all unprivileged users temporary directories.
+##	Write all users files in /tmp
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -5251,17 +2808,17 @@ interface(`userdom_dontaudit_relabelfrom_unpriv_users_ptys',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_list_unpriv_users_tmp',`
+interface(`userdom_write_user_tmp_files',`
 	gen_require(`
-		attribute user_tmpfile;
+		type user_tmp_t;
 	')
 
-	allow $1 user_tmpfile:dir list_dir_perms;
+	allow $1 user_tmp_t:file write_file_perms;
 ')
 
 ########################################
 ## <summary>
-##	Read all unprivileged users temporary files.
+##	Do not audit attempts to use user ttys.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -5269,85 +2826,12 @@ interface(`userdom_list_unpriv_users_tmp',`
 ##	</summary>
 ## </param>
 #
-interface(`userdom_read_unpriv_users_tmp_files',`
+interface(`userdom_dontaudit_use_user_ttys',`
 	gen_require(`
-		attribute user_tmpfile;
+		type user_tty_device_t;
 	')
 
-	allow $1 user_tmpfile:file read_file_perms;
-')
-
-########################################
-## <summary>
-##	Read all unprivileged users temporary symbolic links.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_read_unpriv_users_tmp_symlinks',`
-	gen_require(`
-		attribute user_tmpfile;
-	')
-
-	allow $1 user_tmpfile:lnk_file { getattr read };
-')
-
-########################################
-## <summary>
-##	Write all unprivileged users files in /tmp
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_write_unpriv_users_tmp_files',`
-	gen_require(`
-		attribute user_tmpfile;
-	')
-
-	allow $1 user_tmpfile:file write_file_perms;
-')
-
-########################################
-## <summary>
-##	Read and write unprivileged user ttys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_use_unpriv_users_ttys',`
-	gen_require(`
-		attribute user_ttynode;
-	')
-
-	allow $1 user_ttynode:chr_file rw_term_perms;
-')
-
-########################################
-## <summary>
-##	Do not audit attempts to use unprivileged
-##	user ttys.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_dontaudit_use_unpriv_users_ttys',`
-	gen_require(`
-		attribute user_ttynode;
-	')
-
-	dontaudit $1 user_ttynode:chr_file rw_file_perms;
+	dontaudit $1 user_tty_device_t:chr_file rw_file_perms;
 ')
 
 ########################################
@@ -5495,18 +2979,4 @@ interface(`userdom_dbus_send_all_users',`
 	')
 
 	allow $1 userdomain:dbus send_msg;
-')
-
-########################################
-## <summary>
-##	Unconfined access to user domains.  (Deprecated)
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_unconfined',`
-	refpolicywarn(`$0($*) has been deprecated.')
 ')

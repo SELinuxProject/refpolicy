@@ -1,5 +1,5 @@
 
-policy_module(mta, 1.11.0)
+policy_module(mta, 2.0.0)
 
 ########################################
 #
@@ -33,6 +33,14 @@ mta_agent_executable(sendmail_exec_t)
 mta_base_mail_template(system)
 role system_r types system_mail_t;
 
+mta_base_mail_template(user)
+typealias user_mail_t alias { staff_mail_t sysadm_mail_t };
+typealias user_mail_t alias { auditadm_mail_t secadm_mail_t };
+typealias user_mail_tmp_t alias { staff_mail_tmp_t sysadm_mail_tmp_t };
+typealias user_mail_tmp_t alias { auditadm_mail_tmp_t secadm_mail_tmp_t };
+ubac_constrained(user_mail_t)
+ubac_constrained(user_mail_tmp_t)
+
 ########################################
 #
 # System mail local policy
@@ -55,8 +63,8 @@ dev_read_urand(system_mail_t)
 
 init_use_script_ptys(system_mail_t)
 
-sysadm_use_terms(system_mail_t)
-sysadm_dontaudit_search_home_dirs(system_mail_t)
+userdom_use_user_terminals(system_mail_t)
+userdom_dontaudit_search_user_home_dirs(system_mail_t)
 
 optional_policy(`
 	apache_read_squirrelmail_data(system_mail_t)
@@ -134,7 +142,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	userdom_dontaudit_use_unpriv_users_ptys(system_mail_t)
+	userdom_dontaudit_use_user_ptys(system_mail_t)
 
 	optional_policy(`
 		cron_dontaudit_append_system_job_tmp_files(system_mail_t)
@@ -159,4 +167,48 @@ optional_policy(`
 	optional_policy(`
 		cron_read_system_job_tmp_files(mta_user_agent)
 	')
+')
+
+########################################
+#
+# User send mail local policy
+#
+
+domain_use_interactive_fds(user_mail_t)
+
+userdom_use_user_terminals(user_mail_t)
+# Write to the user domain tty. cjp: why?
+userdom_use_user_terminals(mta_user_agent)
+# Create dead.letter in user home directories.
+userdom_manage_user_home_content_files(user_mail_t)
+userdom_user_home_dir_filetrans_user_home_content(user_mail_t, file)
+# for reading .forward - maybe we need a new type for it?
+# also for delivering mail to maildir
+userdom_manage_user_home_content_dirs(mailserver_delivery)
+userdom_manage_user_home_content_files(mailserver_delivery)
+userdom_manage_user_home_content_symlinks(mailserver_delivery)
+userdom_manage_user_home_content_pipes(mailserver_delivery)
+userdom_manage_user_home_content_sockets(mailserver_delivery)
+userdom_user_home_dir_filetrans_user_home_content(mailserver_delivery, { dir file lnk_file fifo_file sock_file })
+# Read user temporary files.
+userdom_read_user_tmp_files(user_mail_t)
+userdom_dontaudit_append_user_tmp_files(user_mail_t)
+# cjp: this should probably be read all user tmp
+# files in an appropriate place for mta_user_agent
+userdom_read_user_tmp_files(mta_user_agent)
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_files(user_mail_t)
+	fs_manage_cifs_symlinks(user_mail_t)
+')
+
+optional_policy(`
+	allow user_mail_t self:capability dac_override;
+
+	# Read user temporary files.
+	# postfix seems to need write access if the file handle is opened read/write
+	userdom_rw_user_tmp_files(user_mail_t)
+
+	postfix_read_config(user_mail_t)
+	postfix_list_spool(user_mail_t)
 ')

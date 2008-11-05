@@ -1,5 +1,5 @@
 
-policy_module(bluetooth, 2.2.0)
+policy_module(bluetooth, 3.0.0)
 
 ########################################
 #
@@ -15,10 +15,24 @@ files_type(bluetooth_conf_t)
 type bluetooth_conf_rw_t;
 files_type(bluetooth_conf_rw_t)
 
-attribute bluetooth_helper_domain;
-
+type bluetooth_helper_t;
 type bluetooth_helper_exec_t;
-application_executable_file(bluetooth_helper_exec_t)
+typealias bluetooth_helper_t alias { user_bluetooth_helper_t staff_bluetooth_helper_t sysadm_bluetooth_helper_t };
+typealias bluetooth_helper_t alias { auditadm_bluetooth_helper_t secadm_bluetooth_helper_t };
+application_domain(bluetooth_helper_t, bluetooth_helper_exec_t)
+ubac_constrained(bluetooth_helper_t)
+
+type bluetooth_helper_tmp_t;
+typealias bluetooth_helper_tmp_t alias { user_bluetooth_helper_tmp_t staff_bluetooth_helper_tmp_t sysadm_bluetooth_helper_tmp_t };
+typealias bluetooth_helper_tmp_t alias { auditadm_bluetooth_helper_tmp_t secadm_bluetooth_helper_tmp_t };
+files_tmp_file(bluetooth_helper_tmp_t)
+ubac_constrained(bluetooth_helper_tmp_t)
+
+type bluetooth_helper_tmpfs_t;
+typealias bluetooth_helper_tmpfs_t alias { user_bluetooth_helper_tmpfs_t staff_bluetooth_helper_tmpfs_t sysadm_bluetooth_helper_tmpfs_t };
+typealias bluetooth_helper_tmpfs_t alias { auditadm_bluetooth_helper_tmpfs_t secadm_bluetooth_helper_tmpfs_t };
+files_tmpfs_file(bluetooth_helper_tmpfs_t)
+ubac_constrained(bluetooth_helper_tmpfs_t)
 
 type bluetooth_lock_t;
 files_lock_file(bluetooth_lock_t)
@@ -118,12 +132,11 @@ miscfiles_read_fonts(bluetooth_t)
 sysnet_read_config(bluetooth_t)
 
 userdom_dontaudit_use_unpriv_user_fds(bluetooth_t)
-
-sysadm_dontaudit_use_ptys(bluetooth_t)
-sysadm_dontaudit_search_home_dirs(bluetooth_t)
+userdom_dontaudit_use_user_terminals(bluetooth_t)
+userdom_dontaudit_search_user_home_dirs(bluetooth_t)
 
 optional_policy(`
-	dbus_system_bus_client_template(bluetooth, bluetooth_t)
+	dbus_system_bus_client(bluetooth_t)
 	dbus_connect_system_bus(bluetooth_t)
 ')
 
@@ -141,4 +154,68 @@ optional_policy(`
 
 optional_policy(`
 	ppp_domtrans(bluetooth_t)
+')
+
+########################################
+#
+# Bluetooth helper programs local policy
+#
+
+allow bluetooth_helper_t self:capability sys_nice;
+allow bluetooth_helper_t self:process getsched;
+allow bluetooth_helper_t self:fifo_file rw_fifo_file_perms;
+allow bluetooth_helper_t self:shm create_shm_perms;
+allow bluetooth_helper_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow bluetooth_helper_t self:tcp_socket create_socket_perms;
+allow bluetooth_helper_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow bluetooth_helper_t bluetooth_t:socket { read write };
+
+manage_dirs_pattern(bluetooth_helper_t, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
+manage_files_pattern(bluetooth_helper_t, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
+manage_sock_files_pattern(bluetooth_helper_t, bluetooth_helper_tmp_t, bluetooth_helper_tmp_t)
+files_tmp_filetrans(bluetooth_helper_t, bluetooth_helper_tmp_t, { file dir sock_file })
+
+manage_dirs_pattern(bluetooth_helper_t, bluetooth_helper_tmpfs_t, bluetooth_helper_tmpfs_t)
+manage_files_pattern(bluetooth_helper_t, bluetooth_helper_tmpfs_t, bluetooth_helper_tmpfs_t)
+fs_tmpfs_filetrans(bluetooth_helper_t, bluetooth_helper_tmpfs_t, { dir file })
+
+kernel_read_system_state(bluetooth_helper_t)
+kernel_read_kernel_sysctls(bluetooth_helper_t)
+
+dev_read_urand(bluetooth_helper_t)
+
+term_dontaudit_use_all_user_ttys(bluetooth_helper_t)
+
+corecmd_exec_bin(bluetooth_helper_t)
+corecmd_exec_shell(bluetooth_helper_t)
+
+domain_read_all_domains_state(bluetooth_helper_t)
+
+files_read_etc_files(bluetooth_helper_t)
+files_read_etc_runtime_files(bluetooth_helper_t)
+files_read_usr_files(bluetooth_helper_t)
+files_dontaudit_list_default(bluetooth_helper_t)
+
+locallogin_dontaudit_use_fds(bluetooth_helper_t)
+
+logging_send_syslog_msg(bluetooth_helper_t)
+
+miscfiles_read_localization(bluetooth_helper_t) 
+
+sysnet_read_config(bluetooth_helper_t)
+
+optional_policy(`
+	bluetooth_dbus_chat(bluetooth_helper_t)
+
+	dbus_system_bus_client(bluetooth_helper_t)
+	dbus_connect_system_bus(bluetooth_helper_t)
+')
+
+optional_policy(`
+	nscd_socket_use(bluetooth_helper_t)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(bluetooth_helper, bluetooth_helper_t, bluetooth_helper_tmpfs_t)
 ')

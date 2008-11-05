@@ -1,141 +1,12 @@
 ## <summary>Common policy for authentication and user login.</summary>
 
-#######################################
-## <summary>
-##	Common template to create a domain for authentication.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domain which is allowed
-##	to authenticate users by using PAM unix_chkpwd support.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-#
-template(`authlogin_common_auth_domain_template',`
-	gen_require(`
-		attribute can_read_shadow_passwords;
-		type chkpwd_exec_t, shadow_t;
-	')
-
-	type $1_chkpwd_t, can_read_shadow_passwords;
-	application_domain($1_chkpwd_t,chkpwd_exec_t)
-
-	allow $1_chkpwd_t self:capability { dac_override setuid };
-	dontaudit $1_chkpwd_t self:capability sys_tty_config;
-	allow $1_chkpwd_t self:process getattr;
-
-	files_list_etc($1_chkpwd_t)
-	allow $1_chkpwd_t shadow_t:file read_file_perms;
-
-	# is_selinux_enabled
-	kernel_read_system_state($1_chkpwd_t)
-
-	dev_read_rand($1_chkpwd_t)
-	dev_read_urand($1_chkpwd_t)
-
-	files_read_etc_files($1_chkpwd_t)
-	# for nscd
-	files_dontaudit_search_var($1_chkpwd_t)
-
-	fs_dontaudit_getattr_xattr_fs($1_chkpwd_t)
-
-	auth_use_nsswitch($1_chkpwd_t)
-
-	logging_send_audit_msgs($1_chkpwd_t)
-	logging_send_syslog_msg($1_chkpwd_t)
-
-	miscfiles_read_localization($1_chkpwd_t)
-
-	seutil_read_config($1_chkpwd_t)
-
-	optional_policy(`
-		kerberos_use($1_chkpwd_t)
-	')
-')
-
-#######################################
-## <summary>
-##	The per role template for the authlogin module.
-## </summary>
-## <desc>
-##	<p>
-##	This template creates a derived domain which is allowed
-##	to authenticate users by using PAM unix_chkpwd support.
-##	This domain will be used by any programs running in the
-##	user domain which use PAM to authenticate.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
-##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
-##	</summary>
-## </param>
-## <param name="user_domain">
-##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
-#
-template(`authlogin_per_role_template',`
-
-	gen_require(`
-		type system_chkpwd_t, shadow_t;
-	')
-
-	authlogin_common_auth_domain_template($1)
-
-	role $3 types $1_chkpwd_t;
-	role $3 types system_chkpwd_t;
-
-	dontaudit $2 shadow_t:file read_file_perms;
-
-	# Transition from the user domain to this domain.
-	domtrans_pattern($2,chkpwd_exec_t,$1_chkpwd_t)
-
-	domain_use_interactive_fds($1_chkpwd_t)
-
-	seutil_use_newrole_fds($1_chkpwd_t)
-
-	# Write to the user domain tty.
-	userdom_use_user_terminals($1,$1_chkpwd_t)
-')
-
 ########################################
 ## <summary>
-##	Run unix_chkpwd to check a password
-##	for a user domain.
+##	Role access for password authentication.
 ## </summary>
-## <desc>
-##	<p>
-##	Run unix_chkpwd to check a password
-##	for a user domain.
-##	</p>
-##	<p>
-##	This is a templated interface, and should only
-##	be called from a per-userdomain template.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access.
 ##	</summary>
 ## </param>
 ## <param name="domain">
@@ -144,13 +15,19 @@ template(`authlogin_per_role_template',`
 ##	</summary>
 ## </param>
 #
-template(`auth_domtrans_user_chk_passwd',`
+interface(`auth_role',`
 	gen_require(`
-		type $1_chkpwd_t, chkpwd_exec_t;
+		type chkpwd_t, chkpwd_exec_t, shadow_t;
 	')
 
-	corecmd_search_bin($2)
-	domtrans_pattern($2,chkpwd_exec_t,$1_chkpwd_t)
+	role $1 types chkpwd_t;
+
+	# Transition from the user domain to this domain.
+	domtrans_pattern($2, chkpwd_exec_t, chkpwd_t)
+
+	ps_process_pattern($2, chkpwd_t)
+
+	dontaudit $2 shadow_t:file read_file_perms;
 ')
 
 ########################################
@@ -319,11 +196,11 @@ interface(`auth_ranged_domtrans_login_program',`
 #
 interface(`auth_domtrans_chk_passwd',`
 	gen_require(`
-		type system_chkpwd_t, chkpwd_exec_t, shadow_t;
+		type chkpwd_t, chkpwd_exec_t, shadow_t;
 	')
 
 	corecmd_search_bin($1)
-	domtrans_pattern($1, chkpwd_exec_t, system_chkpwd_t)
+	domtrans_pattern($1, chkpwd_exec_t, chkpwd_t)
 
 	dontaudit $1 shadow_t:file { getattr read };
 
@@ -369,20 +246,14 @@ interface(`auth_domtrans_chk_passwd',`
 ##	The role to allow the chkpwd domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the chkpwd domain to use.
-##	</summary>
-## </param>
 #
 interface(`auth_run_chk_passwd',`
 	gen_require(`
-		type system_chkpwd_t;
+		type chkpwd_t;
 	')
 
 	auth_domtrans_chk_passwd($1)
-	role $2 types system_chkpwd_t;
-	allow system_chkpwd_t $3:chr_file rw_file_perms;
+	role $2 types chkpwd_t;
 ')
 
 ########################################
@@ -419,11 +290,6 @@ interface(`auth_domtrans_upd_passwd',`
 ##	The role to allow the updpwd domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the updpwd domain to use.
-##	</summary>
-## </param>
 #
 interface(`auth_run_upd_passwd',`
 	gen_require(`
@@ -432,7 +298,6 @@ interface(`auth_run_upd_passwd',`
 
 	auth_domtrans_upd_passwd($1)
 	role $2 types updpwd_t;
-	allow updpwd_t $3:chr_file rw_file_perms;
 ')
 
 ########################################
@@ -815,11 +680,6 @@ interface(`auth_signal_pam',`
 ##	The role to allow the PAM domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the PAM domain to use.
-##	</summary>
-## </param>
 #
 interface(`auth_run_pam',`
 	gen_require(`
@@ -828,7 +688,6 @@ interface(`auth_run_pam',`
 
 	auth_domtrans_pam($1)
 	role $2 types pam_t;
-	allow pam_t $3:chr_file rw_file_perms;
 ')
 
 ########################################
@@ -1228,11 +1087,6 @@ interface(`auth_domtrans_utempter',`
 ##	The role to allow the utempter domain.
 ##	</summary>
 ## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal allow the utempter domain to use.
-##	</summary>
-## </param>
 #
 interface(`auth_run_utempter',`
 	gen_require(`
@@ -1241,7 +1095,6 @@ interface(`auth_run_utempter',`
 
 	auth_domtrans_utempter($1)
 	role $2 types utempter_t;
-	allow utempter_t $3:chr_file rw_file_perms;
 ')
 
 #######################################

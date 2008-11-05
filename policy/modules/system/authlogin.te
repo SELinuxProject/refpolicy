@@ -1,5 +1,5 @@
 
-policy_module(authlogin, 1.11.1)
+policy_module(authlogin, 2.0.0)
 
 ########################################
 #
@@ -10,8 +10,12 @@ attribute can_read_shadow_passwords;
 attribute can_write_shadow_passwords;
 attribute can_relabelto_shadow_passwords;
 
+type chkpwd_t, can_read_shadow_passwords;
 type chkpwd_exec_t;
-application_executable_file(chkpwd_exec_t)
+typealias chkpwd_t alias { user_chkpwd_t staff_chkpwd_t sysadm_chkpwd_t };
+typealias chkpwd_t alias { auditadm_chkpwd_t secadm_chkpwd_t };
+application_domain(chkpwd_t, chkpwd_exec_t)
+role system_r types chkpwd_t;
 
 type faillog_t;
 logging_log_file(faillog_t)
@@ -69,9 +73,56 @@ files_type(var_auth_t)
 type wtmp_t;
 logging_log_file(wtmp_t)
 
-# reorder to work around require-then-decare bug
-authlogin_common_auth_domain_template(system)
-role system_r types system_chkpwd_t;
+########################################
+#
+# Check password local policy
+#
+
+allow chkpwd_t self:capability { dac_override setuid };
+dontaudit chkpwd_t self:capability sys_tty_config;
+allow chkpwd_t self:process getattr;
+
+allow chkpwd_t shadow_t:file read_file_perms;
+files_list_etc(chkpwd_t)
+
+# is_selinux_enabled
+kernel_read_system_state(chkpwd_t)
+
+domain_dontaudit_use_interactive_fds(chkpwd_t)
+
+dev_read_rand(chkpwd_t)
+dev_read_urand(chkpwd_t)
+
+files_read_etc_files(chkpwd_t)
+# for nscd
+files_dontaudit_search_var(chkpwd_t)
+
+fs_dontaudit_getattr_xattr_fs(chkpwd_t)
+
+term_dontaudit_use_unallocated_ttys(chkpwd_t)
+term_dontaudit_use_generic_ptys(chkpwd_t)
+
+auth_use_nsswitch(chkpwd_t)
+
+logging_send_audit_msgs(chkpwd_t)
+logging_send_syslog_msg(chkpwd_t)
+
+miscfiles_read_localization(chkpwd_t)
+
+seutil_read_config(chkpwd_t)
+seutil_dontaudit_use_newrole_fds(chkpwd_t)
+
+userdom_use_user_terminals(chkpwd_t)
+
+ifdef(`distro_ubuntu',`
+	optional_policy(`
+		unconfined_domain(chkpwd_t)
+	')
+')
+
+optional_policy(`
+	kerberos_use(chkpwd_t)
+')
 
 ########################################
 #
@@ -116,8 +167,6 @@ init_dontaudit_rw_utmp(pam_t)
 files_read_etc_files(pam_t)
 
 logging_send_syslog_msg(pam_t)
-
-userdom_use_unpriv_users_fds(pam_t)
 
 ifdef(`distro_ubuntu',`
 	optional_policy(`
@@ -254,31 +303,6 @@ optional_policy(`
 
 ########################################
 #
-# System check password local policy
-#
-
-allow system_chkpwd_t shadow_t:file read_file_perms;
-
-corecmd_search_bin(system_chkpwd_t)
-
-domain_dontaudit_use_interactive_fds(system_chkpwd_t)
-
-term_dontaudit_use_unallocated_ttys(system_chkpwd_t)
-term_dontaudit_use_generic_ptys(system_chkpwd_t)
-
-userdom_dontaudit_use_unpriv_users_ttys(system_chkpwd_t)
-userdom_dontaudit_use_unpriv_users_ptys(system_chkpwd_t)
-
-sysadm_dontaudit_use_terms(system_chkpwd_t)
-
-ifdef(`distro_ubuntu',`
-	optional_policy(`
-		unconfined_domain(system_chkpwd_t)
-	')
-')
-
-########################################
-#
 # updpwd local policy
 #
 
@@ -292,7 +316,6 @@ kernel_read_system_state(updpwd_t)
 files_manage_etc_files(updpwd_t)
 
 term_dontaudit_use_console(updpwd_t)
-term_dontaudit_use_console(updpwd_t)
 term_dontaudit_use_unallocated_ttys(updpwd_t)
 
 auth_manage_shadow(updpwd_t)
@@ -301,6 +324,8 @@ auth_use_nsswitch(updpwd_t)
 logging_send_syslog_msg(updpwd_t)
 
 miscfiles_read_localization(updpwd_t)
+
+userdom_use_user_terminals(updpwd_t)
 
 ifdef(`distro_ubuntu',`
 	optional_policy(`
@@ -334,8 +359,9 @@ domain_use_interactive_fds(utempter_t)
 
 logging_search_logs(utempter_t)
 
+userdom_use_user_terminals(utempter_t)
 # Allow utemper to write to /tmp/.xses-*
-userdom_write_unpriv_users_tmp_files(utempter_t)
+userdom_write_user_tmp_files(utempter_t)
 
 ifdef(`distro_ubuntu',`
 	optional_policy(`
@@ -345,11 +371,6 @@ ifdef(`distro_ubuntu',`
 
 optional_policy(`
 	nscd_socket_use(utempter_t)
-')
-
-optional_policy(`
-	# Allow utemper to write to /tmp/.xses-*
-	unconfined_write_tmp_files(utempter_t)
 ')
 
 optional_policy(`

@@ -1,79 +1,33 @@
 ## <summary>device locking policy for lockdev</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the lockdev module.
+##	Role access for lockdev
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates derived domains which are used
-##	for lockdev. A derived type is also created to protect
-##	the user's device locks.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`lockdev_per_role_template',`
+interface(`lockdev_role',`
 	gen_require(`
-		type lockdev_exec_t;
+		type lockdev_t, lockdev_exec_t;
+		type lockdev_lock_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_lockdev_t;
-	application_domain($1_lockdev_t, lockdev_exec_t)
-	role $3 types $1_lockdev_t;
-
-	type $1_lockdev_lock_t;
-	files_lock_file($1_lockdev_lock_t)
-
-	########################################
-	#
-	# Local policy
-	#
-
-	# Use capabilities.
-	allow $1_lockdev_t self:capability setgid;
-	allow $1_lockdev_t $2:process signull;
+	role $1 types lockdev_t;
 
 	# Transition from the user domain to the derived domain.
-	domtrans_pattern($2, lockdev_exec_t, $1_lockdev_t)
+	domtrans_pattern($2, lockdev_exec_t, lockdev_t)
+	allow lockdev_t $2:process signull;
 
-	allow $1_lockdev_t $1_lockdev_lock_t:file manage_file_perms;
-	files_lock_filetrans($1_lockdev_t, $1_lockdev_lock_t, file)
-
-	files_read_all_locks($1_lockdev_t)
-
-	fs_getattr_xattr_fs($1_lockdev_t)
-
-	logging_send_syslog_msg($1_lockdev_t)
-
-	userdom_use_user_terminals($1, $1_lockdev_t)
-
-	optional_policy(`
-		logging_send_syslog_msg($1_t)
-	')
+	# allow ps to show lockdev
+	ps_process_pattern($2, lockdev_t)
+	allow $2 lockdev_t:process signal;
 ')

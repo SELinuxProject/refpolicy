@@ -1,5 +1,5 @@
 
-policy_module(mozilla, 1.6.0)
+policy_module(mozilla, 2.0.0)
 
 ########################################
 #
@@ -13,8 +13,255 @@ policy_module(mozilla, 1.6.0)
 ## </desc>
 gen_tunable(mozilla_read_content, false)
 
+type mozilla_t;
+type mozilla_exec_t;
+typealias mozilla_t alias { user_mozilla_t staff_mozilla_t sysadm_mozilla_t };
+typealias mozilla_t alias { auditadm_mozilla_t secadm_mozilla_t };
+application_domain(mozilla_t, mozilla_exec_t)
+ubac_constrained(mozilla_t)
+
 type mozilla_conf_t;
 files_config_file(mozilla_conf_t)
 
-type mozilla_exec_t;
-application_executable_file(mozilla_exec_t)
+type mozilla_home_t;
+typealias mozilla_home_t alias { user_mozilla_home_t staff_mozilla_home_t sysadm_mozilla_home_t };
+typealias mozilla_home_t alias { auditadm_mozilla_home_t secadm_mozilla_home_t };
+files_poly_member(mozilla_home_t)
+userdom_user_home_content(mozilla_home_t)
+
+type mozilla_tmpfs_t;
+typealias mozilla_tmpfs_t alias { user_mozilla_tmpfs_t staff_mozilla_tmpfs_t sysadm_mozilla_tmpfs_t };
+typealias mozilla_tmpfs_t alias { auditadm_mozilla_tmpfs_t secadm_mozilla_tmpfs_t };
+files_tmpfs_file(mozilla_tmpfs_t)
+ubac_constrained(mozilla_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mozilla_t self:capability { sys_nice setgid setuid };
+allow mozilla_t self:process { sigkill signal setsched getsched setrlimit };
+allow mozilla_t self:fifo_file rw_fifo_file_perms;
+allow mozilla_t self:shm { unix_read unix_write read write destroy create };
+allow mozilla_t self:sem create_sem_perms;
+allow mozilla_t self:socket create_socket_perms;
+allow mozilla_t self:unix_stream_socket { listen accept };
+# Browse the web, connect to printer
+allow mozilla_t self:tcp_socket create_socket_perms;
+allow mozilla_t self:netlink_route_socket r_netlink_socket_perms;
+
+# for bash - old mozilla binary
+can_exec(mozilla_t, mozilla_exec_t)
+
+# X access, Home files
+manage_dirs_pattern(mozilla_t, mozilla_home_t, mozilla_home_t)
+manage_files_pattern(mozilla_t, mozilla_home_t, mozilla_home_t)
+manage_lnk_files_pattern(mozilla_t, mozilla_home_t, mozilla_home_t)
+userdom_search_user_home_dirs(mozilla_t)
+
+# Mozpluggerrc
+allow mozilla_t mozilla_conf_t:file read_file_perms;
+
+manage_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_lnk_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_fifo_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_sock_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+fs_tmpfs_filetrans(mozilla_t, mozilla_tmpfs_t, { file lnk_file sock_file fifo_file })
+
+kernel_read_kernel_sysctls(mozilla_t)
+kernel_read_network_state(mozilla_t)
+# Access /proc, sysctl
+kernel_read_system_state(mozilla_t)
+kernel_read_net_sysctls(mozilla_t)
+
+# Look for plugins 
+corecmd_list_bin(mozilla_t)
+# for bash - old mozilla binary
+corecmd_exec_shell(mozilla_t)
+corecmd_exec_bin(mozilla_t)
+
+# Browse the web, connect to printer
+corenet_all_recvfrom_unlabeled(mozilla_t)
+corenet_all_recvfrom_netlabel(mozilla_t)
+corenet_tcp_sendrecv_generic_if(mozilla_t)
+corenet_raw_sendrecv_generic_if(mozilla_t)
+corenet_tcp_sendrecv_all_nodes(mozilla_t)
+corenet_raw_sendrecv_all_nodes(mozilla_t)
+corenet_tcp_sendrecv_http_port(mozilla_t)
+corenet_tcp_sendrecv_http_cache_port(mozilla_t)
+corenet_tcp_sendrecv_ftp_port(mozilla_t)
+corenet_tcp_sendrecv_ipp_port(mozilla_t)
+corenet_tcp_connect_http_port(mozilla_t)
+corenet_tcp_connect_http_cache_port(mozilla_t)
+corenet_tcp_connect_ftp_port(mozilla_t)
+corenet_tcp_connect_ipp_port(mozilla_t)
+corenet_tcp_connect_generic_port(mozilla_t)
+corenet_sendrecv_http_client_packets(mozilla_t)
+corenet_sendrecv_http_cache_client_packets(mozilla_t)
+corenet_sendrecv_ftp_client_packets(mozilla_t)
+corenet_sendrecv_ipp_client_packets(mozilla_t)
+corenet_sendrecv_generic_client_packets(mozilla_t)
+# Should not need other ports
+corenet_dontaudit_tcp_sendrecv_generic_port(mozilla_t)
+corenet_dontaudit_tcp_bind_generic_port(mozilla_t)
+
+dev_read_urand(mozilla_t)
+dev_read_rand(mozilla_t)
+dev_write_sound(mozilla_t)
+dev_read_sound(mozilla_t)
+dev_dontaudit_rw_dri(mozilla_t)
+dev_getattr_sysfs_dirs(mozilla_t)
+
+files_read_etc_runtime_files(mozilla_t)
+files_read_usr_files(mozilla_t)
+files_read_etc_files(mozilla_t)
+# /var/lib
+files_read_var_lib_files(mozilla_t)
+# interacting with gstreamer
+files_read_var_files(mozilla_t)
+files_read_var_symlinks(mozilla_t)
+files_dontaudit_getattr_boot_dirs(mozilla_t)
+
+fs_search_auto_mountpoints(mozilla_t)
+fs_list_inotifyfs(mozilla_t)
+fs_rw_tmpfs_files(mozilla_t)
+
+term_dontaudit_getattr_pty_dirs(mozilla_t)
+
+logging_send_syslog_msg(mozilla_t)
+
+miscfiles_read_fonts(mozilla_t)
+miscfiles_read_localization(mozilla_t)
+
+# Browse the web, connect to printer
+sysnet_dns_name_resolve(mozilla_t)
+
+userdom_manage_user_home_content_dirs(mozilla_t)
+userdom_manage_user_home_content_files(mozilla_t)
+userdom_manage_user_home_content_symlinks(mozilla_t)
+userdom_manage_user_tmp_dirs(mozilla_t)
+userdom_manage_user_tmp_files(mozilla_t)
+userdom_manage_user_tmp_sockets(mozilla_t)
+
+xserver_user_x_domain_template(mozilla, mozilla_t, mozilla_tmpfs_t)
+xserver_dontaudit_read_xdm_tmp_files(mozilla_t)
+xserver_dontaudit_getattr_xdm_tmp_sockets(mozilla_t)
+
+tunable_policy(`allow_execmem',`
+	allow mozilla_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(mozilla_t)
+	fs_manage_nfs_files(mozilla_t)
+	fs_manage_nfs_symlinks(mozilla_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(mozilla_t)
+	fs_manage_cifs_files(mozilla_t)
+	fs_manage_cifs_symlinks(mozilla_t)
+')
+
+# Uploads, local html
+tunable_policy(`mozilla_read_content && use_nfs_home_dirs',`
+	fs_list_auto_mountpoints(mozilla_t)
+	files_list_home(mozilla_t)
+	fs_read_nfs_files(mozilla_t)
+	fs_read_nfs_symlinks(mozilla_t)
+
+',`
+	files_dontaudit_list_home(mozilla_t)
+	fs_dontaudit_list_auto_mountpoints(mozilla_t)
+	fs_dontaudit_read_nfs_files(mozilla_t)
+	fs_dontaudit_list_nfs(mozilla_t)
+')
+
+tunable_policy(`mozilla_read_content && use_samba_home_dirs',`
+	fs_list_auto_mountpoints(mozilla_t)
+	files_list_home(mozilla_t)
+	fs_read_cifs_files(mozilla_t)
+	fs_read_cifs_symlinks(mozilla_t)
+',`
+	files_dontaudit_list_home(mozilla_t)
+	fs_dontaudit_list_auto_mountpoints(mozilla_t)
+	fs_dontaudit_read_cifs_files(mozilla_t)
+	fs_dontaudit_list_cifs(mozilla_t)
+')
+
+tunable_policy(`mozilla_read_content',`
+	userdom_list_user_tmp(mozilla_t)
+	userdom_read_user_tmp_files(mozilla_t)
+	userdom_read_user_tmp_symlinks(mozilla_t)
+	userdom_read_user_home_content_files(mozilla_t)
+	userdom_read_user_home_content_symlinks(mozilla_t)
+
+	ifdef(`enable_mls',`',`
+		fs_search_removable(mozilla_t)
+		fs_read_removable_files(mozilla_t)
+		fs_read_removable_symlinks(mozilla_t)
+	')
+',`
+	files_dontaudit_list_tmp(mozilla_t)
+	files_dontaudit_list_home(mozilla_t)
+	fs_dontaudit_list_removable(mozilla_t)
+	fs_dontaudit_read_removable_files(mozilla_t)
+	userdom_dontaudit_list_user_tmp(mozilla_t)
+	userdom_dontaudit_read_user_tmp_files(mozilla_t)
+	userdom_dontaudit_list_user_home_dirs(mozilla_t)
+	userdom_dontaudit_read_user_home_content_files(mozilla_t)
+')
+
+tunable_policy(`mozilla_read_content && read_default_t',`
+	files_list_default(mozilla_t)
+	files_read_default_files(mozilla_t)
+	files_read_default_symlinks(mozilla_t)
+',`
+	files_dontaudit_read_default_files(mozilla_t)
+	files_dontaudit_list_default(mozilla_t)
+')
+
+optional_policy(`
+	apache_read_user_scripts(mozilla_t)
+	apache_read_user_content(mozilla_t)
+')
+
+optional_policy(`
+	automount_dontaudit_getattr_tmp_dirs(mozilla_t)
+')
+
+optional_policy(`
+	cups_read_rw_config(mozilla_t)
+	cups_dbus_chat(mozilla_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(mozilla_t)
+	dbus_session_bus_client(mozilla_t)
+')
+
+optional_policy(`
+	gnome_stream_connect_gconf(mozilla_t)
+')
+
+optional_policy(`
+	java_domtrans(mozilla_t)
+')
+
+optional_policy(`
+	lpd_domtrans_lpr(mozilla_t)
+')
+
+optional_policy(`
+	mplayer_domtrans(mozilla_t)
+	mplayer_read_user_home_files(mozilla_t)
+')
+
+optional_policy(`
+	nscd_socket_use(mozilla_t)
+')
+
+optional_policy(`
+	thunderbird_domtrans(mozilla_t)
+')

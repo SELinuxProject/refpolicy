@@ -1,18 +1,17 @@
 
-policy_module(apache, 1.11.0)
+policy_module(apache, 2.0.0)
 
 #
 # NOTES: 
 #  This policy will work with SUEXEC enabled as part of the Apache
 #  configuration. However, the user CGI scripts will run under the
-#  system_u:system_r:httpd_$1_script_t domain where $1 is the domain of the
-#  of the creating user.
+#  system_u:system_r:httpd_user_script_t.
 #
-#  The user CGI scripts must be labeled with the httpd_$1_script_exec_t
+#  The user CGI scripts must be labeled with the httpd_user_script_exec_t
 #  type, and the directory containing the scripts should also be labeled
-#  with these types. This policy allows user_r role to perform that 
-#  relabeling. If it is desired that only sysadm_r should be able to relabel
-#  the user CGI scripts, then relabel rule for user_r should be removed.
+#  with these types. This policy allows the user role to perform that 
+#  relabeling. If it is desired that only admin role should be able to relabel
+#  the user CGI scripts, then relabel rule for user roles should be removed.
 #
 
 ########################################
@@ -186,6 +185,30 @@ files_tmp_file(httpd_tmp_t)
 
 type httpd_tmpfs_t;
 files_tmpfs_file(httpd_tmpfs_t)
+
+apache_content_template(user)
+ubac_constrained(httpd_user_script_t)
+userdom_user_home_content(httpd_user_content_t)
+userdom_user_home_content(httpd_user_htaccess_t)
+userdom_user_home_content(httpd_user_script_exec_t)
+userdom_user_home_content(httpd_user_script_ra_t)
+userdom_user_home_content(httpd_user_script_ro_t)
+userdom_user_home_content(httpd_user_script_rw_t)
+typeattribute httpd_user_script_t httpd_script_domains;
+typealias httpd_user_content_t alias { httpd_staff_content_t httpd_sysadm_content_t };
+typealias httpd_user_content_t alias { httpd_auditadm_content_t httpd_secadm_content_t };
+typealias httpd_user_htaccess_t alias { httpd_staff_htaccess_t httpd_sysadm_htaccess_t };
+typealias httpd_user_htaccess_t alias { httpd_auditadm_htaccess_t httpd_secadm_htaccess_t };
+typealias httpd_user_script_t alias { httpd_staff_script_t httpd_sysadm_script_t };
+typealias httpd_user_script_t alias { httpd_auditadm_script_t httpd_secadm_script_t };
+typealias httpd_user_script_exec_t alias { httpd_staff_script_exec_t httpd_sysadm_script_exec_t };
+typealias httpd_user_script_exec_t alias { httpd_auditadm_script_exec_t httpd_secadm_script_exec_t };
+typealias httpd_user_script_ro_t alias { httpd_staff_script_ro_t httpd_sysadm_script_ro_t };
+typealias httpd_user_script_ro_t alias { httpd_auditadm_script_ro_t httpd_secadm_script_ro_t };
+typealias httpd_user_script_rw_t alias { httpd_staff_script_rw_t httpd_sysadm_script_rw_t };
+typealias httpd_user_script_rw_t alias { httpd_auditadm_script_rw_t httpd_secadm_script_rw_t };
+typealias httpd_user_script_ra_t alias { httpd_staff_script_ra_t httpd_sysadm_script_ra_t };
+typealias httpd_user_script_ra_t alias { httpd_auditadm_script_ra_t httpd_secadm_script_ra_t };
 
 # for apache2 memory mapped files
 type httpd_var_lib_t;
@@ -393,7 +416,7 @@ tunable_policy(`httpd_enable_ftp_server',`
 ')
 
 tunable_policy(`httpd_enable_homedirs',`
-	userdom_read_unpriv_users_home_content_files(httpd_t)
+	userdom_read_user_home_content_files(httpd_t)
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -418,12 +441,9 @@ tunable_policy(`httpd_ssi_exec',`
 # to run correctly without this permission, so the permission
 # are dontaudited here. 
 tunable_policy(`httpd_tty_comm',`
-	# cjp: this is redundant:
-	term_use_controlling_term(httpd_t)
-
-	sysadm_use_terms(httpd_t)
+	userdom_use_user_terminals(httpd_t)
 ',`
-	sysadm_dontaudit_use_terms(httpd_t)
+	userdom_dontaudit_use_user_terminals(httpd_t)
 ')
 
 optional_policy(`
@@ -513,9 +533,7 @@ allow httpd_helper_t httpd_log_t:file append_file_perms;
 
 logging_send_syslog_msg(httpd_helper_t)
 
-tunable_policy(`httpd_tty_comm',`
-	sysadm_use_terms(httpd_helper_t)
-')
+userdom_use_user_terminals(httpd_helper_t)
 
 ########################################
 #
@@ -628,7 +646,7 @@ tunable_policy(`httpd_enable_cgi && httpd_unified',`
 ')
 
 tunable_policy(`httpd_enable_homedirs',`
-	userdom_read_unpriv_users_home_content_files(httpd_suexec_t)
+	userdom_read_user_home_content_files(httpd_suexec_t)
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -686,7 +704,7 @@ ifdef(`distro_redhat',`
 ')
 
 tunable_policy(`httpd_enable_homedirs',`
-	userdom_read_unpriv_users_home_content_files(httpd_sys_script_t)
+	userdom_read_user_home_content_files(httpd_sys_script_t)
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -728,3 +746,19 @@ files_read_etc_files(httpd_rotatelogs_t)
 logging_search_logs(httpd_rotatelogs_t)
 
 miscfiles_read_localization(httpd_rotatelogs_t)
+
+########################################
+#
+# User content local policy
+#
+
+tunable_policy(`httpd_enable_cgi && httpd_unified',`
+	allow httpd_user_script_t httpdcontent:file entrypoint;
+')
+
+# allow accessing files/dirs below the users home dir
+tunable_policy(`httpd_enable_homedirs',`
+	userdom_search_user_home_dirs(httpd_t)
+	userdom_search_user_home_dirs(httpd_suexec_t)
+	userdom_search_user_home_dirs(httpd_user_script_t)
+')

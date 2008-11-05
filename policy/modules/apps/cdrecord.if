@@ -1,187 +1,33 @@
 ## <summary>Policy for cdrecord</summary>
 
-#######################################
+########################################
 ## <summary>
-##	The per role template for the cdrecord module.
+##	Role access for cdrecord
 ## </summary>
-## <desc>
-##	<p>
-##	This template creates derived domains which are used
-##	for cdrecord.
-##	</p>
-##	<p>
-##	This template is invoked automatically for each user, and
-##	generally does not need to be invoked directly
-##	by policy writers.
-##	</p>
-## </desc>
-## <param name="userdomain_prefix">
+## <param name="role">
 ##	<summary>
-##	The prefix of the user domain (e.g., user
-##	is the prefix for user_t).
+##	Role allowed access
 ##	</summary>
 ## </param>
-## <param name="user_domain">
+## <param name="domain">
 ##	<summary>
-##	The type of the user domain.
-##	</summary>
-## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
+##	User domain for the role
 ##	</summary>
 ## </param>
 #
-template(`cdrecord_per_role_template', `
-
+interface(`cdrecord_role',`
 	gen_require(`
-		type cdrecord_exec_t;
+		type cdrecord_t, cdrecord_exec_t;
 	')
 
-	########################################
-	#
-	# Declarations
-	#
-
-	type $1_cdrecord_t;
-	application_domain($1_cdrecord_t, cdrecord_exec_t)
-	role $3 types $1_cdrecord_t;
-
-	########################################
-	#
-	# Local policy
-	#
-
-	allow $1_cdrecord_t self:capability { ipc_lock sys_nice setuid dac_override sys_rawio };
-	allow $1_cdrecord_t self:process { getsched setsched sigkill };
-	allow $1_cdrecord_t self:unix_dgram_socket create_socket_perms;
-	allow $1_cdrecord_t self:unix_stream_socket create_stream_socket_perms;
-
-	allow $1_cdrecord_t $2:unix_stream_socket { getattr read write ioctl };
-
-	# allow ps to show cdrecord and allow the user to kill it 
-	ps_process_pattern($2,$1_cdrecord_t)
-	allow $2 $1_cdrecord_t:process signal;
+	role $1 types cdrecord_t;
 
 	# Transition from the user domain to the derived domain.
-	domtrans_pattern($2, cdrecord_exec_t, $1_cdrecord_t)
+	domtrans_pattern($2, cdrecord_exec_t, cdrecord_t)
 
-	# allow searching for cdrom-drive
-	dev_list_all_dev_nodes($1_cdrecord_t) 
+	allow cdrecord_t $2:unix_stream_socket { getattr read write ioctl };
 
-	domain_interactive_fd($1_cdrecord_t)
-	domain_use_interactive_fds($1_cdrecord_t)
-
-	files_read_etc_files($1_cdrecord_t)
-
-	term_use_controlling_term($1_cdrecord_t)
-	term_list_ptys($1_cdrecord_t)
-
-	# allow cdrecord to write the CD
-	storage_raw_write_removable_device($1_cdrecord_t)
-	storage_write_scsi_generic($1_cdrecord_t)
-
-	logging_send_syslog_msg($1_cdrecord_t)
-
-	miscfiles_read_localization($1_cdrecord_t)
-
-	# write to the user domain tty.
-	userdom_use_user_terminals($1, $1_cdrecord_t)
-	userdom_use_user_terminals($1, $2)
-
-	userdom_read_user_home_content_files($1, $1_cdrecord_t)
-
-	# Handle nfs home dirs
-	tunable_policy(`cdrecord_read_content && use_nfs_home_dirs',`
-		fs_list_auto_mountpoints($1_cdrecord_t)
-		files_list_home($1_cdrecord_t)
-		fs_read_nfs_files($1_cdrecord_t)
-		fs_read_nfs_symlinks($1_cdrecord_t)
-
-	',`
-		files_dontaudit_list_home($1_cdrecord_t)
-		fs_dontaudit_list_auto_mountpoints($1_cdrecord_t)
-		fs_dontaudit_read_nfs_files($1_cdrecord_t)
-		fs_dontaudit_list_nfs($1_cdrecord_t)
-	')
-	# Handle samba home dirs
-	tunable_policy(`cdrecord_read_content && use_samba_home_dirs',`
-		fs_list_auto_mountpoints($1_cdrecord_t)
-		files_list_home($1_cdrecord_t)
-		fs_read_cifs_files($1_cdrecord_t)
-		fs_read_cifs_symlinks($1_cdrecord_t)
-	',`
-		files_dontaudit_list_home($1_cdrecord_t)
-		fs_dontaudit_list_auto_mountpoints($1_cdrecord_t)
-		fs_dontaudit_read_cifs_files($1_cdrecord_t)
-		fs_dontaudit_list_cifs($1_cdrecord_t)
-	')
-
-	# Handle removable media, /tmp, and /home
-	tunable_policy(`cdrecord_read_content',`
-		userdom_list_user_tmp($1, $1_cdrecord_t)
-		userdom_read_user_tmp_files($1, $1_cdrecord_t)
-		userdom_read_user_tmp_symlinks($1, $1_cdrecord_t)
-		userdom_search_user_home_dirs($1, $1_cdrecord_t)
-		userdom_read_user_home_content_files($1, $1_cdrecord_t)
-		userdom_read_user_home_content_symlinks($1, $1_cdrecord_t)
-
-		ifdef(`enable_mls',`
-		',`
-			fs_search_removable($1_cdrecord_t)
-			fs_read_removable_files($1_cdrecord_t)
-			fs_read_removable_symlinks($1_cdrecord_t)
-		')
-	',`
-		files_dontaudit_list_tmp($1_cdrecord_t)
-		files_dontaudit_list_home($1_cdrecord_t)
-		fs_dontaudit_list_removable($1_cdrecord_t)
-		fs_dontaudit_read_removable_files($1_cdrecord_t)
-		userdom_dontaudit_list_user_tmp($1, $1_cdrecord_t)
-		userdom_dontaudit_read_user_tmp_files($1, $1_cdrecord_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_cdrecord_t)
-		userdom_dontaudit_read_user_home_content_files($1, $1_cdrecord_t)
-	')
-
-	# Handle default_t content
-	tunable_policy(`cdrecord_read_content && read_default_t',`
-		files_list_default($1_cdrecord_t)
-		files_read_default_files($1_cdrecord_t)
-		files_read_default_symlinks($1_cdrecord_t)
-	',`
-		files_dontaudit_read_default_files($1_cdrecord_t)
-		files_dontaudit_list_default($1_cdrecord_t)
-	')
-
-	# Handle untrusted content
-	tunable_policy(`cdrecord_read_content && read_untrusted_content',`
-		files_list_tmp($1_cdrecord_t)
-		files_list_home($1_cdrecord_t)
-		userdom_search_user_home_dirs($1, $1_cdrecord_t)
-
-		userdom_list_user_untrusted_content($1, $1_cdrecord_t)
-		userdom_read_user_untrusted_content_files($1, $1_cdrecord_t)
-		userdom_read_user_untrusted_content_symlinks($1, $1_cdrecord_t)
-		userdom_list_user_tmp_untrusted_content($1, $1_cdrecord_t)
-		userdom_read_user_tmp_untrusted_content_files($1, $1_cdrecord_t)
-		userdom_read_user_tmp_untrusted_content_symlinks($1, $1_cdrecord_t)
-	',`
-		files_dontaudit_list_tmp($1_cdrecord_t)
-		files_dontaudit_list_home($1_cdrecord_t)
-		userdom_dontaudit_list_user_home_dirs($1, $1_cdrecord_t)
-		userdom_dontaudit_list_user_untrusted_content($1, $1_cdrecord_t)
-		userdom_dontaudit_read_user_untrusted_content_files($1, $1_cdrecord_t)
-		userdom_dontaudit_list_user_tmp_untrusted_content($1, $1_cdrecord_t)
-		userdom_dontaudit_read_user_tmp_untrusted_content_files($1, $1_cdrecord_t)
-	')
-
-	tunable_policy(`use_nfs_home_dirs',`
-		files_search_mnt($1_cdrecord_t)
-		fs_read_nfs_files($1_cdrecord_t)
-		fs_read_nfs_symlinks($1_cdrecord_t)
-	')
-
-	optional_policy(`
-		resmgr_stream_connect($1_cdrecord_t)
-	')
+	# allow ps to show cdrecord and allow the user to kill it 
+	ps_process_pattern($2, cdrecord_t)
+	allow $2 cdrecord_t:process signal;
 ')

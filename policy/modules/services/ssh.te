@@ -1,5 +1,5 @@
 
-policy_module(ssh, 1.11.0)
+policy_module(ssh, 2.0.0)
 
 ########################################
 #
@@ -21,22 +21,12 @@ gen_tunable(allow_ssh_keysign, false)
 gen_tunable(ssh_sysadm_login, false)
 
 attribute ssh_server;
-
-# Type for the ssh-agent executable.
-type ssh_agent_exec_t;
-files_type(ssh_agent_exec_t)
-
-# ssh client executable.
-type ssh_exec_t;
-application_executable_file(ssh_exec_t)
+attribute ssh_agent_type;
 
 type ssh_keygen_t;
 type ssh_keygen_exec_t;
 init_system_domain(ssh_keygen_t, ssh_keygen_exec_t)
 role system_r types ssh_keygen_t;
-
-type ssh_keysign_exec_t;
-application_executable_file(ssh_keysign_exec_t)
 
 type sshd_exec_t;
 corecmd_executable_file(sshd_exec_t)
@@ -53,6 +43,252 @@ files_poly_parent(sshd_tmp_t)
 
 ifdef(`enable_mcs',`
 	init_ranged_daemon_domain(sshd_t,sshd_exec_t,s0 - mcs_systemhigh)
+')
+
+type ssh_t;
+type ssh_exec_t;
+typealias ssh_t alias { user_ssh_t staff_ssh_t sysadm_ssh_t };
+typealias ssh_t alias { auditadm_ssh_t secadm_ssh_t };
+application_domain(ssh_t, ssh_exec_t)
+ubac_constrained(ssh_t)
+
+type ssh_agent_exec_t;
+corecmd_executable_file(ssh_agent_exec_t)
+
+type ssh_agent_tmp_t;
+typealias ssh_agent_tmp_t alias { user_ssh_agent_tmp_t staff_ssh_agent_tmp_t sysadm_ssh_agent_tmp_t };
+typealias ssh_agent_tmp_t alias { auditadm_ssh_agent_tmp_t secadm_ssh_agent_tmp_t };
+files_tmp_file(ssh_agent_tmp_t)
+ubac_constrained(ssh_agent_tmp_t)
+
+type ssh_keysign_t;
+type ssh_keysign_exec_t;
+typealias ssh_keysign_t alias { user_ssh_keysign_t staff_ssh_keysign_t sysadm_ssh_keysign_t };
+typealias ssh_keysign_t alias { auditadm_ssh_keysign_t secadm_ssh_keysign_t };
+application_domain(ssh_keysign_t, ssh_keysign_exec_t)
+ubac_constrained(ssh_keysign_t)
+
+type ssh_tmpfs_t;
+typealias ssh_tmpfs_t alias { user_ssh_tmpfs_t staff_ssh_tmpfs_t sysadm_ssh_tmpfs_t };
+typealias ssh_tmpfs_t alias { auditadm_ssh_tmpfs_t secadm_ssh_tmpfs_t };
+files_tmpfs_file(ssh_tmpfs_t)
+ubac_constrained(ssh_tmpfs_t)
+
+type home_ssh_t;
+typealias home_ssh_t alias { user_home_ssh_t staff_home_ssh_t sysadm_home_ssh_t };
+typealias home_ssh_t alias { auditadm_home_ssh_t secadm_home_ssh_t };
+files_type(home_ssh_t)
+userdom_user_home_content(home_ssh_t)
+
+##############################
+#
+# SSH client local policy
+#
+
+allow ssh_t self:capability { setuid setgid dac_override dac_read_search };
+allow ssh_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow ssh_t self:fd use;
+allow ssh_t self:fifo_file rw_fifo_file_perms;
+allow ssh_t self:unix_dgram_socket { create_socket_perms sendto };
+allow ssh_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow ssh_t self:shm create_shm_perms;
+allow ssh_t self:sem create_sem_perms;
+allow ssh_t self:msgq create_msgq_perms;
+allow ssh_t self:msg { send receive };
+allow ssh_t self:tcp_socket create_socket_perms;
+allow ssh_t self:netlink_route_socket r_netlink_socket_perms;
+
+# Read the ssh key file.
+allow ssh_t sshd_key_t:file read_file_perms;
+
+# Access the ssh temporary files.
+allow ssh_t sshd_tmp_t:dir manage_dir_perms;
+allow ssh_t sshd_tmp_t:file manage_file_perms;
+files_tmp_filetrans(ssh_t, sshd_tmp_t, { file dir })
+
+manage_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
+manage_lnk_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
+manage_fifo_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
+manage_sock_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
+fs_tmpfs_filetrans(ssh_t, ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+manage_dirs_pattern(ssh_t,home_ssh_t,home_ssh_t)
+manage_sock_files_pattern(ssh_t,home_ssh_t,home_ssh_t)
+userdom_user_home_dir_filetrans(ssh_t, home_ssh_t, { dir sock_file })
+
+# Allow the ssh program to communicate with ssh-agent.
+stream_connect_pattern(ssh_t, ssh_agent_tmp_t, ssh_agent_tmp_t, ssh_agent_type)
+
+allow ssh_t sshd_t:unix_stream_socket connectto;
+
+# ssh client can manage the keys and config
+manage_files_pattern(ssh_t,home_ssh_t,home_ssh_t)
+read_lnk_files_pattern(ssh_t,home_ssh_t,home_ssh_t)
+
+# ssh servers can read the user keys and config
+allow ssh_server home_ssh_t:dir list_dir_perms;
+read_files_pattern(ssh_server,home_ssh_t,home_ssh_t)
+read_lnk_files_pattern(ssh_server,home_ssh_t,home_ssh_t)
+
+kernel_read_kernel_sysctls(ssh_t)
+
+corenet_all_recvfrom_unlabeled(ssh_t)
+corenet_all_recvfrom_netlabel(ssh_t)
+corenet_tcp_sendrecv_all_if(ssh_t)
+corenet_tcp_sendrecv_all_nodes(ssh_t)
+corenet_tcp_sendrecv_all_ports(ssh_t)
+corenet_tcp_connect_ssh_port(ssh_t)
+corenet_sendrecv_ssh_client_packets(ssh_t)
+
+dev_read_urand(ssh_t)
+
+fs_getattr_all_fs(ssh_t)
+fs_search_auto_mountpoints(ssh_t)
+
+# run helper programs - needed eg for x11-ssh-askpass
+corecmd_exec_shell(ssh_t)
+corecmd_exec_bin(ssh_t)
+
+domain_use_interactive_fds(ssh_t)
+
+files_list_home(ssh_t)
+files_read_usr_files(ssh_t)
+files_read_etc_runtime_files(ssh_t)
+files_read_etc_files(ssh_t)
+files_read_var_files(ssh_t)
+
+logging_send_syslog_msg(ssh_t)
+logging_read_generic_logs(ssh_t)
+
+miscfiles_read_localization(ssh_t)
+
+seutil_read_config(ssh_t)
+
+sysnet_read_config(ssh_t)
+sysnet_dns_name_resolve(ssh_t)
+
+userdom_dontaudit_list_user_home_dirs(ssh_t)
+userdom_search_user_home_dirs(ssh_t)
+# Write to the user domain tty.
+userdom_use_user_terminals(ssh_t)
+# needs to read krb tgt
+userdom_read_user_tmp_files(ssh_t)
+
+tunable_policy(`allow_ssh_keysign',`
+	domain_auto_trans(ssh_t, ssh_keysign_exec_t, ssh_keysign_t)
+	allow ssh_keysign_t ssh_t:fd use;
+	allow ssh_keysign_t ssh_t:process sigchld;
+	allow ssh_keysign_t ssh_t:fifo_file rw_file_perms;
+')
+
+tunable_policy(`read_default_t',`
+	files_list_default(ssh_t)
+	files_read_default_files(ssh_t)
+	files_read_default_symlinks(ssh_t)
+	files_read_default_sockets(ssh_t)
+	files_read_default_pipes(ssh_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(ssh_t)
+	fs_manage_nfs_files(ssh_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(ssh_t)
+	fs_manage_cifs_files(ssh_t)
+')
+
+# for port forwarding
+tunable_policy(`user_tcp_server',`
+	corenet_tcp_bind_ssh_port(ssh_t)
+')
+
+optional_policy(`
+	kerberos_use(ssh_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(ssh_t)
+')
+
+optional_policy(`
+	nscd_socket_use(ssh_t)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(ssh, ssh_t, ssh_tmpfs_t)
+	xserver_domtrans_xauth(ssh_t)
+')
+
+########################################
+#
+# ssh_keygen local policy
+#
+
+# ssh_keygen_t is the type of the ssh-keygen program when run at install time
+# and by sysadm_t
+
+dontaudit ssh_keygen_t self:capability sys_tty_config;
+allow ssh_keygen_t self:process { sigchld sigkill sigstop signull signal };
+
+allow ssh_keygen_t self:unix_stream_socket create_stream_socket_perms;
+
+allow ssh_keygen_t sshd_key_t:file manage_file_perms;
+files_etc_filetrans(ssh_keygen_t, sshd_key_t, file)
+
+kernel_read_kernel_sysctls(ssh_keygen_t)
+
+fs_search_auto_mountpoints(ssh_keygen_t)
+
+dev_read_sysfs(ssh_keygen_t)
+dev_read_urand(ssh_keygen_t)
+
+term_dontaudit_use_console(ssh_keygen_t)
+
+domain_use_interactive_fds(ssh_keygen_t)
+
+files_read_etc_files(ssh_keygen_t)
+
+init_use_fds(ssh_keygen_t)
+init_use_script_ptys(ssh_keygen_t)
+
+logging_send_syslog_msg(ssh_keygen_t)
+
+userdom_dontaudit_use_unpriv_user_fds(ssh_keygen_t)
+
+optional_policy(`
+	nscd_socket_use(ssh_keygen_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(ssh_keygen_t)
+')
+
+optional_policy(`
+	udev_read_db(ssh_keygen_t)
+')
+
+##############################
+#
+# ssh_keysign_t local policy
+#
+
+tunable_policy(`allow_ssh_keysign',`
+	allow ssh_keysign_t self:capability { setgid setuid };
+	allow ssh_keysign_t self:unix_stream_socket create_socket_perms;
+
+	allow ssh_keysign_t sshd_key_t:file { getattr read };
+
+	dev_read_urand(ssh_keysign_t)
+
+	files_read_etc_files(ssh_keysign_t)
+')
+
+optional_policy(`
+	tunable_policy(`allow_ssh_keysign',`
+		nscd_socket_use(ssh_keysign_t)
+	')
 ')
 
 #################################
@@ -74,6 +310,10 @@ files_tmp_filetrans(sshd_t, sshd_tmp_t, { dir file sock_file })
 kernel_search_key(sshd_t)
 kernel_link_key(sshd_t)
 
+term_use_all_user_ptys(sshd_t)
+term_setattr_all_user_ptys(sshd_t)
+term_relabelto_all_user_ptys(sshd_t)
+
 # for X forwarding
 corenet_tcp_bind_xserver_port(sshd_t)
 corenet_sendrecv_xserver_server_packets(sshd_t)
@@ -83,19 +323,11 @@ tunable_policy(`ssh_sysadm_login',`
 	# ioctl is necessary for logout() processing for utmp entry and for w to
 	# display the tty.
 	# some versions of sshd on the new SE Linux require setattr
-	term_use_all_user_ptys(sshd_t)
-	term_setattr_all_user_ptys(sshd_t)
-	term_relabelto_all_user_ptys(sshd_t)
-
 	userdom_spec_domtrans_all_users(sshd_t)
 	userdom_signal_all_users(sshd_t)
 ',`
 	userdom_spec_domtrans_unpriv_users(sshd_t)
 	userdom_signal_unpriv_users(sshd_t)
-
-	userdom_setattr_unpriv_users_ptys(sshd_t)
-	userdom_relabelto_unpriv_users_ptys(sshd_t)
-	userdom_use_unpriv_users_ptys(sshd_t)
 ')
 
 optional_policy(`
@@ -111,9 +343,9 @@ optional_policy(`
 ')
 
 optional_policy(`
-	rssh_spec_domtrans_all_users(sshd_t)
+	rssh_spec_domtrans(sshd_t)
 	# For reading /home/user/.ssh
-	rssh_read_all_users_ro_content(sshd_t)
+	rssh_read_ro_content(sshd_t)
 ')
 
 optional_policy(`

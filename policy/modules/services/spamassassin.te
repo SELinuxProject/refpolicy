@@ -1,5 +1,5 @@
 
-policy_module(spamassassin, 1.10.0)
+policy_module(spamassassin, 2.0.0)
 
 ########################################
 #
@@ -20,13 +20,41 @@ gen_tunable(spamassassin_can_network, false)
 ## </desc>
 gen_tunable(spamd_enable_home_dirs, true)
 
-# spamassassin client executable
+type spamassassin_t;
+type spamassassin_exec_t;
+typealias spamassassin_t alias { user_spamassassin_t staff_spamassassin_t sysadm_spamassassin_t };
+typealias spamassassin_t alias { auditadm_spamassassin_t secadm_spamassassin_t };
+application_domain(spamassassin_t, spamassassin_exec_t)
+ubac_constrained(spamassassin_t)
+
+type spamassassin_home_t;
+typealias spamassassin_home_t alias { user_spamassassin_home_t staff_spamassassin_home_t sysadm_spamassassin_home_t };
+typealias spamassassin_home_t alias { auditadm_spamassassin_home_t secadm_spamassassin_home_t };
+userdom_user_home_content(spamassassin_home_t)
+files_poly_member(spamassassin_home_t)
+
+type spamassassin_tmp_t;
+typealias spamassassin_tmp_t alias { user_spamassassin_tmp_t staff_spamassassin_tmp_t sysadm_spamassassin_tmp_t };
+typealias spamassassin_tmp_t alias { auditadm_spamassassin_tmp_t secadm_spamassassin_tmp_t };
+files_tmp_file(spamassassin_tmp_t)
+ubac_constrained(spamassassin_tmp_t)
+
+type spamc_t;
 type spamc_exec_t;
-application_executable_file(spamc_exec_t)
+typealias spamc_t alias { user_spamc_t staff_spamc_t sysadm_spamc_t };
+typealias spamc_t alias { auditadm_spamc_t secadm_spamc_t };
+application_domain(spamc_t, spamc_exec_t)
+ubac_constrained(spamc_t)
+
+type spamc_tmp_t;
+typealias spamc_tmp_t alias { user_spamc_tmp_t staff_spamc_tmp_t sysadm_spamc_tmp_t };
+typealias spamc_tmp_t alias { auditadm_spamc_tmp_t secadm_spamc_tmp_t };
+files_tmp_file(spamc_tmp_t)
+ubac_constrained(spamc_tmp_t)
 
 type spamd_t;
 type spamd_exec_t;
-init_daemon_domain(spamd_t,spamd_exec_t)
+init_daemon_domain(spamd_t, spamd_exec_t)
 
 type spamd_spool_t;
 files_type(spamd_spool_t)
@@ -41,12 +69,232 @@ files_type(spamd_var_lib_t)
 type spamd_var_run_t;
 files_pid_file(spamd_var_run_t)
 
-type spamassassin_exec_t;
-application_executable_file(spamassassin_exec_t)
+##############################
+#
+# Standalone program local policy
+#
+
+allow spamassassin_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow spamassassin_t self:fd use;
+allow spamassassin_t self:fifo_file rw_fifo_file_perms;
+allow spamassassin_t self:sock_file read_sock_file_perms;
+allow spamassassin_t self:unix_dgram_socket create_socket_perms;
+allow spamassassin_t self:unix_stream_socket create_stream_socket_perms;
+allow spamassassin_t self:unix_dgram_socket sendto;
+allow spamassassin_t self:unix_stream_socket connectto;
+allow spamassassin_t self:shm create_shm_perms;
+allow spamassassin_t self:sem create_sem_perms;
+allow spamassassin_t self:msgq create_msgq_perms;
+allow spamassassin_t self:msg { send receive };
+
+manage_dirs_pattern(spamassassin_t, spamassassin_home_t, spamassassin_home_t)
+manage_files_pattern(spamassassin_t, spamassassin_home_t, spamassassin_home_t)
+manage_lnk_files_pattern(spamassassin_t, spamassassin_home_t, spamassassin_home_t)
+manage_fifo_files_pattern(spamassassin_t, spamassassin_home_t, spamassassin_home_t)
+manage_sock_files_pattern(spamassassin_t, spamassassin_home_t, spamassassin_home_t)
+userdom_user_home_dir_filetrans(spamassassin_t, spamassassin_home_t, { dir file lnk_file sock_file fifo_file })
+
+manage_dirs_pattern(spamassassin_t, spamassassin_tmp_t, spamassassin_tmp_t)
+manage_files_pattern(spamassassin_t, spamassassin_tmp_t, spamassassin_tmp_t)
+files_tmp_filetrans(spamassassin_t, spamassassin_tmp_t, { file dir })
+
+manage_dirs_pattern(spamd_t, spamassassin_home_t, spamassassin_home_t)
+manage_files_pattern(spamd_t, spamassassin_home_t, spamassassin_home_t)
+manage_lnk_files_pattern(spamd_t, spamassassin_home_t, spamassassin_home_t)
+manage_fifo_files_pattern(spamd_t, spamassassin_home_t, spamassassin_home_t)
+manage_sock_files_pattern(spamd_t, spamassassin_home_t, spamassassin_home_t)
+userdom_user_home_dir_filetrans(spamd_t, spamassassin_home_t, { dir file lnk_file sock_file fifo_file })
+
+kernel_read_kernel_sysctls(spamassassin_t)
+
+dev_read_urand(spamassassin_t)
+
+fs_search_auto_mountpoints(spamassassin_t)
+
+# this should probably be removed
+corecmd_list_bin(spamassassin_t)
+corecmd_read_bin_symlinks(spamassassin_t)
+corecmd_read_bin_files(spamassassin_t)
+corecmd_read_bin_pipes(spamassassin_t)
+corecmd_read_bin_sockets(spamassassin_t)
+
+domain_use_interactive_fds(spamassassin_t)
+
+files_read_etc_files(spamassassin_t)
+files_read_etc_runtime_files(spamassassin_t)
+files_list_home(spamassassin_t)
+files_read_usr_files(spamassassin_t)
+files_dontaudit_search_var(spamassassin_t)
+
+logging_send_syslog_msg(spamassassin_t)
+
+miscfiles_read_localization(spamassassin_t)
+
+# cjp: this could probably be removed
+seutil_read_config(spamassassin_t)
+
+sysnet_dns_name_resolve(spamassassin_t)
+
+# this should probably be removed:
+tunable_policy(`read_default_t',`
+	files_list_default(spamassassin_t)
+	files_read_default_files(spamassassin_t)
+	files_read_default_symlinks(spamassassin_t)
+	files_read_default_sockets(spamassassin_t)
+	files_read_default_pipes(spamassassin_t)
+')
+
+# set tunable if you have spamassassin do DNS lookups
+tunable_policy(`spamassassin_can_network',`
+	allow spamassassin_t self:tcp_socket create_stream_socket_perms;
+	allow spamassassin_t self:udp_socket create_socket_perms;
+
+	corenet_all_recvfrom_unlabeled(spamassassin_t)
+	corenet_all_recvfrom_netlabel(spamassassin_t)
+	corenet_tcp_sendrecv_generic_if(spamassassin_t)
+	corenet_udp_sendrecv_generic_if(spamassassin_t)
+	corenet_tcp_sendrecv_all_nodes(spamassassin_t)
+	corenet_udp_sendrecv_all_nodes(spamassassin_t)
+	corenet_tcp_sendrecv_all_ports(spamassassin_t)
+	corenet_udp_sendrecv_all_ports(spamassassin_t)
+	corenet_tcp_connect_all_ports(spamassassin_t)
+	corenet_sendrecv_all_client_packets(spamassassin_t)
+
+	sysnet_read_config(spamassassin_t)
+')
+
+tunable_policy(`spamd_enable_home_dirs',`
+	userdom_manage_user_home_content_dirs(spamd_t)
+	userdom_manage_user_home_content_files(spamd_t)
+	userdom_manage_user_home_content_symlinks(spamd_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(spamassassin_t)
+	fs_manage_nfs_files(spamassassin_t)
+	fs_manage_nfs_symlinks(spamassassin_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(spamassassin_t)
+	fs_manage_cifs_files(spamassassin_t)
+	fs_manage_cifs_symlinks(spamassassin_t)
+')
+
+optional_policy(`
+	# Write pid file and socket in ~/.evolution/cache/tmp
+	evolution_home_filetrans(spamd_t, spamd_tmp_t, { file sock_file })
+')
+
+optional_policy(`
+	tunable_policy(`spamassassin_can_network && allow_ypbind',`
+		nis_use_ypbind_uncond(spamassassin_t)
+	')
+')
+
+optional_policy(`
+	mta_read_config(spamassassin_t)
+	sendmail_stub(spamassassin_t)
+')
 
 ########################################
 #
-# Spamassassin daemon local policy
+# Client local policy
+#
+
+allow spamc_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow spamc_t self:fd use;
+allow spamc_t self:fifo_file rw_fifo_file_perms;
+allow spamc_t self:sock_file read_sock_file_perms;
+allow spamc_t self:shm create_shm_perms;
+allow spamc_t self:sem create_sem_perms;
+allow spamc_t self:msgq create_msgq_perms;
+allow spamc_t self:msg { send receive };
+allow spamc_t self:unix_dgram_socket create_socket_perms;
+allow spamc_t self:unix_stream_socket create_stream_socket_perms;
+allow spamc_t self:unix_dgram_socket sendto;
+allow spamc_t self:unix_stream_socket connectto;
+allow spamc_t self:tcp_socket create_stream_socket_perms;
+allow spamc_t self:udp_socket create_socket_perms;
+
+manage_dirs_pattern(spamc_t, spamc_tmp_t, spamc_tmp_t)
+manage_files_pattern(spamc_t, spamc_tmp_t, spamc_tmp_t)
+files_tmp_filetrans(spamc_t, spamc_tmp_t, { file dir })
+
+# Allow connecting to a local spamd
+allow spamc_t spamd_t:unix_stream_socket connectto;
+allow spamc_t spamd_tmp_t:sock_file rw_sock_file_perms;
+
+kernel_read_kernel_sysctls(spamc_t)
+
+corenet_all_recvfrom_unlabeled(spamc_t)
+corenet_all_recvfrom_netlabel(spamc_t)
+corenet_tcp_sendrecv_generic_if(spamc_t)
+corenet_udp_sendrecv_generic_if(spamc_t)
+corenet_tcp_sendrecv_all_nodes(spamc_t)
+corenet_udp_sendrecv_all_nodes(spamc_t)
+corenet_tcp_sendrecv_all_ports(spamc_t)
+corenet_udp_sendrecv_all_ports(spamc_t)
+corenet_tcp_connect_all_ports(spamc_t)
+corenet_sendrecv_all_client_packets(spamc_t)
+
+fs_search_auto_mountpoints(spamc_t)
+
+# cjp: these should probably be removed:
+corecmd_list_bin(spamc_t)
+corecmd_read_bin_symlinks(spamc_t)
+corecmd_read_bin_files(spamc_t)
+corecmd_read_bin_pipes(spamc_t)
+corecmd_read_bin_sockets(spamc_t)
+
+domain_use_interactive_fds(spamc_t)
+
+files_read_etc_files(spamc_t)
+files_read_etc_runtime_files(spamc_t)
+files_read_usr_files(spamc_t)
+files_dontaudit_search_var(spamc_t)
+# cjp: this may be removable:
+files_list_home(spamc_t)
+
+logging_send_syslog_msg(spamc_t)
+
+miscfiles_read_localization(spamc_t)
+
+# cjp: this should probably be removed:
+seutil_read_config(spamc_t)
+
+sysnet_read_config(spamc_t)
+
+# cjp: this should probably be removed:
+tunable_policy(`read_default_t',`
+	files_list_default(spamc_t)
+	files_read_default_files(spamc_t)
+	files_read_default_symlinks(spamc_t)
+	files_read_default_sockets(spamc_t)
+	files_read_default_pipes(spamc_t)
+')
+
+optional_policy(`
+	# Allow connection to spamd socket above
+	evolution_stream_connect(spamc_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(spamc_t)
+')
+
+optional_policy(`
+	nscd_socket_use(spamc_t)
+')
+
+optional_policy(`
+	mta_read_config(spamc_t)
+	sendmail_stub(spamc_t)
+')
+
+########################################
+#
+# Server local policy
 #
 
 # Spamassassin, when run as root and using per-user config files,
@@ -143,9 +391,7 @@ sysnet_use_ldap(spamd_t)
 sysnet_dns_name_resolve(spamd_t)
 
 userdom_use_unpriv_users_fds(spamd_t)
-userdom_search_unpriv_users_home_dirs(spamd_t)
-
-sysadm_dontaudit_search_home_dirs(spamd_t)
+userdom_search_user_home_dirs(spamd_t)
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_manage_nfs_files(spamd_t)
