@@ -261,19 +261,18 @@ interface(`bind_udp_chat_named',`
 ## </param>
 ## <param name="role">
 ##	<summary>
-##	Role allowed access.
-##	</summary>
-## </param>
-## <param name="terminal">
-##	<summary>
-##	The type of the terminal.
+##	The role to be allowed to manage the bind domain.
 ##	</summary>
 ## </param>
 ## <rolecap/>
 #
 interface(`bind_admin',`
 	gen_require(`
-		type named_t, ndc_t;
+		type named_t, named_tmp_t, named_log_t;
+		type named_conf_t, named_var_run_t;
+		type named_cache_t, named_zone_t;
+		type dnssec_t, ndc_t;
+		type named_initrc_exec_t;
 	')
 
 	allow $1 named_t:process { ptrace signal_perms };
@@ -282,5 +281,25 @@ interface(`bind_admin',`
 	allow $1 ndc_t:process { ptrace signal_perms };
 	ps_process_pattern($1, ndc_t)
 
-	bind_run_ndc($1, $2, $3)
+	bind_run_ndc($1, $2)
+
+	domain_system_change_exemption($1)
+	role_transition $2 named_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, named_tmp_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, named_log_t)
+
+	files_list_etc($1)
+	admin_pattern($1, named_conf_t)
+
+	admin_pattern($1, named_cache_t)
+	admin_pattern($1, named_zone_t)
+	admin_pattern($1, dnssec_t)
+
+	files_list_pids($1)
+	admin_pattern($1, named_var_run_t)
 ')

@@ -90,3 +90,45 @@ interface(`arpwatch_dontaudit_rw_packet_sockets',`
 
 	dontaudit $1 arpwatch_t:packet_socket { read write };
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an arpwatch environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the arpwatch domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`arpwatch_admin',`
+	gen_require(`
+		type arpwatch_t, arpwatch_tmp_t;
+		type arpwatch_data_t, arpwatch_var_run_t;
+		type arpwatch_initrc_exec_t;
+	')
+
+	allow $1 arpwatch_t:process { ptrace signal_perms getattr };
+	ps_process_pattern($1, arpwatch_t)
+
+	init_labeled_script_domtrans($1, arpwatch_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 arpwatch_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, arpwatch_tmp_t)
+
+	files_list_var($1)
+	admin_pattern($1, arpwatch_data_t)
+
+	files_list_pids($1)
+	admin_pattern($1, arpwatch_var_run_t)
+')

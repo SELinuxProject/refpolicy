@@ -1,5 +1,5 @@
 
-policy_module(postgrey, 1.5.1)
+policy_module(postgrey, 1.5.2)
 
 ########################################
 #
@@ -13,6 +13,12 @@ init_daemon_domain(postgrey_t, postgrey_exec_t)
 type postgrey_etc_t;
 files_config_file(postgrey_etc_t)
 
+type postgrey_initrc_exec_t;
+init_script_file(postgrey_initrc_exec_t)
+
+type postgrey_spool_t;
+files_type(postgrey_spool_t)
+
 type postgrey_var_lib_t;
 files_type(postgrey_var_lib_t)
 
@@ -24,14 +30,20 @@ files_pid_file(postgrey_var_run_t)
 # Local policy
 #
 
-allow postgrey_t self:capability { chown setgid setuid };
+allow postgrey_t self:capability { chown dac_override setgid setuid };
 dontaudit postgrey_t self:capability sys_tty_config;
 allow postgrey_t self:process signal_perms;
 allow postgrey_t self:tcp_socket create_stream_socket_perms;
+allow postgrey_t self:fifo_file create_fifo_file_perms;
 
 allow postgrey_t postgrey_etc_t:dir list_dir_perms;
 read_files_pattern(postgrey_t, postgrey_etc_t, postgrey_etc_t)
 read_lnk_files_pattern(postgrey_t, postgrey_etc_t, postgrey_etc_t)
+
+manage_dirs_pattern(postgrey_t, postgrey_spool_t, postgrey_spool_t)
+manage_files_pattern(postgrey_t, postgrey_spool_t, postgrey_spool_t)
+manage_fifo_files_pattern(postgrey_t, postgrey_spool_t, postgrey_spool_t)
+manage_sock_files_pattern(postgrey_t, postgrey_spool_t, postgrey_spool_t)
 
 manage_files_pattern(postgrey_t, postgrey_var_lib_t, postgrey_var_lib_t)
 files_var_lib_filetrans(postgrey_t, postgrey_var_lib_t, file)
@@ -79,6 +91,10 @@ userdom_dontaudit_search_user_home_dirs(postgrey_t)
 
 optional_policy(`
 	nis_use_ypbind(postgrey_t)
+')
+
+optional_policy(`
+	postfix_read_config(postgrey_t)
 ')
 
 optional_policy(`
