@@ -1,5 +1,5 @@
 
-policy_module(dhcp, 1.6.1)
+policy_module(dhcp, 1.6.2)
 
 ########################################
 #
@@ -9,6 +9,9 @@ policy_module(dhcp, 1.6.1)
 type dhcpd_t;
 type dhcpd_exec_t;
 init_daemon_domain(dhcpd_t, dhcpd_exec_t)
+
+type dhcpd_initrc_exec_t;
+init_script_file(dhcpd_initrc_exec_t)
 
 type dhcpd_state_t;
 files_type(dhcpd_state_t)
@@ -24,13 +27,12 @@ files_pid_file(dhcpd_var_run_t)
 # Local policy
 #
 
-allow dhcpd_t self:capability net_raw;
+allow dhcpd_t self:capability { net_raw sys_resource };
 dontaudit dhcpd_t self:capability { net_admin sys_tty_config };
 allow dhcpd_t self:process signal_perms;
 allow dhcpd_t self:fifo_file rw_fifo_file_perms;
 allow dhcpd_t self:unix_dgram_socket create_socket_perms;
 allow dhcpd_t self:unix_stream_socket create_socket_perms;
-allow dhcpd_t self:netlink_route_socket r_netlink_socket_perms;
 allow dhcpd_t self:tcp_socket create_stream_socket_perms;
 allow dhcpd_t self:udp_socket create_socket_perms;
 # Allow dhcpd_t to use packet sockets
@@ -51,6 +53,7 @@ files_pid_filetrans(dhcpd_t, dhcpd_var_run_t, file)
 
 kernel_read_system_state(dhcpd_t)
 kernel_read_kernel_sysctls(dhcpd_t)
+kernel_read_network_state(dhcpd_t)
 
 corenet_all_recvfrom_unlabeled(dhcpd_t)
 corenet_all_recvfrom_netlabel(dhcpd_t)
@@ -88,11 +91,12 @@ files_read_usr_files(dhcpd_t)
 files_read_etc_runtime_files(dhcpd_t)
 files_search_var_lib(dhcpd_t)
 
+auth_use_nsswitch(dhcpd_t)
+
 logging_send_syslog_msg(dhcpd_t)
 
 miscfiles_read_localization(dhcpd_t)
 
-sysnet_read_config(dhcpd_t)
 sysnet_read_dhcp_config(dhcpd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(dhcpd_t)
@@ -110,14 +114,6 @@ optional_policy(`
 optional_policy(`
 	dbus_system_bus_client(dhcpd_t)
 	dbus_connect_system_bus(dhcpd_t)
-')
-
-optional_policy(`
-	nis_use_ypbind(dhcpd_t)
-')
-
-optional_policy(`
-	nscd_socket_use(dhcpd_t)
 ')
 
 optional_policy(`

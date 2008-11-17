@@ -19,3 +19,43 @@ interface(`dhcpd_setattr_state_files',`
 	sysnet_search_dhcp_state($1)
 	allow $1 dhcpd_state_t:file setattr;
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an dhcp environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the dhcp domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`dhcpd_admin',`
+	gen_require(`
+		type dhcpd_t; type dhcpd_tmp_t;	type dhcpd_state_t;
+		type dhcpd_var_run_t, dhcpd_initrc_exec_t;
+	')
+
+	allow $1 dhcpd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, dhcpd_t)
+
+	init_labeled_script_domtrans($1, dhcpd_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 dhcpd_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, dhcpd_tmp_t)
+
+	admin_pattern($1, dhcpd_state_t)
+
+	files_list_pids($1)
+	admin_pattern($1, dhcpd_var_run_t)
+')
