@@ -1,1 +1,97 @@
 ## <summary>dnsmasq DNS forwarder and DHCP server</summary>
+
+########################################
+## <summary>
+##	Execute dnsmasq server in the dnsmasq domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+#
+interface(`dnsmasq_domtrans',`
+	gen_require(`
+		type dnsmasq_exec_t, dnsmasq_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, dnsmasq_exec_t, dnsmasq_t)
+')
+
+########################################
+## <summary>
+##	Send dnsmasq a signal
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+#
+interface(`dnsmasq_signal',`
+	gen_require(`
+		type dnsmasq_t;
+	')
+
+	allow $1 dnsmasq_t:process signal;
+')
+
+########################################
+## <summary>
+##	Send dnsmasq a kill signal.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+#
+interface(`dnsmasq_kill',`
+	gen_require(`
+		type dnsmasq_t;
+	')
+
+	allow $1 dnsmasq_t:process sigkill;
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an dnsmasq environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the dnsmasq domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`dnsmasq_admin',`
+	gen_require(`
+		type dnsmasq_t, dnsmasq_lease_t, dnsmasq_var_run_t;
+		type dnsmasq_initrc_exec_t;
+	')
+
+	allow $1 dnsmasq_t:process { ptrace signal_perms };
+	ps_process_pattern($1, dnsmasq_t)
+
+	init_labeled_script_domtrans($1, dnsmasq_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 dnsmasq_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_var_lib($1)
+	admin_pattern($1, dnsmasq_lease_t)
+
+	files_list_pids($1)
+	admin_pattern($1, dnsmasq_var_run_t)
+')

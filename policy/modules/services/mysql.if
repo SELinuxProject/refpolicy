@@ -52,10 +52,11 @@ interface(`mysql_tcp_connect',`
 #
 interface(`mysql_stream_connect',`
 	gen_require(`
-		type mysqld_t, mysqld_var_run_t;
+		type mysqld_t, mysqld_var_run_t, mysqld_db_t;
 	')
 
 	stream_connect_pattern($1, mysqld_var_run_t, mysqld_var_run_t, mysqld_t)
+	stream_connect_pattern($1, mysqld_db_t, mysqld_var_run_t, mysqld_t)
 ')
 
 ########################################
@@ -177,4 +178,47 @@ interface(`mysql_write_log',`
 
 	logging_search_logs($1)
 	allow $1 mysqld_log_t:file { write_file_perms setattr };
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate an mysql environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the mysql domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mysql_admin',`
+	gen_require(`
+		type mysqld_t, mysqld_var_run_t;
+		type mysqld_tmp_t, mysqld_db_t;
+		type mysqld_etc_t, mysqld_log_t;
+		type mysqld_initrc_exec_t;
+	')
+
+	allow $1 mysqld_t:process { ptrace signal_perms };
+	ps_process_pattern($1, mysqld_t)
+
+	init_labeled_script_domtrans($1, mysqld_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 mysqld_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	admin_pattern($1, mysqld_var_run_t)
+
+	admin_pattern($1, mysqld_db_t)
+
+	admin_pattern($1, mysqld_etc_t)
+
+	admin_pattern($1, mysqld_log_t)
+
+	admin_pattern($1, mysqld_tmp_t)
 ')
