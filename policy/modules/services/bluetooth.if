@@ -152,3 +152,56 @@ interface(`bluetooth_dontaudit_read_helper_state',`
 	dontaudit $1 bluetooth_helper_t:dir search;
 	dontaudit $1 bluetooth_helper_t:file { read getattr };
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an bluetooth environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the bluetooth domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`bluetooth_admin',`
+	gen_require(`
+		type bluetooth_t, bluetooth_tmp_t, bluetooth_lock_t;
+		type bluetooth_spool_t, bluetooth_var_lib_t, bluetooth_var_run_t;
+		type bluetooth_conf_t, bluetooth_conf_rw_t;
+		type bluetooth_initrc_exec_t;
+	')
+
+	allow $1 bluetooth_t:process { ptrace signal_perms };
+	ps_process_pattern($1, bluetooth_t)
+
+	init_labeled_script_domtrans($1, bluetooth_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 bluetooth_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, bluetooth_tmp_t)
+
+	files_list_var($1)
+	admin_pattern($1, bluetooth_lock_t)
+
+	files_list_etc($1)
+	admin_pattern($1, bluetooth_conf_t)
+	admin_pattern($1, bluetooth_conf_rw_t)
+
+	files_list_spool($1)
+	admin_pattern($1, bluetooth_spool_t)
+
+	files_list_var_lib($1)
+	admin_pattern($1, bluetooth_var_lib_t)
+
+	files_list_pids($1)
+	admin_pattern($1, bluetooth_var_run_t)
+')

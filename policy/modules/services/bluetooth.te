@@ -1,5 +1,5 @@
 
-policy_module(bluetooth, 3.0.0)
+policy_module(bluetooth, 3.0.1)
 
 ########################################
 #
@@ -34,6 +34,9 @@ typealias bluetooth_helper_tmpfs_t alias { auditadm_bluetooth_helper_tmpfs_t sec
 files_tmpfs_file(bluetooth_helper_tmpfs_t)
 ubac_constrained(bluetooth_helper_tmpfs_t)
 
+type bluetooth_initrc_exec_t;
+init_script_file(bluetooth_initrc_exec_t)
+
 type bluetooth_lock_t;
 files_lock_file(bluetooth_lock_t)
 
@@ -51,14 +54,14 @@ files_pid_file(bluetooth_var_run_t)
 # Bluetooth services local policy
 #
 
-allow bluetooth_t self:capability { net_bind_service net_admin net_raw sys_tty_config ipc_lock };
+allow bluetooth_t self:capability { dac_override net_bind_service net_admin net_raw sys_tty_config ipc_lock };
 dontaudit bluetooth_t self:capability sys_tty_config;
 allow bluetooth_t self:process { getsched signal_perms };
 allow bluetooth_t self:fifo_file rw_fifo_file_perms;
 allow bluetooth_t self:shm create_shm_perms;
 allow bluetooth_t self:socket create_stream_socket_perms;
 allow bluetooth_t self:unix_dgram_socket create_socket_perms;
-allow bluetooth_t self:unix_stream_socket create_stream_socket_perms;
+allow bluetooth_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow bluetooth_t self:tcp_socket create_stream_socket_perms;
 allow bluetooth_t self:udp_socket create_socket_perms;
 
@@ -106,6 +109,7 @@ dev_read_sysfs(bluetooth_t)
 dev_rw_usbfs(bluetooth_t)
 dev_rw_generic_usb_dev(bluetooth_t)
 dev_read_urand(bluetooth_t)
+dev_rw_input_dev(bluetooth_t)
 
 fs_getattr_all_fs(bluetooth_t)
 fs_search_auto_mountpoints(bluetooth_t)
@@ -124,12 +128,13 @@ files_read_etc_files(bluetooth_t)
 files_read_etc_runtime_files(bluetooth_t)
 files_read_usr_files(bluetooth_t)
 
+auth_use_nsswitch(bluetooth_t)
+
 logging_send_syslog_msg(bluetooth_t)
 
 miscfiles_read_localization(bluetooth_t)
 miscfiles_read_fonts(bluetooth_t)
-
-sysnet_read_config(bluetooth_t)
+miscfiles_read_hwdata(bluetooth_t)
 
 userdom_dontaudit_use_unpriv_user_fds(bluetooth_t)
 userdom_dontaudit_use_user_terminals(bluetooth_t)
@@ -138,6 +143,10 @@ userdom_dontaudit_search_user_home_dirs(bluetooth_t)
 optional_policy(`
 	dbus_system_bus_client(bluetooth_t)
 	dbus_connect_system_bus(bluetooth_t)
+
+	optional_policy(`
+		cups_dbus_chat(bluetooth_t)
+	')
 ')
 
 optional_policy(`
