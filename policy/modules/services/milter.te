@@ -1,0 +1,55 @@
+
+policy_module(milter, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+# attributes common to all milters
+attribute milter_domains;
+attribute milter_data_type;
+
+# currently-supported milters are milter-regex and spamass-milter
+milter_template(regex)
+milter_template(spamass)
+
+########################################
+#
+# milter-regex local policy
+#   filter emails using regular expressions
+#   http://www.benzedrine.cx/milter-regex.html
+#
+
+# It removes any existing socket (not owned by root) whilst running as root
+# and then calls setgid() and setuid() to drop privileges
+allow regex_milter_t self:capability { setuid setgid dac_override };
+
+# The milter's socket directory lives under /var/spool
+files_search_spool(regex_milter_t)
+
+# Look up username for dropping privs
+auth_use_nsswitch(regex_milter_t)
+
+# Config is in /etc/mail/milter-regex.conf
+mta_read_config(regex_milter_t)
+
+########################################
+#
+# spamass-milter local policy
+#   pipe emails through SpamAssassin
+#   http://savannah.nongnu.org/projects/spamass-milt/
+#
+
+kernel_read_system_state(spamass_milter_t)
+
+# When used with -b or -B options, the milter invokes sendmail to send mail
+# to a spamtrap address, using popen()
+corecmd_exec_shell(spamass_milter_t)
+corecmd_read_bin_symlinks(spamass_milter_t)
+corecmd_search_bin(spamass_milter_t)
+
+mta_send_mail(spamass_milter_t)
+
+# The main job of the milter is to pipe spam through spamc and act on the result
+spamassassin_domtrans_client(spamass_milter_t)
