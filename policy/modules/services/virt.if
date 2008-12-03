@@ -2,6 +2,28 @@
 
 ########################################
 ## <summary>
+##	Make the specified type usable as a virt image
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used as a virtual image
+##	</summary>
+## </param>
+#
+interface(`virt_image',`
+	gen_require(`
+		attribute virt_image_type;
+	')
+
+	typeattribute $1 virt_image_type;
+	files_type($1)
+
+	# virt images can be assigned to blk devices
+	dev_node($1)
+')
+
+########################################
+## <summary>
 ##	Execute a domain transition to run virt.
 ## </summary>
 ## <param name="domain">
@@ -16,6 +38,25 @@ interface(`virt_domtrans',`
 	')
 
 	domtrans_pattern($1, virtd_exec_t, virtd_t)
+')
+
+#######################################
+## <summary>
+##	Connect to virt over an unix domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_stream_connect',`
+	gen_require(`
+		type virtd_t, virt_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, virt_var_run_t, virt_var_run_t, virtd_t)
 ')
 
 ########################################
@@ -37,6 +78,27 @@ interface(`virt_read_config',`
 	files_search_etc($1)
 	read_files_pattern($1, virt_etc_t, virt_etc_t)
 	read_files_pattern($1, virt_etc_rw_t, virt_etc_rw_t)
+')
+
+########################################
+## <summary>
+##	manage virt config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_manage_config',`
+	gen_require(`
+		type virt_etc_t;
+		type virt_etc_rw_t;
+	')
+
+	files_search_etc($1)
+	manage_files_pattern($1, virt_etc_t, virt_etc_t)
+	manage_files_pattern($1, virt_etc_rw_t, virt_etc_rw_t)
 ')
 
 ########################################
@@ -214,6 +276,7 @@ interface(`virt_manage_images',`
 	manage_dirs_pattern($1, virt_image_t, virt_image_t)
 	manage_files_pattern($1, virt_image_t, virt_image_t)
 	read_lnk_files_pattern($1, virt_image_t, virt_image_t)
+	rw_blk_files_pattern($1, virt_image_t, virt_image_t)
 
 	tunable_policy(`virt_use_nfs',`
 		fs_manage_nfs_dirs($1)
@@ -242,11 +305,16 @@ interface(`virt_manage_images',`
 #
 interface(`virt_admin',`
 	gen_require(`
-		type virtd_t;
+		type virtd_t, virtd_initrc_exec_t;
 	')
 
 	allow $1 virtd_t:process { ptrace signal_perms };
 	ps_process_pattern($1, virtd_t)
+
+	init_labeled_script_domtrans($1, virtd_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 virtd_initrc_exec_t system_r;
+	allow $2 system_r;
 
 	virt_manage_pid_files($1)
 

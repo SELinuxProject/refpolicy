@@ -1,5 +1,5 @@
 
-policy_module(snmp, 1.8.1)
+policy_module(snmp, 1.8.2)
 
 ########################################
 #
@@ -8,6 +8,9 @@ policy_module(snmp, 1.8.1)
 type snmpd_t;
 type snmpd_exec_t;
 init_daemon_domain(snmpd_t, snmpd_exec_t)
+
+type snmpd_initrc_exec_t;
+init_script_file(snmpd_initrc_exec_t)
 
 type snmpd_log_t;
 logging_log_file(snmpd_log_t)
@@ -22,8 +25,9 @@ files_type(snmpd_var_lib_t)
 #
 # Local policy
 #
-allow snmpd_t self:capability { dac_override kill net_admin sys_nice sys_tty_config };
+allow snmpd_t self:capability { dac_override kill ipc_lock sys_ptrace net_admin sys_nice sys_tty_config };
 dontaudit snmpd_t self:capability { sys_module sys_tty_config };
+allow snmpd_t self:process { getsched setsched };
 allow snmpd_t self:fifo_file rw_fifo_file_perms;
 allow snmpd_t self:unix_dgram_socket create_socket_perms;
 allow snmpd_t self:unix_stream_socket create_stream_socket_perms;
@@ -45,6 +49,7 @@ files_pid_filetrans(snmpd_t, snmpd_var_run_t, file)
 
 kernel_read_device_sysctls(snmpd_t)
 kernel_read_kernel_sysctls(snmpd_t)
+kernel_read_fs_sysctls(snmpd_t)
 kernel_read_net_sysctls(snmpd_t)
 kernel_read_proc_symlinks(snmpd_t)
 kernel_read_system_state(snmpd_t)
@@ -76,13 +81,13 @@ dev_getattr_usbfs_dirs(snmpd_t)
 domain_use_interactive_fds(snmpd_t)
 domain_signull_all_domains(snmpd_t)
 domain_read_all_domains_state(snmpd_t)
+domain_dontaudit_ptrace_all_domains(snmpd_t)
+domain_exec_all_entry_files(snmpd_t)
 
 files_read_etc_files(snmpd_t)
 files_read_usr_files(snmpd_t)
 files_read_etc_runtime_files(snmpd_t)
 files_search_home(snmpd_t)
-files_getattr_boot_dirs(snmpd_t)
-files_dontaudit_getattr_home_dir(snmpd_t)
 
 fs_getattr_all_dirs(snmpd_t)
 fs_getattr_all_fs(snmpd_t)
@@ -90,6 +95,9 @@ fs_search_auto_mountpoints(snmpd_t)
 
 storage_dontaudit_read_fixed_disk(snmpd_t)
 storage_dontaudit_read_removable_device(snmpd_t)
+
+auth_use_nsswitch(snmpd_t)
+auth_read_all_dirs_except_shadow(snmpd_t)
 
 init_read_utmp(snmpd_t)
 init_dontaudit_write_utmp(snmpd_t)
@@ -117,7 +125,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	auth_use_nsswitch(snmpd_t)
+	consoletype_exec(snmpd_t)
 ')
 
 optional_policy(`
@@ -147,4 +155,16 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(snmpd_t)
+')
+
+optional_policy(`
+	virt_stream_connect(snmpd_t)
+')
+
+optional_policy(`
+	kernel_read_xen_state(snmpd_t)
+	kernel_write_xen_state(snmpd_t)
+
+	xen_stream_connect(snmpd_t)
+	xen_stream_connect_xenstore(snmpd_t)
 ')
