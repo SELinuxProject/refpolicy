@@ -7,6 +7,44 @@
 
 ########################################
 ## <summary>
+##	Make the specified type used for labeling SELinux Booleans.
+##	This interface is only usable in the base module.
+## </summary>
+## <desc>
+##	<p>
+##	Make the specified type used for labeling SELinux Booleans.
+##	</p>
+##	<p>
+##	This makes use of genfscon statements, which are only
+##	available in the base module.  Thus any module which calls this
+##	interface must be included in the base module.
+##	</p>
+## </desc>
+## <param name="type">
+##	<summary>
+##	Type used for labeling a Boolean.
+##	</summary>
+## </param>
+## <param name="boolean">
+##	<summary>
+##	Name of the Boolean.
+##	</summary>
+## </param>
+#
+interface(`selinux_labeled_boolean',`
+	gen_require(`
+		attribute boolean_type;
+	')
+
+	typeattribute $1 boolean_type;
+
+	# because of this statement, any module which
+	# calls this interface must be in the base module:
+	genfscon selinuxfs /booleans/$2 gen_context(system_u:object_r:$1,s0)
+')
+
+########################################
+## <summary>
 ##	Get the mountpoint of the selinuxfs filesystem.
 ## </summary>
 ## <param name="domain">
@@ -266,11 +304,43 @@ interface(`selinux_load_policy',`
 ########################################
 ## <summary>
 ##	Allow caller to set the state of Booleans to
-##	enable or disable conditional portions of the policy.
+##	enable or disable conditional portions of the policy.  (Deprecated)
 ## </summary>
 ## <desc>
 ##	<p>
 ##	Allow caller to set the state of Booleans to
+##	enable or disable conditional portions of the policy.
+##	</p>
+##	<p>
+##	Since this is a security event, this action is
+##	always audited.
+##	</p>
+##	<p>
+##	This interface has been deprecated.  Please use
+##	selinux_set_generic_booleans() or selinux_set_all_booleans()
+##	instead.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	The process type allowed to set the Boolean.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`selinux_set_boolean',`
+	refpolicywarn(`$0($*) has been deprecated, use selinux_set_generic_booleans() instead.')
+	selinux_set_generic_booleans($1)
+')
+
+########################################
+## <summary>
+##	Allow caller to set the state of generic Booleans to
+##	enable or disable conditional portions of the policy.
+## </summary>
+## <desc>
+##	<p>
+##	Allow caller to set the state of generic Booleans to
 ##	enable or disable conditional portions of the policy.
 ##	</p>
 ##	<p>
@@ -285,7 +355,7 @@ interface(`selinux_load_policy',`
 ## </param>
 ## <rolecap/>
 #
-interface(`selinux_set_boolean',`
+interface(`selinux_set_generic_booleans',`
 	gen_require(`
 		type security_t;
 		bool secure_mode_policyload;
@@ -293,6 +363,48 @@ interface(`selinux_set_boolean',`
 
 	allow $1 security_t:dir list_dir_perms;
 	allow $1 security_t:file rw_file_perms;
+
+	if(!secure_mode_policyload) {
+		allow $1 security_t:security setbool;
+
+		ifdef(`distro_rhel4',`
+			# needed for systems without audit support
+			auditallow $1 security_t:security setbool;
+		')
+	}
+')
+
+########################################
+## <summary>
+##	Allow caller to set the state of all Booleans to
+##	enable or disable conditional portions of the policy.
+## </summary>
+## <desc>
+##	<p>
+##	Allow caller to set the state of all Booleans to
+##	enable or disable conditional portions of the policy.
+##	</p>
+##	<p>
+##	Since this is a security event, this action is
+##	always audited.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	The process type allowed to set the Boolean.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`selinux_set_all_booleans',`
+	gen_require(`
+		type security_t;
+		attribute boolean_type;
+		bool secure_mode_policyload;
+	')
+
+	allow $1 security_t:dir list_dir_perms;
+	allow $1 boolean_type:file rw_file_perms;
 
 	if(!secure_mode_policyload) {
 		allow $1 security_t:security setbool;
