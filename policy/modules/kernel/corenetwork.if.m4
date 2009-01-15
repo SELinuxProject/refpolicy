@@ -140,6 +140,147 @@ interface(`corenet_raw_sendrecv_$1_if',`
 ')
 '') dnl end create_netif_interfaces
 
+# create confined network interfaces controlled by the network_enabled boolean
+# do not call this macro for loop back
+define(`create_netif_interfaces_controlled',``
+########################################
+## <summary>
+##	Send and receive TCP network traffic on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="both" weight="10"/>
+#
+interface(`corenet_tcp_sendrecv_$1_if',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	if (network_enabled) {
+		allow dollarsone $1_$2:netif { tcp_send tcp_recv egress ingress };
+	}
+')
+
+########################################
+## <summary>
+##	Send UDP network traffic on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="write" weight="10"/>
+#
+interface(`corenet_udp_send_$1_if',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	if (network_enabled) {
+		allow dollarsone $1_$2:netif { udp_send egress };
+	}
+')
+
+########################################
+## <summary>
+##	Receive UDP network traffic on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="read" weight="10"/>
+#
+interface(`corenet_udp_receive_$1_if',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	if (network_enabled) {
+		allow dollarsone $1_$2:netif { udp_recv ingress };
+	}
+')
+
+########################################
+## <summary>
+##	Send and receive UDP network traffic on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="both" weight="10"/>
+#
+interface(`corenet_udp_sendrecv_$1_if',`
+	corenet_udp_send_$1_if(dollarsone)
+	corenet_udp_receive_$1_if(dollarsone)
+')
+
+########################################
+## <summary>
+##	Send raw IP packets on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="write" weight="10"/>
+#
+interface(`corenet_raw_send_$1_if',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	if (network_enabled) {
+		allow dollarsone $1_$2:netif { rawip_send egress };
+	}
+')
+
+########################################
+## <summary>
+##	Receive raw IP packets on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="read" weight="10"/>
+#
+interface(`corenet_raw_receive_$1_if',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	if (network_enabled) {
+		allow dollarsone $1_$2:netif { rawip_recv ingress };
+	}
+')
+
+########################################
+## <summary>
+##	Send and receive raw IP packets on the $1 interface.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="both" weight="10"/>
+#
+interface(`corenet_raw_sendrecv_$1_if',`
+	corenet_raw_send_$1_if(dollarsone)
+	corenet_raw_receive_$1_if(dollarsone)
+')
+'') dnl end create_netif_interfaces_controlled
+
 ########################################
 #
 # Network node generated macros 
@@ -641,8 +782,14 @@ interface(`corenet_relabelto_$1_packets',`
 define(`create_netif_type_interfaces',`
 create_netif_interfaces($1,netif_t,type)
 ')
+define(`create_netif_type_interfaces_controlled',`
+create_netif_interfaces_controlled($1,netif_t,type)
+')
 define(`create_netif_attrib_interfaces',`
 create_netif_interfaces($1,netif,attribute)
+')
+define(`create_netif_attrib_interfaces_controlled',`
+create_netif_interfaces_controlled($1,netif,attribute)
 ')
 
 #
@@ -650,6 +797,10 @@ create_netif_interfaces($1,netif,attribute)
 #
 define(`network_interface',`
 create_netif_type_interfaces($1)
+')
+
+define(`network_interface_controlled',`
+create_netif_type_interfaces_controlled($1)
 ')
 
 #

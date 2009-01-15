@@ -397,7 +397,7 @@ $(moddir)/kernel/corenetwork.if: $(moddir)/kernel/corenetwork.te.in $(moddir)/ke
 	@echo "# $(notdir $@).in or $(notdir $@).m4 file should be modified." >> $@
 	@echo "#" >> $@
 	$(verbose) cat $@.in >> $@
-	$(verbose) $(GREP) "^[[:blank:]]*network_(interface|node|port|packet)\(.*\)" $< \
+	$(verbose) $(GREP) "^[[:blank:]]*network_(interface|node|port|packet)(_controlled)?\(.*\)" $< \
 		| $(M4) -D self_contained_policy $(M4PARAM) $@.m4 - \
 		| $(SED) -e 's/dollarsone/\$$1/g' -e 's/dollarszero/\$$0/g' >> $@
 

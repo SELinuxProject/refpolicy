@@ -39,6 +39,21 @@ type $1_netif_t alias netif_$1_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
 
+define(`network_interface_controlled',`
+ifdef(`__network_enabled_declared__',`',`
+## <desc>
+## <p>
+## Enable network traffic on all controlled interfaces.
+## </p>
+## </desc>
+gen_bool(network_enabled, true)
+define(`__network_enabled_declared__')
+')
+gen_require(``type unlabeled_t;'')
+type $1_netif_t alias netif_$1_t, netif_type;
+declare_netifs($1_netif_t,shift($*))
+')
+
 define(`declare_nodes',`dnl
 nodecon $3 $4 gen_context(system_u:object_r:$1,$2)
 ifelse(`$5',`',`',`declare_nodes($1,shiftn(4,$*))')dnl
