@@ -1,5 +1,5 @@
 
-policy_module(rpc, 1.10.3)
+policy_module(rpc, 1.10.4)
 
 ########################################
 #
@@ -68,6 +68,7 @@ kernel_read_network_state(rpcd_t)
 # for rpc.rquotad
 kernel_read_sysctl(rpcd_t)
 kernel_rw_fs_sysctls(rpcd_t)
+kernel_dontaudit_getattr_core_if(rpcd_t)
 
 corecmd_exec_bin(rpcd_t)
 
@@ -101,6 +102,7 @@ allow nfsd_t { nfsd_rw_t nfsd_ro_t }:dir list_dir_perms;
 # for /proc/fs/nfs/exports - should we have a new type?
 kernel_read_system_state(nfsd_t) 
 kernel_read_network_state(nfsd_t) 
+kernel_dontaudit_getattr_core_if(nfsd_t) 
 
 corenet_tcp_bind_all_rpc_ports(nfsd_t)
 corenet_udp_bind_all_rpc_ports(nfsd_t)
@@ -133,12 +135,23 @@ tunable_policy(`allow_nfsd_anon_write',`
 ') 
 
 tunable_policy(`nfs_export_all_rw',`
+	dev_getattr_all_blk_files(nfsd_t)
+	dev_getattr_all_chr_files(nfsd_t)
+
 	fs_read_noxattr_fs_files(nfsd_t) 
 	auth_manage_all_files_except_shadow(nfsd_t)
 ')
 
 tunable_policy(`nfs_export_all_ro',`
-	fs_read_noxattr_fs_files(nfsd_t) 
+	dev_getattr_all_blk_files(nfsd_t)
+	dev_getattr_all_chr_files(nfsd_t)
+
+	files_getattr_all_pipes(nfsd_t)
+	files_getattr_all_sockets(nfsd_t)
+
+	fs_read_noxattr_fs_files(nfsd_t)
+
+	auth_read_all_dirs_except_shadow(nfsd_t)
 	auth_read_all_files_except_shadow(nfsd_t)
 ')
 
@@ -180,8 +193,7 @@ tunable_policy(`allow_gssd_read_tmp',`
 ')
 
 optional_policy(`
-	kerberos_use(gssd_t)
-	kerberos_read_keytab(gssd_t) 
+	kerberos_keytab_template(gssd, gssd_t) 
 ')
 
 optional_policy(`
