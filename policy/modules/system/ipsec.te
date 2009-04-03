@@ -55,11 +55,12 @@ role system_r types setkey_t;
 
 allow ipsec_t self:capability { net_admin dac_override dac_read_search };
 dontaudit ipsec_t self:capability sys_tty_config;
-allow ipsec_t self:process signal;
-allow ipsec_t self:netlink_route_socket r_netlink_socket_perms;
+allow ipsec_t self:process { signal setsched };
 allow ipsec_t self:tcp_socket create_stream_socket_perms;
-allow ipsec_t self:key_socket { create write read setopt };
-allow ipsec_t self:fifo_file read_file_perms;
+allow ipsec_t self:udp_socket create_socket_perms;
+allow ipsec_t self:key_socket create_socket_perms;
+allow ipsec_t self:fifo_file read_fifo_file_perms;
+allow ipsec_t self:netlink_xfrm_socket { create_netlink_socket_perms nlmsg_write };
 
 allow ipsec_t ipsec_conf_file_t:dir list_dir_perms;
 read_files_pattern(ipsec_t,ipsec_conf_file_t,ipsec_conf_file_t)
@@ -102,8 +103,11 @@ corenet_tcp_sendrecv_all_nodes(ipsec_t)
 corenet_raw_sendrecv_all_nodes(ipsec_t)
 corenet_tcp_sendrecv_all_ports(ipsec_t)
 corenet_tcp_bind_all_nodes(ipsec_t)
+corenet_udp_bind_all_nodes(ipsec_t)
 corenet_tcp_bind_reserved_port(ipsec_t)
 corenet_tcp_bind_isakmp_port(ipsec_t)
+corenet_udp_bind_isakmp_port(ipsec_t)
+corenet_udp_bind_ipsecnat_port(ipsec_t)
 corenet_sendrecv_generic_server_packets(ipsec_t)
 corenet_sendrecv_isakmp_server_packets(ipsec_t)
 
@@ -127,18 +131,14 @@ files_read_etc_files(ipsec_t)
 init_use_fds(ipsec_t)
 init_use_script_ptys(ipsec_t)
 
+auth_use_nsswitch(ipsec_t)
+
 logging_send_syslog_msg(ipsec_t)
 
 miscfiles_read_localization(ipsec_t)
 
-sysnet_read_config(ipsec_t)
-
 userdom_dontaudit_use_unpriv_user_fds(ipsec_t)
 userdom_dontaudit_search_user_home_dirs(ipsec_t)
-
-optional_policy(`
-	nis_use_ypbind(ipsec_t)
-')
 
 optional_policy(`
 	seutil_sigchld_newrole(ipsec_t)
@@ -156,9 +156,9 @@ optional_policy(`
 allow ipsec_mgmt_t self:capability { net_admin sys_tty_config dac_override dac_read_search };
 allow ipsec_mgmt_t self:process { signal setrlimit };
 allow ipsec_mgmt_t self:unix_stream_socket create_stream_socket_perms;
-allow ipsec_mgmt_t self:tcp_socket create_socket_perms;
+allow ipsec_mgmt_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_mgmt_t self:udp_socket create_socket_perms;
-allow ipsec_mgmt_t self:key_socket { create setopt };
+allow ipsec_mgmt_t self:key_socket create_socket_perms;
 allow ipsec_mgmt_t self:fifo_file rw_file_perms;
 
 allow ipsec_mgmt_t ipsec_mgmt_lock_t:file manage_file_perms;
@@ -222,6 +222,7 @@ term_dontaudit_getattr_unallocated_ttys(ipsec_mgmt_t)
 # the ipsec wrapper wants to run /usr/bin/logger (should we put
 # it in its own domain?)
 corecmd_exec_bin(ipsec_mgmt_t)
+corecmd_exec_shell(ipsec_mgmt_t)
 
 domain_use_interactive_fds(ipsec_mgmt_t)
 # denials when ps tries to search /proc. Do not audit these denials.
@@ -240,6 +241,8 @@ files_dontaudit_getattr_default_files(ipsec_mgmt_t)
 init_use_script_ptys(ipsec_mgmt_t)
 init_exec_script_files(ipsec_mgmt_t)
 init_use_fds(ipsec_mgmt_t)
+
+logging_send_syslog_msg(ipsec_mgmt_t)
 
 miscfiles_read_localization(ipsec_mgmt_t)
 
@@ -276,7 +279,7 @@ allow racoon_t self:netlink_route_socket create_netlink_socket_perms;
 allow racoon_t self:unix_dgram_socket { connect create ioctl write };
 allow racoon_t self:netlink_selinux_socket { bind create read };
 allow racoon_t self:udp_socket create_socket_perms;
-allow racoon_t self:key_socket { create read setopt write };
+allow racoon_t self:key_socket create_socket_perms;
 
 # manage pid file
 manage_files_pattern(racoon_t,ipsec_var_run_t,ipsec_var_run_t)
@@ -295,6 +298,10 @@ kernel_read_system_state(racoon_t)
 kernel_read_network_state(racoon_t)
 
 corenet_all_recvfrom_unlabeled(racoon_t)
+corenet_tcp_sendrecv_all_if(racoon_t)
+corenet_udp_sendrecv_all_if(racoon_t)
+corenet_tcp_sendrecv_all_nodes(racoon_t)
+corenet_udp_sendrecv_all_nodes(racoon_t)
 corenet_tcp_bind_all_nodes(racoon_t)
 corenet_udp_bind_all_nodes(racoon_t)
 corenet_udp_bind_isakmp_port(racoon_t)
@@ -312,6 +319,8 @@ selinux_compute_access_vector(racoon_t)
 
 ipsec_setcontext_default_spd(racoon_t)
 
+auth_use_nsswitch(racoon_t)
+
 locallogin_use_fds(racoon_t)
 
 logging_send_syslog_msg(racoon_t)
@@ -325,7 +334,7 @@ miscfiles_read_localization(racoon_t)
 #
 
 allow setkey_t self:capability net_admin;
-allow setkey_t self:key_socket { create read setopt write };
+allow setkey_t self:key_socket create_socket_perms;
 allow setkey_t self:netlink_route_socket create_netlink_socket_perms;
 
 allow setkey_t ipsec_conf_file_t:dir list_dir_perms;
