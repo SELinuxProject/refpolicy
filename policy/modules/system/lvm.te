@@ -1,5 +1,5 @@
 
-policy_module(lvm, 1.10.2)
+policy_module(lvm, 1.10.3)
 
 ########################################
 #
@@ -44,9 +44,9 @@ files_tmp_file(lvm_tmp_t)
 # Cluster LVM daemon local policy
 #
 
-allow clvmd_t self:capability { sys_admin mknod };
+allow clvmd_t self:capability { sys_nice chown ipc_lock sys_admin mknod };
 dontaudit clvmd_t self:capability sys_tty_config;
-allow clvmd_t self:process signal_perms;
+allow clvmd_t self:process { signal_perms  setsched };
 dontaudit clvmd_t self:process ptrace;
 allow clvmd_t self:socket create_socket_perms;
 allow clvmd_t self:fifo_file rw_fifo_file_perms;
@@ -85,10 +85,15 @@ corenet_dontaudit_tcp_bind_all_reserved_ports(clvmd_t)
 corenet_sendrecv_generic_server_packets(clvmd_t)
 
 dev_read_sysfs(clvmd_t)
+dev_manage_generic_symlinks(clvmd_t)
+dev_relabel_generic_dev_dirs(clvmd_t)
+dev_manage_generic_blk_files(clvmd_t)
 dev_manage_generic_chr_files(clvmd_t)
 dev_rw_lvm_control(clvmd_t)
 dev_dontaudit_getattr_all_blk_files(clvmd_t)
 dev_dontaudit_getattr_all_chr_files(clvmd_t)
+dev_create_generic_dirs(clvmd_t)
+dev_delete_generic_dirs(clvmd_t)
 
 files_read_etc_files(clvmd_t)
 files_list_usr(clvmd_t)
@@ -99,12 +104,16 @@ fs_dontaudit_list_tmpfs(clvmd_t)
 fs_dontaudit_read_removable_files(clvmd_t)
 
 storage_dontaudit_getattr_removable_dev(clvmd_t)
+storage_manage_fixed_disk(clvmd_t)
+storage_dev_filetrans_fixed_disk(clvmd_t)
+storage_relabel_fixed_disk(clvmd_t)
+storage_raw_read_fixed_disk(clvmd_t)
 
 domain_use_interactive_fds(clvmd_t)
 
-storage_raw_read_fixed_disk(clvmd_t)
-
 auth_use_nsswitch(clvmd_t)
+
+init_dontaudit_getattr_initctl(clvmd_t)
 
 logging_send_syslog_msg(clvmd_t)
 
@@ -112,12 +121,21 @@ miscfiles_read_localization(clvmd_t)
 
 seutil_dontaudit_search_config(clvmd_t)
 seutil_sigchld_newrole(clvmd_t)
+seutil_read_config(clvmd_t)
+seutil_read_file_contexts(clvmd_t)
+seutil_search_default_contexts(clvmd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(clvmd_t)
 userdom_dontaudit_search_user_home_dirs(clvmd_t)
 
 lvm_domtrans(clvmd_t)
 lvm_read_config(clvmd_t)
+
+ifdef(`distro_redhat',`
+	optional_policy(`
+		unconfined_domain(clvmd_t)
+	')
+')
 
 optional_policy(`
 	ccs_stream_connect(clvmd_t)
@@ -143,17 +161,19 @@ optional_policy(`
 
 # DAC overrides and mknod for modifying /dev entries (vgmknodes)
 # rawio needed for dmraid
-allow lvm_t self:capability { dac_override fowner ipc_lock sys_admin sys_nice mknod chown sys_resource sys_rawio };
+# net_admin for multipath
+allow lvm_t self:capability { dac_override fowner ipc_lock sys_admin sys_nice mknod chown sys_resource sys_rawio net_admin };
 dontaudit lvm_t self:capability sys_tty_config;
 allow lvm_t self:process { sigchld sigkill sigstop signull signal };
 # LVM will complain a lot if it cannot set its priority.
 allow lvm_t self:process setsched;
 allow lvm_t self:file rw_file_perms;
-allow lvm_t self:fifo_file rw_file_perms;
+allow lvm_t self:fifo_file rw_fifo_file_perms;
 allow lvm_t self:unix_dgram_socket create_socket_perms;
 allow lvm_t self:netlink_kobject_uevent_socket create_socket_perms;
 
-allow lvm_t clvmd_t:unix_stream_socket connectto;
+allow lvm_t self:unix_stream_socket { connectto create_stream_socket_perms };
+allow lvm_t clvmd_t:unix_stream_socket { connectto rw_socket_perms };
 
 manage_dirs_pattern(lvm_t,lvm_tmp_t,lvm_tmp_t)
 manage_files_pattern(lvm_t,lvm_tmp_t,lvm_tmp_t)
@@ -185,6 +205,7 @@ read_lnk_files_pattern(lvm_t,lvm_etc_t,lvm_etc_t)
 manage_files_pattern(lvm_t,lvm_metadata_t,lvm_metadata_t)
 filetrans_pattern(lvm_t,lvm_etc_t,lvm_metadata_t,file)
 files_etc_filetrans(lvm_t,lvm_metadata_t,file)
+files_search_mnt(lvm_t)
 
 kernel_read_system_state(lvm_t)
 kernel_read_kernel_sysctls(lvm_t)
@@ -192,6 +213,7 @@ kernel_read_kernel_sysctls(lvm_t)
 kernel_read_kernel_sysctls(lvm_t)
 # it has no reason to need this
 kernel_dontaudit_getattr_core_if(lvm_t)
+kernel_use_fds(lvm_t)
 
 selinux_get_fs_mount(lvm_t)
 selinux_validate_context(lvm_t)
@@ -244,7 +266,9 @@ corecmd_exec_bin(lvm_t)
 corecmd_exec_shell(lvm_t)
 
 domain_use_interactive_fds(lvm_t)
+domain_read_all_domains_state(lvm_t)
 
+files_read_usr_files(lvm_t)
 files_read_etc_files(lvm_t)
 files_read_etc_runtime_files(lvm_t)
 # for when /usr is not mounted:
@@ -268,6 +292,10 @@ userdom_use_user_terminals(lvm_t)
 ifdef(`distro_redhat',`
 	# this is from the initrd:
 	files_rw_isid_type_dirs(lvm_t)
+
+	optional_policy(`
+		unconfined_domain(lvm_t)
+	')
 ')
 
 optional_policy(`
@@ -283,5 +311,24 @@ optional_policy(`
 ')
 
 optional_policy(`
+	dbus_system_bus_client(lvm_t)
+
+	hal_dbus_chat(lvm_t)
+')
+
+optional_policy(`
+	modutils_domtrans_insmod(lvm_t)
+')
+
+optional_policy(`
+	rpm_manage_script_tmp_files(lvm_t)
+')
+
+optional_policy(`
 	udev_read_db(lvm_t)
+')
+
+optional_policy(`
+	xen_append_log(lvm_t)
+	xen_dontaudit_rw_unix_stream_sockets(lvm_t)
 ')
