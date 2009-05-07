@@ -1,5 +1,5 @@
 
-policy_module(postgresql, 1.8.3)
+policy_module(postgresql, 1.8.4)
 
 gen_require(`
 	class db_database all_db_database_perms;
@@ -66,8 +66,9 @@ postgresql_database_object(sepgsql_db_t)
 type sepgsql_fixed_table_t;
 postgresql_table_object(sepgsql_fixed_table_t)
 
-type sepgsql_proc_t;
-postgresql_procedure_object(sepgsql_proc_t)
+type sepgsql_proc_exec_t;
+typealias sepgsql_proc_exec_t alias sepgsql_proc_t;
+postgresql_procedure_object(sepgsql_proc_exec_t)
 
 type sepgsql_ro_blob_t;
 postgresql_blob_object(sepgsql_ro_blob_t)
@@ -143,7 +144,7 @@ allow postgresql_t sepgsql_table_type:{ db_table db_column db_tuple } *;
 type_transition postgresql_t sepgsql_database_type:db_table sepgsql_sysobj_t;
 
 allow postgresql_t sepgsql_procedure_type:db_procedure *;
-type_transition postgresql_t sepgsql_database_type:db_procedure sepgsql_proc_t;
+type_transition postgresql_t sepgsql_database_type:db_procedure sepgsql_proc_exec_t;
 
 allow postgresql_t sepgsql_blob_type:db_blob *;
 type_transition postgresql_t sepgsql_database_type:db_blob sepgsql_blob_t;
@@ -284,27 +285,27 @@ optional_policy(`
 allow sepgsql_client_type sepgsql_db_t:db_database { getattr access get_param set_param };
 type_transition sepgsql_client_type sepgsql_client_type:db_database sepgsql_db_t;
 
-allow sepgsql_client_type sepgsql_fixed_table_t:db_table { getattr use select insert };
+allow sepgsql_client_type sepgsql_fixed_table_t:db_table { getattr use select insert lock };
 allow sepgsql_client_type sepgsql_fixed_table_t:db_column { getattr use select insert };
 allow sepgsql_client_type sepgsql_fixed_table_t:db_tuple { use select insert };
 
-allow sepgsql_client_type sepgsql_table_t:db_table { getattr use select update insert delete };
+allow sepgsql_client_type sepgsql_table_t:db_table { getattr use select update insert delete lock };
 allow sepgsql_client_type sepgsql_table_t:db_column { getattr use select update insert };
 allow sepgsql_client_type sepgsql_table_t:db_tuple { use select update insert delete };
 
-allow sepgsql_client_type sepgsql_ro_table_t:db_table { getattr use select };
+allow sepgsql_client_type sepgsql_ro_table_t:db_table { getattr use select lock };
 allow sepgsql_client_type sepgsql_ro_table_t:db_column { getattr use select };
 allow sepgsql_client_type sepgsql_ro_table_t:db_tuple { use select };
 
 allow sepgsql_client_type sepgsql_secret_table_t:db_table getattr;
 allow sepgsql_client_type sepgsql_secret_table_t:db_column getattr;
 
-allow sepgsql_client_type sepgsql_sysobj_t:db_table { getattr use select };
+allow sepgsql_client_type sepgsql_sysobj_t:db_table { getattr use select lock };
 allow sepgsql_client_type sepgsql_sysobj_t:db_column { getattr use select };
 allow sepgsql_client_type sepgsql_sysobj_t:db_tuple { use select };
 
-allow sepgsql_client_type sepgsql_proc_t:db_procedure { getattr execute install };
-allow sepgsql_client_type sepgsql_trusted_proc_t:db_procedure { getattr execute entrypoint };
+allow sepgsql_client_type sepgsql_proc_exec_t:db_procedure { getattr execute install };
+allow sepgsql_client_type sepgsql_trusted_proc_exec_t:db_procedure { getattr execute entrypoint };
 
 allow sepgsql_client_type sepgsql_blob_t:db_blob { create drop getattr setattr read write };
 allow sepgsql_client_type sepgsql_ro_blob_t:db_blob { getattr read };
@@ -338,15 +339,16 @@ allow sepgsql_unconfined_type sepgsql_database_type:db_database *;
 type_transition sepgsql_unconfined_type sepgsql_unconfined_type:db_database sepgsql_db_t;
 
 type_transition sepgsql_unconfined_type sepgsql_database_type:db_table sepgsql_table_t;
-type_transition sepgsql_unconfined_type sepgsql_database_type:db_procedure sepgsql_proc_t;
+type_transition sepgsql_unconfined_type sepgsql_database_type:db_procedure sepgsql_proc_exec_t;
 type_transition sepgsql_unconfined_type sepgsql_database_type:db_blob sepgsql_blob_t;
 
 allow sepgsql_unconfined_type sepgsql_table_type:{ db_table db_column db_tuple } *;
 
 # unconfined domain is not allowed to invoke user defined procedure directly.
 # They have to confirm and relabel it at first.
-allow sepgsql_unconfined_type { sepgsql_proc_t sepgsql_trusted_proc_t }:db_procedure *;
-allow sepgsql_unconfined_type sepgsql_procedure_type:db_procedure { create drop getattr setattr relabelfrom relabelto };
+allow sepgsql_unconfined_type sepgsql_proc_exec_t:db_procedure *;
+allow sepgsql_unconfined_type sepgsql_trusted_proc_exec_t:db_procedure ~install;
+allow sepgsql_unconfined_type sepgsql_procedure_type:db_procedure ~{ execute install };
 
 allow sepgsql_unconfined_type sepgsql_blob_type:db_blob *;
 
