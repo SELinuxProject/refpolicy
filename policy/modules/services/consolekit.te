@@ -1,5 +1,5 @@
 
-policy_module(consolekit, 1.4.0)
+policy_module(consolekit, 1.4.1)
 
 ########################################
 #
@@ -9,6 +9,9 @@ policy_module(consolekit, 1.4.0)
 type consolekit_t;
 type consolekit_exec_t;
 init_daemon_domain(consolekit_t, consolekit_exec_t)
+
+type consolekit_log_t;
+files_pid_file(consolekit_log_t)
 
 type consolekit_var_run_t;
 files_pid_file(consolekit_var_run_t)
@@ -24,36 +27,69 @@ allow consolekit_t self:fifo_file rw_fifo_file_perms;
 allow consolekit_t self:unix_stream_socket create_stream_socket_perms;
 allow consolekit_t self:unix_dgram_socket create_socket_perms;
 
+manage_files_pattern(consolekit_t, consolekit_log_t, consolekit_log_t)
+logging_log_filetrans(consolekit_t, consolekit_log_t, file)
+
+manage_dirs_pattern(consolekit_t, consolekit_var_run_t, consolekit_var_run_t)
 manage_files_pattern(consolekit_t, consolekit_var_run_t, consolekit_var_run_t)
-files_pid_filetrans(consolekit_t, consolekit_var_run_t, file)
+files_pid_filetrans(consolekit_t, consolekit_var_run_t, { file dir })
 
 kernel_read_system_state(consolekit_t)
 
 corecmd_exec_bin(consolekit_t)
+corecmd_exec_shell(consolekit_t)
 
 dev_read_urand(consolekit_t)
 dev_read_sysfs(consolekit_t)
 
 domain_read_all_domains_state(consolekit_t)
 domain_use_interactive_fds(consolekit_t)
+domain_dontaudit_ptrace_all_domains(consolekit_t)
 
 files_read_etc_files(consolekit_t)
+files_read_usr_files(consolekit_t)
 # needs to read /var/lib/dbus/machine-id
 files_read_var_lib_files(consolekit_t)
 
 fs_list_inotifyfs(consolekit_t)
 
+mcs_ptrace_all(consolekit_t)
+
 term_use_all_terms(consolekit_t)
 
 auth_use_nsswitch(consolekit_t)
 
+init_telinit(consolekit_t)
+init_rw_utmp(consolekit_t)
+
+logging_send_syslog_msg(consolekit_t)
+
 miscfiles_read_localization(consolekit_t)
+
+userdom_dontaudit_read_user_home_content_files(consolekit_t)
+
+hal_ptrace(consolekit_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_dontaudit_list_nfs(consolekit_t)
+	fs_dontaudit_rw_nfs_files(consolekit_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_dontaudit_list_cifs(consolekit_t)
+	fs_dontaudit_rw_cifs_files(consolekit_t)
+')
 
 optional_policy(`
 	dbus_system_bus_client(consolekit_t)
-	dbus_connect_system_bus(consolekit_t)
 
-	hal_dbus_chat(consolekit_t)
+	optional_policy(`
+		hal_dbus_chat(consolekit_t)
+	')
+
+	optional_policy(`
+		rpm_dbus_chat(consolekit_t)
+	')
 
 	optional_policy(`
 		unconfined_dbus_chat(consolekit_t)
@@ -63,4 +99,9 @@ optional_policy(`
 optional_policy(`
 	xserver_read_user_xauth(consolekit_t)
 	xserver_stream_connect(consolekit_t)
+')
+
+optional_policy(`
+	#reading .Xauthity
+	unconfined_stream_connect(consolekit_t)
 ')
