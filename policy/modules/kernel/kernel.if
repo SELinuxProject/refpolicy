@@ -157,7 +157,7 @@ interface(`kernel_signal',`
 		type kernel_t;
 	')
 
-	allow kernel_t $1:process signal;
+	allow $1 kernel_t:process signal;
 ')
 
 ########################################
@@ -817,7 +817,7 @@ interface(`kernel_dontaudit_read_system_state',`
 		type proc_t;
 	')
 
-	dontaudit $1 proc_t:file { getattr read };
+	dontaudit $1 proc_t:file read_file_perms;
 ')
 
 ########################################
@@ -1183,6 +1183,25 @@ interface(`kernel_write_xen_state',`
 
 ########################################
 ## <summary>
+##	Allow attempts to list all proc directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`kernel_list_all_proc',`
+	gen_require(`
+		attribute proc_type;
+	')
+
+	allow $1 proc_type:dir list_dir_perms;
+	allow $1 proc_type:file getattr;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to list all proc directories.
 ## </summary>
 ## <param name="domain">
@@ -1197,6 +1216,7 @@ interface(`kernel_dontaudit_list_all_proc',`
 	')
 
 	dontaudit $1 proc_type:dir list_dir_perms;
+	dontaudit $1 proc_type:file getattr;
 ')
 
 ########################################
@@ -1232,10 +1252,11 @@ interface(`kernel_dontaudit_search_sysctl',`
 #
 interface(`kernel_read_sysctl',`
 	gen_require(`
-		type sysctl_t;
+		type sysctl_t, proc_t;
 	')
 
 	list_dirs_pattern($1, proc_t, sysctl_t)
+	read_files_pattern($1, sysctl_t, sysctl_t)
 ')
 
 ########################################
@@ -1568,6 +1589,25 @@ interface(`kernel_dontaudit_search_kernel_sysctl',`
 
 ########################################
 ## <summary>
+##	Read generic crypto sysctls.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kernel_read_crypto_sysctls',`
+	gen_require(`
+		type proc_t, sysctl_t, sysctl_crypto_t;
+	')
+
+	read_files_pattern($1, { proc_t sysctl_t sysctl_crypto_t }, sysctl_crypto_t)
+	list_dirs_pattern($1, { proc_t sysctl_t }, sysctl_crypto_t)
+')
+
+########################################
+## <summary>
 ##	Read generic kernel sysctls.
 ## </summary>
 ## <param name="domain">
@@ -1767,6 +1807,7 @@ interface(`kernel_dontaudit_list_all_sysctls',`
 	')
 
 	dontaudit $1 sysctl_type:dir list_dir_perms;
+	dontaudit $1 sysctl_type:file getattr;
 ')
 
 ########################################

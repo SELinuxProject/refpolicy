@@ -928,6 +928,8 @@ interface(`files_relabel_all_files',`
 	relabel_lnk_files_pattern($1, { file_type $2 }, { file_type $2 })
 	relabel_fifo_files_pattern($1, { file_type $2 }, { file_type $2 })
 	relabel_sock_files_pattern($1, { file_type $2 }, { file_type $2 })
+	# this is only relabelfrom since there should be no
+	# device nodes with file types.
 	relabelfrom_blk_files_pattern($1, { file_type $2 }, { file_type $2 })
 	relabelfrom_chr_files_pattern($1, { file_type $2 }, { file_type $2 })
 
@@ -1092,6 +1094,24 @@ interface(`files_relabelto_all_file_type_fs',`
 	')
 
 	allow $1 file_type:filesystem relabelto;
+')
+
+########################################
+## <summary>
+##	Relabel a filesystem to the type of a file.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_relabel_all_file_type_fs',`
+	gen_require(`
+		attribute file_type;
+	')
+
+	allow $1 file_type:filesystem { relabelfrom relabelto };
 ')
 
 ########################################
@@ -2307,6 +2327,25 @@ interface(`files_rw_isid_type_dirs',`
 
 ########################################
 ## <summary>
+##	Delete directories on new filesystems
+##	that have not yet been labeled.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_delete_isid_type_dirs',`
+	gen_require(`
+		type file_t;
+	')
+
+	delete_dirs_pattern($1, file_t, file_t)
+')
+
+########################################
+## <summary>
 ##	Create, read, write, and delete directories
 ##	on new filesystems that have not yet been labeled.
 ## </summary>
@@ -2360,6 +2399,25 @@ interface(`files_read_isid_type_files',`
 	')
 
 	allow $1 file_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Delete files on new filesystems
+##	that have not yet been labeled.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_delete_isid_type_files',`
+	gen_require(`
+		type file_t;
+	')
+
+	delete_files_pattern($1, file_t, file_t)
 ')
 
 ########################################
@@ -2820,6 +2878,7 @@ interface(`files_search_kernel_modules',`
 	')
 
 	allow $1 modules_object_t:dir search_dir_perms;
+	read_lnk_files_pattern($1, modules_object_t, modules_object_t)
 ')
 
 ########################################
@@ -3546,7 +3605,7 @@ interface(`files_delete_usr_dirs',`
 		type usr_t;
 	')
 
-	allow $1 usr_t:file delete_dir_perms;
+	delete_dirs_pattern($1, usr_t, usr_t)
 ')
 
 ########################################
@@ -4413,6 +4472,28 @@ interface(`files_read_all_locks',`
 
 ########################################
 ## <summary>
+##	manage all lock files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`files_manage_all_locks',`
+	gen_require(`
+		attribute lockfile;
+		type var_t, var_lock_t;
+	')
+
+	allow $1 { var_t var_lock_t }:dir search_dir_perms;
+	manage_dirs_pattern($1, lockfile, lockfile)
+	manage_files_pattern($1, lockfile, lockfile)
+	manage_lnk_files_pattern($1, lockfile, lockfile)
+')
+
+########################################
+## <summary>
 ##	Create an object in the locks directory, with a private
 ##	type using a type transition.
 ## </summary>
@@ -4532,7 +4613,8 @@ interface(`files_read_generic_pids',`
 		type var_t, var_run_t;
 	')
 
-	read_files_pattern($1, { var_t var_run_t }, var_run_t)
+	list_dirs_pattern($1, var_t, var_run_t)
+	read_files_pattern($1, var_run_t, var_run_t)
 ')
 
 ########################################
