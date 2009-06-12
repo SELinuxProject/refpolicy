@@ -42,7 +42,7 @@ interface(`auth_role',`
 #
 interface(`auth_login_pgm_domain',`
 	gen_require(`
-		type var_auth_t;
+		type var_auth_t, auth_cache_t;
 	')
 
 	domain_type($1)
@@ -56,6 +56,11 @@ interface(`auth_login_pgm_domain',`
 
 	# needed for afs - https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=253321
 	kernel_rw_afs_state($1)
+
+	manage_dirs_pattern($1, auth_cache_t, auth_cache_t)
+	manage_files_pattern($1, auth_cache_t, auth_cache_t)
+	manage_sock_files_pattern($1, auth_cache_t, auth_cache_t)
+	files_var_filetrans($1, auth_cache_t, dir)
 
 	# for SSP/ProPolice
 	dev_read_urand($1)
@@ -186,6 +191,96 @@ interface(`auth_ranged_domtrans_login_program',`
 
 ########################################
 ## <summary>
+##	Search authentication cache
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_search_cache',`
+	gen_require(`
+		type auth_cache_t;
+	')
+
+	allow $1  auth_cache_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Read authentication cache
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_read_cache',`
+	gen_require(`
+		type auth_cache_t;
+	')
+
+	read_files_pattern($1, auth_cache_t,  auth_cache_t)
+')
+
+########################################
+## <summary>
+##	Read/Write authentication cache
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_rw_cache',`
+	gen_require(`
+		type auth_cache_t;
+	')
+
+	rw_files_pattern($1, auth_cache_t,  auth_cache_t)
+')
+
+########################################
+## <summary>
+##	Manage authentication cache
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_manage_cache',`
+	gen_require(`
+		type auth_cache_t;
+	')
+
+	manage_files_pattern($1, auth_cache_t,  auth_cache_t)
+')
+
+#######################################
+## <summary>
+##	Automatic transition from cache_t to cache.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_var_filetrans_cache',`
+	gen_require(`
+		type auth_cache_t;
+	')
+
+	files_var_filetrans($1,auth_cache_t,{ file dir } )
+')
+
+########################################
+## <summary>
 ##	Run unix_chkpwd to check a password.
 ## </summary>
 ## <param name="domain">
@@ -197,7 +292,10 @@ interface(`auth_ranged_domtrans_login_program',`
 interface(`auth_domtrans_chk_passwd',`
 	gen_require(`
 		type chkpwd_t, chkpwd_exec_t, shadow_t;
+		type auth_cache_t;
 	')
+
+	allow $1 auth_cache_t:dir search_dir_perms;
 
 	corecmd_search_bin($1)
 	domtrans_pattern($1, chkpwd_exec_t, chkpwd_t)
@@ -650,7 +748,7 @@ interface(`auth_domtrans_pam',`
 
 ########################################
 ## <summary>
-##	Execute pam programs in the pam domain.
+##	Send generic signals to pam processes.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
