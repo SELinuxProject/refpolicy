@@ -49,8 +49,8 @@ interface(`nis_use_ypbind_uncond',`
 	corenet_udp_bind_generic_node($1)
 	corenet_tcp_bind_generic_port($1)
 	corenet_udp_bind_generic_port($1)
-	corenet_tcp_bind_reserved_port($1)
-	corenet_udp_bind_reserved_port($1)
+	corenet_dontaudit_tcp_bind_all_reserved_ports($1)
+	corenet_dontaudit_udp_bind_all_reserved_ports($1)
 	corenet_dontaudit_tcp_bind_all_ports($1)
 	corenet_dontaudit_udp_bind_all_ports($1)
 	corenet_tcp_connect_portmap_port($1)
@@ -76,12 +76,27 @@ interface(`nis_use_ypbind_uncond',`
 ## <rolecap/>
 #
 interface(`nis_use_ypbind',`
-	gen_require(`
-		type var_yp_t;
-	')
-
 	tunable_policy(`allow_ypbind',`
 		nis_use_ypbind_uncond($1)
+	')
+')
+
+########################################
+## <summary>
+##	Use the nis to authenticate passwords
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nis_authenticate',`
+	tunable_policy(`allow_ypbind',`
+		nis_use_ypbind_uncond($1)
+		corenet_tcp_bind_all_rpc_ports($1)
+		corenet_udp_bind_all_rpc_ports($1)
 	')
 ')
 
@@ -243,4 +258,56 @@ interface(`nis_domtrans_ypxfr',`
 
 	corecmd_search_bin($1)
 	domtrans_pattern($1, ypxfr_exec_t, ypxfr_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an nis environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nis_admin',`
+	gen_require(`
+		type ypbind_t, yppasswdd_t, ypserv_t, ypxfr_t;
+		type ypbind_tmp_t, ypserv_tmp_t, ypserv_conf_t;
+		type ypbind_var_run_t, yppasswdd_var_run_t, ypserv_var_run_t;
+	')
+
+	allow $1 ypbind_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ypbind_t)
+
+	allow $1 yppasswdd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, yppasswdd_t)
+
+	allow $1 ypserv_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ypserv_t)
+
+	allow $1 ypxfr_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ypxfr_t)
+
+	files_list_tmp($1)
+	admin_pattern($1, ypbind_tmp_t)
+
+	files_list_pids($1)
+	admin_pattern($1, ypbind_var_run_t)
+
+	admin_pattern($1, yppasswdd_var_run_t)
+
+	files_list_etc($1)
+	admin_pattern($1, ypserv_conf_t)
+
+	admin_pattern($1, ypserv_tmp_t)
+
+	admin_pattern($1, ypserv_var_run_t)
 ')
