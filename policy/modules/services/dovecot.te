@@ -1,5 +1,5 @@
 
-policy_module(dovecot, 1.10.2)
+policy_module(dovecot, 1.10.3)
 
 ########################################
 #
@@ -15,11 +15,23 @@ domain_type(dovecot_auth_t)
 domain_entry_file(dovecot_auth_t, dovecot_auth_exec_t)
 role system_r types dovecot_auth_t;
 
+type dovecot_auth_tmp_t;
+files_tmp_file(dovecot_auth_tmp_t)
+
 type dovecot_cert_t;
 files_type(dovecot_cert_t)
 
+type dovecot_deliver_t;
+type dovecot_deliver_exec_t;
+domain_type(dovecot_deliver_t)
+domain_entry_file(dovecot_deliver_t, dovecot_deliver_exec_t)
+role system_r types dovecot_deliver_t;
+
 type dovecot_etc_t;
 files_config_file(dovecot_etc_t)
+
+type dovecot_initrc_exec_t;
+init_script_file(dovecot_initrc_exec_t)
 
 type dovecot_passwd_t;
 files_type(dovecot_passwd_t)
@@ -30,6 +42,9 @@ files_type(dovecot_spool_t)
 # /var/lib/dovecot holds SSL parameters file
 type dovecot_var_lib_t;
 files_type(dovecot_var_lib_t) 
+
+type dovecot_var_log_t;
+logging_log_file(dovecot_var_log_t)
 
 type dovecot_var_run_t;
 files_pid_file(dovecot_var_run_t)
@@ -57,6 +72,9 @@ allow dovecot_t dovecot_etc_t:file read_file_perms;
 files_search_etc(dovecot_t)
 
 can_exec(dovecot_t, dovecot_exec_t)
+
+manage_files_pattern(dovecot_t, dovecot_var_log_t, dovecot_var_log_t)
+logging_log_filetrans(dovecot_t, dovecot_var_log_t, file)
 
 manage_dirs_pattern(dovecot_t, dovecot_spool_t, dovecot_spool_t)
 manage_files_pattern(dovecot_t, dovecot_spool_t, dovecot_spool_t)
@@ -98,7 +116,7 @@ files_search_tmp(dovecot_t)
 files_dontaudit_list_default(dovecot_t)
 # Dovecot now has quota support and it uses getmntent() to find the mountpoints.
 files_read_etc_runtime_files(dovecot_t)
-files_getattr_all_mountpoints(dovecot_t)
+files_search_all_mountpoints(dovecot_t)
 
 init_getattr_utmp(dovecot_t)
 
@@ -120,7 +138,7 @@ userdom_user_home_dir_filetrans_user_home_content(dovecot_t, { dir file lnk_file
 mta_manage_spool(dovecot_t)
 
 optional_policy(`
-	kerberos_use(dovecot_t)
+	kerberos_keytab_template(dovecot, dovecot_t)
 ')
 
 optional_policy(`
@@ -140,24 +158,34 @@ optional_policy(`
 # dovecot auth local policy
 #
 
-allow dovecot_auth_t self:capability { setgid setuid };
+allow dovecot_auth_t self:capability { chown dac_override setgid setuid };
 allow dovecot_auth_t self:process signal_perms;
 allow dovecot_auth_t self:fifo_file rw_fifo_file_perms;
 allow dovecot_auth_t self:unix_dgram_socket create_socket_perms;
 allow dovecot_auth_t self:unix_stream_socket create_stream_socket_perms;
 
-allow dovecot_auth_t dovecot_t:unix_stream_socket { getattr accept read write ioctl };
+allow dovecot_auth_t dovecot_t:unix_stream_socket { connectto rw_stream_socket_perms };
 
-allow dovecot_auth_t dovecot_passwd_t:file read_file_perms;
+read_files_pattern(dovecot_auth_t, dovecot_passwd_t, dovecot_passwd_t)
+
+manage_dirs_pattern(dovecot_auth_t, dovecot_auth_tmp_t, dovecot_auth_tmp_t)
+manage_files_pattern(dovecot_auth_t, dovecot_auth_tmp_t, dovecot_auth_tmp_t)
+files_tmp_filetrans(dovecot_auth_t, dovecot_auth_tmp_t, { file dir })
 
 # Allow dovecot to create and read SSL parameters file
 manage_files_pattern(dovecot_t, dovecot_var_lib_t, dovecot_var_lib_t)
 files_search_var_lib(dovecot_t)
+files_read_var_symlinks(dovecot_t)
 
 allow dovecot_auth_t dovecot_var_run_t:dir list_dir_perms;
+manage_sock_files_pattern(dovecot_auth_t, dovecot_var_run_t, dovecot_var_run_t)
+dovecot_stream_connect_auth(dovecot_auth_t)
 
 kernel_read_all_sysctls(dovecot_auth_t)
 kernel_read_system_state(dovecot_auth_t)
+
+logging_send_audit_msgs(dovecot_auth_t)
+logging_send_syslog_msg(dovecot_auth_t)
 
 dev_read_urand(dovecot_auth_t)
 
@@ -167,6 +195,7 @@ auth_use_nsswitch(dovecot_auth_t)
 files_read_etc_files(dovecot_auth_t)
 files_read_etc_runtime_files(dovecot_auth_t)
 files_search_pids(dovecot_auth_t)
+files_read_usr_files(dovecot_auth_t)
 files_read_usr_symlinks(dovecot_auth_t)
 files_search_tmp(dovecot_auth_t)
 files_read_var_lib_files(dovecot_t)
@@ -182,5 +211,52 @@ optional_policy(`
 ')
 
 optional_policy(`
-	logging_send_syslog_msg(dovecot_auth_t)
+	mysql_search_db(dovecot_auth_t)
+	mysql_stream_connect(dovecot_auth_t)
+')
+
+optional_policy(`
+	nis_authenticate(dovecot_auth_t)
+')
+
+optional_policy(`
+	postfix_search_spool(dovecot_auth_t)
+')
+
+########################################
+#
+# dovecot deliver local policy
+#
+allow dovecot_deliver_t self:unix_dgram_socket create_socket_perms;
+
+allow dovecot_deliver_t dovecot_etc_t:file read_file_perms;
+allow dovecot_deliver_t dovecot_var_run_t:dir list_dir_perms;
+
+kernel_read_all_sysctls(dovecot_deliver_t)
+kernel_read_system_state(dovecot_deliver_t)
+
+files_read_etc_files(dovecot_deliver_t)
+files_read_etc_runtime_files(dovecot_deliver_t)
+
+auth_use_nsswitch(dovecot_deliver_t)
+
+logging_send_syslog_msg(dovecot_deliver_t)
+
+miscfiles_read_localization(dovecot_deliver_t)
+
+dovecot_stream_connect_auth(dovecot_deliver_t)
+
+files_search_tmp(dovecot_deliver_t)
+
+fs_getattr_all_fs(dovecot_deliver_t)
+
+userdom_manage_user_home_content_dirs(dovecot_deliver_t)
+userdom_manage_user_home_content_files(dovecot_deliver_t)
+userdom_manage_user_home_content_symlinks(dovecot_deliver_t)
+userdom_manage_user_home_content_pipes(dovecot_deliver_t)
+userdom_manage_user_home_content_sockets(dovecot_deliver_t)
+userdom_user_home_dir_filetrans_user_home_content(dovecot_deliver_t, { dir file lnk_file fifo_file sock_file })
+
+optional_policy(`
+	mta_manage_spool(dovecot_deliver_t)
 ')

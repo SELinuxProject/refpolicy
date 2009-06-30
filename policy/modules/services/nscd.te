@@ -1,5 +1,5 @@
 
-policy_module(nscd, 1.8.2)
+policy_module(nscd, 1.8.3)
 
 gen_require(`
 	class nscd all_nscd_perms;
@@ -20,6 +20,9 @@ type nscd_t;
 type nscd_exec_t;
 init_daemon_domain(nscd_t, nscd_exec_t)
 
+type nscd_initrc_exec_t;
+init_script_file(nscd_initrc_exec_t)
+
 type nscd_log_t;
 logging_log_file(nscd_log_t)
 
@@ -28,14 +31,13 @@ logging_log_file(nscd_log_t)
 # Local policy
 #
 
-allow nscd_t self:capability { kill setgid setuid audit_write };
+allow nscd_t self:capability { kill setgid setuid };
 dontaudit nscd_t self:capability sys_tty_config;
-allow nscd_t self:process { getattr setsched signal_perms };
+allow nscd_t self:process { getattr getcap setcap setsched signal_perms };
 allow nscd_t self:fifo_file read_fifo_file_perms;
 allow nscd_t self:unix_stream_socket create_stream_socket_perms;
 allow nscd_t self:unix_dgram_socket create_socket_perms;
 allow nscd_t self:netlink_selinux_socket create_socket_perms;
-allow nscd_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow nscd_t self:tcp_socket create_socket_perms;
 allow nscd_t self:udp_socket create_socket_perms;
 
@@ -49,6 +51,9 @@ logging_log_filetrans(nscd_t, nscd_log_t, file)
 manage_files_pattern(nscd_t, nscd_var_run_t, nscd_var_run_t)
 manage_sock_files_pattern(nscd_t, nscd_var_run_t, nscd_var_run_t)
 files_pid_filetrans(nscd_t, nscd_var_run_t, { file sock_file })
+
+corecmd_search_bin(nscd_t)
+can_exec(nscd_t, nscd_exec_t)
 
 kernel_read_kernel_sysctls(nscd_t)
 kernel_list_proc(nscd_t)
@@ -73,6 +78,7 @@ corenet_tcp_sendrecv_generic_node(nscd_t)
 corenet_udp_sendrecv_generic_node(nscd_t)
 corenet_tcp_sendrecv_all_ports(nscd_t)
 corenet_udp_sendrecv_all_ports(nscd_t)
+corenet_udp_bind_generic_node(nscd_t)
 corenet_tcp_connect_all_ports(nscd_t)
 corenet_sendrecv_all_client_packets(nscd_t)
 corenet_rw_tun_tap_dev(nscd_t)
@@ -90,6 +96,7 @@ files_read_generic_tmp_symlinks(nscd_t)
 # Needed to read files created by firstboot "/etc/hesiod.conf"
 files_read_etc_runtime_files(nscd_t)
 
+logging_send_audit_msgs(nscd_t)
 logging_send_syslog_msg(nscd_t)
 
 miscfiles_read_localization(nscd_t)
@@ -103,6 +110,14 @@ sysnet_read_config(nscd_t)
 userdom_dontaudit_use_user_terminals(nscd_t)
 userdom_dontaudit_use_unpriv_user_fds(nscd_t)
 userdom_dontaudit_search_user_home_dirs(nscd_t)
+
+optional_policy(`
+	cron_read_system_job_tmp_files(nscd_t)
+')
+
+optional_policy(`
+	kerberos_use(nscd_t)
+')
 
 optional_policy(`
 	udev_read_db(nscd_t)
