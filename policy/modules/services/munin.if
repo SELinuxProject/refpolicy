@@ -59,8 +59,9 @@ interface(`munin_append_log',`
 		type munin_log_t;
 	')
 
-	allow $1 munin_log_t:file append_file_perms;
 	logging_search_logs($1)
+	allow $1 munin_log_t:dir list_dir_perms;
+	append_files_pattern($1, munin_log_t, munin_log_t)
 ')
 
 #######################################
@@ -99,4 +100,55 @@ interface(`munin_dontaudit_search_lib',`
 	')
 
 	dontaudit $1 munin_var_lib_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate 
+##	an munin environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the munin domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`munin_admin',`
+	gen_require(`
+		type munin_t, munin_etc_t, munin_tmp_t;
+		type munin_log_t, munin_var_lib_t, munin_var_run_t;
+		type httpd_munin_content_t;
+		type munin_initrc_exec_t;
+	')
+
+	allow $1 munin_t:process { ptrace signal_perms };
+	ps_process_pattern($1, munin_t)
+
+	init_labeled_script_domtrans($1, munin_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 munin_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, munin_tmp_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, munin_log_t)
+
+	files_list_etc($1)
+	admin_pattern($1, munin_etc_t)
+
+	files_list_var_lib($1)
+	admin_pattern($1, munin_var_lib_t)
+
+	files_list_pids($1)
+	admin_pattern($1, munin_var_run_t)
+
+	admin_pattern($1, httpd_munin_content_t)
 ')
