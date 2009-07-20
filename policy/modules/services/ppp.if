@@ -58,6 +58,25 @@ interface(`ppp_sigchld',`
 
 ########################################
 ## <summary>
+##	Send ppp a kill signal
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+#
+interface(`ppp_kill',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:process sigkill;
+')
+
+########################################
+## <summary>
 ##	Send a generic signal to PPP.
 ## </summary>
 ## <param name="domain">
@@ -298,6 +317,24 @@ interface(`ppp_pid_filetrans',`
 
 ########################################
 ## <summary>
+##	Execute ppp server in the ntpd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`ppp_initrc_domtrans',`
+	gen_require(`
+		type pppd_initrc_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, pppd_initrc_exec_t)
+')
+
+########################################
+## <summary>
 ##	All of the rules required to administrate 
 ##	an ppp environment
 ## </summary>
@@ -315,33 +352,39 @@ interface(`ppp_admin',`
 		type pppd_etc_rw_t, pppd_var_run_t;
 
 		type pptp_t, pptp_log_t, pptp_var_run_t;
+ 		type pppd_initrc_exec_t;
 	')
 
 	allow $1 pppd_t:process { ptrace signal_perms getattr };
 	ps_process_pattern($1, pppd_t)
 
+	ppp_initrc_domtrans($1)
+	domain_system_change_exemption($1)
+	role_transition $2 pppd_initrc_exec_t system_r;
+	allow $2 system_r;
+
 	files_list_tmp($1)
-	manage_files_pattern($1, pppd_tmp_t, pppd_tmp_t)
+	admin_pattern($1, pppd_tmp_t)
 
 	logging_list_logs($1)
-	manage_files_pattern($1, pppd_log_t, pppd_log_t)
+	admin_pattern($1, pppd_log_t)
 
-	manage_files_pattern($1, pppd_lock_t, pppd_lock_t)
+	admin_pattern($1, pppd_lock_t)
 
 	files_list_etc($1)
-	manage_files_pattern($1, pppd_etc_t, pppd_etc_t)
+	admin_pattern($1, pppd_etc_t)
 
-	manage_files_pattern($1, pppd_etc_rw_t, pppd_etc_rw_t)
+	admin_pattern($1, pppd_etc_rw_t)
 
-	manage_files_pattern($1, pppd_secret_t, pppd_secret_t)
+	admin_pattern($1, pppd_secret_t)
 
 	files_list_pids($1)
-	manage_files_pattern($1, pppd_var_run_t, pppd_var_run_t)
+	admin_pattern($1, pppd_var_run_t)
 
 	allow $1 pptp_t:process { ptrace signal_perms getattr };
 	ps_process_pattern($1, pptp_t)
 
-	manage_files_pattern($1, pptp_log_t, pptp_log_t)
+	admin_pattern($1, pptp_log_t)
 
-	manage_files_pattern($1, pptp_var_run_t, pptp_var_run_t)
+	admin_pattern($1, pptp_var_run_t)
 ')

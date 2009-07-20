@@ -1,5 +1,5 @@
 
-policy_module(ppp, 1.10.2)
+policy_module(ppp, 1.10.3)
 
 ########################################
 #
@@ -37,8 +37,8 @@ files_config_file(pppd_etc_t)
 type pppd_etc_rw_t;
 files_type(pppd_etc_rw_t)
 
-type pppd_script_exec_t;
-files_type(pppd_script_exec_t)
+type pppd_initrc_exec_t alias pppd_script_exec_t;
+files_type(pppd_initrc_exec_t)
 
 # pppd_secret_t is the type of the pap and chap password files
 type pppd_secret_t;
@@ -114,6 +114,8 @@ allow pppd_t pptp_t:process signal;
 # Access secret files
 allow pppd_t pppd_secret_t:file read_file_perms;
 
+ppp_initrc_domtrans(pppd_t)
+
 kernel_read_kernel_sysctls(pppd_t)
 kernel_read_system_state(pppd_t)
 kernel_rw_net_sysctls(pppd_t)
@@ -161,6 +163,7 @@ files_read_etc_files(pppd_t)
 
 init_read_utmp(pppd_t)
 init_dontaudit_write_utmp(pppd_t)
+init_signal_script(pppd_t)
 
 auth_use_nsswitch(pppd_t)
 
@@ -174,7 +177,6 @@ sysnet_etc_filetrans_config(pppd_t)
 
 userdom_use_user_terminals(pppd_t)
 userdom_dontaudit_use_unpriv_user_fds(pppd_t)
-# for ~/.ppprc - if it actually exists then you need some policy to read it
 userdom_search_user_home_dirs(pppd_t)
 
 ppp_exec(pppd_t)
@@ -214,7 +216,7 @@ optional_policy(`
 # PPTP Local policy
 #
 
-allow pptp_t self:capability net_raw;
+allow pptp_t self:capability { net_raw net_admin };
 dontaudit pptp_t self:capability sys_tty_config;
 allow pptp_t self:process signal;
 allow pptp_t self:fifo_file rw_fifo_file_perms;
@@ -222,14 +224,16 @@ allow pptp_t self:unix_dgram_socket create_socket_perms;
 allow pptp_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow pptp_t self:rawip_socket create_socket_perms;
 allow pptp_t self:tcp_socket create_socket_perms;
+allow pptp_t self:udp_socket create_socket_perms;
+allow pptp_t self:netlink_route_socket rw_netlink_socket_perms;
 
 allow pptp_t pppd_etc_t:dir list_dir_perms;
 allow pptp_t pppd_etc_t:file read_file_perms;
-allow pptp_t pppd_etc_t:lnk_file { getattr read };
+allow pptp_t pppd_etc_t:lnk_file read_lnk_file_perms;
 
 allow pptp_t pppd_etc_rw_t:dir list_dir_perms;
 allow pptp_t pppd_etc_rw_t:file read_file_perms;
-allow pptp_t pppd_etc_rw_t:lnk_file { getattr read };
+allow pptp_t pppd_etc_rw_t:lnk_file read_lnk_file_perms;
 can_exec(pptp_t, pppd_etc_rw_t)
 
 # Allow pptp to append to pppd log files
@@ -245,8 +249,12 @@ files_pid_filetrans(pptp_t, pptp_var_run_t, file)
 kernel_list_proc(pptp_t)
 kernel_read_kernel_sysctls(pptp_t)
 kernel_read_proc_symlinks(pptp_t)
+kernel_read_system_state(pptp_t)
 
 dev_read_sysfs(pptp_t)
+
+corecmd_exec_shell(pptp_t)
+corecmd_read_bin_symlinks(pptp_t)
 
 corenet_all_recvfrom_unlabeled(pptp_t)
 corenet_all_recvfrom_netlabel(pptp_t)
@@ -260,6 +268,8 @@ corenet_tcp_connect_generic_port(pptp_t)
 corenet_tcp_connect_all_reserved_ports(pptp_t)
 corenet_sendrecv_generic_client_packets(pptp_t)
 
+files_read_etc_files(pptp_t)
+
 fs_getattr_all_fs(pptp_t)
 fs_search_auto_mountpoints(pptp_t)
 
@@ -269,11 +279,13 @@ term_use_ptmx(pptp_t)
 
 domain_use_interactive_fds(pptp_t)
 
+auth_use_nsswitch(pptp_t)
+
 logging_send_syslog_msg(pptp_t)
 
 miscfiles_read_localization(pptp_t)
 
-sysnet_read_config(pptp_t)
+sysnet_exec_ifconfig(pptp_t)
 
 userdom_dontaudit_use_unpriv_user_fds(pptp_t)
 userdom_dontaudit_search_user_home_dirs(pptp_t)
@@ -287,10 +299,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	nscd_socket_use(pptp_t)
-')
-
-optional_policy(`
 	seutil_sigchld_newrole(pptp_t)
 ')
 
@@ -301,6 +309,3 @@ optional_policy(`
 optional_policy(`
 	postfix_read_config(pppd_t)
 ')
-
-# FIXME:
-domtrans_pattern(pppd_t, pppd_script_exec_t, initrc_t)
