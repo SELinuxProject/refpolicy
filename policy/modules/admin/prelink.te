@@ -1,5 +1,5 @@
 
-policy_module(prelink, 1.6.0)
+policy_module(prelink, 1.6.1)
 
 ########################################
 #
@@ -21,12 +21,15 @@ logging_log_file(prelink_log_t)
 type prelink_tmp_t;
 files_tmp_file(prelink_tmp_t)
 
+type prelink_var_lib_t;
+files_tmp_file(prelink_var_lib_t)
+
 ########################################
 #
 # Local policy
 #
 
-allow prelink_t self:capability { chown dac_override fowner fsetid };
+allow prelink_t self:capability { chown dac_override fowner fsetid sys_resource };
 allow prelink_t self:process { execheap execmem execstack signal };
 allow prelink_t self:fifo_file rw_fifo_file_perms;
 
@@ -40,17 +43,20 @@ append_files_pattern(prelink_t, prelink_log_t, prelink_log_t)
 read_lnk_files_pattern(prelink_t, prelink_log_t, prelink_log_t)
 logging_log_filetrans(prelink_t, prelink_log_t, file)
 
-allow prelink_t prelink_tmp_t:file { manage_file_perms execute relabelfrom };
+allow prelink_t prelink_tmp_t:file { manage_file_perms execute relabelfrom execmod };
 files_tmp_filetrans(prelink_t, prelink_tmp_t, file)
 fs_tmpfs_filetrans(prelink_t, prelink_tmp_t, file)
+
+manage_dirs_pattern(prelink_t, prelink_var_lib_t, prelink_var_lib_t)
+manage_files_pattern(prelink_t, prelink_var_lib_t, prelink_var_lib_t)
+files_search_var_lib(prelink_t)
 
 # prelink misc objects that are not system
 # libraries or entrypoints
 allow prelink_t prelink_object:file { manage_file_perms execute relabelto relabelfrom };
 
 kernel_read_system_state(prelink_t)
-kernel_dontaudit_search_kernel_sysctl(prelink_t)
-kernel_dontaudit_search_sysctl(prelink_t)
+kernel_read_kernel_sysctls(prelink_t)
 
 corecmd_manage_all_executables(prelink_t)
 corecmd_relabel_all_executables(prelink_t)
@@ -65,6 +71,9 @@ files_write_non_security_dirs(prelink_t)
 files_read_etc_files(prelink_t)
 files_read_etc_runtime_files(prelink_t)
 files_dontaudit_read_all_symlinks(prelink_t)
+files_manage_usr_files(prelink_t)
+files_manage_var_files(prelink_t)
+files_relabelfrom_usr_files(prelink_t)
 
 fs_getattr_xattr_fs(prelink_t)
 
@@ -87,4 +96,8 @@ optional_policy(`
 
 optional_policy(`
 	cron_system_entry(prelink_t, prelink_exec_t)
+')
+
+optional_policy(`
+	unconfined_domain(prelink_t)
 ')

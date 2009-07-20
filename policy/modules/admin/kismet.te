@@ -1,5 +1,5 @@
 
-policy_module(kismet, 1.2.0)
+policy_module(kismet, 1.2.1)
 
 ########################################
 #
@@ -11,29 +11,38 @@ type kismet_exec_t;
 application_domain(kismet_t, kismet_exec_t)
 role system_r types kismet_t;
 
-type kismet_var_run_t;
-files_pid_file(kismet_var_run_t)
+type kismet_log_t;
+logging_log_file(kismet_log_t)
+
+type kismet_tmp_t;
+files_tmp_file(kismet_tmp_t)
 
 type kismet_var_lib_t;
 files_type(kismet_var_lib_t)
 
-type kismet_log_t;
-logging_log_file(kismet_log_t)
+type kismet_var_run_t;
+files_pid_file(kismet_var_run_t)
 
 ########################################
 #
 # kismet local policy
 #
 
-allow kismet_t self:capability { net_admin net_raw setuid setgid };
+allow kismet_t self:capability { dac_override kill net_admin net_raw setuid setgid };
+allow kismet_t self:process signal_perms;
 allow kismet_t self:fifo_file rw_file_perms;
 allow kismet_t self:packet_socket create_socket_perms;
-allow kismet_t self:unix_dgram_socket create_socket_perms;
+allow kismet_t self:unix_dgram_socket { create_socket_perms sendto };
 allow kismet_t self:unix_stream_socket create_stream_socket_perms;
+allow kismet_t self:tcp_socket create_stream_socket_perms;
 
 manage_files_pattern(kismet_t, kismet_log_t, kismet_log_t)
 allow kismet_t kismet_log_t:dir setattr;
 logging_log_filetrans(kismet_t, kismet_log_t, { file dir })
+
+manage_dirs_pattern(kismet_t, kismet_tmp_t, kismet_tmp_t)
+manage_files_pattern(kismet_t, kismet_tmp_t, kismet_tmp_t)
+files_tmp_filetrans(kismet_t, kismet_tmp_t, { file dir })
 
 allow kismet_t kismet_var_lib_t:file manage_file_perms;
 allow kismet_t kismet_var_lib_t:dir manage_dir_perms;
@@ -47,9 +56,20 @@ kernel_search_debugfs(kismet_t)
 
 corecmd_exec_bin(kismet_t)
 
+corenet_all_recvfrom_unlabeled(kismet_t)
+corenet_all_recvfrom_netlabel(kismet_t)
+corenet_tcp_sendrecv_generic_if(kismet_t)
+corenet_tcp_sendrecv_generic_node(kismet_t)
+corenet_tcp_sendrecv_all_ports(kismet_t)
+corenet_tcp_bind_generic_node(kismet_t)
+corenet_tcp_bind_kismet_port(kismet_t)
+corenet_tcp_connect_kismet_port(kismet_t)
+corenet_tcp_connect_pulseaudio_port(kismet_t)
+
 auth_use_nsswitch(kismet_t)
 
 files_read_etc_files(kismet_t)
+files_read_usr_files(kismet_t)
 
 miscfiles_read_localization(kismet_t)
 
