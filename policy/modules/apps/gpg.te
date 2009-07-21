@@ -1,5 +1,5 @@
 
-policy_module(gpg, 2.0.2)
+policy_module(gpg, 2.0.3)
 
 ########################################
 #
@@ -60,10 +60,14 @@ ubac_constrained(gpg_pinentry_t)
 
 allow gpg_t self:capability { ipc_lock setuid };
 # setrlimit is for ulimit -c 0
-allow gpg_t self:process { signal setrlimit setcap setpgid };
+allow gpg_t self:process { signal setrlimit getcap setcap setpgid };
 
 allow gpg_t self:fifo_file rw_fifo_file_perms;
 allow gpg_t self:tcp_socket create_stream_socket_perms;
+
+manage_dirs_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t)
+manage_files_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t)
+files_tmp_filetrans(gpg_t, gpg_agent_tmp_t, { dir file })
 
 # transition from the gpg domain to the helper domain
 domtrans_pattern(gpg_t, gpg_helper_exec_t, gpg_helper_t)
@@ -72,6 +76,8 @@ allow gpg_t gpg_secret_t:dir create_dir_perms;
 manage_files_pattern(gpg_t, gpg_secret_t, gpg_secret_t)
 manage_lnk_files_pattern(gpg_t, gpg_secret_t, gpg_secret_t)
 userdom_user_home_dir_filetrans(gpg_t, gpg_secret_t, dir)
+
+kernel_read_sysctl(gpg_t)
 
 corenet_all_recvfrom_unlabeled(gpg_t)
 corenet_all_recvfrom_netlabel(gpg_t)
@@ -95,22 +101,20 @@ files_read_etc_files(gpg_t)
 files_read_usr_files(gpg_t)
 files_dontaudit_search_var(gpg_t)
 
+auth_use_nsswitch(gpg_t)
+
 miscfiles_read_localization(gpg_t)
 
 logging_send_syslog_msg(gpg_t)
 
-sysnet_read_config(gpg_t)
-
 userdom_use_user_terminals(gpg_t)
-
-optional_policy(`
-	nis_use_ypbind(gpg_t)
-')
 
 ########################################
 #
 # GPG helper local policy
 #
+
+allow gpg_helper_t self:process { getsched setsched };
 
 # for helper programs (which automatically fetch keys)
 # Note: this is only tested with the hkp interface. If you use eg the 
@@ -136,13 +140,11 @@ corenet_tcp_bind_generic_node(gpg_helper_t)
 corenet_udp_bind_generic_node(gpg_helper_t)
 corenet_tcp_connect_all_ports(gpg_helper_t)
 
-dev_read_urand(gpg_helper_t)
-
 files_read_etc_files(gpg_helper_t)
-# for nscd
-files_dontaudit_search_var(gpg_helper_t)
 
-sysnet_read_config(gpg_helper_t)
+auth_use_nsswitch(gpg_helper_t)
+
+userdom_use_user_terminals(gpg_helper_t)
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_dontaudit_rw_nfs_files(gpg_helper_t)
