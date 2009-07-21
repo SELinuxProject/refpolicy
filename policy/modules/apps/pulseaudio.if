@@ -1,0 +1,145 @@
+## <summary>Pulseaudio network sound server.</summary>
+
+########################################
+## <summary>
+##	Role access for pulseaudio
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_role',`
+	gen_require(`
+		type pulseaudio_t, pulseaudio_exec_t, print_spool_t;
+		class dbus { send_msg };
+	')
+
+	role $1 types pulseaudio_t;
+
+	# Transition from the user domain to the derived domain.
+	domtrans_pattern($2, pulseaudio_exec_t, pulseaudio_t)
+
+	ps_process_pattern($2, pulseaudio_t)
+
+	allow pulseaudio_t $2:process { signal signull };
+	allow $2 pulseaudio_t:process { signal signull };
+	ps_process_pattern(pulseaudio_t, $2)
+
+	allow pulseaudio_t $2:unix_stream_socket connectto;
+	allow $2 pulseaudio_t:unix_stream_socket connectto;
+
+	userdom_manage_home_role($1, pulseaudio_t)
+	userdom_manage_tmp_role($1, pulseaudio_t)
+	userdom_manage_tmpfs_role($1, pulseaudio_t)
+
+	allow $2 pulseaudio_t:dbus send_msg;
+	allow pulseaudio_t $2:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run pulseaudio.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`pulseaudio_domtrans',`
+	gen_require(`
+		type pulseaudio_t, pulseaudio_exec_t;
+	')
+
+	domtrans_pattern($1,pulseaudio_exec_t,pulseaudio_t)
+')
+
+########################################
+## <summary>
+##	Execute pulseaudio in the pulseaudio domain, and
+##	allow the specified role the pulseaudio domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the pulseaudio domain.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_run',`
+	gen_require(`
+		type pulseaudio_t;
+	')
+
+	pulseaudio_domtrans($1)
+	role $2 types pulseaudio_t;
+')
+
+########################################
+## <summary>
+##	Execute a pulseaudio in the current domain
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`pulseaudio_exec',`
+	gen_require(`
+                type pulseaudio_exec_t;
+	')
+
+	can_exec($1,pulseaudio_exec_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	pulseaudio over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_dbus_chat',`
+	gen_require(`
+		type pulseaudio_t;
+		class dbus send_msg;
+	')
+
+	allow $1 pulseaudio_t:dbus send_msg;
+	allow pulseaudio_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	pulsaudio connection template.
+## </summary>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_stream_connect',`
+	gen_require(`
+		type pulseaudio_t;
+	')
+
+	allow $1 pulseaudio_t:process signull;
+	allow $1 pulseaudio_t:unix_stream_socket connectto;
+')
