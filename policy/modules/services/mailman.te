@@ -1,5 +1,5 @@
 
-policy_module(mailman, 1.6.4)
+policy_module(mailman, 1.6.5)
 
 ########################################
 #
@@ -53,10 +53,8 @@ optional_policy(`
 	apache_use_fds(mailman_cgi_t)
 	apache_dontaudit_append_log(mailman_cgi_t)
 	apache_search_sys_script_state(mailman_cgi_t)
-
-	optional_policy(`
-		nscd_socket_use(mailman_cgi_t)
-	')
+	apache_read_config(mailman_cgi_t)
+	apache_dontaudit_rw_stream_sockets(mailman_cgi_t)
 ')
 
 ########################################
@@ -65,15 +63,26 @@ optional_policy(`
 #
 
 allow mailman_mail_t self:unix_dgram_socket create_socket_perms;
+allow mailman_mail_t self:process { signal signull };
+allow mailman_mail_t self:capability { kill dac_override setuid setgid sys_tty_config };
+
+manage_dirs_pattern(mailman_mail_t, mailman_archive_t, mailman_archive_t)
+manage_files_pattern(mailman_mail_t, mailman_archive_t, mailman_archive_t)
+manage_lnk_files_pattern(mailman_mail_t, mailman_archive_t, mailman_archive_t)
+
+files_search_spool(mailman_mail_t)
+
+fs_rw_anon_inodefs_files(mailman_mail_t)
 
 mta_dontaudit_rw_delivery_tcp_sockets(mailman_mail_t)
+mta_dontaudit_rw_queue(mailman_mail_t)
 
-ifdef(`TODO',`
 optional_policy(`
-	allow mailman_mail_t qmail_spool_t:file { read ioctl getattr };
-	# do we really need this?
-	allow mailman_mail_t qmail_lspawn_t:fifo_file write;
+	cron_read_pipes(mailman_mail_t)
 ')
+
+optional_policy(`
+	postfix_search_spool(mailman_mail_t)
 ')
 
 ########################################
@@ -103,8 +112,14 @@ seutil_dontaudit_search_config(mailman_queue_t)
 # knows mailman well should test this out and send the changes
 userdom_search_user_home_dirs(mailman_queue_t)
 
-su_exec(mailman_queue_t)
+optional_policy(`
+	apache_read_config(mailman_queue_t)
+')
 
 optional_policy(`
 	cron_system_entry(mailman_queue_t, mailman_queue_exec_t)
+')
+
+optional_policy(`
+	su_exec(mailman_queue_t)
 ')
