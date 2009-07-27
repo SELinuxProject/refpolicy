@@ -1,5 +1,5 @@
 
-policy_module(hal, 1.11.2)
+policy_module(hal, 1.11.3)
 
 ########################################
 #
@@ -18,6 +18,12 @@ role system_r types hald_acl_t;
 
 type hald_cache_t;
 files_pid_file(hald_cache_t)
+
+type hald_dccm_t;
+type hald_dccm_exec_t;
+domain_type(hald_dccm_t)
+domain_entry_file(hald_dccm_t, hald_dccm_exec_t)
+role system_r types hald_dccm_t;
 
 type hald_keymap_t;
 type hald_keymap_exec_t;
@@ -141,8 +147,10 @@ files_read_usr_files(hald_t)
 # hal is now execing pm-suspend
 files_create_boot_flag(hald_t)
 files_getattr_all_dirs(hald_t)
+files_getattr_all_files(hald_t)
 files_read_kernel_img(hald_t)
 files_rw_lock_dirs(hald_t)
+files_read_generic_pids(hald_t)
 
 fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
@@ -195,6 +203,7 @@ seutil_read_default_contexts(hald_t)
 seutil_read_file_contexts(hald_t)
 
 sysnet_read_config(hald_t)
+sysnet_domtrans_dhcpc(hald_t)
 
 userdom_dontaudit_use_unpriv_user_fds(hald_t)
 userdom_dontaudit_search_user_home_dirs(hald_t)
@@ -277,6 +286,17 @@ optional_policy(`
 ')
 
 optional_policy(`
+	ppp_read_rw_config(hald_t)
+')
+
+optional_policy(`
+	policykit_domtrans_auth(hald_t)
+	policykit_domtrans_resolve(hald_t)
+	policykit_read_lib(hald_t)
+	policykit_read_reload(hald_t)
+')
+
+optional_policy(`
 	rpc_search_nfs_state_data(hald_t)
 ')
 
@@ -306,7 +326,7 @@ optional_policy(`
 # Hal acl local policy
 #
 
-allow hald_acl_t self:capability { dac_override fowner };
+allow hald_acl_t self:capability { dac_override fowner sys_resource };
 allow hald_acl_t self:process { getattr signal };
 allow hald_acl_t self:fifo_file rw_fifo_file_perms;
 
@@ -339,6 +359,8 @@ files_read_etc_files(hald_acl_t)
 
 storage_getattr_removable_dev(hald_acl_t)
 storage_setattr_removable_dev(hald_acl_t)
+storage_getattr_fixed_disk_dev(hald_acl_t)
+storage_setattr_fixed_disk_dev(hald_acl_t)
 
 auth_use_nsswitch(hald_acl_t)
 
@@ -346,12 +368,18 @@ logging_send_syslog_msg(hald_acl_t)
 
 miscfiles_read_localization(hald_acl_t)
 
+optional_policy(`
+	policykit_domtrans_auth(hald_acl_t)
+	policykit_read_lib(hald_acl_t)
+	policykit_read_reload(hald_acl_t)
+')
+
 ########################################
 #
 # Local hald mac policy
 #
 
-allow hald_mac_t self:capability { setgid setuid };
+allow hald_mac_t self:capability { setgid setuid sys_admin };
 
 domtrans_pattern(hald_t, hald_mac_exec_t, hald_mac_t)
 allow hald_t hald_mac_t:process signal;
@@ -373,6 +401,8 @@ files_read_usr_files(hald_mac_t)
 files_read_etc_files(hald_mac_t)
 
 auth_use_nsswitch(hald_mac_t)
+
+logging_send_syslog_msg(hald_mac_t)
 
 miscfiles_read_localization(hald_mac_t)
 
@@ -415,6 +445,49 @@ write_files_pattern(hald_keymap_t, hald_log_t, hald_log_t)
 
 dev_rw_input_dev(hald_keymap_t)
 
+files_read_etc_files(hald_keymap_t)
 files_read_usr_files(hald_keymap_t)
 
 miscfiles_read_localization(hald_keymap_t)
+
+########################################
+#
+# Local hald dccm policy
+#
+
+allow hald_dccm_t self:capability { net_bind_service };
+allow hald_dccm_t self:process getsched;
+allow hald_dccm_t self:tcp_socket create_stream_socket_perms;
+allow hald_dccm_t self:udp_socket create_socket_perms;
+allow hald_dccm_t self:netlink_route_socket rw_netlink_socket_perms;
+
+domtrans_pattern(hald_t, hald_dccm_exec_t, hald_dccm_t)
+allow hald_t hald_dccm_t:process signal;
+allow hald_dccm_t hald_t:unix_stream_socket connectto;
+
+manage_dirs_pattern(hald_dccm_t, hald_var_lib_t, hald_var_lib_t)
+manage_files_pattern(hald_dccm_t, hald_var_lib_t, hald_var_lib_t)
+files_search_var_lib(hald_dccm_t)
+
+write_files_pattern(hald_dccm_t, hald_log_t, hald_log_t)
+
+kernel_search_network_sysctl(hald_dccm_t)
+
+corenet_all_recvfrom_unlabeled(hald_dccm_t)
+corenet_all_recvfrom_netlabel(hald_dccm_t)
+corenet_tcp_sendrecv_generic_if(hald_dccm_t)
+corenet_udp_sendrecv_generic_if(hald_dccm_t)
+corenet_tcp_sendrecv_generic_node(hald_dccm_t)
+corenet_udp_sendrecv_generic_node(hald_dccm_t)
+corenet_tcp_sendrecv_all_ports(hald_dccm_t)
+corenet_udp_sendrecv_all_ports(hald_dccm_t)
+corenet_tcp_bind_generic_node(hald_dccm_t)
+corenet_udp_bind_generic_node(hald_dccm_t)
+corenet_udp_bind_dhcpc_port(hald_dccm_t)
+corenet_tcp_bind_dccm_port(hald_dccm_t)
+
+logging_send_syslog_msg(hald_dccm_t)
+
+files_read_usr_files(hald_dccm_t)
+
+miscfiles_read_localization(hald_dccm_t)
