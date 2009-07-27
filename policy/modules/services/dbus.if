@@ -117,6 +117,7 @@ template(`dbus_role_template',`
 	dev_read_urand($1_dbusd_t)
 
  	domain_use_interactive_fds($1_dbusd_t)
+	domain_read_all_domains_state($1_dbusd_t)
 
 	files_read_etc_files($1_dbusd_t)
 	files_list_home($1_dbusd_t)
@@ -255,7 +256,27 @@ interface(`dbus_read_config',`
 
 ########################################
 ## <summary>
-##	Connect to the the system DBUS
+##	Connect to the the session DBUS
+##	for service (acquire_svc).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_connect_session_bus',`
+	gen_require(`
+		attribute session_bus_type;
+		class dbus acquire_svc;
+	')
+
+	allow $1 session_bus_type:dbus acquire_svc;
+')
+
+########################################
+## <summary>
+##	Connect to the system DBUS
 ##	for service (acquire_svc).
 ## </summary>
 ## <param name="domain">
@@ -309,4 +330,78 @@ interface(`dbus_system_bus_unconfined',`
 	')
 
 	allow $1 system_dbusd_t:dbus *;
+')
+
+########################################
+## <summary>
+##	Create a domain for processes
+##	which can be started by the system dbus
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`dbus_system_domain',`
+	gen_require(`
+		type system_dbusd_t;
+		role system_r;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, $2)
+
+	role system_r types $1;
+
+	domtrans_pattern(system_dbusd_t, $2, $1)
+
+	dbus_system_bus_client($1)
+	dbus_connect_system_bus($1)
+
+	ifdef(`hide_broken_symptoms', `
+		dontaudit $1 system_dbusd_t:netlink_selinux_socket { read write };
+	')
+')
+
+########################################
+## <summary>
+##	Dontaudit Read, and write system dbus TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_dontaudit_system_bus_rw_tcp_sockets',`
+	gen_require(`
+		type system_dbusd_t;
+	')
+
+	allow $1 system_dbusd_t:tcp_socket { read write };
+	allow $1 system_dbusd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Allow unconfined access to the system DBUS.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_unconfined',`
+	gen_require(`
+		attribute dbusd_unconfined;
+	')
+
+	typeattribute $1 dbusd_unconfined;
 ')

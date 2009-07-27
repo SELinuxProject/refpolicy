@@ -1,5 +1,5 @@
 
-policy_module(dbus, 1.10.3)
+policy_module(dbus, 1.10.4)
 
 gen_require(`
 	class dbus all_dbus_perms;
@@ -10,13 +10,15 @@ gen_require(`
 # Delcarations
 #
 
+attribute dbusd_unconfined;
 attribute session_bus_type;
 
 type dbusd_etc_t;
-files_type(dbusd_etc_t)
+files_config_file(dbusd_etc_t)
 
 type dbusd_exec_t;
 corecmd_executable_file(dbusd_exec_t)
+typealias dbusd_exec_t alias system_dbusd_exec_t;
 
 type session_dbusd_tmp_t;
 typealias session_dbusd_tmp_t alias { user_dbusd_tmp_t staff_dbusd_tmp_t sysadm_dbusd_tmp_t };
@@ -31,10 +33,18 @@ type system_dbusd_tmp_t;
 files_tmp_file(system_dbusd_tmp_t)
 
 type system_dbusd_var_lib_t;
-files_pid_file(system_dbusd_var_lib_t)
+files_type(system_dbusd_var_lib_t)
 
 type system_dbusd_var_run_t;
 files_pid_file(system_dbusd_var_run_t)
+
+ifdef(`enable_mcs',`
+	init_ranged_daemon_domain(system_dbusd_t, dbusd_exec_t, s0 - mcs_systemhigh)
+')
+
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(system_dbusd_t, dbusd_exec_t, s0 - mls_systemhigh)
+')
 
 ##############################
 #
@@ -45,13 +55,15 @@ files_pid_file(system_dbusd_var_run_t)
 # cjp: dac_override should probably go in a distro_debian
 allow system_dbusd_t self:capability { dac_override setgid setpcap setuid };
 dontaudit system_dbusd_t self:capability sys_tty_config;
-allow system_dbusd_t self:process { getattr signal_perms setcap };
+allow system_dbusd_t self:process { getattr getsched signal_perms setpgid getcap setcap };
 allow system_dbusd_t self:fifo_file rw_fifo_file_perms;
 allow system_dbusd_t self:dbus { send_msg acquire_svc };
 allow system_dbusd_t self:unix_stream_socket { connectto create_stream_socket_perms connectto };
 allow system_dbusd_t self:unix_dgram_socket create_socket_perms;
 # Receive notifications of policy reloads and enforcing status changes.
 allow system_dbusd_t self:netlink_selinux_socket { create bind read };
+
+can_exec(system_dbusd_t, dbusd_exec_t)
 
 allow system_dbusd_t dbusd_etc_t:dir list_dir_perms;
 read_files_pattern(system_dbusd_t, dbusd_etc_t, dbusd_etc_t)
@@ -75,6 +87,14 @@ dev_read_sysfs(system_dbusd_t)
 
 fs_getattr_all_fs(system_dbusd_t)
 fs_search_auto_mountpoints(system_dbusd_t)
+fs_dontaudit_list_nfs(system_dbusd_t)
+
+mls_fd_use_all_levels(system_dbusd_t)
+mls_rangetrans_target(system_dbusd_t)
+mls_file_read_all_levels(system_dbusd_t)
+mls_socket_write_all_levels(system_dbusd_t)
+mls_socket_read_to_clearance(system_dbusd_t)
+mls_dbus_recv_all_levels(system_dbusd_t)
 
 selinux_get_fs_mount(system_dbusd_t)
 selinux_validate_context(system_dbusd_t)
@@ -91,9 +111,9 @@ auth_read_pam_console_data(system_dbusd_t)
 corecmd_list_bin(system_dbusd_t)
 corecmd_read_bin_pipes(system_dbusd_t)
 corecmd_read_bin_sockets(system_dbusd_t)
-corecmd_exec_bin(system_dbusd_t)
 
 domain_use_interactive_fds(system_dbusd_t)
+domain_read_all_domains_state(system_dbusd_t)
 
 files_read_etc_files(system_dbusd_t)
 files_list_home(system_dbusd_t)
@@ -120,9 +140,21 @@ optional_policy(`
 ')
 
 optional_policy(`
+	policykit_domtrans_auth(system_dbusd_t)
+	policykit_search_lib(system_dbusd_t)
+')
+
+optional_policy(`
 	sysnet_domtrans_dhcpc(system_dbusd_t)
 ')
 
 optional_policy(`
 	udev_read_db(system_dbusd_t)
 ')
+
+########################################
+#
+# Unconfined access to this module
+#
+
+allow dbusd_unconfined session_bus_type:dbus all_dbus_perms;
