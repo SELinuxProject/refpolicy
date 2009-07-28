@@ -1040,3 +1040,68 @@ interface(`apache_cgi_domain',`
 
 	allow httpd_t $1:process signal;
 ')
+
+########################################
+## <summary>
+##	All of the rules required to administrate an apache environment
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix of the domain. Example, user would be
+##	the prefix for the uder_t domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`apache_admin',`
+	gen_require(`
+		attribute httpdcontent;
+		attribute httpd_script_exec_type;
+
+		type httpd_t, httpd_config_t, httpd_log_t;
+		type httpd_modules_t, httpd_lock_t;
+		type httpd_var_run_t, httpd_php_tmp_t;
+		type httpd_suexec_tmp_t, httpd_tmp_t;
+	')
+
+	allow $1 httpd_t:process { getattr ptrace signal_perms };
+	ps_process_pattern($1, httpd_t)
+
+	apache_manage_all_content($1)
+	miscfiles_manage_public_files($1)
+
+	files_search_etc($1)
+	admin_pattern($1, httpd_config_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, httpd_log_t)
+
+	admin_pattern($1, httpd_modules_t)
+
+	admin_pattern($1, httpd_lock_t)
+	files_lock_filetrans($1, httpd_lock_t, file)
+
+	admin_pattern($1, httpd_var_run_t)
+	files_pid_filetrans($1, httpd_var_run_t, file)
+
+	kernel_search_proc($1)
+	allow $1 httpd_t:dir list_dir_perms;
+
+	read_lnk_files_pattern($1, httpd_t, httpd_t)
+
+	admin_pattern($1, httpdcontent)
+	admin_pattern($1, httpd_script_exec_type)
+	admin_pattern($1, httpd_tmp_t)
+	admin_pattern($1, httpd_php_tmp_t)
+	admin_pattern($1, httpd_suexec_tmp_t)
+')
