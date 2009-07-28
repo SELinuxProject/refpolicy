@@ -1,5 +1,5 @@
 
-policy_module(vmware, 2.0.1)
+policy_module(vmware, 2.0.2)
 
 ########################################
 #
@@ -60,14 +60,18 @@ typealias vmware_tmpfs_t alias { auditadm_vmware_tmpfs_t secadm_vmware_tmpfs_t }
 files_tmpfs_file(vmware_tmpfs_t)
 ubac_constrained(vmware_tmpfs_t)
 
+ifdef(`enable_mcs',`
+	init_ranged_daemon_domain(vmware_host_t, vmware_host_exec_t, s0 - mcs_systemhigh)
+')
+
 ########################################
 #
 # VMWare host local policy
 #
 
-allow vmware_host_t self:capability { setgid setuid net_raw };
+allow vmware_host_t self:capability { setgid setuid net_raw sys_nice sys_time sys_ptrace kill dac_override };
 dontaudit vmware_host_t self:capability sys_tty_config;
-allow vmware_host_t self:process signal_perms;
+allow vmware_host_t self:process { execstack execmem signal_perms };
 allow vmware_host_t self:fifo_file rw_fifo_file_perms;
 allow vmware_host_t self:unix_stream_socket create_stream_socket_perms;
 allow vmware_host_t self:rawip_socket create_socket_perms;
@@ -84,8 +88,7 @@ manage_files_pattern(vmware_host_t, vmware_log_t, vmware_log_t)
 logging_log_filetrans(vmware_host_t, vmware_log_t, { file dir })
 
 kernel_read_kernel_sysctls(vmware_host_t)
-kernel_list_proc(vmware_host_t)
-kernel_read_proc_symlinks(vmware_host_t)
+kernel_read_system_state(vmware_host_t)
 
 corenet_all_recvfrom_unlabeled(vmware_host_t)
 corenet_all_recvfrom_netlabel(vmware_host_t)
@@ -104,21 +107,32 @@ corenet_tcp_connect_all_ports(vmware_host_t)
 corenet_sendrecv_all_client_packets(vmware_host_t)
 corenet_sendrecv_all_server_packets(vmware_host_t)
 
+corecmd_exec_bin(vmware_host_t)
+corecmd_exec_shell(vmware_host_t)
+
+dev_getattr_all_blk_files(vmware_host_t)
 dev_read_sysfs(vmware_host_t)
 dev_read_urand(vmware_host_t)
 dev_rw_vmware(vmware_host_t)
 
 domain_use_interactive_fds(vmware_host_t)
+domain_dontaudit_read_all_domains_state(vmware_host_t)
 
+files_list_tmp(vmware_host_t)
 files_read_etc_files(vmware_host_t)
+files_read_etc_runtime_files(vmware_host_t)
 
 fs_getattr_all_fs(vmware_host_t)
 fs_search_auto_mountpoints(vmware_host_t)
+
+storage_getattr_fixed_disk_dev(vmware_host_t)
 
 term_dontaudit_use_console(vmware_host_t)
 
 init_use_fds(vmware_host_t)
 init_use_script_ptys(vmware_host_t)
+
+libs_exec_ld_so(vmware_host_t)
 
 logging_send_syslog_msg(vmware_host_t)
 
@@ -138,6 +152,11 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(vmware_host_t)
+')
+
+optional_policy(`
+	xserver_read_tmp_files(vmware_host_t)
+	xserver_read_xdm_pid(vmware_host_t)
 ')
 
 ifdef(`TODO',`
@@ -226,7 +245,7 @@ files_read_etc_runtime_files(vmware_t)
 files_read_usr_files(vmware_t)
 files_list_home(vmware_t)
 
-fs_getattr_xattr_fs(vmware_t)
+fs_getattr_all_fs(vmware_t)
 fs_search_auto_mountpoints(vmware_t)
 
 storage_raw_read_removable_device(vmware_t)
