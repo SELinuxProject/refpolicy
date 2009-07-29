@@ -1,5 +1,5 @@
 
-policy_module(mta, 2.1.2)
+policy_module(mta, 2.1.3)
 
 ########################################
 #
@@ -47,19 +47,26 @@ ubac_constrained(user_mail_tmp_t)
 #
 
 # newalias required this, not sure if it is needed in 'if' file
-allow system_mail_t self:capability { dac_override };
+allow system_mail_t self:capability { dac_override fowner };
+allow system_mail_t self:fifo_file rw_fifo_file_perms;
 
 read_files_pattern(system_mail_t, etc_mail_t, etc_mail_t)
+read_files_pattern(system_mail_t, mailcontent_type, mailcontent_type)
 
 allow system_mail_t mta_exec_type:file entrypoint;
 
-allow system_mail_t mailcontent_type:file read_file_perms;
+can_exec(system_mail_t, mta_exec_type)
 
 kernel_read_system_state(system_mail_t)
 kernel_read_network_state(system_mail_t)
 
+dev_read_sysfs(system_mail_t)
 dev_read_rand(system_mail_t)
 dev_read_urand(system_mail_t)
+
+fs_rw_anon_inodefs_files(system_mail_t)
+
+selinux_getattr_fs(system_mail_t)
 
 init_use_script_ptys(system_mail_t)
 
@@ -86,12 +93,32 @@ optional_policy(`
 ')
 
 optional_policy(`
+	clamav_stream_connect(system_mail_t)
+	clamav_append_log(system_mail_t)
+')
+
+optional_policy(`
 	cron_read_system_job_tmp_files(system_mail_t)
 	cron_dontaudit_write_pipes(system_mail_t)
 ')
 
 optional_policy(`
+	courier_manage_spool_dirs(system_mail_t)
+	courier_manage_spool_files(system_mail_t)
+	courier_rw_spool_pipes(system_mail_t)
+')
+
+optional_policy(`
 	cvs_read_data(system_mail_t)
+')
+
+optional_policy(`
+	exim_domtrans(system_mail_t)
+	exim_manage_log(system_mail_t)
+')
+
+optional_policy(`
+	fail2ban_append_log(system_mail_t)
 ')
 
 optional_policy(`
@@ -131,10 +158,6 @@ optional_policy(`
 	ifdef(`distro_redhat',`
 		# compatability for old default main.cf
 		postfix_config_filetrans(system_mail_t, etc_aliases_t, { dir file lnk_file sock_file fifo_file })
-	')
-
-	optional_policy(`
-		cron_rw_tcp_sockets(system_mail_t)
 	')
 ')
 
