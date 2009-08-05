@@ -10,6 +10,17 @@ gen_require(`
 # Declarations
 #
 
+type depmod_t;
+type depmod_exec_t;
+init_system_domain(depmod_t, depmod_exec_t)
+role system_r types depmod_t;
+
+type insmod_t;
+type insmod_exec_t;
+application_domain(insmod_t, insmod_exec_t)
+mls_file_write_all_levels(insmod_t)
+role system_r types insmod_t;
+
 # module loading config
 type modules_conf_t;
 files_type(modules_conf_t)
@@ -18,17 +29,6 @@ files_type(modules_conf_t)
 type modules_dep_t;
 files_type(modules_dep_t)
 
-type insmod_t;
-type insmod_exec_t;
-application_domain(insmod_t, insmod_exec_t)
-mls_file_write_all_levels(insmod_t)
-role system_r types insmod_t;
-
-type depmod_t;
-type depmod_exec_t;
-init_system_domain(depmod_t, depmod_exec_t)
-role system_r types depmod_t;
-
 type update_modules_t;
 type update_modules_exec_t;
 init_system_domain(update_modules_t, update_modules_exec_t)
@@ -36,6 +36,55 @@ role system_r types update_modules_t;
 
 type update_modules_tmp_t;
 files_tmp_file(update_modules_tmp_t)
+
+########################################
+#
+# depmod local policy
+#
+
+can_exec(depmod_t, depmod_exec_t)
+
+# Read conf.modules.
+allow depmod_t modules_conf_t:file read_file_perms;
+
+allow depmod_t modules_dep_t:file manage_file_perms;
+files_kernel_modules_filetrans(depmod_t, modules_dep_t, file)
+
+kernel_read_system_state(depmod_t)
+
+corecmd_search_bin(depmod_t)
+
+domain_use_interactive_fds(depmod_t)
+
+files_read_kernel_symbol_table(depmod_t)
+files_read_kernel_modules(depmod_t)
+files_read_etc_runtime_files(depmod_t)
+files_read_etc_files(depmod_t)
+files_read_usr_src_files(depmod_t)
+files_list_usr(depmod_t)
+
+fs_getattr_xattr_fs(depmod_t)
+
+term_use_console(depmod_t)
+
+init_use_fds(depmod_t)
+init_use_script_fds(depmod_t)
+init_use_script_ptys(depmod_t)
+
+userdom_use_user_terminals(depmod_t)
+# Read System.map from home directories.
+files_list_home(depmod_t)
+userdom_read_user_home_content_files(depmod_t)
+
+ifdef(`distro_ubuntu',`
+	optional_policy(`
+		unconfined_domain(depmod_t)
+	')
+')
+
+optional_policy(`
+	rpm_rw_pipes(depmod_t)
+')
 
 ########################################
 #
@@ -64,9 +113,8 @@ kernel_read_kernel_sysctls(insmod_t)
 kernel_rw_kernel_sysctl(insmod_t)
 kernel_read_hotplug_sysctls(insmod_t)
 
-files_read_kernel_modules(insmod_t)
-# for locking: (cjp: ????)
-files_write_kernel_modules(insmod_t)
+corecmd_exec_bin(insmod_t)
+corecmd_exec_shell(insmod_t)
 
 dev_rw_sysfs(insmod_t)
 dev_search_usbfs(insmod_t)
@@ -80,14 +128,10 @@ dev_rw_apm_bios(insmod_t)
 # and it also transitions to mount
 dev_mount_usbfs(insmod_t)
 
-fs_getattr_xattr_fs(insmod_t)
-
-corecmd_exec_bin(insmod_t)
-corecmd_exec_shell(insmod_t)
-
 domain_signal_all_domains(insmod_t)
 domain_use_interactive_fds(insmod_t)
 
+files_read_kernel_modules(insmod_t)
 files_read_etc_runtime_files(insmod_t)
 files_read_etc_files(insmod_t)
 files_read_usr_files(insmod_t)
@@ -96,6 +140,10 @@ files_exec_etc_files(insmod_t)
 files_dontaudit_search_pids(insmod_t)
 # for when /var is not mounted early in the boot:
 files_dontaudit_search_isid_type_dirs(insmod_t)
+# for locking: (cjp: ????)
+files_write_kernel_modules(insmod_t)
+
+fs_getattr_xattr_fs(insmod_t)
 
 init_rw_initctl(insmod_t)
 init_use_fds(insmod_t)
@@ -167,56 +215,6 @@ optional_policy(`
 	xserver_getattr_log(insmod_t)
 ')
 
-########################################
-#
-# depmod local policy
-#
-
-can_exec(depmod_t, depmod_exec_t)
-
-# Read conf.modules.
-allow depmod_t modules_conf_t:file read_file_perms;
-
-allow depmod_t modules_dep_t:file manage_file_perms;
-files_kernel_modules_filetrans(depmod_t, modules_dep_t, file)
-
-kernel_read_system_state(depmod_t)
-
-files_read_kernel_symbol_table(depmod_t)
-files_read_kernel_modules(depmod_t)
-
-fs_getattr_xattr_fs(depmod_t)
-
-term_use_console(depmod_t)
-
-corecmd_search_bin(depmod_t)
-
-domain_use_interactive_fds(depmod_t)
-
-init_use_fds(depmod_t)
-init_use_script_fds(depmod_t)
-init_use_script_ptys(depmod_t)
-
-files_read_etc_runtime_files(depmod_t)
-files_read_etc_files(depmod_t)
-files_read_usr_src_files(depmod_t)
-files_list_usr(depmod_t)
-
-userdom_use_user_terminals(depmod_t)
-# Read System.map from home directories.
-files_list_home(depmod_t)
-userdom_read_user_home_content_files(depmod_t)
-
-ifdef(`distro_ubuntu',`
-	optional_policy(`
-		unconfined_domain(depmod_t)
-	')
-')
-
-optional_policy(`
-	rpm_rw_pipes(depmod_t)
-')
-
 #################################
 #
 # update-modules local policy
@@ -248,7 +246,16 @@ files_tmp_filetrans(update_modules_t, update_modules_tmp_t, { file dir })
 kernel_read_kernel_sysctls(update_modules_t)
 kernel_read_system_state(update_modules_t)
 
+corecmd_exec_bin(update_modules_t)
+corecmd_exec_shell(update_modules_t)
+
 dev_read_urand(update_modules_t)
+
+domain_use_interactive_fds(update_modules_t)
+
+files_read_etc_runtime_files(update_modules_t)
+files_read_etc_files(update_modules_t)
+files_exec_etc_files(update_modules_t)
 
 fs_getattr_xattr_fs(update_modules_t)
 
@@ -257,15 +264,6 @@ term_use_console(update_modules_t)
 init_use_fds(update_modules_t)
 init_use_script_fds(update_modules_t)
 init_use_script_ptys(update_modules_t)
-
-domain_use_interactive_fds(update_modules_t)
-
-files_read_etc_runtime_files(update_modules_t)
-files_read_etc_files(update_modules_t)
-files_exec_etc_files(update_modules_t)
-
-corecmd_exec_bin(update_modules_t)
-corecmd_exec_shell(update_modules_t)
 
 logging_send_syslog_msg(update_modules_t)
 
