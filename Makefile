@@ -102,6 +102,8 @@ get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(support)/comment_move_decl.sed
 gennetfilter := $(PYTHON) -E $(support)/gennetfilter.py
 m4iferror := $(support)/iferror.m4
+m4divert := $(support)/divert.m4
+m4undivert := $(support)/undivert.m4
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) -E $(support)/genhomedircon
@@ -231,10 +233,11 @@ endif
 
 CTAGS ?= ctags
 
-m4support := $(wildcard $(poldir)/support/*.spt)
+m4support := $(m4divert) $(wildcard $(poldir)/support/*.spt)
 ifdef LOCAL_ROOT
 m4support += $(wildcard $(local_poldir)/support/*.spt)
 endif
+m4support += $(m4undivert)
 
 appconf := config/appconfig-$(TYPE)
 seusers := $(appconf)/seusers
@@ -529,7 +532,7 @@ $(contextpath)/users/%: $(appconf)/%_default_contexts
 
 $(appdir)/%: $(appconf)/%
 	@mkdir -p $(appdir)
-	$(verbose) $(INSTALL) -m 644 $< $@
+	$(verbose) $(M4) $(M4PARAM) $(m4support) $< > $@
 
 ########################################
 #
