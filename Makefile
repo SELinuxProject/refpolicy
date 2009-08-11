@@ -303,7 +303,8 @@ off_mods += $(filter-out $(cmdline_off) $(cmdline_base) $(cmdline_mods), $(mod_c
 off_mods += $(filter-out $(base_mods) $(mod_mods) $(off_mods),$(notdir $(detected_mods)))
 
 # filesystems to be used in labeling targets
-filesystems = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[23]| xfs| jfs).*rw/{print $$3}';)
+filesystems = $(shell mount | grep -v "context=" | egrep -v '\((|.*,)bind(,.*|)\)' | awk '/(ext[234]|btrfs| xfs| jfs).*rw/{print $$3}';)
+fs_names := "btrfs ext2 ext3 ext4 xfs jfs"
 
 ########################################
 #
@@ -604,7 +605,7 @@ $(tags):
 # Filesystem labeling
 #
 checklabels:
-	@echo "Checking labels on filesystem types: ext2 ext3 xfs jfs"
+	@echo "Checking labels on filesystem types: $(fs_names)"
 	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
@@ -612,7 +613,7 @@ checklabels:
 	$(verbose) $(SETFILES) -v -n $(fcpath) $(filesystems)
 
 restorelabels:
-	@echo "Restoring labels on filesystem types: ext2 ext3 xfs jfs"
+	@echo "Restoring labels on filesystem types: $(fs_names)"
 	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
@@ -620,7 +621,7 @@ restorelabels:
 	$(verbose) $(SETFILES) -v $(fcpath) $(filesystems)
 
 relabel:
-	@echo "Relabeling filesystem types: ext2 ext3 xfs jfs"
+	@echo "Relabeling filesystem types: $(fs_names)"
 	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
@@ -628,7 +629,7 @@ relabel:
 	$(verbose) $(SETFILES) $(fcpath) $(filesystems)
 
 resetlabels:
-	@echo "Resetting labels on filesystem types: ext2 ext3 xfs jfs"
+	@echo "Resetting labels on filesystem types: $(fs_names)"
 	@if test -z "$(filesystems)"; then \
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
