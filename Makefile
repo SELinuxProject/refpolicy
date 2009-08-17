@@ -541,7 +541,7 @@ $(appdir)/%: $(appconf)/%
 #
 install-headers: $(layerxml) $(tunxml) $(boolxml)
 	@mkdir -p $(headerdir)
-	@echo "Installing $(TYPE) policy headers."
+	@echo "Installing $(NAME) policy headers."
 	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
 	$(verbose) $(M4) $(M4PARAM) $(rolemap) > $(headerdir)/$(notdir $(rolemap))
 	$(verbose) mkdir -p $(headerdir)/support
