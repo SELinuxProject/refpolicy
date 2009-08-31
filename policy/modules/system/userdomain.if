@@ -1055,6 +1055,8 @@ template(`userdom_admin_user_template',`
 	domain_obj_id_change_exemption($1_t)
 	role system_r types $1_t;
 
+	typeattribute $1_t admin_tun_type;
+
 	ifdef(`direct_sysadm_daemon',`
 		domain_system_change_exemption($1_t)
 	')
@@ -1066,17 +1068,12 @@ template(`userdom_admin_user_template',`
 
 	allow $1_t self:capability ~{ sys_module audit_control audit_write };
 	allow $1_t self:process { setexec setfscreate };
-
+	allow $1_t self:netlink_audit_socket nlmsg_readpriv;
+	allow $1_t self:tun_socket create;
 	# Set password information for other users.
 	allow $1_t self:passwd { passwd chfn chsh };
-
 	# Skip authentication when pam_rootok is specified.
 	allow $1_t self:passwd rootok;
-
-	allow $1_t self:netlink_audit_socket nlmsg_readpriv;
-
-	allow $1_t self:tun_socket create;
-	typeattribute $1_t admin_tun_type;
 
 	kernel_read_software_raid_state($1_t)
 	kernel_getattr_core_if($1_t)
@@ -1284,6 +1281,25 @@ interface(`userdom_user_home_content',`
 	allow $1 user_home_t:filesystem associate;
 	files_type($1)
 	ubac_constrained($1)
+')
+
+########################################
+## <summary>
+##	Allow domain to attach to TUN devices created by administrative users.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_attach_admin_tun_iface',`
+	gen_require(`
+		attribute admin_tun_type;
+	')
+
+	allow $1 admin_tun_type:tun_socket relabelfrom;
+	allow $1 self:tun_socket relabelto;
 ')
 
 ########################################
@@ -3027,23 +3043,4 @@ interface(`userdom_dbus_send_all_users',`
 	')
 
 	allow $1 userdomain:dbus send_msg;
-')
-
-########################################
-## <summary>
-##	Allow domain to attach to TUN devices created by administrative users.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`userdom_attach_admin_tun_iface',`
-	gen_require(`
-		attribute admin_tun_type;
-	')
-
-	allow $1 admin_tun_type:tun_socket relabelfrom;
-	allow $1 self:tun_socket relabelto;
 ')
