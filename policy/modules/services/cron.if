@@ -31,16 +31,16 @@ template(`cron_common_crontab_template',`
 
 	# dac_override is to create the file in the directory under /tmp
 	allow $1_t self:capability { fowner setuid setgid chown dac_override };
-	allow $1_t self:process signal_perms;
+	allow $1_t self:process { setsched signal_perms };
+	allow $1_t self:fifo_file rw_fifo_file_perms;
 
 	allow $1_t $1_tmp_t:file manage_file_perms;
-	files_tmp_filetrans($1_t,$1_tmp_t, file)
+	files_tmp_filetrans($1_t, $1_tmp_t, file)
 
 	# create files in /var/spool/cron
-	# cjp: change this to a role transition
-	manage_files_pattern($1_t, cron_spool_t, user_cron_spool_t)
+	manage_files_pattern($1_t, { cron_spool_t user_cron_spool_t }, user_cron_spool_t)
 	filetrans_pattern($1_t, cron_spool_t, user_cron_spool_t, file)
-	files_search_spool($1_t)
+	files_list_spool($1_t)
 
 	# crontab signals crond by updating the mtime on the spooldir
 	allow $1_t cron_spool_t:dir setattr;
@@ -55,9 +55,16 @@ template(`cron_common_crontab_template',`
 	domain_use_interactive_fds($1_t)
 
 	files_read_etc_files($1_t)
+	files_read_usr_files($1_t)
 	files_dontaudit_search_pids($1_t)
 
+	auth_domtrans_chk_passwd($1_t)
+
 	logging_send_syslog_msg($1_t)
+	logging_send_audit_msgs($1_t)
+
+	init_dontaudit_write_utmp($1_t)
+	init_read_utmp($1_t)
 
 	miscfiles_read_localization($1_t)
 
@@ -253,19 +260,64 @@ interface(`cron_system_entry',`
 		type crond_t, system_cronjob_t;
 	')
 
-	domain_auto_trans(system_cronjob_t, $2, $1)
-
-	# cjp: perhaps these four rules from the old
-	# domain_auto_trans are not needed?
-	allow $1 system_cronjob_t:fd use;
-	allow $1 system_cronjob_t:fifo_file rw_file_perms;
-	allow $1 system_cronjob_t:process sigchld;
-
-	allow $1 crond_t:fifo_file rw_file_perms;
-	allow $1 crond_t:fd use;
-	allow $1 crond_t:process sigchld;
+	domtrans_pattern(system_cronjob_t, $2, $1)
+	domtrans_pattern(crond_t, $2, $1)
 
 	role system_r types $1;
+')
+
+########################################
+## <summary>
+##	Execute cron in the cron system domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cron_domtrans',`
+	gen_require(`
+		type system_cronjob_t, crond_exec_t;
+	')
+
+	domtrans_pattern($1, crond_exec_t, system_cronjob_t)
+')
+
+########################################
+## <summary>
+##	Execute crond_exec_t 
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cron_exec',`
+	gen_require(`
+		type crond_exec_t;
+	')
+
+	can_exec($1, crond_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute crond server in the nscd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`cron_initrc_domtrans',`
+	gen_require(`
+		type crond_initrc_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, crond_initrc_exec_t)
 ')
 
 ########################################
@@ -379,6 +431,24 @@ interface(`cron_rw_tcp_sockets',`
 
 ########################################
 ## <summary>
+##	Dontaudit Read, and write cron daemon TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cron_dontaudit_rw_tcp_sockets',`
+	gen_require(`
+		type crond_t;
+	')
+
+	dontaudit $1 crond_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
 ##	Search the directory containing user cron tables.
 ## </summary>
 ## <param name="domain">
@@ -394,6 +464,24 @@ interface(`cron_search_spool',`
 
 	files_search_spool($1)
 	allow $1 cron_spool_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Manage pid files used by cron
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cron_manage_pid_files',`
+	gen_require(`
+		type crond_var_run_t;
+	')
+
+	manage_files_pattern($1, crond_var_run_t, crond_var_run_t)
 ')
 
 ########################################
@@ -471,6 +559,24 @@ interface(`cron_rw_system_job_pipes',`
 
 ########################################
 ## <summary>
+##	Allow read/write unix stream sockets from the system cron jobs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cron_rw_system_job_stream_sockets',`
+	gen_require(`
+		type system_cronjob_t;
+	')
+
+	allow $1 system_cronjob_t:unix_stream_socket { read write };
+')
+
+########################################
+## <summary>
 ##	Read temporary files from the system cron jobs.
 ## </summary>
 ## <param name="domain">
@@ -504,5 +610,24 @@ interface(`cron_dontaudit_append_system_job_tmp_files',`
 		type system_cronjob_tmp_t;
 	')
 
-	dontaudit $1 system_cronjob_tmp_t:file append;
+	dontaudit $1 system_cronjob_tmp_t:file append_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write temporary
+##	files from the system cron jobs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`cron_dontaudit_write_system_job_tmp_files',`
+	gen_require(`
+		type system_cronjob_tmp_t;
+	')
+
+	dontaudit $1 system_cronjob_tmp_t:file write_file_perms;
 ')
