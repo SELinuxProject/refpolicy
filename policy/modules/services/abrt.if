@@ -1,0 +1,125 @@
+## <summary>ABRT - automated bug-reporting tool</summary>
+
+######################################
+## <summary>
+##	Execute abrt in the abrt domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`abrt_domtrans',`
+	gen_require(`
+		type abrt_t, abrt_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, abrt_exec_t, abrt_t)
+')
+
+######################################
+## <summary>
+##	Execute abrt 
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+#
+interface(`abrt_exec',`
+	gen_require(`
+		type abrt_exec_t;
+	')
+
+	can_exec($1, abrt_exec_t)
+')
+
+####################################
+## <summary>
+##	Read abrt configuration file.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`abrt_read_config',`
+	gen_require(`
+		type abrt_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, abrt_etc_t, abrt_etc_t)
+')
+
+######################################
+## <summary>
+##	Read abrt logs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`abrt_read_log',`
+	gen_require(`
+		type abrt_var_log_t;
+	')
+
+	logging_search_logs($1)
+	read_files_pattern($1, abrt_var_log_t, abrt_var_log_t)
+')
+
+#####################################
+## <summary>
+##	All of the rules required to administrate 
+##	an abrt environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the abrt domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`abrt_admin',`
+	gen_require(`
+		type abrt_t, abrt_etc_t; 
+		type abrt_var_cache_t, abrt_var_log_t;
+		type abrt_var_run_t, abrt_tmp_t;
+		type abrt_initrc_exec_t;
+	')
+
+	allow $1 abrt_t:process { ptrace signal_perms };
+	ps_process_pattern($1, abrt_t)
+
+	init_labeled_script_domtrans($1, abrt_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 abrt_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_search_etc($1)
+	admin_pattern($1, abrt_etc_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, abrt_var_log_t)	
+
+	files_search_var($1)
+	admin_pattern($1, abrt_var_cache_t)
+
+	files_search_pids($1)
+	admin_pattern($1, abrt_var_run_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, abrt_tmp_t)
+')

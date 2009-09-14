@@ -1,0 +1,117 @@
+
+policy_module(abrt, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type abrt_t;
+type abrt_exec_t;
+init_daemon_domain(abrt_t, abrt_exec_t)
+
+type abrt_initrc_exec_t;
+init_script_file(abrt_initrc_exec_t)
+
+# etc files
+type abrt_etc_t;
+files_config_file(abrt_etc_t)
+
+# log files
+type abrt_var_log_t;
+logging_log_file(abrt_var_log_t)
+
+# tmp files
+type abrt_tmp_t;
+files_tmp_file(abrt_tmp_t)
+
+# var/cache files
+type abrt_var_cache_t;
+files_type(abrt_var_cache_t)
+
+# pid files
+type abrt_var_run_t;
+files_pid_file(abrt_var_run_t)
+
+########################################
+#
+# abrt local policy
+#
+
+allow abrt_t self:capability { setuid setgid sys_nice dac_override };
+allow abrt_t self:process { signal signull setsched getsched };
+
+allow abrt_t self:fifo_file rw_fifo_file_perms;
+allow abrt_t self:tcp_socket create_stream_socket_perms;
+allow abrt_t self:udp_socket create_socket_perms;
+allow abrt_t self:unix_dgram_socket create_socket_perms;
+allow abrt_t self:netlink_route_socket r_netlink_socket_perms;
+
+# abrt etc files
+rw_files_pattern(abrt_t, abrt_etc_t, abrt_etc_t)
+
+# log file
+manage_files_pattern(abrt_t, abrt_var_log_t, abrt_var_log_t)
+logging_log_filetrans(abrt_t, abrt_var_log_t, file)
+
+# abrt tmp files 
+manage_dirs_pattern(abrt_t, abrt_tmp_t, abrt_tmp_t)
+manage_files_pattern(abrt_t, abrt_tmp_t, abrt_tmp_t)
+files_tmp_filetrans(abrt_t, abrt_tmp_t, { file dir })
+
+# abrt var/cache files
+manage_files_pattern(abrt_t, abrt_var_cache_t, abrt_var_cache_t)
+manage_dirs_pattern(abrt_t, abrt_var_cache_t, abrt_var_cache_t)
+files_var_filetrans(abrt_t, abrt_var_cache_t, { file dir })
+
+# abrt pid files
+manage_files_pattern(abrt_t, abrt_var_run_t, abrt_var_run_t)
+manage_dirs_pattern(abrt_t, abrt_var_run_t, abrt_var_run_t)
+files_pid_filetrans(abrt_t, abrt_var_run_t, { file dir })
+
+kernel_read_ring_buffer(abrt_t)
+kernel_read_system_state(abrt_t)
+kernel_rw_kernel_sysctl(abrt_t)
+
+corecmd_exec_bin(abrt_t)
+corecmd_exec_shell(abrt_t)
+
+corenet_tcp_connect_http_port(abrt_t)
+
+dev_read_urand(abrt_t)
+
+files_getattr_all_files(abrt_t)
+files_read_etc_files(abrt_t)
+files_read_usr_files(abrt_t)
+
+fs_list_inotifyfs(abrt_t)
+fs_getattr_all_fs(abrt_t)
+fs_getattr_all_dirs(abrt_t)
+
+sysnet_read_config(abrt_t)
+
+logging_read_generic_logs(abrt_t)
+logging_send_syslog_msg(abrt_t)
+
+miscfiles_read_certs(abrt_t)
+miscfiles_read_localization(abrt_t)
+
+# to run bugzilla plugin
+# read ~/.abrt/Bugzilla.conf
+userdom_read_user_home_content_files(abrt_t)
+
+optional_policy(`
+	dbus_connect_system_bus(abrt_t)
+	dbus_system_bus_client(abrt_t)
+')
+
+# to install debuginfo packages 
+optional_policy(`
+	rpm_manage_db(abrt_t)
+	rpm_domtrans(abrt_t)
+')
+
+# to run mailx plugin
+optional_policy(`
+	sendmail_domtrans(abrt_t)
+')
