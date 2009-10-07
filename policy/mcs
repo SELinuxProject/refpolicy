@@ -64,23 +64,26 @@ gen_levels(1,mcs_num_cats)
 # the high range of the file.  We use the high range of the process so
 # that processes can always simply run at s0.
 #
-# Note that getattr on files is always permitted.
-#
-mlsconstrain file { write setattr append unlink link rename ioctl lock execute relabelfrom }
-	( h1 dom h2 );
+# Note:
+#  - getattr on dirs/files is not constrained.
+#  - /proc/pid operations are not constrained.
 
-mlsconstrain dir { create getattr setattr read write link unlink rename search add_name remove_name reparent rmdir lock ioctl }
-	(( h1 dom h2 ) or ( t2 == domain ) or ( t1 == mlsfileread ));
+mlsconstrain file { read ioctl lock execute execute_no_trans }
+	(( h1 dom h2 ) or ( t1 == mcsreadall ) or ( t2 == domain ));
+
+mlsconstrain file { write setattr append unlink link rename }
+	(( h1 dom h2 ) or ( t1 == mcswriteall ) or ( t2 == domain ));
+
+mlsconstrain dir { search read ioctl lock }
+	(( h1 dom h2 ) or ( t1 == mcsreadall ) or ( t2 == domain ));
+
+mlsconstrain dir { write setattr append unlink link rename add_name remove_name }
+	(( h1 dom h2 ) or ( t1 == mcswriteall ) or ( t2 == domain ));
 
 # New filesystem object labels must be dominated by the relabeling subject
 # clearance, also the objects are single-level.
 mlsconstrain file { create relabelto }
 	(( h1 dom h2 ) and ( l2 eq h2 ));
-
-# At this time we do not restrict "ps" type operations via MCS.  This
-# will probably change in future.
-mlsconstrain file { read }
-	(( h1 dom h2 ) or ( t2 == domain ) or ( t1 == mlsfileread ));
 
 # new file labels must be dominated by the relabeling subject clearance
 mlsconstrain { dir lnk_file chr_file blk_file sock_file fifo_file } { relabelfrom }
