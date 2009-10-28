@@ -22,24 +22,6 @@ interface(`xserver_restricted_role',`
 		type user_fonts_t, user_fonts_cache_t, user_fonts_config_t;
 		type iceauth_t, iceauth_exec_t, iceauth_home_t;
 		type xauth_t, xauth_exec_t, xauth_home_t;
-
-		type info_xproperty_t, rootwindow_t;
-
-		class x_drawable all_x_drawable_perms;
-		class x_screen all_x_screen_perms;
-		class x_gc all_x_gc_perms;
-		class x_font all_x_font_perms;
-		class x_colormap all_x_colormap_perms;
-		class x_property all_x_property_perms;
-		class x_selection all_x_selection_perms;
-		class x_cursor all_x_cursor_perms;
-		class x_client all_x_client_perms;
-		class x_device all_x_device_perms;
-		class x_server all_x_server_perms;
-		class x_extension all_x_extension_perms;
-		class x_resource all_x_resource_perms;
-		class x_event all_x_event_perms;
-		class x_synthetic_event all_x_synthetic_event_perms;
 	')
 
 	role $1 types { xserver_t xauth_t iceauth_t };
@@ -114,6 +96,7 @@ interface(`xserver_restricted_role',`
 	miscfiles_read_fonts($2)
 
 	xserver_common_x_domain_template(user, $2)
+	xserver_unconfined($2)
 	xserver_xsession_entry_type($2)
 	xserver_dontaudit_write_log($2)
 	xserver_stream_connect_xdm($2)
@@ -129,37 +112,6 @@ interface(`xserver_restricted_role',`
 		allow $2 xserver_t:shm rw_shm_perms;
 		allow $2 xserver_tmpfs_t:file rw_file_perms;
 	')
-
-	##############################
-	#
-	# User X object manager local policy
-	#
-
-	# manage: xhost X11:ChangeHosts
-	# freeze: metacity X11:GrabKey
-	# force_cursor: metacity X11:GrabPointer
-	allow $2 xserver_t:x_device { manage freeze force_cursor };
-
-	# gnome-settings-daemon XKEYBOARD:SetControls
-	allow $2 xserver_t:x_server manage;
-
-	# gnome-settings-daemon RANDR:SelectInput
-	allow $2 xserver_t:x_resource write;
-
-	# metacity X11:InstallColormap X11:UninstallColormap
-	allow $2 rootwindow_t:x_colormap { install uninstall };
-
-	# read: gnome-settings-daemon RANDR:GetScreenSizeRange
-	# write: gnome-settings-daemon RANDR:SelectInput
-	# setattr: gnome-settings-daemon X11:GrabKey
-	# manage: metacity X11:ChangeWindowAttributes
-	allow $2 rootwindow_t:x_drawable { read write manage setattr };
-
-	# setattr: metacity X11:InstallColormap
-	allow $2 xserver_t:x_screen { saver_getattr saver_setattr setattr };
-
-	# xrdb X11:ChangeProperty prop=RESOURCE_MANAGER
-	allow $2 info_xproperty_t:x_property { create append write };
 ')
 
 ########################################
@@ -359,17 +311,13 @@ interface(`xserver_user_client',`
 #
 template(`xserver_common_x_domain_template',`
 	gen_require(`
-		type $1_xproperty_t, $1_input_xevent_t, $1_property_xevent_t;
-		type $1_focus_xevent_t, $1_manage_xevent_t, $1_default_xevent_t;
-		type $1_client_xevent_t;
-
-		type rootwindow_t, xproperty_t;
-		type input_xevent_t, focus_xevent_t, property_xevent_t, manage_xevent_t;
+		type root_xdrawable_t;
+		type xproperty_t, $1_xproperty_t;
 		type xevent_t, client_xevent_t;
+		type input_xevent_t, $1_input_xevent_t;
 
 		attribute x_domain;
-		attribute xproperty_type;
-		attribute xevent_type;
+		attribute xdrawable_type, xcolormap_type;
 		attribute input_xevent_type;
 
 		class x_drawable all_x_drawable_perms;
@@ -385,32 +333,28 @@ template(`xserver_common_x_domain_template',`
 
 	# Type attributes
 	typeattribute $2 x_domain;
+	typeattribute $2 xdrawable_type, xcolormap_type;
 
 	# X Properties
-	# can read and write client properties
-	allow $2 $1_xproperty_t:x_property { create destroy read write append };
-	type_transition $2 xproperty_t:x_property $1_xproperty_t;
+	# disable property transitions for the time being.
+#	type_transition $2 xproperty_t:x_property $1_xproperty_t;
 
 	# X Windows
 	# new windows have the domain type
-	type_transition $2 rootwindow_t:x_drawable $2;
+	type_transition $2 root_xdrawable_t:x_drawable $2;
 
 	# X Input
+	# distinguish input events
+	type_transition $2 input_xevent_t:x_event $1_input_xevent_t;
+	# can send own events
+	allow $2 $1_input_xevent_t:{ x_event x_synthetic_event } send;
 	# can receive own events
 	allow $2 $1_input_xevent_t:{ x_event x_synthetic_event } receive;
-	allow $2 $1_property_xevent_t:{ x_event x_synthetic_event } receive;
-	allow $2 $1_focus_xevent_t:{ x_event x_synthetic_event } receive;
-	allow $2 $1_manage_xevent_t:{ x_event x_synthetic_event } receive;
-	allow $2 $1_default_xevent_t:{ x_event x_synthetic_event } receive;
-	allow $2 $1_client_xevent_t:{ x_event x_synthetic_event } receive;
-	type_transition $2 input_xevent_t:x_event $1_input_xevent_t;
-	type_transition $2 property_xevent_t:x_event $1_property_xevent_t;
-	type_transition $2 focus_xevent_t:x_event $1_focus_xevent_t;
-	type_transition $2 manage_xevent_t:x_event $1_manage_xevent_t;
-	type_transition $2 client_xevent_t:x_event $1_client_xevent_t;
-	type_transition $2 xevent_t:x_event $1_default_xevent_t;
-	# can send ICCCM events to myself
-	allow $2 $1_manage_xevent_t:x_synthetic_event send;
+	# can receive default events
+	allow $2 client_xevent_t:{ x_event x_synthetic_event } receive;
+	allow $2 xevent_t:{ x_event x_synthetic_event } receive;
+	# dont audit send failures
+	dontaudit $2 input_xevent_type:x_event send;
 ')
 
 #######################################
@@ -436,27 +380,12 @@ template(`xserver_object_types_template',`
 	#
 
 	# Types for properties
-	type $1_xproperty_t alias $1_default_xproperty_t, xproperty_type;
+	type $1_xproperty_t, xproperty_type;
 	ubac_constrained($1_xproperty_t)
 
 	# Types for events
 	type $1_input_xevent_t, input_xevent_type, xevent_type;
 	ubac_constrained($1_input_xevent_t)
-
-	type $1_property_xevent_t, xevent_type;
-	ubac_constrained($1_property_xevent_t)
-
-	type $1_focus_xevent_t, xevent_type;
-	ubac_constrained($1_focus_xevent_t)
-
-	type $1_manage_xevent_t, xevent_type;
-	ubac_constrained($1_manage_xevent_t)
-
-	type $1_default_xevent_t, xevent_type;
-	ubac_constrained($1_default_xevent_t)
-
-	type $1_client_xevent_t, xevent_type;
-	ubac_constrained($1_client_xevent_t)
 ')
 
 #######################################
@@ -1249,6 +1178,49 @@ interface(`xserver_read_tmp_files',`
 ########################################
 ## <summary>
 ##	Interface to provide X object permissions on a given X server to
+##	an X client domain.  Gives the domain permission to read the
+##      virtual core keyboard and virtual core pointer devices.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xserver_manage_core_devices',`
+	gen_require(`
+		type xserver_t;
+		class x_device all_x_device_perms;
+		class x_pointer all_x_pointer_perms;
+		class x_keyboard all_x_keyboard_perms;
+	')
+
+	allow $1 xserver_t:{ x_device x_pointer x_keyboard } *;
+')
+
+########################################
+## <summary>
+##	Interface to remove protections on an X client domain.
+##	Gives other X client domains full permissions over the target
+##	domain's X objects.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to be unprotected.
+##	</summary>
+## </param>
+#
+interface(`xserver_unprotected',`
+	gen_require(`
+		attribute xserver_unprotected_type;
+	')
+
+	typeattribute $1 xserver_unprotected_type;
+')
+
+########################################
+## <summary>
+##	Interface to provide X object permissions on a given X server to
 ##	an X client domain.  Gives the domain complete control over the
 ##	display.
 ## </summary>
@@ -1260,8 +1232,10 @@ interface(`xserver_read_tmp_files',`
 #
 interface(`xserver_unconfined',`
 	gen_require(`
+		attribute x_domain;
 		attribute xserver_unconfined_type;
 	')
 
+	typeattribute $1 x_domain;
 	typeattribute $1 xserver_unconfined_type;
 ')
