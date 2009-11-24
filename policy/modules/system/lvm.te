@@ -1,5 +1,5 @@
 
-policy_module(lvm, 1.11.0)
+policy_module(lvm, 1.11.1)
 
 ########################################
 #
@@ -9,6 +9,9 @@ policy_module(lvm, 1.11.0)
 type clvmd_t;
 type clvmd_exec_t;
 init_daemon_domain(clvmd_t, clvmd_exec_t)
+
+type clvmd_initrc_exec_t;
+init_script_file(clvmd_initrc_exec_t)
 
 type clvmd_var_run_t;
 files_pid_file(clvmd_var_run_t)
@@ -102,6 +105,7 @@ fs_getattr_all_fs(clvmd_t)
 fs_search_auto_mountpoints(clvmd_t)
 fs_dontaudit_list_tmpfs(clvmd_t)
 fs_dontaudit_read_removable_files(clvmd_t)
+fs_rw_anon_inodefs_files(clvmd_t)
 
 storage_dontaudit_getattr_removable_dev(clvmd_t)
 storage_manage_fixed_disk(clvmd_t)
@@ -168,7 +172,7 @@ allow lvm_t self:process { sigchld sigkill sigstop signull signal };
 # LVM will complain a lot if it cannot set its priority.
 allow lvm_t self:process setsched;
 allow lvm_t self:file rw_file_perms;
-allow lvm_t self:fifo_file rw_fifo_file_perms;
+allow lvm_t self:fifo_file manage_fifo_file_perms;
 allow lvm_t self:unix_dgram_socket create_socket_perms;
 allow lvm_t self:netlink_kobject_uevent_socket create_socket_perms;
 
@@ -214,6 +218,7 @@ kernel_read_kernel_sysctls(lvm_t)
 # it has no reason to need this
 kernel_dontaudit_getattr_core_if(lvm_t)
 kernel_use_fds(lvm_t)
+kernel_search_debugfs(lvm_t)
 
 corecmd_exec_bin(lvm_t)
 corecmd_exec_shell(lvm_t)
@@ -255,6 +260,10 @@ fs_list_tmpfs(lvm_t)
 fs_read_tmpfs_symlinks(lvm_t)
 fs_dontaudit_read_removable_files(lvm_t)
 fs_dontaudit_getattr_tmpfs_files(lvm_t)
+fs_rw_anon_inodefs_files(lvm_t)
+
+mls_file_read_all_levels(lvm_t)
+mls_file_write_to_clearance(lvm_t)
 
 selinux_get_fs_mount(lvm_t)
 selinux_validate_context(lvm_t)
@@ -274,9 +283,12 @@ storage_dev_filetrans_fixed_disk(lvm_t)
 # Access raw devices and old /dev/lvm (c 109,0).  Is this needed?
 storage_manage_fixed_disk(lvm_t)
 
+term_use_all_terms(lvm_t)
+
 init_use_fds(lvm_t)
 init_dontaudit_getattr_initctl(lvm_t)
 init_use_script_ptys(lvm_t)
+init_read_script_state(lvm_t)
 
 logging_send_syslog_msg(lvm_t)
 
@@ -313,7 +325,9 @@ optional_policy(`
 optional_policy(`
 	dbus_system_bus_client(lvm_t)
 
-	hal_dbus_chat(lvm_t)
+	optional_policy(`
+		hal_dbus_chat(lvm_t)
+	')
 ')
 
 optional_policy(`
@@ -326,6 +340,10 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(lvm_t)
+')
+
+optional_policy(`
+	virt_manage_images(lvm_t)
 ')
 
 optional_policy(`
