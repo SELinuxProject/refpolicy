@@ -1,10 +1,17 @@
 
-policy_module(ipsec, 1.10.0)
+policy_module(ipsec, 1.10.1)
 
 ########################################
 #
 # Declarations
 #
+
+## <desc>
+## <p>
+## Allow racoon to read shadow
+## </p>
+## </desc>
+gen_tunable(racoon_read_shadow, false)
 
 type ipsec_t;
 type ipsec_exec_t;
@@ -14,6 +21,9 @@ role system_r types ipsec_t;
 # type for ipsec configuration file(s) - not for keys
 type ipsec_conf_file_t;
 files_type(ipsec_conf_file_t)
+
+type ipsec_initrc_exec_t;
+init_script_file(ipsec_initrc_exec_t)
 
 # type for file(s) containing ipsec keys - RSA or preshared
 type ipsec_key_file_t;
@@ -43,6 +53,9 @@ type racoon_exec_t;
 init_daemon_domain(racoon_t, racoon_exec_t)
 role system_r types racoon_t;
 
+type racoon_tmp_t;
+files_tmp_file(racoon_tmp_t)
+
 type setkey_t;
 type setkey_exec_t;
 init_system_domain(setkey_t, setkey_exec_t)
@@ -53,21 +66,23 @@ role system_r types setkey_t;
 # ipsec Local policy
 #
 
-allow ipsec_t self:capability { net_admin dac_override dac_read_search };
+allow ipsec_t self:capability { net_admin dac_override dac_read_search sys_nice };
 dontaudit ipsec_t self:capability sys_tty_config;
-allow ipsec_t self:process { signal setsched };
+allow ipsec_t self:process { getcap setcap getsched signal setsched };
 allow ipsec_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_t self:udp_socket create_socket_perms;
 allow ipsec_t self:key_socket create_socket_perms;
 allow ipsec_t self:fifo_file read_fifo_file_perms;
 allow ipsec_t self:netlink_xfrm_socket { create_netlink_socket_perms nlmsg_write };
 
+allow ipsec_t ipsec_initrc_exec_t:file read_file_perms;
+
 allow ipsec_t ipsec_conf_file_t:dir list_dir_perms;
 read_files_pattern(ipsec_t, ipsec_conf_file_t, ipsec_conf_file_t)
 read_lnk_files_pattern(ipsec_t, ipsec_conf_file_t, ipsec_conf_file_t)
 
 allow ipsec_t ipsec_key_file_t:dir list_dir_perms;
-read_files_pattern(ipsec_t, ipsec_key_file_t, ipsec_key_file_t)
+manage_files_pattern(ipsec_t, ipsec_key_file_t, ipsec_key_file_t)
 read_lnk_files_pattern(ipsec_t, ipsec_key_file_t, ipsec_key_file_t)
 
 manage_files_pattern(ipsec_t, ipsec_var_run_t, ipsec_var_run_t)
@@ -82,7 +97,7 @@ can_exec(ipsec_t, ipsec_mgmt_exec_t)
 # so try flipping back into the ipsec_mgmt_t domain
 corecmd_shell_domtrans(ipsec_t, ipsec_mgmt_t)
 allow ipsec_mgmt_t ipsec_t:fd use;
-allow ipsec_mgmt_t ipsec_t:fifo_file rw_file_perms;
+allow ipsec_mgmt_t ipsec_t:fifo_file rw_fifo_file_perms;
 allow ipsec_mgmt_t ipsec_t:process sigchld;
 
 kernel_read_kernel_sysctls(ipsec_t)
@@ -92,6 +107,7 @@ kernel_read_proc_symlinks(ipsec_t)
 kernel_read_system_state(ipsec_t)
 kernel_read_network_state(ipsec_t)
 kernel_read_software_raid_state(ipsec_t)
+kernel_request_load_module(ipsec_t)
 kernel_getattr_core_if(ipsec_t)
 kernel_getattr_message_if(ipsec_t)
 
@@ -120,7 +136,9 @@ dev_read_urand(ipsec_t)
 
 domain_use_interactive_fds(ipsec_t)
 
+files_list_tmp(ipsec_t)
 files_read_etc_files(ipsec_t)
+files_read_usr_files(ipsec_t)
 
 fs_getattr_all_fs(ipsec_t)
 fs_search_auto_mountpoints(ipsec_t)
@@ -159,7 +177,7 @@ allow ipsec_mgmt_t self:unix_stream_socket create_stream_socket_perms;
 allow ipsec_mgmt_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_mgmt_t self:udp_socket create_socket_perms;
 allow ipsec_mgmt_t self:key_socket create_socket_perms;
-allow ipsec_mgmt_t self:fifo_file rw_file_perms;
+allow ipsec_mgmt_t self:fifo_file rw_fifo_file_perms;
 
 allow ipsec_mgmt_t ipsec_mgmt_lock_t:file manage_file_perms;
 files_lock_filetrans(ipsec_mgmt_t, ipsec_mgmt_lock_t, file)
@@ -280,6 +298,15 @@ allow racoon_t self:unix_dgram_socket { connect create ioctl write };
 allow racoon_t self:netlink_selinux_socket { bind create read };
 allow racoon_t self:udp_socket create_socket_perms;
 allow racoon_t self:key_socket create_socket_perms;
+allow racoon_t self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(racoon_t, racoon_tmp_t, racoon_tmp_t)
+manage_files_pattern(racoon_t, racoon_tmp_t, racoon_tmp_t)
+files_tmp_filetrans(racoon_t, racoon_tmp_t, { dir file })
+
+can_exec(racoon_t, racoon_exec_t)
+
+can_exec(racoon_t, setkey_exec_t)
 
 # manage pid file
 manage_files_pattern(racoon_t, ipsec_var_run_t, ipsec_var_run_t)
@@ -296,6 +323,9 @@ read_lnk_files_pattern(racoon_t, ipsec_key_file_t, ipsec_key_file_t)
 
 kernel_read_system_state(racoon_t)
 kernel_read_network_state(racoon_t)
+
+corecmd_exec_shell(racoon_t)
+corecmd_exec_bin(racoon_t)
 
 corenet_all_recvfrom_unlabeled(racoon_t)
 corenet_tcp_sendrecv_all_if(racoon_t)
@@ -314,6 +344,8 @@ domain_ipsec_setcontext_all_domains(racoon_t)
 
 files_read_etc_files(racoon_t)
 
+fs_dontaudit_getattr_xattr_fs(racoon_t)
+
 # allow racoon to use avc_has_perm to check context on proposed SA
 selinux_compute_access_vector(racoon_t)
 
@@ -327,6 +359,13 @@ logging_send_syslog_msg(racoon_t)
 logging_send_audit_msgs(racoon_t)
 
 miscfiles_read_localization(racoon_t)
+
+sysnet_exec_ifconfig(racoon_t)
+
+auth_can_read_shadow_passwords(racoon_t)
+tunable_policy(`racoon_read_shadow',`
+	auth_tunable_read_shadow(racoon_t)
+')
 
 ########################################
 #
