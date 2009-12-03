@@ -1,10 +1,29 @@
 
-policy_module(xen, 1.9.0)
+policy_module(xen, 1.9.1)
 
 ########################################
 #
 # Declarations
 #
+
+## <desc>
+## <p>
+## Allow xen to manage nfs files
+## </p>
+## </desc>
+gen_tunable(xen_use_nfs, false)
+
+type evtchnd_t;
+type evtchnd_exec_t;
+init_daemon_domain(evtchnd_t, evtchnd_exec_t)
+
+# log files
+type evtchnd_var_log_t;
+logging_log_file(evtchnd_var_log_t)
+
+# pid files
+type evtchnd_var_run_t;
+files_pid_file(evtchnd_var_run_t)
 
 # console ptys
 type xen_devpts_t;
@@ -42,16 +61,22 @@ logging_log_file(xend_var_log_t)
 # pid files
 type xend_var_run_t;
 files_pid_file(xend_var_run_t)
+files_mountpoint(xend_var_run_t)
 
 type xenstored_t;
 type xenstored_exec_t;
-domain_type(xenstored_t)
-domain_entry_file(xenstored_t, xenstored_exec_t)
-role system_r types xenstored_t;
+init_daemon_domain(xenstored_t, xenstored_exec_t)
+
+type xenstored_tmp_t;
+files_tmp_file(xenstored_tmp_t)
 
 # var/lib files
 type xenstored_var_lib_t;
 files_type(xenstored_var_lib_t)
+
+# log files
+type xenstored_var_log_t;
+logging_log_file(xenstored_var_log_t)
 
 # pid files
 type xenstored_var_run_t;
@@ -59,9 +84,7 @@ files_pid_file(xenstored_var_run_t)
 
 type xenconsoled_t;
 type xenconsoled_exec_t;
-domain_type(xenconsoled_t)
-domain_entry_file(xenconsoled_t, xenconsoled_exec_t)
-role system_r types xenconsoled_t;
+init_daemon_domain(xenconsoled_t, xenconsoled_exec_t)
 
 # pid files
 type xenconsoled_var_run_t;
@@ -71,6 +94,20 @@ type xm_t;
 type xm_exec_t;
 domain_type(xm_t)
 init_system_domain(xm_t, xm_exec_t)
+
+#######################################
+#
+# evtchnd local policy
+#
+
+manage_dirs_pattern(evtchnd_t, evtchnd_var_log_t, evtchnd_var_log_t)
+manage_files_pattern(evtchnd_t, evtchnd_var_log_t, evtchnd_var_log_t)
+logging_log_filetrans(evtchnd_t, evtchnd_var_log_t, { file dir })
+
+manage_dirs_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
+manage_files_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
+manage_sock_files_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
+files_pid_filetrans(evtchnd_t, evtchnd_var_run_t, { file sock_file dir })
 
 ########################################
 #
@@ -95,7 +132,7 @@ manage_files_pattern(xend_t, xen_image_t, xen_image_t)
 read_lnk_files_pattern(xend_t, xen_image_t, xen_image_t)
 rw_blk_files_pattern(xend_t, xen_image_t, xen_image_t)
 
-allow xend_t xenctl_t:fifo_file manage_file_perms;
+allow xend_t xenctl_t:fifo_file manage_fifo_file_perms;
 dev_filetrans(xend_t, xenctl_t, fifo_file)
 
 manage_files_pattern(xend_t, xend_tmp_t, xend_tmp_t)
@@ -103,31 +140,30 @@ manage_dirs_pattern(xend_t, xend_tmp_t, xend_tmp_t)
 files_tmp_filetrans(xend_t, xend_tmp_t, { file dir })
 
 # pid file
-allow xend_t xend_var_run_t:dir setattr;
+manage_dirs_pattern(xend_t, xend_var_run_t, xend_var_run_t)
 manage_files_pattern(xend_t, xend_var_run_t, xend_var_run_t)
 manage_sock_files_pattern(xend_t, xend_var_run_t, xend_var_run_t)
 manage_fifo_files_pattern(xend_t, xend_var_run_t, xend_var_run_t)
-files_pid_filetrans(xend_t, xend_var_run_t, { file sock_file fifo_file })
+files_pid_filetrans(xend_t, xend_var_run_t, { file sock_file fifo_file dir })
 
 # log files
-allow xend_t xend_var_log_t:dir setattr;
+manage_dirs_pattern(xend_t, xend_var_log_t, xend_var_log_t)
 manage_files_pattern(xend_t, xend_var_log_t, xend_var_log_t)
 manage_sock_files_pattern(xend_t, xend_var_log_t, xend_var_log_t)
-logging_log_filetrans(xend_t, xend_var_log_t,{ sock_file file dir })
+logging_log_filetrans(xend_t, xend_var_log_t, { sock_file file dir })
 
 # var/lib files for xend
 manage_dirs_pattern(xend_t, xend_var_lib_t, xend_var_lib_t)
 manage_files_pattern(xend_t, xend_var_lib_t, xend_var_lib_t)
 manage_sock_files_pattern(xend_t, xend_var_lib_t, xend_var_lib_t)
 manage_fifo_files_pattern(xend_t, xend_var_lib_t, xend_var_lib_t)
-files_var_lib_filetrans(xend_t, xend_var_lib_t,{ file dir })
+files_var_lib_filetrans(xend_t, xend_var_lib_t, { file dir })
 
 # transition to store
 domtrans_pattern(xend_t, xenstored_exec_t, xenstored_t)
 
 # transition to console
-domain_auto_trans(xend_t, xenconsoled_exec_t, xenconsoled_t)
-allow xenconsoled_t xend_t:fd use;
+domtrans_pattern(xend_t, xenconsoled_exec_t, xenconsoled_t)
 
 kernel_read_kernel_sysctls(xend_t)
 kernel_read_system_state(xend_t)
@@ -183,6 +219,8 @@ term_use_generic_ptys(xend_t)
 term_use_ptmx(xend_t)
 term_getattr_pty_fs(xend_t)
 
+init_stream_connect_script(xend_t)
+
 locallogin_dontaudit_use_fds(xend_t)
 
 logging_send_syslog_msg(xend_t)
@@ -206,6 +244,10 @@ userdom_dontaudit_search_user_home_dirs(xend_t)
 xen_stream_connect_xenstore(xend_t)
 
 netutils_domtrans(xend_t)
+
+optional_policy(`
+	brctl_domtrans(xend_t)
+')
 
 optional_policy(`
 	consoletype_exec(xend_t)
@@ -239,6 +281,10 @@ domain_dontaudit_ptrace_all_domains(xenconsoled_t)
 
 files_read_usr_files(xenconsoled_t)
 
+fs_list_tmpfs(xenconsoled_t)
+fs_manage_xenfs_dirs(xenconsoled_t)
+fs_manage_xenfs_files(xenconsoled_t)
+
 term_create_pty(xenconsoled_t, xen_devpts_t)
 term_use_generic_ptys(xenconsoled_t)
 term_use_console(xenconsoled_t)
@@ -248,7 +294,7 @@ init_use_script_ptys(xenconsoled_t)
 
 miscfiles_read_localization(xenconsoled_t)
 
-xen_append_log(xenconsoled_t)
+xen_manage_log(xenconsoled_t)
 xen_stream_connect_xenstore(xenconsoled_t)
 
 ########################################
@@ -256,20 +302,32 @@ xen_stream_connect_xenstore(xenconsoled_t)
 # Xen store local policy
 #
 
-allow xenstored_t self:capability { dac_override mknod ipc_lock };
+allow xenstored_t self:capability { dac_override mknod ipc_lock sys_resource };
 allow xenstored_t self:unix_stream_socket create_stream_socket_perms;
 allow xenstored_t self:unix_dgram_socket create_socket_perms;
+
+manage_files_pattern(xenstored_t, xenstored_tmp_t, xenstored_tmp_t)
+manage_dirs_pattern(xenstored_t, xenstored_tmp_t, xenstored_tmp_t)
+files_tmp_filetrans(xenstored_t, xenstored_tmp_t, { file dir })
 
 # pid file
 manage_files_pattern(xenstored_t, xenstored_var_run_t, xenstored_var_run_t)
 manage_sock_files_pattern(xenstored_t, xenstored_var_run_t, xenstored_var_run_t)
 files_pid_filetrans(xenstored_t, xenstored_var_run_t, { file sock_file })
 
+# log files
+manage_dirs_pattern(xenstored_t, xenstored_var_log_t, xenstored_var_log_t)
+manage_files_pattern(xenstored_t, xenstored_var_log_t, xenstored_var_log_t)
+manage_sock_files_pattern(xenstored_t, xenstored_var_log_t, xenstored_var_log_t)
+logging_log_filetrans(xenstored_t, xenstored_var_log_t, { sock_file file dir })
+
 # var/lib files for xenstored
 manage_dirs_pattern(xenstored_t, xenstored_var_lib_t, xenstored_var_lib_t)
 manage_files_pattern(xenstored_t, xenstored_var_lib_t, xenstored_var_lib_t)
 manage_sock_files_pattern(xenstored_t, xenstored_var_lib_t, xenstored_var_lib_t)
-files_var_lib_filetrans(xenstored_t, xenstored_var_lib_t,{ file dir sock_file })
+files_var_lib_filetrans(xenstored_t, xenstored_var_lib_t, { file dir sock_file })
+
+stream_connect_pattern(xenstored_t, evtchnd_var_run_t, evtchnd_var_run_t, evtchnd_t)
 
 kernel_write_xen_state(xenstored_t)
 kernel_read_xen_state(xenstored_t)
@@ -304,6 +362,7 @@ xen_append_log(xenstored_t)
 #
 
 allow xm_t self:capability { dac_override ipc_lock sys_tty_config };
+allow xm_t self:process { getsched signal };
 
 # internal communication is often done using fifo and unix sockets.
 allow xm_t self:fifo_file rw_fifo_file_perms;
@@ -312,6 +371,7 @@ allow xm_t self:tcp_socket create_stream_socket_perms;
 
 manage_files_pattern(xm_t, xend_var_lib_t, xend_var_lib_t)
 manage_fifo_files_pattern(xm_t, xend_var_lib_t, xend_var_lib_t)
+manage_sock_files_pattern(xm_t, xend_var_lib_t, xend_var_lib_t)
 files_search_var_lib(xm_t)
 
 allow xm_t xen_image_t:dir rw_dir_perms;
@@ -320,16 +380,19 @@ allow xm_t xen_image_t:blk_file read_blk_file_perms;
 
 kernel_read_system_state(xm_t)
 kernel_read_kernel_sysctls(xm_t)
+kernel_read_sysctl(xm_t)
 kernel_read_xen_state(xm_t)
 kernel_write_xen_state(xm_t)
 
 corecmd_exec_bin(xm_t)
+corecmd_exec_shell(xm_t)
 
 corenet_tcp_sendrecv_generic_if(xm_t)
 corenet_tcp_sendrecv_generic_node(xm_t)
 corenet_tcp_connect_soundd_port(xm_t)
 
 dev_read_urand(xm_t)
+dev_read_sysfs(xm_t)
 
 files_read_etc_runtime_files(xm_t)
 files_read_usr_files(xm_t)
@@ -337,17 +400,58 @@ files_list_mnt(xm_t)
 # Some common macros (you might be able to remove some)
 files_read_etc_files(xm_t)
 
+fs_getattr_all_fs(xm_t)
+fs_manage_xenfs_dirs(xm_t)
+fs_manage_xenfs_files(xm_t)
+
 storage_raw_read_fixed_disk(xm_t)
 
 term_use_all_terms(xm_t)
 
+init_stream_connect_script(xm_t)
 init_rw_script_stream_sockets(xm_t)
 init_use_fds(xm_t)
 
 miscfiles_read_localization(xm_t)
 
-sysnet_read_config(xm_t)
+sysnet_dns_name_resolve(xm_t)
 
 xen_append_log(xm_t)
 xen_stream_connect(xm_t)
 xen_stream_connect_xenstore(xm_t)
+
+optional_policy(`
+	virt_manage_images(xm_t)
+	virt_stream_connect(xm_t)
+')
+
+########################################
+#
+# SSH component local policy
+#
+optional_policy(`
+	ssh_basic_client_template(xm, xm_t, system_r)
+
+	kernel_read_xen_state(xm_ssh_t)
+	kernel_write_xen_state(xm_ssh_t)
+
+	fs_manage_xenfs_dirs(xm_ssh_t)
+	fs_manage_xenfs_files(xm_ssh_t)
+
+	#Should have a boolean wrapping these
+	fs_list_auto_mountpoints(xend_t)
+	files_search_mnt(xend_t)
+	fs_getattr_all_fs(xend_t)
+	fs_read_dos_files(xend_t)
+	fs_manage_xenfs_dirs(xend_t)
+	fs_manage_xenfs_files(xend_t)
+
+	tunable_policy(`xen_use_nfs',`
+		fs_manage_nfs_files(xend_t)
+		fs_read_nfs_symlinks(xend_t)
+	')
+
+	optional_policy(`
+		unconfined_domain(xend_t)
+	')
+')

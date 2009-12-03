@@ -1,5 +1,5 @@
 
-policy_module(kernel, 1.11.0)
+policy_module(kernel, 1.11.2)
 
 ########################################
 #
@@ -9,6 +9,7 @@ policy_module(kernel, 1.11.0)
 # assertion related attributes
 attribute can_load_kernmodule;
 attribute can_receive_kernel_messages;
+attribute can_dump_kernel;
 
 neverallow ~{ can_load_kernmodule kern_unconfined } self:capability sys_module;
 
@@ -37,7 +38,7 @@ ifdef(`enable_mls',`
 #
 # kernel_t is the domain of kernel threads.
 # It is also the target type when checking permissions in the system class.
-# 
+#
 type kernel_t, can_load_kernmodule;
 domain_base_type(kernel_t)
 mls_rangetrans_source(kernel_t)
@@ -90,7 +91,7 @@ neverallow ~{ can_receive_kernel_messages kern_unconfined } proc_kmsg_t:file ~ge
 
 # /proc kcore: inaccessible
 type proc_kcore_t, proc_type;
-neverallow ~kern_unconfined proc_kcore_t:file ~getattr;
+neverallow ~{ can_dump_kernel kern_unconfined } proc_kcore_t:file ~getattr;
 genfscon proc /kcore gen_context(system_u:object_r:proc_kcore_t,mls_systemhigh)
 
 type proc_mdstat_t, proc_type;
@@ -248,7 +249,7 @@ corenet_send_all_packets(kernel_t)
 dev_read_sysfs(kernel_t)
 dev_search_usbfs(kernel_t)
 
-# Mount root file system.  Used when loading a policy
+# Mount root file system. Used when loading a policy
 # from initrd, then mounting the root filesystem
 fs_mount_all_fs(kernel_t)
 fs_unmount_all_fs(kernel_t)
@@ -275,7 +276,7 @@ mcs_process_set_categories(kernel_t)
 mls_process_read_up(kernel_t)
 mls_process_write_down(kernel_t)
 mls_file_write_all_levels(kernel_t)
-mls_file_read_all_levels(kernel_t) 
+mls_file_read_all_levels(kernel_t)
 
 ifdef(`distro_redhat',`
 	# Bugzilla 222337
@@ -309,7 +310,7 @@ optional_policy(`
 	allow kernel_t self:tcp_socket create_stream_socket_perms;
 	allow kernel_t self:udp_socket create_socket_perms;
 
-	# nfs kernel server needs kernel UDP access.  It is less risky and painful
+	# nfs kernel server needs kernel UDP access. It is less risky and painful
 	# to just give it everything.
 	corenet_udp_sendrecv_generic_if(kernel_t)
 	corenet_udp_sendrecv_generic_node(kernel_t)
@@ -326,7 +327,7 @@ optional_policy(`
 
 	rpc_manage_nfs_ro_content(kernel_t)
 	rpc_manage_nfs_rw_content(kernel_t)
-	rpc_udp_rw_nfs_sockets(kernel_t) 
+	rpc_udp_rw_nfs_sockets(kernel_t)
 
 	tunable_policy(`nfs_export_all_ro',`
 		fs_getattr_noxattr_fs(kernel_t)
@@ -355,7 +356,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	unconfined_domain(kernel_t)
+	unconfined_domain_noaudit(kernel_t)
 ')
 
 ########################################

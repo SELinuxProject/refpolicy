@@ -1,5 +1,5 @@
 
-policy_module(modutils, 1.9.0)
+policy_module(modutils, 1.9.1)
 
 gen_require(`
 	bool secure_mode_insmod;
@@ -45,7 +45,7 @@ files_tmp_file(update_modules_tmp_t)
 can_exec(depmod_t, depmod_exec_t)
 
 # Read conf.modules.
-allow depmod_t modules_conf_t:file read_file_perms;
+read_files_pattern(depmod_t, modules_conf_t, modules_conf_t)
 
 allow depmod_t modules_dep_t:file manage_file_perms;
 files_kernel_modules_filetrans(depmod_t, modules_dep_t, file)
@@ -82,8 +82,22 @@ ifdef(`distro_ubuntu',`
 	')
 ')
 
+tunable_policy(`use_nfs_home_dirs',`
+	fs_read_nfs_files(depmod_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_read_cifs_files(depmod_t)
+')
+
 optional_policy(`
 	rpm_rw_pipes(depmod_t)
+	rpm_manage_script_tmp_files(depmod_t)
+')
+
+optional_policy(`
+	# Read System.map from home directories.
+	unconfined_domain(depmod_t)
 ')
 
 ########################################
@@ -91,19 +105,23 @@ optional_policy(`
 # insmod local policy
 #
 
-allow insmod_t self:capability { dac_override net_raw sys_tty_config };
+allow insmod_t self:capability { dac_override net_raw sys_nice sys_tty_config };
 allow insmod_t self:process { execmem sigchld sigkill sigstop signull signal };
 
-allow insmod_t self:udp_socket create_socket_perms; 
-allow insmod_t self:rawip_socket create_socket_perms; 
+allow insmod_t self:udp_socket create_socket_perms;
+allow insmod_t self:rawip_socket create_socket_perms;
 
 # Read module config and dependency information
-allow insmod_t { modules_conf_t modules_dep_t }:file read_file_perms;
+list_dirs_pattern(insmod_t, modules_conf_t, modules_conf_t)
+read_files_pattern(insmod_t, modules_conf_t, modules_conf_t)
+list_dirs_pattern(insmod_t, modules_dep_t, modules_dep_t)
+read_files_pattern(insmod_t, modules_dep_t, modules_dep_t)
 
 can_exec(insmod_t, insmod_exec_t)
 
 kernel_load_module(insmod_t)
 kernel_read_system_state(insmod_t)
+kernel_read_network_state(insmod_t)
 kernel_write_proc_files(insmod_t)
 kernel_mount_debugfs(insmod_t)
 kernel_mount_kvmfs(insmod_t)
@@ -112,6 +130,7 @@ kernel_read_debugfs(insmod_t)
 kernel_read_kernel_sysctls(insmod_t)
 kernel_rw_kernel_sysctl(insmod_t)
 kernel_read_hotplug_sysctls(insmod_t)
+kernel_setsched(insmod_t)
 
 corecmd_exec_bin(insmod_t)
 corecmd_exec_shell(insmod_t)
@@ -124,9 +143,6 @@ dev_rw_agp(insmod_t)
 dev_read_sound(insmod_t)
 dev_write_sound(insmod_t)
 dev_rw_apm_bios(insmod_t)
-# cjp: why is this needed?  insmod cannot mounton any dir
-# and it also transitions to mount
-dev_mount_usbfs(insmod_t)
 
 domain_signal_all_domains(insmod_t)
 domain_use_interactive_fds(insmod_t)
@@ -159,15 +175,24 @@ seutil_read_file_contexts(insmod_t)
 
 userdom_use_user_terminals(insmod_t)
 
-ifdef(`distro_ubuntu',`
-	optional_policy(`
-		unconfined_domain(insmod_t)
-	')
-')
+userdom_dontaudit_search_user_home_dirs(insmod_t)
 
 if( ! secure_mode_insmod ) {
 	kernel_domtrans_to(insmod_t, insmod_exec_t)
 }
+
+optional_policy(`
+	alsa_domtrans(insmod_t)
+')
+
+optional_policy(`
+	firstboot_dontaudit_rw_pipes(insmod_t)
+	firstboot_dontaudit_rw_stream_sockets(insmod_t)
+')
+
+optional_policy(`
+	hal_write_log(insmod_t)
+')
 
 optional_policy(`
 	hotplug_search_config(insmod_t)
@@ -205,7 +230,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	unconfined_dontaudit_rw_pipes(insmod_t)
+	unconfined_domain(insmod_t)
 ')
 
 optional_policy(`
@@ -228,7 +253,7 @@ can_exec(update_modules_t, insmod_exec_t)
 can_exec(update_modules_t, update_modules_exec_t)
 
 # manage module loading configuration
-allow update_modules_t modules_conf_t:file manage_file_perms;
+manage_files_pattern(update_modules_t, modules_conf_t, modules_conf_t)
 files_kernel_modules_filetrans(update_modules_t, modules_conf_t, file)
 files_etc_filetrans(update_modules_t, modules_conf_t, file)
 
