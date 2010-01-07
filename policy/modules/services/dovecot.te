@@ -1,5 +1,5 @@
 
-policy_module(dovecot, 1.11.0)
+policy_module(dovecot, 1.11.1)
 
 ########################################
 #
@@ -41,7 +41,7 @@ files_type(dovecot_spool_t)
 
 # /var/lib/dovecot holds SSL parameters file
 type dovecot_var_lib_t;
-files_type(dovecot_var_lib_t) 
+files_type(dovecot_var_lib_t)
 
 type dovecot_var_log_t;
 logging_log_file(dovecot_var_log_t)
@@ -56,7 +56,7 @@ files_pid_file(dovecot_var_run_t)
 
 allow dovecot_t self:capability { dac_override dac_read_search chown net_bind_service setgid setuid sys_chroot };
 dontaudit dovecot_t self:capability sys_tty_config;
-allow dovecot_t self:process { setrlimit signal_perms };
+allow dovecot_t self:process { setrlimit signal_perms getcap setcap };
 allow dovecot_t self:fifo_file rw_fifo_file_perms;
 allow dovecot_t self:tcp_socket create_stream_socket_perms;
 allow dovecot_t self:unix_dgram_socket create_socket_perms;
@@ -159,7 +159,7 @@ optional_policy(`
 #
 
 allow dovecot_auth_t self:capability { chown dac_override setgid setuid };
-allow dovecot_auth_t self:process signal_perms;
+allow dovecot_auth_t self:process { signal_perms getcap setcap };
 allow dovecot_auth_t self:fifo_file rw_fifo_file_perms;
 allow dovecot_auth_t self:unix_dgram_socket create_socket_perms;
 allow dovecot_auth_t self:unix_stream_socket create_stream_socket_perms;
@@ -208,6 +208,11 @@ seutil_dontaudit_search_config(dovecot_auth_t)
 
 optional_policy(`
 	kerberos_use(dovecot_auth_t)
+
+	# for gssapi (kerberos)
+	userdom_list_user_tmp(dovecot_auth_t)
+	userdom_read_user_tmp_files(dovecot_auth_t)
+	userdom_read_user_tmp_symlinks(dovecot_auth_t)
 ')
 
 optional_policy(`
@@ -256,6 +261,16 @@ userdom_manage_user_home_content_symlinks(dovecot_deliver_t)
 userdom_manage_user_home_content_pipes(dovecot_deliver_t)
 userdom_manage_user_home_content_sockets(dovecot_deliver_t)
 userdom_user_home_dir_filetrans_user_home_content(dovecot_deliver_t, { dir file lnk_file fifo_file sock_file })
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_files(dovecot_t)
+	fs_manage_nfs_symlinks(dovecot_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_files(dovecot_t)
+	fs_manage_cifs_symlinks(dovecot_t)
+')
 
 optional_policy(`
 	mta_manage_spool(dovecot_deliver_t)
