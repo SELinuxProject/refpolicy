@@ -18,6 +18,25 @@ interface(`sendmail_stub',`
 
 ########################################
 ## <summary>
+##	Allow attempts to read and write to
+##	sendmail unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`sendmail_rw_pipes',`
+	gen_require(`
+		type sendmail_t;
+	')
+
+	allow $1 sendmail_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
 ##	Domain transition to sendmail.
 ## </summary>
 ## <param name="domain">
@@ -33,10 +52,34 @@ interface(`sendmail_domtrans',`
 
 	mta_sendmail_domtrans($1, sendmail_t)
 
-	allow $1 sendmail_t:fd use;
 	allow sendmail_t $1:fd use;
 	allow sendmail_t $1:fifo_file rw_file_perms;
 	allow sendmail_t $1:process sigchld;
+')
+
+########################################
+## <summary>
+##	Execute the sendmail program in the sendmail domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to allow the sendmail domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`sendmail_run',`
+	gen_require(`
+		type sendmail_t;
+	')
+
+	sendmail_domtrans($1)
+	role $2 types sendmail_t;
 ')
 
 ########################################
@@ -74,6 +117,26 @@ interface(`sendmail_rw_tcp_sockets',`
 
 	allow $1 sendmail_t:tcp_socket { read write };
 ')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write
+##	sendmail TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`sendmail_dontaudit_rw_tcp_sockets',`
+	gen_require(`
+		type sendmail_t;
+	')
+
+	dontaudit $1 sendmail_t:tcp_socket { read write };
+')
+
 ########################################
 ## <summary>
 ##	Read and write sendmail unix_stream_sockets.
@@ -89,7 +152,26 @@ interface(`sendmail_rw_unix_stream_sockets',`
 		type sendmail_t;
 	')
 
-	allow $1 sendmail_t:unix_stream_socket { read write };
+	allow $1 sendmail_t:unix_stream_socket { getattr read write ioctl };
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write
+##	sendmail unix_stream_sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`sendmail_dontaudit_rw_unix_stream_sockets',`
+	gen_require(`
+		type sendmail_t;
+	')
+
+	dontaudit $1 sendmail_t:unix_stream_socket { getattr read write ioctl };
 ')
 
 ########################################
@@ -148,4 +230,50 @@ interface(`sendmail_create_log',`
 	')
 
 	logging_log_filetrans($1, sendmail_log_t, file)
+')
+
+########################################
+## <summary>
+##	Manage sendmail tmp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`sendmail_manage_tmp_files',`
+	gen_require(`
+		type sendmail_tmp_t;
+	')
+
+	files_search_tmp($1)
+	manage_files_pattern($1, sendmail_tmp_t, sendmail_tmp_t)
+')
+
+########################################
+## <summary>
+##	Execute sendmail in the unconfined sendmail domain, and
+##	allow the specified role the unconfined sendmail domain,
+##	and use the caller's terminal.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`sendmail_run_unconfined',`
+	gen_require(`
+		type unconfined_sendmail_t;
+	')
+
+	sendmail_domtrans_unconfined($1)
+	role $2 types unconfined_sendmail_t;
 ')

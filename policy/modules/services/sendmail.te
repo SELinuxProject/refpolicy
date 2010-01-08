@@ -1,5 +1,5 @@
 
-policy_module(sendmail, 1.10.0)
+policy_module(sendmail, 1.10.1)
 
 ########################################
 #
@@ -20,13 +20,17 @@ mta_sendmail_mailserver(sendmail_t)
 mta_mailserver_delivery(sendmail_t)
 mta_mailserver_sender(sendmail_t)
 
+type unconfined_sendmail_t;
+application_domain(unconfined_sendmail_t, sendmail_exec_t)
+role system_r types unconfined_sendmail_t;
+
 ########################################
 #
 # Sendmail local policy
 #
 
-allow sendmail_t self:capability { setuid setgid net_bind_service sys_nice chown sys_tty_config };
-allow sendmail_t self:process signal;
+allow sendmail_t self:capability { dac_override setuid setgid net_bind_service sys_nice chown sys_tty_config };
+allow sendmail_t self:process { setrlimit signal signull };
 allow sendmail_t self:fifo_file rw_fifo_file_perms;
 allow sendmail_t self:unix_stream_socket create_stream_socket_perms;
 allow sendmail_t self:unix_dgram_socket create_socket_perms;
@@ -44,6 +48,7 @@ files_tmp_filetrans(sendmail_t, sendmail_tmp_t, { file dir })
 allow sendmail_t sendmail_var_run_t:file manage_file_perms;
 files_pid_filetrans(sendmail_t, sendmail_var_run_t, file)
 
+kernel_read_network_state(sendmail_t)
 kernel_read_kernel_sysctls(sendmail_t)
 # for piping mail to a command
 kernel_read_system_state(sendmail_t)
@@ -64,15 +69,18 @@ dev_read_sysfs(sendmail_t)
 
 fs_getattr_all_fs(sendmail_t)
 fs_search_auto_mountpoints(sendmail_t)
+fs_rw_anon_inodefs_files(sendmail_t)
 
 term_dontaudit_use_console(sendmail_t)
 
 # for piping mail to a command
 corecmd_exec_shell(sendmail_t)
+corecmd_exec_bin(sendmail_t)
 
 domain_use_interactive_fds(sendmail_t)
 
 files_read_etc_files(sendmail_t)
+files_read_usr_files(sendmail_t)
 files_search_spool(sendmail_t)
 # for piping mail to a command
 files_read_etc_runtime_files(sendmail_t)
@@ -89,6 +97,7 @@ auth_use_nsswitch(sendmail_t)
 libs_read_lib_files(sendmail_t)
 
 logging_send_syslog_msg(sendmail_t)
+logging_dontaudit_write_generic_logs(sendmail_t)
 
 miscfiles_read_certs(sendmail_t)
 miscfiles_read_localization(sendmail_t)
@@ -99,13 +108,35 @@ userdom_dontaudit_search_user_home_dirs(sendmail_t)
 mta_read_config(sendmail_t)
 mta_etc_filetrans_aliases(sendmail_t)
 # Write to /etc/aliases and /etc/mail.
-mta_rw_aliases(sendmail_t)
+mta_manage_aliases(sendmail_t)
 # Write to /var/spool/mail and /var/spool/mqueue.
 mta_manage_queue(sendmail_t)
 mta_manage_spool(sendmail_t)
+mta_sendmail_exec(sendmail_t)
+
+optional_policy(`
+	cron_read_pipes(sendmail_t)
+')
 
 optional_policy(`
 	clamav_search_lib(sendmail_t)
+	clamav_stream_connect(sendmail_t)
+')
+
+optional_policy(`
+	cyrus_stream_connect(sendmail_t)
+')
+
+optional_policy(`
+	exim_domtrans(sendmail_t)
+')
+
+optional_policy(`
+	fail2ban_read_lib_files(sendmail_t)
+')
+
+optional_policy(`
+	kerberos_keytab_template(sendmail, sendmail_t)
 ')
 
 optional_policy(`
@@ -113,13 +144,18 @@ optional_policy(`
 ')
 
 optional_policy(`
-	postfix_exec_master(sendmail_t)
+	munin_dontaudit_search_lib(sendmail_t)
+')
+
+optional_policy(`
+	postfix_domtrans_master(sendmail_t)
 	postfix_read_config(sendmail_t)
 	postfix_search_spool(sendmail_t)
 ')
 
 optional_policy(`
 	procmail_domtrans(sendmail_t)
+	procmail_rw_tmp_files(sendmail_t)
 ')
 
 optional_policy(`
@@ -127,24 +163,24 @@ optional_policy(`
 ')
 
 optional_policy(`
+	sasl_connect(sendmail_t)
+')
+
+optional_policy(`
 	udev_read_db(sendmail_t)
 ')
 
-ifdef(`TODO',`
-allow sendmail_t etc_mail_t:dir rw_dir_perms;
-allow sendmail_t etc_mail_t:file manage_file_perms;
-# for the start script to run make -C /etc/mail
-allow initrc_t etc_mail_t:dir rw_dir_perms;
-allow initrc_t etc_mail_t:file manage_file_perms;
-allow system_mail_t initrc_t:fd use;
-allow system_mail_t initrc_t:fifo_file write;
+optional_policy(`
+	uucp_domtrans_uux(sendmail_t)
+')
 
-# When sendmail runs as user_mail_domain, it needs some extra permissions
-# to update /etc/mail/statistics.
-allow user_mail_domain etc_mail_t:file rw_file_perms;
+########################################
+#
+# Unconfined sendmail local policy
+# Allow unconfined domain to run newalias and have transitions work
+#
 
-# Silently deny attempts to access /root.
-dontaudit system_mail_t { staff_home_dir_t sysadm_home_dir_t}:dir { getattr search };
-
-dontaudit sendmail_t admin_tty_type:chr_file { getattr ioctl };
-') dnl end TODO
+optional_policy(`
+	mta_etc_filetrans_aliases(unconfined_sendmail_t)
+	unconfined_domain(unconfined_sendmail_t)
+')
