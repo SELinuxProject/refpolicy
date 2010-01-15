@@ -1,5 +1,5 @@
 
-policy_module(ssh, 2.1.0)
+policy_module(ssh, 2.1.1)
 
 ########################################
 #
@@ -74,11 +74,11 @@ typealias ssh_tmpfs_t alias { auditadm_ssh_tmpfs_t secadm_ssh_tmpfs_t };
 files_tmpfs_file(ssh_tmpfs_t)
 ubac_constrained(ssh_tmpfs_t)
 
-type home_ssh_t;
-typealias home_ssh_t alias { user_home_ssh_t staff_home_ssh_t sysadm_home_ssh_t };
-typealias home_ssh_t alias { auditadm_home_ssh_t secadm_home_ssh_t };
-files_type(home_ssh_t)
-userdom_user_home_content(home_ssh_t)
+type ssh_home_t;
+typealias ssh_home_t alias { home_ssh_t user_ssh_home_t user_home_ssh_t staff_home_ssh_t sysadm_home_ssh_t };
+typealias ssh_home_t alias { auditadm_home_ssh_t secadm_home_ssh_t };
+files_type(ssh_home_t)
+userdom_user_home_content(ssh_home_t)
 
 ##############################
 #
@@ -95,8 +95,7 @@ allow ssh_t self:shm create_shm_perms;
 allow ssh_t self:sem create_sem_perms;
 allow ssh_t self:msgq create_msgq_perms;
 allow ssh_t self:msg { send receive };
-allow ssh_t self:tcp_socket create_socket_perms;
-allow ssh_t self:netlink_route_socket r_netlink_socket_perms;
+allow ssh_t self:tcp_socket create_stream_socket_perms;
 
 # Read the ssh key file.
 allow ssh_t sshd_key_t:file read_file_perms;
@@ -110,7 +109,7 @@ manage_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
 manage_lnk_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
 manage_fifo_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
 manage_sock_files_pattern(ssh_t, ssh_tmpfs_t, ssh_tmpfs_t)
-fs_tmpfs_filetrans(ssh_t, ssh_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+fs_tmpfs_filetrans(ssh_t, ssh_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
 manage_dirs_pattern(ssh_t, home_ssh_t, home_ssh_t)
 manage_sock_files_pattern(ssh_t, home_ssh_t, home_ssh_t)
@@ -126,11 +125,12 @@ manage_files_pattern(ssh_t, home_ssh_t, home_ssh_t)
 read_lnk_files_pattern(ssh_t, home_ssh_t, home_ssh_t)
 
 # ssh servers can read the user keys and config
-allow ssh_server home_ssh_t:dir list_dir_perms;
-read_files_pattern(ssh_server, home_ssh_t, home_ssh_t)
-read_lnk_files_pattern(ssh_server, home_ssh_t, home_ssh_t)
+allow ssh_server ssh_home_t:dir list_dir_perms;
+read_files_pattern(ssh_server, ssh_home_t, ssh_home_t)
+read_lnk_files_pattern(ssh_server, ssh_home_t, ssh_home_t)
 
 kernel_read_kernel_sysctls(ssh_t)
+kernel_read_system_state(ssh_t)
 
 corenet_all_recvfrom_unlabeled(ssh_t)
 corenet_all_recvfrom_netlabel(ssh_t)
@@ -160,12 +160,11 @@ files_read_var_files(ssh_t)
 logging_send_syslog_msg(ssh_t)
 logging_read_generic_logs(ssh_t)
 
+auth_use_nsswitch(ssh_t)
+
 miscfiles_read_localization(ssh_t)
 
 seutil_read_config(ssh_t)
-
-sysnet_read_config(ssh_t)
-sysnet_dns_name_resolve(ssh_t)
 
 userdom_dontaudit_list_user_home_dirs(ssh_t)
 userdom_search_user_home_dirs(ssh_t)
@@ -194,18 +193,7 @@ tunable_policy(`use_samba_home_dirs',`
 # for port forwarding
 tunable_policy(`user_tcp_server',`
 	corenet_tcp_bind_ssh_port(ssh_t)
-')
-
-optional_policy(`
-	kerberos_use(ssh_t)
-')
-
-optional_policy(`
-	nis_use_ypbind(ssh_t)
-')
-
-optional_policy(`
-	nscd_socket_use(ssh_t)
+	corenet_tcp_bind_generic_node(ssh_t)
 ')
 
 optional_policy(`
@@ -323,6 +311,10 @@ tunable_policy(`ssh_sysadm_login',`
 ')
 
 optional_policy(`
+	kerberos_keytab_template(sshd, sshd_t)
+')
+
+optional_policy(`
 	daemontools_service_domain(sshd_t, sshd_exec_t)
 ')
 
@@ -400,13 +392,11 @@ files_read_etc_files(ssh_keygen_t)
 init_use_fds(ssh_keygen_t)
 init_use_script_ptys(ssh_keygen_t)
 
+auth_use_nsswitch(ssh_keygen_t)
+
 logging_send_syslog_msg(ssh_keygen_t)
 
 userdom_dontaudit_use_unpriv_user_fds(ssh_keygen_t)
-
-optional_policy(`
-	nscd_socket_use(ssh_keygen_t)
-')
 
 optional_policy(`
 	seutil_sigchld_newrole(ssh_keygen_t)

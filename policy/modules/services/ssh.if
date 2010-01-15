@@ -65,8 +65,7 @@ template(`ssh_basic_client_template',`
 	allow $1_ssh_t self:sem create_sem_perms;
 	allow $1_ssh_t self:msgq create_msgq_perms;
 	allow $1_ssh_t self:msg { send receive };
-	allow $1_ssh_t self:tcp_socket create_socket_perms;
-	allow $1_ssh_t self:netlink_route_socket r_netlink_socket_perms;
+	allow $1_ssh_t self:tcp_socket create_stream_socket_perms;
 
 	# for rsync
 	allow $1_ssh_t $2:unix_stream_socket rw_socket_perms;
@@ -107,6 +106,7 @@ template(`ssh_basic_client_template',`
 	read_lnk_files_pattern(ssh_server, $1_home_ssh_t, $1_home_ssh_t)
 
 	kernel_read_kernel_sysctls($1_ssh_t)
+	kernel_read_system_state($1_ssh_t)
 
 	corenet_all_recvfrom_unlabeled($1_ssh_t)
 	corenet_all_recvfrom_netlabel($1_ssh_t)
@@ -133,6 +133,8 @@ template(`ssh_basic_client_template',`
 	files_read_etc_files($1_ssh_t)
 	files_read_var_files($1_ssh_t)
 
+	auth_use_nsswitch($1_ssh_t)
+
 	logging_send_syslog_msg($1_ssh_t)
 	logging_read_generic_logs($1_ssh_t)
 
@@ -140,19 +142,8 @@ template(`ssh_basic_client_template',`
 
 	seutil_read_config($1_ssh_t)
 
-	sysnet_read_config($1_ssh_t)
-	sysnet_dns_name_resolve($1_ssh_t)
-
 	optional_policy(`
 		kerberos_use($1_ssh_t)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1_ssh_t)
-	')
-
-	optional_policy(`
-		nscd_socket_use($1_ssh_t)
 	')
 ')
 
@@ -183,19 +174,26 @@ template(`ssh_server_template', `
 	type $1_devpts_t;
 	term_login_pty($1_devpts_t)
 
+	type $1_tmpfs_t;
+	files_tmpfs_file($1_tmpfs_t)
+
 	type $1_var_run_t;
 	files_pid_file($1_var_run_t)
 
 	allow $1_t self:capability { kill sys_chroot sys_resource chown dac_override fowner fsetid setgid setuid sys_tty_config };
 	allow $1_t self:fifo_file rw_fifo_file_perms;
-	allow $1_t self:process { signal setsched setrlimit setexec };
+	allow $1_t self:process { signal getsched setsched setrlimit setexec };
 	allow $1_t self:tcp_socket create_stream_socket_perms;
 	allow $1_t self:udp_socket create_socket_perms;
 	# ssh agent connections:
 	allow $1_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_t self:shm create_shm_perms;
 
 	allow $1_t $1_devpts_t:chr_file { rw_chr_file_perms setattr getattr relabelfrom };
-	term_create_pty($1_t,$1_devpts_t)
+	term_create_pty($1_t, $1_devpts_t)
+
+	manage_files_pattern($1_t, $1_tmpfs_t, $1_tmpfs_t)
+	fs_tmpfs_filetrans($1_t, $1_tmpfs_t, file)
 
 	allow $1_t $1_var_run_t:file manage_file_perms;
 	files_pid_filetrans($1_t, $1_var_run_t, file)
@@ -206,6 +204,7 @@ template(`ssh_server_template', `
 	allow $1_t sshd_key_t:file read_file_perms;
 
 	kernel_read_kernel_sysctls($1_t)
+	kernel_read_network_state($1_t)
 
 	corenet_all_recvfrom_unlabeled($1_t)
 	corenet_all_recvfrom_netlabel($1_t)
@@ -242,13 +241,15 @@ template(`ssh_server_template', `
 
 	miscfiles_read_localization($1_t)
 
-	sysnet_read_config($1_t)
-
 	userdom_dontaudit_relabelfrom_user_ptys($1_t)
 	userdom_search_user_home_dirs($1_t)
 
+	# Allow checking users mail at login
+	mta_getattr_spool($1_t)
+
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_read_nfs_files($1_t)
+		fs_read_nfs_symlinks($1_t)
 	')
 
 	tunable_policy(`use_samba_home_dirs',`
@@ -257,18 +258,12 @@ template(`ssh_server_template', `
 
 	optional_policy(`
 		kerberos_use($1_t)
+		kerberos_manage_host_rcache($1_t)
 	')
 
 	optional_policy(`
-		# Allow checking users mail at login
-		mta_getattr_spool($1_t)
-	')
+		files_read_var_lib_symlinks($1_t)
 
-	optional_policy(`
-		nscd_socket_use($1_t)
-	')
-
-	optional_policy(`
 		nx_spec_domtrans_server($1_t)
 	')
 ')
@@ -298,7 +293,7 @@ template(`ssh_role_template',`
 	gen_require(`
 		attribute ssh_server, ssh_agent_type;
 
-		type ssh_t, ssh_exec_t, ssh_tmpfs_t, home_ssh_t;
+		type ssh_t, ssh_exec_t, ssh_tmpfs_t, ssh_home_t;
 		type ssh_agent_exec_t, ssh_keysign_t, ssh_tmpfs_t;
 		type ssh_agent_tmp_t;
 	')
@@ -337,9 +332,10 @@ template(`ssh_role_template',`
 	allow ssh_t $3:unix_stream_socket connectto;
 
 	# user can manage the keys and config
-	manage_files_pattern($3, home_ssh_t, home_ssh_t)
-	manage_lnk_files_pattern($3, home_ssh_t, home_ssh_t)
-	manage_sock_files_pattern($3, home_ssh_t, home_ssh_t)
+	manage_files_pattern($3, ssh_home_t, ssh_home_t)
+	manage_lnk_files_pattern($3, ssh_home_t, ssh_home_t)
+	manage_sock_files_pattern($3, ssh_home_t, ssh_home_t)
+	userdom_search_user_home_dirs($1_t)
 
 	##############################
 	#
@@ -446,6 +442,24 @@ interface(`ssh_sigchld',`
 
 ########################################
 ## <summary>
+##	Send a generic signal to the ssh server.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_signal',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	allow $1 sshd_t:process signal;
+')
+
+########################################
+## <summary>
 ##	Read a ssh server unnamed pipe.
 ## </summary>
 ## <param name="domain">
@@ -460,6 +474,23 @@ interface(`ssh_read_pipes',`
 	')
 
 	allow $1 sshd_t:fifo_file { getattr read };
+')
+########################################
+## <summary>
+##	Read and write a ssh server unnamed pipe.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_rw_pipes',`
+	gen_require(`
+		type sshd_t;
+	')
+
+	allow $1 sshd_t:fifo_file { write read getattr ioctl };
 ')
 
 ########################################
@@ -570,6 +601,65 @@ interface(`ssh_exec',`
 
 ########################################
 ## <summary>
+##	Set the attributes of sshd key files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_setattr_key_files',`
+	gen_require(`
+		type sshd_key_t;
+	')
+
+	allow $1 sshd_key_t:file setattr;
+	files_search_pids($1)
+')
+
+########################################
+## <summary>
+##	Execute the ssh agent client in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_agent_exec',`
+	gen_require(`
+		type ssh_agent_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, ssh_agent_exec_t)
+')
+
+########################################
+## <summary>
+##	Read ssh home directory content
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_read_user_home_files',`
+	gen_require(`
+		type ssh_home_t;
+	')
+
+	allow $1 ssh_home_t:dir list_dir_perms;
+	read_files_pattern($1, ssh_home_t, ssh_home_t)
+	read_lnk_files_pattern($1, ssh_home_t, ssh_home_t)
+	userdom_search_user_home_dirs($1)
+')
+
+########################################
+## <summary>
 ##	Execute the ssh key generator in the ssh keygen domain.
 ## </summary>
 ## <param name="domain">
@@ -602,4 +692,23 @@ interface(`ssh_dontaudit_read_server_keys',`
 	')
 
 	dontaudit $1 sshd_key_t:file { getattr read };
+')
+
+#######################################
+## <summary>
+##	Delete from the ssh temp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ssh_delete_tmp',`
+	gen_require(`
+		type sshd_tmp_t;
+	')
+
+	files_search_tmp($1)
+	delete_files_pattern($1, sshd_tmp_t, sshd_tmp_t)
 ')
