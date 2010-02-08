@@ -1,5 +1,5 @@
 
-policy_module(postgresql, 1.9.0)
+policy_module(postgresql, 1.10.0)
 
 gen_require(`
 	class db_database all_db_database_perms;
@@ -22,6 +22,13 @@ gen_require(`
 ## </desc>
 gen_tunable(sepgsql_enable_users_ddl, true)
 
+## <desc>
+## <p>
+## Allow database admins to execute DML statement
+## </p>
+## </desc>
+gen_tunable(sepgsql_unconfined_dbadm, true)
+
 type postgresql_t;
 type postgresql_exec_t;
 init_daemon_domain(postgresql_t, postgresql_exec_t)
@@ -31,6 +38,9 @@ files_type(postgresql_db_t)
 
 type postgresql_etc_t;
 files_config_file(postgresql_etc_t)
+
+type postgresql_initrc_exec_t;
+init_script_file(postgresql_initrc_exec_t)
 
 type postgresql_lock_t;
 files_lock_file(postgresql_lock_t)
@@ -45,6 +55,7 @@ type postgresql_var_run_t;
 files_pid_file(postgresql_var_run_t)
 
 # database clients attribute
+attribute sepgsql_admin_type;
 attribute sepgsql_client_type;
 attribute sepgsql_unconfined_type;
 
@@ -336,7 +347,40 @@ allow sepgsql_client_type sepgsql_secret_blob_t:db_blob getattr;
 # to access classified tuples and can make a audit record.
 #
 # Therefore, the following rule is applied for any domains which can connect SE-PostgreSQL.
-dontaudit { postgresql_t sepgsql_client_type sepgsql_unconfined_type } { sepgsql_table_type -sepgsql_sysobj_table_type }:db_tuple { use select update insert delete };
+dontaudit { postgresql_t sepgsql_admin_type sepgsql_client_type sepgsql_unconfined_type } { sepgsql_table_type -sepgsql_sysobj_table_type }:db_tuple { use select update insert delete };
+
+
+########################################
+#
+# Rules common to administrator clients
+#
+
+allow sepgsql_admin_type sepgsql_database_type:db_database { create drop getattr setattr relabelfrom relabelto access };
+type_transition sepgsql_admin_type sepgsql_admin_type:db_database sepgsql_db_t;
+
+allow sepgsql_admin_type sepgsql_table_type:db_table { create drop getattr setattr relabelfrom relabelto lock };
+allow sepgsql_admin_type sepgsql_table_type:db_column { create drop getattr setattr relabelfrom relabelto };
+allow sepgsql_admin_type sepgsql_sysobj_table_type:db_tuple { relabelfrom relabelto select update insert delete };
+
+allow sepgsql_admin_type sepgsql_procedure_type:db_procedure { create drop getattr relabelfrom relabelto };
+
+allow sepgsql_admin_type sepgsql_blob_type:db_blob { create drop getattr setattr relabelfrom relabelto };
+
+allow sepgsql_admin_type sepgsql_module_type:db_database install_module;
+
+kernel_relabelfrom_unlabeled_database(sepgsql_admin_type)
+
+tunable_policy(`sepgsql_unconfined_dbadm',`
+	allow sepgsql_admin_type sepgsql_database_type:db_database *;
+
+	allow sepgsql_admin_type sepgsql_table_type:{ db_table db_column db_tuple } *;
+
+	allow sepgsql_admin_type sepgsql_proc_exec_t:db_procedure *;
+	allow sepgsql_admin_type sepgsql_trusted_proc_exec_t:db_procedure ~install;
+	allow sepgsql_admin_type sepgsql_procedure_type:db_procedure ~{ execute install };
+
+	allow sepgsql_admin_type sepgsql_blob_type:db_blob *;
+')
 
 ########################################
 #
