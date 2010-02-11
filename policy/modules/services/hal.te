@@ -1,5 +1,5 @@
 
-policy_module(hal, 1.12.0)
+policy_module(hal, 1.12.1)
 
 ########################################
 #
@@ -101,6 +101,7 @@ kernel_rw_irq_sysctls(hald_t)
 kernel_rw_vm_sysctls(hald_t)
 kernel_write_proc_files(hald_t)
 kernel_setsched(hald_t)
+kernel_request_load_module(hald_t)
 
 auth_read_pam_console_data(hald_t)
 
@@ -156,6 +157,11 @@ fs_getattr_all_fs(hald_t)
 fs_search_all(hald_t)
 fs_list_inotifyfs(hald_t)
 fs_list_auto_mountpoints(hald_t)
+fs_mount_dos_fs(hald_t)
+fs_unmount_dos_fs(hald_t)
+fs_manage_dos_files(hald_t)
+fs_manage_fusefs_dirs(hald_t)
+
 files_getattr_all_mountpoints(hald_t)
 
 mls_file_read_all_levels(hald_t)
@@ -197,6 +203,7 @@ miscfiles_read_localization(hald_t)
 miscfiles_read_hwdata(hald_t)
 
 modutils_domtrans_insmod(hald_t)
+modutils_read_module_deps(hald_t)
 
 seutil_read_config(hald_t)
 seutil_read_default_contexts(hald_t)
@@ -204,6 +211,8 @@ seutil_read_file_contexts(hald_t)
 
 sysnet_read_config(hald_t)
 sysnet_domtrans_dhcpc(hald_t)
+sysnet_domtrans_ifconfig(hald_t)
+sysnet_read_dhcp_config(hald_t)
 
 userdom_dontaudit_use_unpriv_user_fds(hald_t)
 userdom_dontaudit_search_user_home_dirs(hald_t)
@@ -290,6 +299,7 @@ optional_policy(`
 ')
 
 optional_policy(`
+        policykit_dbus_chat(hald_t)
 	policykit_domtrans_auth(hald_t)
 	policykit_domtrans_resolve(hald_t)
 	policykit_read_lib(hald_t)
@@ -357,6 +367,8 @@ dev_setattr_usbfs_files(hald_acl_t)
 files_read_usr_files(hald_acl_t)
 files_read_etc_files(hald_acl_t)
 
+fs_getattr_all_fs(hald_acl_t)
+
 storage_getattr_removable_dev(hald_acl_t)
 storage_setattr_removable_dev(hald_acl_t)
 storage_getattr_fixed_disk_dev(hald_acl_t)
@@ -369,6 +381,7 @@ logging_send_syslog_msg(hald_acl_t)
 miscfiles_read_localization(hald_acl_t)
 
 optional_policy(`
+        policykit_dbus_chat(hald_acl_t)
 	policykit_domtrans_auth(hald_acl_t)
 	policykit_read_lib(hald_acl_t)
 	policykit_read_reload(hald_acl_t)
@@ -455,8 +468,9 @@ miscfiles_read_localization(hald_keymap_t)
 # Local hald dccm policy
 #
 
-allow hald_dccm_t self:capability { net_bind_service };
+allow hald_dccm_t self:capability { chown net_bind_service };
 allow hald_dccm_t self:process getsched;
+allow hald_dccm_t self:fifo_file rw_fifo_file_perms;
 allow hald_dccm_t self:tcp_socket create_stream_socket_perms;
 allow hald_dccm_t self:udp_socket create_socket_perms;
 allow hald_dccm_t self:netlink_route_socket rw_netlink_socket_perms;
@@ -469,9 +483,19 @@ manage_dirs_pattern(hald_dccm_t, hald_var_lib_t, hald_var_lib_t)
 manage_files_pattern(hald_dccm_t, hald_var_lib_t, hald_var_lib_t)
 files_search_var_lib(hald_dccm_t)
 
+manage_dirs_pattern(hald_dccm_t, hald_var_run_t, hald_var_run_t)
+manage_files_pattern(hald_dccm_t, hald_var_run_t, hald_var_run_t)
+manage_sock_files_pattern(hald_dccm_t, hald_var_run_t, hald_var_run_t)
+files_pid_filetrans(hald_dccm_t, hald_var_run_t, { dir file sock_file })
+
+manage_sock_files_pattern(hald_dccm_t, hald_tmp_t, hald_tmp_t)
+files_tmp_filetrans(hald_dccm_t, hald_tmp_t, sock_file)
+
 write_files_pattern(hald_dccm_t, hald_log_t, hald_log_t)
 
 kernel_search_network_sysctl(hald_dccm_t)
+
+dev_read_urand(hald_dccm_t)
 
 corenet_all_recvfrom_unlabeled(hald_dccm_t)
 corenet_all_recvfrom_netlabel(hald_dccm_t)
@@ -484,6 +508,7 @@ corenet_udp_sendrecv_all_ports(hald_dccm_t)
 corenet_tcp_bind_generic_node(hald_dccm_t)
 corenet_udp_bind_generic_node(hald_dccm_t)
 corenet_udp_bind_dhcpc_port(hald_dccm_t)
+corenet_tcp_bind_ftp_port(hald_dccm_t)
 corenet_tcp_bind_dccm_port(hald_dccm_t)
 
 logging_send_syslog_msg(hald_dccm_t)
@@ -491,3 +516,9 @@ logging_send_syslog_msg(hald_dccm_t)
 files_read_usr_files(hald_dccm_t)
 
 miscfiles_read_localization(hald_dccm_t)
+
+hal_dontaudit_rw_dgram_sockets(hald_dccm_t)
+
+optional_policy(`
+	dbus_system_bus_client(hald_dccm_t)
+')
