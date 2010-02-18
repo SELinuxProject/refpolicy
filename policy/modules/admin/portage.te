@@ -1,5 +1,5 @@
 
-policy_module(portage, 1.9.0)
+policy_module(portage, 1.9.1)
 
 ########################################
 #
@@ -82,8 +82,11 @@ corecmd_exec_shell(gcc_config_t)
 corecmd_exec_bin(gcc_config_t)
 corecmd_manage_bin_files(gcc_config_t)
 
+domain_use_interactive_fds(gcc_config_t)
+
 files_manage_etc_files(gcc_config_t)
 files_rw_etc_runtime_files(gcc_config_t)
+files_read_usr_files(gcc_config_t)
 files_search_var_lib(gcc_config_t)
 files_search_pids(gcc_config_t)
 # complains loudly about not being able to list
@@ -119,7 +122,11 @@ optional_policy(`
 # - setfscreate for merging to live fs
 # - setexec to run portage fetch
 allow portage_t self:process { setfscreate setexec };
-allow portage_t self:capability sys_nice;
+# - kill for mysql merging, at least
+allow portage_t self:capability { sys_nice kill };
+
+# user post-sync scripts
+can_exec(portage_t, portage_conf_t)
 
 allow portage_t portage_log_t:file manage_file_perms;
 logging_log_filetrans(portage_t, portage_log_t, file)
@@ -214,6 +221,8 @@ files_tmp_filetrans(portage_fetch_t, portage_fetch_tmp_t, { file dir })
 # portage makes home dir the portage tmp dir, so
 # wget looks for .wgetrc there
 dontaudit portage_fetch_t portage_tmp_t:dir search_dir_perms;
+# rsync server timestamp check
+allow portage_fetch_t portage_tmp_t:file { read_file_perms delete_file_perms };
 
 kernel_read_system_state(portage_fetch_t)
 kernel_read_kernel_sysctls(portage_fetch_t)
