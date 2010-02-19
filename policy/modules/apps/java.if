@@ -30,6 +30,69 @@ interface(`java_role',`
 
 	allow java_t $2:unix_stream_socket connectto;
 	allow java_t $2:unix_stream_socket { read write };
+	allow java_t $2:tcp_socket { read write };
+')
+
+#######################################
+## <summary>
+##	The role template for the java module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for java applications.
+##	</p>
+## </desc>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`java_role_template',`
+	gen_require(`
+		type java_exec_t;
+	')
+
+	type $1_java_t;
+	domain_type($1_java_t)
+	domain_entry_file($1_java_t, java_exec_t)
+	role $2 types $1_java_t;
+
+	domain_interactive_fd($1_java_t)
+
+	userdom_manage_tmpfs_role($2, $1_java_t)
+
+	allow $1_java_t self:process { ptrace signal getsched execmem execstack };
+
+	dontaudit $1_java_t $3:tcp_socket { read write };
+
+	allow $3 $1_java_t:process { getattr ptrace noatsecure signal_perms };
+
+	domtrans_pattern($3, java_exec_t, $1_java_t)
+
+	corecmd_bin_domtrans($1_java_t, $3)
+
+	dev_dontaudit_append_rand($1_java_t)
+
+	files_execmod_all_files($1_java_t)
+
+	fs_dontaudit_rw_tmpfs_files($1_java_t)
+
+	optional_policy(`
+		xserver_role($2, $1_java_t)
+	')
 ')
 
 ########################################
@@ -48,6 +111,31 @@ template(`java_domtrans',`
 	')
 
 	domtrans_pattern($1, java_exec_t, java_t)
+')
+
+########################################
+## <summary>
+##	Execute java in the java domain, and
+##	allow the specified role the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the process performing this action.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the java domain.
+##	</summary>
+## </param>
+#
+interface(`java_run',`
+	gen_require(`
+		type java_t;
+	')
+
+	java_domtrans($1)
+	role $2 types java_t;
 ')
 
 ########################################
@@ -91,4 +179,22 @@ interface(`java_run_unconfined',`
 
 	java_domtrans_unconfined($1)
 	role $2 types unconfined_java_t;
+')
+
+########################################
+## <summary>
+##	Execute the java program in the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_exec',`
+	gen_require(`
+		type java_exec_t;
+	')
+
+	can_exec($1, java_exec_t)
 ')
