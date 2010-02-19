@@ -1,5 +1,42 @@
 ## <summary>QEMU machine emulator and virtualizer</summary>
 
+#######################################
+## <summary>
+##	The per role template for the qemu module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for qemu web browser.
+##	</p>
+##	<p>
+##	This template is invoked automatically for each user, and
+##	generally does not need to be invoked directly
+##	by policy writers.
+##	</p>
+## </desc>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`qemu_role',`
+	gen_require(`
+		type qemu_t, qemu_exec_t;
+	')
+
+	role $1 types { qemu_t qemu_config_t };
+
+	domtrans_pattern($2, qemu_exec_t, qemu_t)
+ 	domtrans_pattern($2, qemu_config_exec_t, qemu_config_t)
+')
+
 ########################################
 ## <summary>
 ##	Execute a domain transition to run qemu.
@@ -40,6 +77,10 @@ interface(`qemu_run',`
 
 	qemu_domtrans($1)
 	role $2 types qemu_t;
+
+	optional_policy(`
+		samba_run_smb(qemu_t, $2, $3)
+	')
 ')
 
 ########################################
@@ -58,6 +99,24 @@ interface(`qemu_read_state',`
 	')
 
 	read_files_pattern($1, qemu_t, qemu_t)
+')
+
+########################################
+## <summary>
+##	Set the schedule on qemu.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`qemu_setsched',`
+	gen_require(`
+		type qemu_t;
+	')
+
+	allow $1 qemu_t:process setsched;
 ')
 
 ########################################
@@ -210,4 +269,40 @@ template(`qemu_domain_template',`
 		xserver_read_xdm_pid($1_t)
 #		xserver_xdm_rw_shm($1_t)
 	')
+')
+
+########################################
+## <summary>
+##	Manage qemu temporary dirs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`qemu_manage_tmp_dirs',`
+	gen_require(`
+		type qemu_tmp_t;
+	')
+
+	manage_dirs_pattern($1, qemu_tmp_t, qemu_tmp_t)
+')
+
+########################################
+## <summary>
+##	Manage qemu temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`qemu_manage_tmp_files',`
+	gen_require(`
+		type qemu_tmp_t;
+	')
+
+	manage_files_pattern($1, qemu_tmp_t, qemu_tmp_t)
 ')
