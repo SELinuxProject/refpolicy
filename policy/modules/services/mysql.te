@@ -34,6 +34,21 @@ files_tmp_file(mysqld_tmp_t)
 
 ########################################
 #
+# MySQL Manager Declarations
+#
+
+type mysqlmanagerd_t;
+type mysqlmanagerd_exec_t;
+init_daemon_domain(mysqlmanagerd_t, mysqlmanagerd_exec_t)
+
+type mysqlmanagerd_initrc_exec_t;
+init_script_file(mysqlmanagerd_initrc_exec_t)
+
+type mysqlmanagerd_var_run_t;
+files_pid_file(mysqlmanagerd_var_run_t)
+
+########################################
+#
 # Local policy
 #
 
@@ -84,6 +99,7 @@ corenet_sendrecv_mysqld_client_packets(mysqld_t)
 corenet_sendrecv_mysqld_server_packets(mysqld_t)
 
 dev_read_sysfs(mysqld_t)
+dev_read_urand(mysqld_t)
 
 fs_getattr_all_fs(mysqld_t)
 fs_search_auto_mountpoints(mysqld_t)
@@ -161,3 +177,44 @@ mysql_manage_db_files(mysqld_safe_t)
 mysql_read_config(mysqld_safe_t)
 mysql_search_pid_files(mysqld_safe_t)
 mysql_write_log(mysqld_safe_t)
+
+########################################
+#
+# MySQL Manager Policy
+#
+allow mysqlmanagerd_t self:capability { dac_override kill };
+allow mysqlmanagerd_t self:process signal;
+allow mysqlmanagerd_t self:fifo_file rw_fifo_file_perms;
+allow mysqlmanagerd_t self:tcp_socket create_stream_socket_perms;
+allow mysqlmanagerd_t self:unix_stream_socket create_stream_socket_perms;
+
+mysql_read_config(initrc_t)
+mysql_read_config(mysqlmanagerd_t)
+mysql_read_pid_files(mysqlmanagerd_t)
+mysql_search_db(mysqlmanagerd_t)
+mysql_signal(mysqlmanagerd_t)
+mysql_stream_connect(mysqlmanagerd_t)
+
+kernel_read_system_state(mysqlmanagerd_t)
+corecmd_exec_shell(mysqlmanagerd_t)
+corenet_all_recvfrom_unlabeled(mysqlmanagerd_t)
+corenet_all_recvfrom_netlabel(mysqlmanagerd_t)
+corenet_tcp_sendrecv_generic_if(mysqlmanagerd_t)
+corenet_tcp_sendrecv_generic_node(mysqlmanagerd_t)
+corenet_tcp_sendrecv_all_ports(mysqlmanagerd_t)
+corenet_tcp_bind_generic_node(mysqlmanagerd_t)
+corenet_tcp_bind_mysqlmanagerd_port(mysqlmanagerd_t)
+corenet_tcp_connect_mysqlmanagerd_port(mysqlmanagerd_t)
+corenet_sendrecv_mysqlmanagerd_server_packets(mysqlmanagerd_var_run_t)
+corenet_sendrecv_mysqlmanagerd_client_packets(mysqlmanagerd_var_run_t)
+dev_read_urand(mysqlmanagerd_t)
+files_read_etc_files(mysqlmanagerd_t)
+files_read_usr_files(mysqlmanagerd_t)
+
+miscfiles_read_localization(mysqlmanagerd_t)
+userdom_getattr_user_home_dirs(mysqlmanagerd_t)
+
+domtrans_pattern(mysqlmanagerd_t, mysqld_exec_t, mysqld_t)
+filetrans_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t, { file sock_file })
+manage_files_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t)
+manage_sock_files_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t)
