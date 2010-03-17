@@ -1,5 +1,5 @@
 
-policy_module(logging, 1.15.1)
+policy_module(logging, 1.15.2)
 
 ########################################
 #
@@ -101,6 +101,7 @@ files_read_etc_files(auditctl_t)
 
 kernel_read_kernel_sysctls(auditctl_t)
 kernel_read_proc_symlinks(auditctl_t)
+kernel_setsched(auditctl_t)
 
 domain_read_all_domains_state(auditctl_t)
 domain_use_interactive_fds(auditctl_t)
@@ -123,10 +124,10 @@ logging_send_syslog_msg(auditctl_t)
 
 allow auditd_t self:capability { chown fsetid sys_nice sys_resource };
 dontaudit auditd_t self:capability sys_tty_config;
-allow auditd_t self:process { signal_perms setpgid setsched };
+allow auditd_t self:process { getcap signal_perms setcap setpgid setsched };
 allow auditd_t self:file rw_file_perms;
 allow auditd_t self:unix_dgram_socket create_socket_perms;
-allow auditd_t self:fifo_file rw_file_perms;
+allow auditd_t self:fifo_file rw_fifo_file_perms;
 allow auditd_t self:tcp_socket create_stream_socket_perms;
 
 allow auditd_t auditd_etc_t:dir list_dir_perms;
@@ -215,9 +216,9 @@ optional_policy(`
 # audit dispatcher local policy
 #
 
-allow audisp_t self:capability sys_nice;
-allow audisp_t self:process setsched;
-allow audisp_t self:fifo_file rw_file_perms;
+allow audisp_t self:capability { dac_override setpcap sys_nice };
+allow audisp_t self:process { getcap signal_perms setcap setsched };
+allow audisp_t self:fifo_file rw_fifo_file_perms;
 allow audisp_t self:unix_stream_socket create_stream_socket_perms;
 allow audisp_t self:unix_dgram_socket create_socket_perms;
 
@@ -226,11 +227,13 @@ allow audisp_t auditd_t:unix_stream_socket rw_socket_perms;
 manage_sock_files_pattern(audisp_t, audisp_var_run_t, audisp_var_run_t)
 files_pid_filetrans(audisp_t, audisp_var_run_t, sock_file)
 
-corecmd_search_bin(audisp_t)
+corecmd_exec_bin(audisp_t)
+corecmd_exec_shell(audisp_t)
 
 domain_use_interactive_fds(audisp_t)
 
 files_read_etc_files(audisp_t)
+files_read_etc_runtime_files(audisp_t)
 
 mls_file_write_all_levels(audisp_t)
 
@@ -239,6 +242,10 @@ logging_send_syslog_msg(audisp_t)
 miscfiles_read_localization(audisp_t)
 
 sysnet_dns_name_resolve(audisp_t)
+
+optional_policy(`
+	dbus_system_bus_client(audisp_t)
+')
 
 ########################################
 #
@@ -251,6 +258,9 @@ corenet_all_recvfrom_unlabeled(audisp_remote_t)
 corenet_all_recvfrom_netlabel(audisp_remote_t)
 corenet_tcp_sendrecv_generic_if(audisp_remote_t)
 corenet_tcp_sendrecv_generic_node(audisp_remote_t)
+corenet_tcp_sendrecv_all_ports(audisp_remote_t)
+corenet_tcp_bind_audit_port(audisp_remote_t)
+corenet_tcp_bind_generic_node(audisp_remote_t)
 corenet_tcp_connect_audit_port(audisp_remote_t)
 corenet_sendrecv_audit_client_packets(audisp_remote_t)
 
@@ -332,13 +342,12 @@ optional_policy(`
 allow syslogd_t self:capability { dac_override sys_resource sys_tty_config net_admin sys_admin chown fsetid };
 dontaudit syslogd_t self:capability sys_tty_config;
 # setpgid for metalog
-# setrlimit for syslog-ng
-allow syslogd_t self:process { signal_perms setpgid setrlimit };
+allow syslogd_t self:process { signal_perms setpgid };
 # receive messages to be logged
 allow syslogd_t self:unix_dgram_socket create_socket_perms;
 allow syslogd_t self:unix_stream_socket create_stream_socket_perms;
 allow syslogd_t self:unix_dgram_socket sendto;
-allow syslogd_t self:fifo_file rw_file_perms;
+allow syslogd_t self:fifo_file rw_fifo_file_perms;
 allow syslogd_t self:udp_socket create_socket_perms;
 allow syslogd_t self:tcp_socket create_stream_socket_perms;
 
@@ -462,7 +471,15 @@ ifdef(`distro_ubuntu',`
 ')
 
 optional_policy(`
+	bind_search_cache(syslogd_t)
+')
+
+optional_policy(`
 	inn_manage_log(syslogd_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(syslogd_t)
 ')
 
 optional_policy(`
