@@ -1,5 +1,5 @@
 
-policy_module(init, 1.14.1)
+policy_module(init, 1.14.2)
 
 gen_require(`
 	class passwd rootok;
@@ -122,6 +122,7 @@ corecmd_exec_bin(init_t)
 
 dev_read_sysfs(init_t)
 
+domain_getpgid_all_domains(init_t)
 domain_kill_all_domains(init_t)
 domain_signal_all_domains(init_t)
 domain_signull_all_domains(init_t)
@@ -140,6 +141,7 @@ files_exec_etc_files(init_t)
 files_dontaudit_rw_root_files(init_t)
 files_dontaudit_rw_root_chr_files(init_t)
 
+fs_list_inotifyfs(init_t)
 # cjp: this may be related to /dev/log
 fs_write_ramfs_sockets(init_t)
 
@@ -172,6 +174,7 @@ ifdef(`distro_gentoo',`
 ')
 
 ifdef(`distro_redhat',`
+	fs_read_tmpfs_symlinks(init_t)
 	fs_rw_tmpfs_chr_files(init_t)
 	fs_tmpfs_filetrans(init_t, initctl_t, fifo_file)
 ')
@@ -189,7 +192,15 @@ optional_policy(`
 ')
 
 optional_policy(`
+	dbus_system_bus_client(init_t)
+')
+
+optional_policy(`
 	nscd_socket_use(init_t)
+')
+
+optional_policy(`
+	sssd_stream_connect(init_t)
 ')
 
 optional_policy(`
@@ -205,6 +216,7 @@ allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability ~{ sys_admin sys_module };
 dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
 allow initrc_t self:passwd rootok;
+allow initrc_t self:key manage_key_perms;
 
 # Allow IPC with self
 allow initrc_t self:unix_dgram_socket create_socket_perms;
@@ -217,7 +229,7 @@ allow initrc_t initrc_devpts_t:chr_file rw_term_perms;
 term_create_pty(initrc_t, initrc_devpts_t)
 
 # Going to single user mode
-init_exec(initrc_t)
+init_telinit(initrc_t)
 
 can_exec(initrc_t, init_script_file_type)
 
@@ -232,8 +244,9 @@ allow initrc_t initrc_var_run_t:file manage_file_perms;
 files_pid_filetrans(initrc_t, initrc_var_run_t, file)
 
 can_exec(initrc_t, initrc_tmp_t)
-allow initrc_t initrc_tmp_t:file manage_file_perms;
-allow initrc_t initrc_tmp_t:dir manage_dir_perms;
+manage_files_pattern(initrc_t, initrc_tmp_t, initrc_tmp_t)
+manage_dirs_pattern(initrc_t, initrc_tmp_t, initrc_tmp_t)
+manage_lnk_files_pattern(initrc_t, initrc_tmp_t, initrc_tmp_t)
 files_tmp_filetrans(initrc_t, initrc_tmp_t, { file dir })
 
 init_write_initctl(initrc_t)
@@ -267,21 +280,27 @@ corenet_sendrecv_all_client_packets(initrc_t)
 
 dev_read_rand(initrc_t)
 dev_read_urand(initrc_t)
+dev_write_kmsg(initrc_t)
 dev_write_rand(initrc_t)
 dev_write_urand(initrc_t)
 dev_rw_sysfs(initrc_t)
 dev_list_usbfs(initrc_t)
 dev_read_framebuffer(initrc_t)
+dev_write_framebuffer(initrc_t)
 dev_read_realtime_clock(initrc_t)
 dev_read_sound_mixer(initrc_t)
 dev_write_sound_mixer(initrc_t)
 dev_setattr_all_chr_files(initrc_t)
-dev_read_lvm_control(initrc_t)
+dev_rw_lvm_control(initrc_t)
 dev_delete_lvm_control_dev(initrc_t)
 dev_manage_generic_symlinks(initrc_t)
 dev_manage_generic_files(initrc_t)
 # Wants to remove udev.tbl:
 dev_delete_generic_symlinks(initrc_t)
+dev_getattr_all_blk_files(initrc_t)
+dev_getattr_all_chr_files(initrc_t)
+
+corecmd_exec_all_executables(initrc_t)
 
 domain_kill_all_domains(initrc_t)
 domain_signal_all_domains(initrc_t)
@@ -313,7 +332,6 @@ files_delete_all_pid_dirs(initrc_t)
 files_read_etc_files(initrc_t)
 files_manage_etc_runtime_files(initrc_t)
 files_etc_filetrans_etc_runtime(initrc_t, file)
-files_manage_generic_locks(initrc_t)
 files_exec_etc_files(initrc_t)
 files_read_usr_files(initrc_t)
 files_manage_urandom_seed(initrc_t)
@@ -325,6 +343,7 @@ files_mounton_isid_type_dirs(initrc_t)
 files_list_default(initrc_t)
 files_mounton_default(initrc_t)
 
+fs_list_inotifyfs(initrc_t)
 fs_register_binary_executable_type(initrc_t)
 # rhgb-console writes to ramfs
 fs_write_ramfs_pipes(initrc_t)
@@ -365,7 +384,9 @@ auth_use_nsswitch(initrc_t)
 
 libs_rw_ld_so_cache(initrc_t)
 libs_exec_lib_files(initrc_t)
+libs_exec_ld_so(initrc_t)
 
+logging_send_audit_msgs(initrc_t)
 logging_send_syslog_msg(initrc_t)
 logging_manage_generic_logs(initrc_t)
 logging_read_all_logs(initrc_t)
@@ -382,7 +403,7 @@ modutils_domtrans_insmod(initrc_t)
 seutil_read_config(initrc_t)
 
 userdom_read_user_home_content_files(initrc_t)
-# Allow access to the sysadm TTYs. Note that this will give access to the 
+# Allow access to the sysadm TTYs. Note that this will give access to the
 # TTYs to any process in the initrc_t domain. Therefore, daemons and such
 # started from init should be placed in their own domain.
 userdom_use_user_terminals(initrc_t)
@@ -431,7 +452,7 @@ ifdef(`distro_gentoo',`
 	# /lib/rcscripts/net/system.sh rewrites resolv.conf :(
 	sysnet_create_config(initrc_t)
 	sysnet_write_config(initrc_t)
-	sysnet_setattr_config(initrc_t)	
+	sysnet_setattr_config(initrc_t)
 
 	optional_policy(`
 		arpwatch_manage_data_files(initrc_t)
@@ -453,8 +474,6 @@ ifdef(`distro_redhat',`
 	kernel_dontaudit_use_fds(initrc_t)
 	files_dontaudit_read_root_files(initrc_t)
 
-	selinux_set_enforce_mode(initrc_t)
-
 	# These seem to be from the initrd
 	# during device initialization:
 	dev_create_generic_dirs(initrc_t)
@@ -464,6 +483,7 @@ ifdef(`distro_redhat',`
 	storage_raw_read_fixed_disk(initrc_t)
 	storage_raw_write_fixed_disk(initrc_t)
 
+	files_create_boot_dirs(initrc_t)
 	files_create_boot_flag(initrc_t)
 	files_rw_boot_symlinks(initrc_t)
 	# wants to read /.fonts directory
@@ -472,6 +492,7 @@ ifdef(`distro_redhat',`
 	# Needs to cp localtime to /var dirs
 	files_write_var_dirs(initrc_t)
 
+	fs_read_tmpfs_symlinks(initrc_t)
 	fs_rw_tmpfs_chr_files(initrc_t)
 
 	storage_manage_fixed_disk(initrc_t)
@@ -490,6 +511,10 @@ ifdef(`distro_redhat',`
 	miscfiles_read_hwdata(initrc_t)
 
 	optional_policy(`
+		alsa_manage_rw_config(initrc_t)
+	')
+
+	optional_policy(`
 		bind_manage_config_dirs(initrc_t)
 		bind_write_config(initrc_t)
 	')
@@ -497,10 +522,12 @@ ifdef(`distro_redhat',`
 	optional_policy(`
 		#for /etc/rc.d/init.d/nfs to create /etc/exports
 		rpc_write_exports(initrc_t)
+		rpc_manage_nfs_state_data(initrc_t)
 	')
 
 	optional_policy(`
 		sysnet_rw_dhcp_config(initrc_t)
+		sysnet_manage_config(initrc_t)
 	')
 
 	optional_policy(`
@@ -569,7 +596,15 @@ optional_policy(`
 	dbus_read_config(initrc_t)
 
 	optional_policy(`
+		consolekit_dbus_chat(initrc_t)
+	')
+
+	optional_policy(`
 		networkmanager_dbus_chat(initrc_t)
+	')
+
+	optional_policy(`
+		policykit_dbus_chat(initrc_t)
 	')
 ')
 
@@ -590,6 +625,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	hal_write_log(initrc_t)
+')
+
+optional_policy(`
 	dev_read_usbfs(initrc_t)
 
 	# init scripts run /etc/hotplug/usb.rc
@@ -605,6 +644,11 @@ optional_policy(`
 optional_policy(`
 	ipsec_read_config(initrc_t)
 	ipsec_manage_pid(initrc_t)
+')
+
+optional_policy(`
+	iscsi_stream_connect(initrc_t)
+	iscsi_read_lib_files(initrc_t)
 ')
 
 optional_policy(`
@@ -654,12 +698,6 @@ optional_policy(`
 	mta_read_config(initrc_t)
 	mta_dontaudit_read_spool_symlinks(initrc_t)
 ')
-# cjp: require doesnt work in the else of optionals :\
-# this also would result in a type transition
-# conflict if sendmail is enabled
-#optional_policy(`',`
-#	mta_send_mail(initrc_t)
-#')
 
 optional_policy(`
 	ifdef(`distro_redhat',`
@@ -668,6 +706,7 @@ optional_policy(`
 
 	mysql_stream_connect(initrc_t)
 	mysql_write_log(initrc_t)
+	mysql_read_config(initrc_t)
 ')
 
 optional_policy(`
@@ -700,7 +739,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	corecmd_shell_entry_type(initrc_t)
 	fs_write_ramfs_sockets(initrc_t)
 	fs_search_ramfs(initrc_t)
 
@@ -743,6 +781,7 @@ optional_policy(`
 
 optional_policy(`
 	ssh_dontaudit_read_server_keys(initrc_t)
+	ssh_setattr_key_files(initrc_t)
 ')
 
 optional_policy(`
@@ -751,10 +790,15 @@ optional_policy(`
 
 optional_policy(`
 	udev_rw_db(initrc_t)
+	udev_manage_pid_files(initrc_t)
 ')
 
 optional_policy(`
 	uml_setattr_util_sockets(initrc_t)
+')
+
+optional_policy(`
+	virt_manage_svirt_cache(initrc_t)
 ')
 
 optional_policy(`
