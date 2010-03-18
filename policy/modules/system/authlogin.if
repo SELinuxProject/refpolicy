@@ -32,6 +32,54 @@ interface(`auth_role',`
 
 ########################################
 ## <summary>
+##	Use PAM for authentication.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_use_pam',`
+
+	# for SSP/ProPolice
+	dev_read_urand($1)
+	# for encrypted homedir
+	dev_read_sysfs($1)
+
+	auth_domtrans_chk_passwd($1)
+	auth_domtrans_upd_passwd($1)
+	auth_dontaudit_read_shadow($1)
+	auth_read_login_records($1)
+	auth_append_login_records($1)
+	auth_rw_lastlog($1)
+	auth_rw_faillog($1)
+	auth_exec_pam($1)
+	auth_use_nsswitch($1)
+
+	logging_send_audit_msgs($1)
+	logging_send_syslog_msg($1)
+
+	optional_policy(`
+		dbus_system_bus_client($1)
+
+		optional_policy(`
+			consolekit_dbus_chat($1)
+		')
+	')
+
+	optional_policy(`
+		kerberos_manage_host_rcache($1)
+		kerberos_read_config($1)
+	')
+
+	optional_policy(`
+		nis_authenticate($1)
+	')
+')
+
+########################################
+## <summary>
 ##	Make the specified domain used for a login program.
 ## </summary>
 ## <param name="domain">
@@ -51,19 +99,26 @@ interface(`auth_login_pgm_domain',`
 	domain_obj_id_change_exemption($1)
 	role system_r types $1;
 
+	# Needed for pam_selinux_permit to cleanup properly
+	domain_read_all_domains_state($1)
+	domain_kill_all_domains($1)
+
+	# pam_keyring
+	allow $1 self:capability ipc_lock;
+	allow $1 self:process setkeycreate;
+	allow $1 self:key manage_key_perms;
+
 	files_list_var_lib($1)
 	manage_files_pattern($1, var_auth_t, var_auth_t)
-
-	# needed for afs - https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=253321
-	kernel_rw_afs_state($1)
 
 	manage_dirs_pattern($1, auth_cache_t, auth_cache_t)
 	manage_files_pattern($1, auth_cache_t, auth_cache_t)
 	manage_sock_files_pattern($1, auth_cache_t, auth_cache_t)
 	files_var_filetrans($1, auth_cache_t, dir)
 
-	# for SSP/ProPolice
-	dev_read_urand($1)
+	# needed for afs - https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=253321
+	kernel_rw_afs_state($1)
+
 	# for fingerprint readers
 	dev_rw_input_dev($1)
 	dev_rw_generic_usb_dev($1)
@@ -86,21 +141,12 @@ interface(`auth_login_pgm_domain',`
 	mls_process_set_level($1)
 	mls_fd_share_all_levels($1)
 
-	auth_domtrans_chk_passwd($1)
-	auth_domtrans_upd_passwd($1)
-	auth_dontaudit_read_shadow($1)
-	auth_read_login_records($1)
-	auth_append_login_records($1)
-	auth_rw_lastlog($1)
-	auth_rw_faillog($1)
-	auth_exec_pam($1)
-	auth_use_nsswitch($1)
+	auth_use_pam($1)
 
 	init_rw_utmp($1)
 
-	logging_send_audit_msgs($1)
-	logging_send_syslog_msg($1)
 	logging_set_loginuid($1)
+	logging_set_tty_audit($1)
 
 	seutil_read_config($1)
 	seutil_read_default_contexts($1)
@@ -258,6 +304,7 @@ interface(`auth_manage_cache',`
 		type auth_cache_t;
 	')
 
+	manage_dirs_pattern($1, auth_cache_t, auth_cache_t)
 	manage_files_pattern($1, auth_cache_t, auth_cache_t)
 ')
 
@@ -305,19 +352,16 @@ interface(`auth_domtrans_chk_passwd',`
 	dev_read_rand($1)
 	dev_read_urand($1)
 
+	auth_use_nsswitch($1)
+	auth_rw_faillog($1)
+
 	logging_send_audit_msgs($1)
 
 	miscfiles_read_certs($1)
 
-	sysnet_dns_name_resolve($1)
-	sysnet_use_ldap($1)
-
 	optional_policy(`
-		kerberos_use($1)
-	')
-
-	optional_policy(`
-		nis_use_ypbind($1)
+		kerberos_read_keytab($1)
+		kerberos_connect_524($1)
 	')
 
 	optional_policy(`
@@ -328,6 +372,28 @@ interface(`auth_domtrans_chk_passwd',`
 	optional_policy(`
 		samba_stream_connect_winbind($1)
 	')
+')
+
+########################################
+## <summary>
+##	Run unix_chkpwd to check a password.
+## 	Stripped down version to be called within boolean
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_domtrans_chkpwd',`
+	gen_require(`
+		type chkpwd_t, chkpwd_exec_t, shadow_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, chkpwd_exec_t, chkpwd_t)
+	dontaudit $1 shadow_t:file { getattr read };
+	auth_domtrans_upd_passwd($1)
 ')
 
 ########################################
@@ -1129,6 +1195,32 @@ interface(`auth_relabel_all_files_except_shadow',`
 
 ########################################
 ## <summary>
+##	Read and write all files on the filesystem, except
+##	the shadow passwords and listed exceptions.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The type of the domain perfoming this action.
+##	</summary>
+## </param>
+## <param name="exception_types" optional="true">
+##	<summary>
+##	The types to be excluded.  Each type or attribute
+##	must be negated by the caller.
+##	</summary>
+## </param>
+#
+
+interface(`auth_rw_all_files_except_shadow',`
+	gen_require(`
+		type shadow_t;
+	')
+
+	files_rw_all_files($1,$2 -shadow_t)
+')
+
+########################################
+## <summary>
 ##	Manage all files on the filesystem, except
 ##	the shadow passwords and listed exceptions.
 ## </summary>
@@ -1250,6 +1342,26 @@ interface(`auth_read_login_records',`
 
 	logging_search_logs($1)
 	allow $1 wtmp_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read login records
+##	files (/var/log/wtmp).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`auth_dontaudit_read_login_records',`
+	gen_require(`
+		type wtmp_t;
+	')
+
+	dontaudit $1 wtmp_t:file read_file_perms;
 ')
 
 ########################################
@@ -1402,8 +1514,16 @@ interface(`auth_use_nsswitch',`
 		avahi_stream_connect($1)
 	')
 
+	optional_policy(`
+		ldap_stream_connect($1)
+	')
+
  	optional_policy(`
 		likewise_stream_connect_lsassd($1)
+	')
+
+	optional_policy(`
+		kerberos_use($1)
 	')
 
 	optional_policy(`
@@ -1417,6 +1537,7 @@ interface(`auth_use_nsswitch',`
 	optional_policy(`
 		samba_stream_connect_winbind($1)
 		samba_read_var_files($1)
+		samba_dontaudit_write_var_files($1)
 	')
 ')
 
