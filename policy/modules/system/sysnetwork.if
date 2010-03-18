@@ -43,6 +43,42 @@ interface(`sysnet_run_dhcpc',`
 
 	sysnet_domtrans_dhcpc($1)
 	role $2 types dhcpc_t;
+
+	modutils_run_insmod(dhcpc_t, $2)
+
+	sysnet_run_ifconfig(dhcpc_t, $2)
+
+	optional_policy(`
+		consoletype_run(dhcpc_t, $2)
+	')
+
+	optional_policy(`
+		hostname_run(dhcpc_t, $2)
+	')
+
+	optional_policy(`
+		netutils_run(dhcpc_t, $2)
+		netutils_run_ping(dhcpc_t, $2)
+	')
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to use
+##	the dhcp file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The domain sending the SIGCHLD.
+##	</summary>
+## </param>
+#
+interface(`sysnet_dontaudit_use_dhcpc_fds',`
+	gen_require(`
+		type dhcpc_t;
+	')
+
+	dontaudit $1 dhcpc_t:fd use;
 ')
 
 ########################################
@@ -192,7 +228,25 @@ interface(`sysnet_read_dhcpc_state',`
 		type dhcpc_state_t;
 	')
 
-	allow $1 dhcpc_state_t:file read_file_perms;
+	read_files_pattern($1, dhcpc_state_t, dhcpc_state_t)
+')
+
+#######################################
+## <summary>
+##	Delete the dhcp client state files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`sysnet_delete_dhcpc_state',`
+	gen_require(`
+		type dhcpc_state_t;
+	')
+
+	delete_files_pattern($1, dhcpc_state_t, dhcpc_state_t)
 ')
 
 #######################################
@@ -252,6 +306,11 @@ interface(`sysnet_read_config',`
 
 	files_search_etc($1)
 	allow $1 net_conf_t:file read_file_perms;
+
+	ifdef(`distro_redhat',`
+		allow $1 net_conf_t:dir list_dir_perms;
+		read_files_pattern($1, net_conf_t, net_conf_t)
+	')
 ')
 
 #######################################
@@ -345,6 +404,10 @@ interface(`sysnet_manage_config',`
 	')
 
 	allow $1 net_conf_t:file manage_file_perms;
+
+	ifdef(`distro_redhat',`
+		manage_files_pattern($1, net_conf_t, net_conf_t)
+	')
 ')
 
 #######################################
@@ -485,6 +548,7 @@ interface(`sysnet_read_dhcp_config',`
 	')
 
 	files_search_etc($1)
+	allow $1 dhcp_etc_t:dir list_dir_perms;
 	read_files_pattern($1, dhcp_etc_t, dhcp_etc_t)
 ')
 
@@ -578,6 +642,14 @@ interface(`sysnet_dns_name_resolve',`
 	corenet_sendrecv_dns_client_packets($1)
 
 	sysnet_read_config($1)
+
+	optional_policy(`
+		avahi_stream_connect($1)
+	')
+
+	optional_policy(`
+		nscd_socket_use($1)
+	')
 ')
 
 ########################################

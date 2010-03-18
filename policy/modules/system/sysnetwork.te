@@ -1,5 +1,5 @@
 
-policy_module(sysnetwork, 1.10.2)
+policy_module(sysnetwork, 1.10.3)
 
 ########################################
 #
@@ -41,21 +41,23 @@ files_type(net_conf_t)
 #
 # DHCP client local policy
 #
-allow dhcpc_t self:capability { dac_override fsetid net_admin net_raw net_bind_service sys_resource sys_tty_config };
-dontaudit dhcpc_t self:capability sys_tty_config;
+allow dhcpc_t self:capability { dac_override fsetid net_admin net_raw net_bind_service setpcap sys_nice sys_resource sys_tty_config };
+dontaudit dhcpc_t self:capability { sys_tty_config sys_ptrace };
 # for access("/etc/bashrc", X_OK) on Red Hat
 dontaudit dhcpc_t self:capability { dac_read_search sys_module };
-allow dhcpc_t self:process signal_perms;
-allow dhcpc_t self:fifo_file rw_file_perms;
+allow dhcpc_t self:process { getsched getcap setcap setfscreate ptrace signal_perms };
+
+allow dhcpc_t self:fifo_file rw_fifo_file_perms;
 allow dhcpc_t self:tcp_socket create_stream_socket_perms;
 allow dhcpc_t self:udp_socket create_socket_perms;
 allow dhcpc_t self:packet_socket create_socket_perms;
-allow dhcpc_t self:netlink_route_socket { create_socket_perms nlmsg_read nlmsg_write };
+allow dhcpc_t self:netlink_route_socket { create_socket_perms nlmsg_read };
 
 allow dhcpc_t dhcp_etc_t:dir list_dir_perms;
 read_lnk_files_pattern(dhcpc_t, dhcp_etc_t, dhcp_etc_t)
 exec_files_pattern(dhcpc_t, dhcp_etc_t, dhcp_etc_t)
 
+allow dhcpc_t dhcp_state_t:file read_file_perms;
 manage_files_pattern(dhcpc_t, dhcpc_state_t, dhcpc_state_t)
 filetrans_pattern(dhcpc_t, dhcp_state_t, dhcpc_state_t, file)
 
@@ -65,7 +67,7 @@ files_pid_filetrans(dhcpc_t, dhcpc_var_run_t, file)
 
 # Allow read/write to /etc/resolv.conf and /etc/ntp.conf. Note that any files
 # in /etc created by dhcpcd will be labelled net_conf_t.
-allow dhcpc_t net_conf_t:file manage_file_perms;
+sysnet_manage_config(dhcpc_t)
 files_etc_filetrans(dhcpc_t, net_conf_t, file)
 
 # create temp files
@@ -80,7 +82,9 @@ domtrans_pattern(dhcpc_t, ifconfig_exec_t, ifconfig_t)
 
 kernel_read_system_state(dhcpc_t)
 kernel_read_network_state(dhcpc_t)
+kernel_search_network_sysctl(dhcpc_t)
 kernel_read_kernel_sysctls(dhcpc_t)
+kernel_request_load_module(dhcpc_t)
 kernel_use_fds(dhcpc_t)
 
 corecmd_exec_bin(dhcpc_t)
@@ -108,13 +112,15 @@ dev_read_sysfs(dhcpc_t)
 dev_read_urand(dhcpc_t)
 
 domain_use_interactive_fds(dhcpc_t)
-domain_dontaudit_list_all_domains_state(dhcpc_t)
+domain_dontaudit_read_all_domains_state(dhcpc_t)
 
 files_read_etc_files(dhcpc_t)
 files_read_etc_runtime_files(dhcpc_t)
+files_read_usr_files(dhcpc_t)
 files_search_home(dhcpc_t)
 files_search_var_lib(dhcpc_t)
 files_dontaudit_search_locks(dhcpc_t)
+files_getattr_generic_locks(dhcpc_t)
 
 fs_getattr_all_fs(dhcpc_t)
 fs_search_auto_mountpoints(dhcpc_t)
@@ -165,6 +171,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	hal_dontaudit_rw_dgram_sockets(dhcpc_t)
+')
+
+optional_policy(`
 	hotplug_getattr_config_dirs(dhcpc_t)
 	hotplug_search_config(dhcpc_t)
 
@@ -183,25 +193,17 @@ optional_policy(`
 ')
 
 optional_policy(`
-	nis_use_ypbind(dhcpc_t)
-	nis_signal_ypbind(dhcpc_t)
 	nis_read_ypbind_pid(dhcpc_t)
-	nis_delete_ypbind_pid(dhcpc_t)
-
-	# dhclient sometimes starts ypbind
-	init_exec_script_files(dhcpc_t)
-	nis_domtrans_ypbind(dhcpc_t)
 ')
 
 optional_policy(`
+	nscd_initrc_domtrans(dhcpc_t)
 	nscd_domtrans(dhcpc_t)
 	nscd_read_pid(dhcpc_t)
 ')
 
 optional_policy(`
-	# dhclient sometimes starts ntpd
-	init_exec_script_files(dhcpc_t)
-	ntp_domtrans(dhcpc_t)
+	ntp_initrc_domtrans(dhcpc_t)
 ')
 
 optional_policy(`
@@ -223,6 +225,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	vmware_append_log(dhcpc_t)
+')
+
+optional_policy(`
 	kernel_read_xen_state(dhcpc_t)
 	kernel_write_xen_state(dhcpc_t)
 	xen_append_log(dhcpc_t)
@@ -235,7 +241,6 @@ optional_policy(`
 #
 
 allow ifconfig_t self:capability { net_raw net_admin sys_tty_config };
-dontaudit ifconfig_t self:capability sys_module;
 allow ifconfig_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execheap execstack };
 allow ifconfig_t self:fd use;
 allow ifconfig_t self:fifo_file rw_fifo_file_perms;
@@ -260,6 +265,7 @@ allow ifconfig_t self:tcp_socket { create ioctl };
 kernel_use_fds(ifconfig_t)
 kernel_read_system_state(ifconfig_t)
 kernel_read_network_state(ifconfig_t)
+kernel_request_load_module(ifconfig_t)
 kernel_search_network_sysctl(ifconfig_t)
 kernel_rw_net_sysctls(ifconfig_t)
 
@@ -272,12 +278,18 @@ dev_read_urand(ifconfig_t)
 domain_use_interactive_fds(ifconfig_t)
 
 files_read_etc_files(ifconfig_t)
+files_read_etc_runtime_files(ifconfig_t)
 
 fs_getattr_xattr_fs(ifconfig_t)
 fs_search_auto_mountpoints(ifconfig_t)
 
+selinux_dontaudit_getattr_fs(ifconfig_t)
+
+term_dontaudit_use_console(ifconfig_t)
 term_dontaudit_use_all_ttys(ifconfig_t)
 term_dontaudit_use_all_ptys(ifconfig_t)
+term_dontaudit_use_ptmx(ifconfig_t)
+term_dontaudit_use_generic_ptys(ifconfig_t)
 
 files_dontaudit_read_root_files(ifconfig_t)
 
@@ -314,6 +326,11 @@ ifdef(`hide_broken_symptoms',`
 ')
 
 optional_policy(`
+	hal_dontaudit_rw_pipes(ifconfig_t)
+	hal_dontaudit_rw_dgram_sockets(ifconfig_t)
+')
+
+optional_policy(`
 	ipsec_write_pid(ifconfig_t)
 ')
 
@@ -327,6 +344,14 @@ optional_policy(`
 
 optional_policy(`
 	ppp_use_fds(ifconfig_t)
+')
+
+optional_policy(`
+	unconfined_dontaudit_rw_pipes(ifconfig_t)
+')
+
+optional_policy(`
+	vmware_append_log(ifconfig_t)
 ')
 
 optional_policy(`
