@@ -1,5 +1,5 @@
 
-policy_module(xen, 1.9.1)
+policy_module(xen, 1.9.2)
 
 ########################################
 #
@@ -209,6 +209,7 @@ files_read_kernel_img(xend_t)
 files_manage_etc_runtime_files(xend_t)
 files_etc_filetrans_etc_runtime(xend_t, file)
 files_read_usr_files(xend_t)
+files_read_default_symlinks(xend_t)
 
 storage_raw_read_fixed_disk(xend_t)
 storage_raw_write_fixed_disk(xend_t)
@@ -259,6 +260,7 @@ optional_policy(`
 #
 
 allow xenconsoled_t self:capability { dac_override fsetid ipc_lock };
+allow xenconsoled_t self:process setrlimit;
 allow xenconsoled_t self:unix_stream_socket create_stream_socket_perms;
 allow xenconsoled_t self:fifo_file rw_fifo_file_perms;
 
@@ -279,6 +281,7 @@ dev_rw_sysfs(xenconsoled_t)
 
 domain_dontaudit_ptrace_all_domains(xenconsoled_t)
 
+files_read_etc_files(xenconsoled_t)
 files_read_usr_files(xenconsoled_t)
 
 fs_list_tmpfs(xenconsoled_t)
@@ -296,6 +299,10 @@ miscfiles_read_localization(xenconsoled_t)
 
 xen_manage_log(xenconsoled_t)
 xen_stream_connect_xenstore(xenconsoled_t)
+
+optional_policy(`
+	ptchown_domtrans(xenconsoled_t)
+')
 
 ########################################
 #
@@ -339,6 +346,8 @@ dev_rw_xen(xenstored_t)
 dev_read_sysfs(xenstored_t)
 
 files_read_usr_files(xenstored_t)
+
+fs_manage_xenfs_files(xenstored_t)
 
 storage_raw_read_fixed_disk(xenstored_t)
 storage_raw_write_fixed_disk(xenstored_t)
@@ -421,7 +430,17 @@ xen_stream_connect(xm_t)
 xen_stream_connect_xenstore(xm_t)
 
 optional_policy(`
+	dbus_system_bus_client(xm_t)
+
+	optional_policy(`
+		hal_dbus_chat(xm_t)
+	')
+')
+
+optional_policy(`
+	virt_domtrans(xm_t)
 	virt_manage_images(xm_t)
+	virt_manage_config(xm_t)
 	virt_stream_connect(xm_t)
 ')
 
@@ -434,6 +453,8 @@ optional_policy(`
 
 	kernel_read_xen_state(xm_ssh_t)
 	kernel_write_xen_state(xm_ssh_t)
+
+	files_search_tmp(xm_ssh_t)
 
 	fs_manage_xenfs_dirs(xm_ssh_t)
 	fs_manage_xenfs_files(xm_ssh_t)
