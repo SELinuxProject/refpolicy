@@ -8,24 +8,51 @@ policy_module(pulseaudio, 1.1.1)
 
 type pulseaudio_t;
 type pulseaudio_exec_t;
+init_daemon_domain(pulseaudio_t, pulseaudio_exec_t)
 application_domain(pulseaudio_t, pulseaudio_exec_t)
 role system_r types pulseaudio_t;
+
+type pulseaudio_home_t;
+userdom_user_home_content(pulseaudio_home_t)
+
+type pulseaudio_tmpfs_t;
+files_tmpfs_file(pulseaudio_tmpfs_t)
+
+type pulseaudio_var_lib_t;
+files_type(pulseaudio_var_lib_t)
+
+type pulseaudio_var_run_t;
+files_pid_file(pulseaudio_var_run_t)
 
 ########################################
 #
 # pulseaudio local policy
 #
-
+allow pulseaudio_t self:capability { fowner fsetid chown setgid setuid sys_nice sys_resource sys_tty_config };
 allow pulseaudio_t self:process { getcap setcap setrlimit setsched getsched signal signull };
 allow pulseaudio_t self:fifo_file rw_file_perms;
-allow pulseaudio_t self:unix_stream_socket create_stream_socket_perms;
+allow pulseaudio_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow pulseaudio_t self:unix_dgram_socket { sendto create_socket_perms };
 allow pulseaudio_t self:tcp_socket create_stream_socket_perms;
 allow pulseaudio_t self:udp_socket create_socket_perms;
 allow pulseaudio_t self:netlink_kobject_uevent_socket create_socket_perms;
 
+userdom_search_user_home_dirs(pulseaudio_t)
+manage_dirs_pattern(pulseaudio_t, pulseaudio_home_t, pulseaudio_home_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_home_t, pulseaudio_home_t)
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_var_lib_t, pulseaudio_var_lib_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_var_lib_t, pulseaudio_var_lib_t)
+files_var_lib_filetrans(pulseaudio_t, pulseaudio_var_lib_t, { dir file })
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+manage_sock_files_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+files_pid_filetrans(pulseaudio_t, pulseaudio_var_run_t, { dir file })
+
 can_exec(pulseaudio_t, pulseaudio_exec_t)
 
+kernel_getattr_proc(pulseaudio_t)
 kernel_read_system_state(pulseaudio_t)
 kernel_read_kernel_sysctls(pulseaudio_t)
 
@@ -67,10 +94,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	gnome_manage_config(pulseaudio_t)
-')
-
-optional_policy(`
+	dbus_system_domain(pulseaudio_t, pulseaudio_exec_t)
 	dbus_system_bus_client(pulseaudio_t)
 	dbus_session_bus_client(pulseaudio_t)
 	dbus_connect_session_bus(pulseaudio_t)
@@ -93,6 +117,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	rtkit_scheduled(pulseaudio_t)
+')
+
+optional_policy(`
 	policykit_domtrans_auth(pulseaudio_t)
 	policykit_read_lib(pulseaudio_t)
 	policykit_read_reload(pulseaudio_t)
@@ -103,6 +131,9 @@ optional_policy(`
 ')
 
 optional_policy(`
+	xserver_stream_connect(pulseaudio_t)
 	xserver_manage_xdm_tmp_files(pulseaudio_t)
 	xserver_read_xdm_lib_files(pulseaudio_t)
+	xserver_read_xdm_pid(pulseaudio_t)
+	xserver_user_x_domain_template(pulseaudio, pulseaudio_t, pulseaudio_tmpfs_t)
 ')
