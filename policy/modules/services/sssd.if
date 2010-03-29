@@ -38,6 +38,25 @@ interface(`sssd_initrc_domtrans',`
 
 ########################################
 ## <summary>
+##	Read sssd public files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`sssd_read_public_files',`
+	gen_require(`
+		type sssd_public_t;
+	')
+
+	sssd_search_lib($1)
+	read_files_pattern($1, sssd_public_t, sssd_public_t)
+')
+
+########################################
+## <summary>
 ##	Read sssd PID files.
 ## </summary>
 ## <param name="domain">
@@ -90,6 +109,25 @@ interface(`sssd_search_lib',`
 	')
 
 	allow $1 sssd_var_lib_t:dir search_dir_perms;
+	files_search_var_lib($1)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to search sssd lib directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`sssd_dontaudit_search_lib',`
+	gen_require(`
+		type sssd_var_lib_t;
+	')
+
+	dontaudit $1 sssd_var_lib_t:dir search_dir_perms;
 	files_search_var_lib($1)
 ')
 
@@ -196,15 +234,12 @@ interface(`sssd_stream_connect',`
 #
 interface(`sssd_admin',`
 	gen_require(`
-		type sssd_t;
+		type sssd_t, sssd_public_t;
+		type sssd_initrc_exec_t;
 	')
 
 	allow $1 sssd_t:process { ptrace signal_perms getattr };
 	read_files_pattern($1, sssd_t, sssd_t)
-
-	gen_require(`
-		type sssd_initrc_exec_t;
-	')
 
 	# Allow sssd_t to restart the apache service
 	sssd_initrc_domtrans($1)
@@ -215,4 +250,6 @@ interface(`sssd_admin',`
 	sssd_manage_pids($1)
 
 	sssd_manage_lib_files($1)
+
+	admin_pattern($1, sssd_public_t)
 ')
