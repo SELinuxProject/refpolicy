@@ -49,10 +49,11 @@ template(`apache_content_template',`
 	typealias httpd_$1_ra_content_t alias { httpd_$1_script_ra_t httpd_$1_content_ra_t };
 	files_type(httpd_$1_ra_content_t)
 
-	allow httpd_t httpd_$1_htaccess_t:file read_file_perms;
+	read_files_pattern(httpd_t, httpd_$1_content_t, httpd_$1_htaccess_t)
 
 	domtrans_pattern(httpd_suexec_t, httpd_$1_script_exec_t, httpd_$1_script_t)
 
+	allow httpd_t { httpd_$1_content_t httpd_$1_rw_content_t httpd_$1_script_exec_t }:dir search_dir_perms;
 	allow httpd_suexec_t { httpd_$1_content_t httpd_$1_content_t httpd_$1_rw_content_t httpd_$1_script_exec_t }:dir search_dir_perms;
 
 	allow httpd_$1_script_t self:fifo_file rw_file_perms;
@@ -69,7 +70,7 @@ template(`apache_content_template',`
 	logging_search_logs(httpd_$1_script_t)
 
 	can_exec(httpd_$1_script_t, httpd_$1_script_exec_t)
-	allow httpd_$1_script_t httpd_$1_script_exec_t:dir search_dir_perms;
+	allow httpd_$1_script_t httpd_$1_script_exec_t:dir list_dir_perms;
 
 	allow httpd_$1_script_t httpd_$1_ra_content_t:dir { list_dir_perms add_entry_dir_perms };
 	read_files_pattern(httpd_$1_script_t, httpd_$1_ra_content_t, httpd_$1_ra_content_t)
@@ -171,50 +172,6 @@ template(`apache_content_template',`
 		libs_read_lib_files(httpd_$1_script_t)
 
 		miscfiles_read_localization(httpd_$1_script_t)
-	')
-
-	tunable_policy(`httpd_enable_cgi && httpd_can_network_connect_db',`
-		allow httpd_$1_script_t self:tcp_socket create_stream_socket_perms;
-		allow httpd_$1_script_t self:udp_socket create_socket_perms;
-
-		corenet_all_recvfrom_unlabeled(httpd_$1_script_t)
-		corenet_all_recvfrom_netlabel(httpd_$1_script_t)
-		corenet_tcp_sendrecv_generic_if(httpd_$1_script_t)
-		corenet_udp_sendrecv_generic_if(httpd_$1_script_t)
-		corenet_tcp_sendrecv_generic_node(httpd_$1_script_t)
-		corenet_udp_sendrecv_generic_node(httpd_$1_script_t)
-		corenet_tcp_sendrecv_all_ports(httpd_$1_script_t)
-		corenet_udp_sendrecv_all_ports(httpd_$1_script_t)
-
-		sysnet_read_config(httpd_$1_script_t)
-	')
-
-	tunable_policy(`httpd_enable_cgi && httpd_can_network_connect',`
-		allow httpd_$1_script_t self:tcp_socket create_stream_socket_perms;
-		allow httpd_$1_script_t self:udp_socket create_socket_perms;
-
-		corenet_all_recvfrom_unlabeled(httpd_$1_script_t)
-		corenet_all_recvfrom_netlabel(httpd_$1_script_t)
-		corenet_tcp_sendrecv_generic_if(httpd_$1_script_t)
-		corenet_udp_sendrecv_generic_if(httpd_$1_script_t)
-		corenet_tcp_sendrecv_generic_node(httpd_$1_script_t)
-		corenet_udp_sendrecv_generic_node(httpd_$1_script_t)
-		corenet_tcp_sendrecv_all_ports(httpd_$1_script_t)
-		corenet_udp_sendrecv_all_ports(httpd_$1_script_t)
-		corenet_tcp_connect_all_ports(httpd_$1_script_t)
-		corenet_sendrecv_all_client_packets(httpd_$1_script_t)
-
-		sysnet_read_config(httpd_$1_script_t)
-	')
-
-	optional_policy(`
-		mta_send_mail(httpd_$1_script_t)
-	')
-
-	optional_policy(`
-		tunable_policy(`httpd_enable_cgi && httpd_can_network_connect_db',`
-			mysql_tcp_connect(httpd_$1_script_t)
-		')
 	')
 
 	optional_policy(`
@@ -355,6 +312,24 @@ interface(`apache_domtrans',`
 	domtrans_pattern($1, httpd_exec_t, httpd_t)
 ')
 
+#######################################
+## <summary>
+##	Send a generic signal to apache.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_signal',`
+	gen_require(`
+		type httpd_t;
+	')
+
+	allow $1 httpd_t:process signal;
+')
+
 ########################################
 ## <summary>
 ##	Send a null signal to apache.
@@ -407,6 +382,25 @@ interface(`apache_use_fds',`
 	')
 
 	allow $1 httpd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and write Apache
+##	unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_dontaudit_rw_fifo_file',`
+	gen_require(`
+		type httpd_t;
+	')
+
+	dontaudit $1 httpd_t:fifo_file rw_fifo_file_perms;
 ')
 
 ########################################
@@ -474,6 +468,44 @@ interface(`apache_manage_all_content',`
 
 ########################################
 ## <summary>
+##	Allow domain to  set the attributes
+##	of the APACHE cache directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_setattr_cache_dirs',`
+	gen_require(`
+		type httpd_cache_t;
+	')
+
+	allow $1 httpd_cache_t:dir setattr;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to list
+##	Apache cache.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_list_cache',`
+	gen_require(`
+		type httpd_cache_t;
+	')
+
+	list_dirs_pattern($1, httpd_cache_t, httpd_cache_t)
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to read
 ##	and write Apache cache files.
 ## </summary>
@@ -489,6 +521,25 @@ interface(`apache_rw_cache_files',`
 	')
 
 	allow $1 httpd_cache_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to delete
+##	Apache cache.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_delete_cache_files',`
+	gen_require(`
+		type httpd_cache_t;
+	')
+
+	delete_files_pattern($1, httpd_cache_t, httpd_cache_t)
 ')
 
 ########################################
@@ -560,7 +611,7 @@ interface(`apache_domtrans_helper',`
 ## <summary>
 ##	Execute the Apache helper program with
 ##	a domain transition, and allow the
-##	specified role the dmidecode domain.
+##	specified role the Apache helper domain.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -569,7 +620,7 @@ interface(`apache_domtrans_helper',`
 ## </param>
 ## <param name="role">
 ##	<summary>
-##	The role to be allowed the dmidecode domain.
+##	Role allowed access.
 ##	</summary>
 ## </param>
 ## <rolecap/>
@@ -1013,6 +1064,45 @@ interface(`apache_search_sys_script_state',`
 	')
 
 	allow $1 httpd_sys_script_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	apache tmp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_read_tmp_files',`
+	gen_require(`
+		type httpd_config_t;
+	')
+
+	files_search_tmp($1)
+	read_files_pattern($1, httpd_tmp_t, httpd_tmp_t)
+')
+
+########################################
+## <summary>
+##	Dontaudit attempts to write 
+##	apache tmp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`apache_dontaudit_write_tmp_files',`
+	gen_require(`
+		type httpd_config_t;
+	')
+
+	dontaudit $1 httpd_tmp_t:file write_file_perms;
 ')
 
 ########################################

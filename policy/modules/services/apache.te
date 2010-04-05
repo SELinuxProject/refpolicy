@@ -1,5 +1,5 @@
 
-policy_module(apache, 2.1.1)
+policy_module(apache, 2.1.2)
 
 #
 # NOTES: 
@@ -65,6 +65,20 @@ gen_tunable(httpd_can_network_relay, false)
 
 ## <desc>
 ## <p>
+## Allow http daemon to send mail
+## </p>
+## </desc>
+gen_tunable(httpd_can_sendmail, false)
+
+## <desc>
+## <p>
+## Allow Apache to communicate with avahi service via dbus
+## </p>
+## </desc>
+gen_tunable(httpd_dbus_avahi, false)
+
+## <desc>
+## <p>
 ## Allow httpd cgi support
 ## </p>
 ## </desc>
@@ -107,6 +121,27 @@ gen_tunable(httpd_tty_comm, false)
 ## </p>
 ## </desc>
 gen_tunable(httpd_unified, false)
+
+## <desc>
+## <p>
+## Allow httpd to access cifs file systems
+## </p>
+## </desc>
+gen_tunable(httpd_use_cifs, false)
+
+## <desc>
+## <p>
+## Allow httpd to run gpg
+## </p>
+## </desc>
+gen_tunable(httpd_use_gpg, false)
+
+## <desc>
+## <p>
+## Allow httpd to access nfs file systems
+## </p>
+## </desc>
+gen_tunable(httpd_use_nfs, false)
 
 attribute httpdcontent;
 attribute httpd_user_content_type;
@@ -232,7 +267,7 @@ optional_policy(`
 # Apache server local policy
 #
 
-allow httpd_t self:capability { chown dac_override kill setgid setuid sys_tty_config };
+allow httpd_t self:capability { chown dac_override kill setgid setuid sys_nice sys_tty_config };
 dontaudit httpd_t self:capability { net_admin sys_tty_config };
 allow httpd_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 allow httpd_t self:fd use;
@@ -274,6 +309,7 @@ logging_log_filetrans(httpd_t, httpd_log_t, file)
 allow httpd_t httpd_modules_t:dir list_dir_perms;
 mmap_files_pattern(httpd_t, httpd_modules_t, httpd_modules_t)
 read_files_pattern(httpd_t, httpd_modules_t, httpd_modules_t)
+read_lnk_files_pattern(httpd_t, httpd_modules_t, httpd_modules_t)
 
 apache_domtrans_rotatelogs(httpd_t)
 # Apache-httpd needs to be able to send signals to the log rotate procs.
@@ -289,9 +325,12 @@ allow httpd_t httpd_sys_content_t:dir list_dir_perms;
 read_files_pattern(httpd_t, httpd_sys_content_t, httpd_sys_content_t)
 read_lnk_files_pattern(httpd_t, httpd_sys_content_t, httpd_sys_content_t)
 
+allow httpd_t httpd_sys_script_t:unix_stream_socket connectto;
+
 manage_dirs_pattern(httpd_t, httpd_tmp_t, httpd_tmp_t)
 manage_files_pattern(httpd_t, httpd_tmp_t, httpd_tmp_t)
-files_tmp_filetrans(httpd_t, httpd_tmp_t, { file dir })
+manage_lnk_files_pattern(httpd_t, httpd_tmp_t, httpd_tmp_t)
+files_tmp_filetrans(httpd_t, httpd_tmp_t, { file dir lnk_file })
 
 manage_dirs_pattern(httpd_t, httpd_tmpfs_t, httpd_tmpfs_t)
 manage_files_pattern(httpd_t, httpd_tmpfs_t, httpd_tmpfs_t)
@@ -303,9 +342,11 @@ fs_tmpfs_filetrans(httpd_t, httpd_tmpfs_t,{ dir file lnk_file sock_file fifo_fil
 manage_files_pattern(httpd_t, httpd_var_lib_t, httpd_var_lib_t)
 files_var_lib_filetrans(httpd_t, httpd_var_lib_t, file)
 
+setattr_dirs_pattern(httpd_t, httpd_var_run_t, httpd_var_run_t)
+manage_dirs_pattern(httpd_t, httpd_var_run_t, httpd_var_run_t)
 manage_files_pattern(httpd_t, httpd_var_run_t, httpd_var_run_t)
 manage_sock_files_pattern(httpd_t, httpd_var_run_t, httpd_var_run_t)
-files_pid_filetrans(httpd_t, httpd_var_run_t, { file sock_file })
+files_pid_filetrans(httpd_t, httpd_var_run_t, { file sock_file dir })
 
 manage_dirs_pattern(httpd_t, squirrelmail_spool_t, squirrelmail_spool_t)
 manage_files_pattern(httpd_t, squirrelmail_spool_t, squirrelmail_spool_t)
@@ -346,6 +387,7 @@ corecmd_exec_shell(httpd_t)
 
 domain_use_interactive_fds(httpd_t)
 
+files_dontaudit_getattr_all_pids(httpd_t)
 files_read_usr_files(httpd_t)
 files_list_mnt(httpd_t)
 files_search_spool(httpd_t)
@@ -374,8 +416,6 @@ seutil_dontaudit_search_config(httpd_t)
 
 userdom_use_unpriv_users_fds(httpd_t)
 
-mta_send_mail(httpd_t)
-
 tunable_policy(`allow_httpd_anon_write',`
 	miscfiles_manage_public_files(httpd_t)
 ') 
@@ -399,10 +439,19 @@ tunable_policy(`httpd_can_network_relay',`
 	corenet_tcp_connect_ftp_port(httpd_t)
 	corenet_tcp_connect_http_port(httpd_t)
 	corenet_tcp_connect_http_cache_port(httpd_t)
+	corenet_tcp_connect_memcache_port(httpd_t)
 	corenet_sendrecv_gopher_client_packets(httpd_t)
 	corenet_sendrecv_ftp_client_packets(httpd_t)
 	corenet_sendrecv_http_client_packets(httpd_t)
 	corenet_sendrecv_http_cache_client_packets(httpd_t)
+')
+
+tunable_policy(`httpd_enable_cgi && httpd_use_nfs',`
+	fs_nfs_domtrans(httpd_t, httpd_sys_script_t)
+')
+
+tunable_policy(`httpd_enable_cgi && httpd_use_cifs',`
+	fs_cifs_domtrans(httpd_t, httpd_sys_script_t)
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified && httpd_builtin_scripting',`
@@ -431,6 +480,13 @@ tunable_policy(`httpd_enable_homedirs && use_samba_home_dirs',`
 	fs_read_cifs_symlinks(httpd_t)
 ')
 
+tunable_policy(`httpd_can_sendmail',`
+	# allow httpd to connect to mail servers
+	corenet_tcp_connect_smtp_port(httpd_t)
+	corenet_sendrecv_smtp_client_packets(httpd_t)
+	mta_send_mail(httpd_t)
+')
+
 tunable_policy(`httpd_ssi_exec',`
 	corecmd_shell_domtrans(httpd_t, httpd_sys_script_t)
 	allow httpd_sys_script_t httpd_t:fd use;
@@ -453,6 +509,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	ccs_read_config(httpd_t)
+')
+
+optional_policy(`
 	cobbler_search_lib(httpd_t)
 ')
 
@@ -461,7 +521,25 @@ optional_policy(`
 ')
 
 optional_policy(`
+	cvs_read_data(httpd_t)
+')
+
+optional_policy(`
 	daemontools_service_domain(httpd_t, httpd_exec_t)
+')
+
+ optional_policy(`
+	dbus_system_bus_client(httpd_t)
+
+	tunable_policy(`httpd_dbus_avahi',`
+		avahi_dbus_chat(httpd_t)
+	')
+')
+
+optional_policy(`
+	tunable_policy(`httpd_enable_cgi && httpd_use_gpg',`
+		gpg_domtrans(httpd_t)
+	')
 ')
 
 optional_policy(`
@@ -471,6 +549,7 @@ optional_policy(`
 optional_policy(`
 	mailman_signal_cgi(httpd_t)
 	mailman_domtrans_cgi(httpd_t)
+	mailman_read_data_files(httpd_t)
 	# should have separate types for public and private archives
 	mailman_search_data(httpd_t)
 	mailman_read_archive(httpd_t)
@@ -488,7 +567,6 @@ optional_policy(`
 
 optional_policy(`
 	nagios_read_config(httpd_t)
-	nagios_domtrans_cgi(httpd_t)
 ')
 
 optional_policy(`
@@ -569,16 +647,31 @@ files_tmp_filetrans(httpd_php_t, httpd_php_tmp_t, { file dir })
 
 fs_search_auto_mountpoints(httpd_php_t)
 
+auth_use_nsswitch(httpd_php_t)
+
 libs_exec_lib_files(httpd_php_t)
 
 userdom_use_unpriv_users_fds(httpd_php_t)
 
-optional_policy(`
-	mysql_stream_connect(httpd_php_t)
+tunable_policy(`httpd_can_network_connect_db',`
+	corenet_tcp_connect_mysqld_port(httpd_t)
+	corenet_sendrecv_mysqld_client_packets(httpd_t)
+	corenet_tcp_connect_mysqld_port(httpd_sys_script_t)
+	corenet_sendrecv_mysqld_client_packets(httpd_sys_script_t)
+	corenet_tcp_connect_mysqld_port(httpd_suexec_t)
+	corenet_sendrecv_mysqld_client_packets(httpd_suexec_t)
+
+	corenet_tcp_connect_mssql_port(httpd_t)
+	corenet_sendrecv_mssql_client_packets(httpd_t)
+	corenet_tcp_connect_mssql_port(httpd_sys_script_t)
+	corenet_sendrecv_mssql_client_packets(httpd_sys_script_t)
+	corenet_tcp_connect_mssql_port(httpd_suexec_t)
+	corenet_sendrecv_mssql_client_packets(httpd_suexec_t)
 ')
 
 optional_policy(`
-	nis_use_ypbind(httpd_php_t)
+	mysql_stream_connect(httpd_php_t)
+	mysql_read_config(httpd_php_t)
 ')
 
 optional_policy(`
@@ -600,7 +693,7 @@ create_files_pattern(httpd_suexec_t, httpd_log_t, httpd_log_t)
 append_files_pattern(httpd_suexec_t, httpd_log_t, httpd_log_t)
 read_files_pattern(httpd_suexec_t, httpd_log_t, httpd_log_t)
 
-allow httpd_suexec_t httpd_t:fifo_file getattr;
+allow httpd_suexec_t httpd_t:fifo_file read_fifo_file_perms;
 
 manage_dirs_pattern(httpd_suexec_t, httpd_suexec_tmp_t, httpd_suexec_tmp_t)
 manage_files_pattern(httpd_suexec_t, httpd_suexec_tmp_t, httpd_suexec_tmp_t)
@@ -629,6 +722,7 @@ logging_search_logs(httpd_suexec_t)
 logging_send_syslog_msg(httpd_suexec_t)
 
 miscfiles_read_localization(httpd_suexec_t)
+miscfiles_read_public_files(httpd_suexec_t)
 
 tunable_policy(`httpd_can_network_connect',`
 	allow httpd_suexec_t self:tcp_socket create_stream_socket_perms;
@@ -647,11 +741,9 @@ tunable_policy(`httpd_can_network_connect',`
 ')
 
 tunable_policy(`httpd_enable_cgi && httpd_unified',`
+	allow httpd_sys_script_t httpdcontent:file entrypoint;
 	domtrans_pattern(httpd_suexec_t, httpdcontent, httpd_sys_script_t)
-')
 
-tunable_policy(`httpd_enable_homedirs',`
-	userdom_read_user_home_content_files(httpd_suexec_t)
 ')
 
 tunable_policy(`httpd_enable_homedirs && use_nfs_home_dirs',`
@@ -677,15 +769,14 @@ optional_policy(`
 	dontaudit httpd_suexec_t httpd_t:unix_stream_socket { read write };
 ')
 
-optional_policy(`
-	nagios_domtrans_cgi(httpd_suexec_t)
-')
-
 ########################################
 #
 # Apache system script local policy
 #
 
+allow httpd_sys_script_t self:process getsched;
+
+allow httpd_sys_script_t httpd_t:unix_stream_socket rw_stream_socket_perms;
 allow httpd_sys_script_t httpd_t:tcp_socket { read write };
 
 dontaudit httpd_sys_script_t httpd_config_t:dir search;
@@ -706,6 +797,28 @@ apache_domtrans_rotatelogs(httpd_sys_script_t)
 
 ifdef(`distro_redhat',`
 	allow httpd_sys_script_t httpd_log_t:file append_file_perms;
+')
+
+tunable_policy(`httpd_can_sendmail',`
+	mta_send_mail(httpd_sys_script_t)
+')
+
+tunable_policy(`httpd_enable_cgi && httpd_can_network_connect',`
+	allow httpd_sys_script_t self:tcp_socket create_stream_socket_perms;
+	allow httpd_sys_script_t self:udp_socket create_socket_perms;
+
+	corenet_tcp_bind_all_nodes(httpd_sys_script_t)
+	corenet_udp_bind_all_nodes(httpd_sys_script_t)
+	corenet_all_recvfrom_unlabeled(httpd_sys_script_t)
+	corenet_all_recvfrom_netlabel(httpd_sys_script_t)
+	corenet_tcp_sendrecv_all_if(httpd_sys_script_t)
+	corenet_udp_sendrecv_all_if(httpd_sys_script_t)
+	corenet_tcp_sendrecv_all_nodes(httpd_sys_script_t)
+	corenet_udp_sendrecv_all_nodes(httpd_sys_script_t)
+	corenet_tcp_sendrecv_all_ports(httpd_sys_script_t)
+	corenet_udp_sendrecv_all_ports(httpd_sys_script_t)
+	corenet_tcp_connect_all_ports(httpd_sys_script_t)
+	corenet_sendrecv_all_client_packets(httpd_sys_script_t)
 ')
 
 tunable_policy(`httpd_enable_homedirs',`
@@ -740,6 +853,8 @@ optional_policy(`
 # httpd_rotatelogs local policy
 #
 
+allow httpd_rotatelogs_t self:capability dac_override;
+
 manage_files_pattern(httpd_rotatelogs_t, httpd_log_t, httpd_log_t)
 
 kernel_read_kernel_sysctls(httpd_rotatelogs_t)
@@ -751,6 +866,23 @@ files_read_etc_files(httpd_rotatelogs_t)
 logging_search_logs(httpd_rotatelogs_t)
 
 miscfiles_read_localization(httpd_rotatelogs_t)
+
+########################################
+#
+# Unconfined script local policy
+#
+
+optional_policy(`
+	type httpd_unconfined_script_t;
+	type httpd_unconfined_script_exec_t;
+	domain_type(httpd_unconfined_script_t)
+	domain_entry_file(httpd_unconfined_script_t, httpd_unconfined_script_exec_t)
+	domtrans_pattern(httpd_t, httpd_unconfined_script_exec_t, httpd_unconfined_script_t)
+	unconfined_domain(httpd_unconfined_script_t)
+
+	role system_r types httpd_unconfined_script_t;
+	allow httpd_t httpd_unconfined_script_t:process signal_perms;
+')
 
 ########################################
 #
