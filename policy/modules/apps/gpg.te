@@ -1,5 +1,5 @@
 
-policy_module(gpg, 2.2.1)
+policy_module(gpg, 2.2.2)
 
 ########################################
 #
@@ -20,6 +20,7 @@ typealias gpg_t alias { user_gpg_t staff_gpg_t sysadm_gpg_t };
 typealias gpg_t alias { auditadm_gpg_t secadm_gpg_t };
 application_domain(gpg_t, gpg_exec_t)
 ubac_constrained(gpg_t)
+role system_r types gpg_t;
 
 type gpg_agent_t;
 type gpg_agent_exec_t;
@@ -45,6 +46,7 @@ typealias gpg_helper_t alias { user_gpg_helper_t staff_gpg_helper_t sysadm_gpg_h
 typealias gpg_helper_t alias { auditadm_gpg_helper_t secadm_gpg_helper_t };
 application_domain(gpg_helper_t, gpg_helper_exec_t)
 ubac_constrained(gpg_helper_t)
+role system_r types gpg_helper_t;
 
 type gpg_pinentry_t;
 type pinentry_exec_t;
@@ -53,6 +55,14 @@ typealias gpg_pinentry_t alias { auditadm_gpg_pinentry_t secadm_gpg_pinentry_t }
 application_domain(gpg_pinentry_t, pinentry_exec_t)
 ubac_constrained(gpg_pinentry_t)
 
+type gpg_pinentry_tmp_t;
+files_tmp_file(gpg_pinentry_tmp_t)
+ubac_constrained(gpg_pinentry_tmp_t)
+
+type gpg_pinentry_tmpfs_t;
+files_tmpfs_file(gpg_pinentry_tmpfs_t)
+ubac_constrained(gpg_pinentry_tmpfs_t)
+
 ########################################
 #
 # GPG local policy
@@ -60,7 +70,7 @@ ubac_constrained(gpg_pinentry_t)
 
 allow gpg_t self:capability { ipc_lock setuid };
 # setrlimit is for ulimit -c 0
-allow gpg_t self:process { signal setrlimit getcap setcap setpgid };
+allow gpg_t self:process { signal signull setrlimit getcap setcap setpgid };
 
 allow gpg_t self:fifo_file rw_fifo_file_perms;
 allow gpg_t self:tcp_socket create_stream_socket_perms;
@@ -68,6 +78,8 @@ allow gpg_t self:tcp_socket create_stream_socket_perms;
 manage_dirs_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t)
 manage_files_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t)
 files_tmp_filetrans(gpg_t, gpg_agent_tmp_t, { dir file })
+
+domtrans_pattern(gpg_t, gpg_agent_exec_t, gpg_agent_t)
 
 # transition from the gpg domain to the helper domain
 domtrans_pattern(gpg_t, gpg_helper_exec_t, gpg_helper_t)
@@ -78,6 +90,9 @@ manage_lnk_files_pattern(gpg_t, gpg_secret_t, gpg_secret_t)
 userdom_user_home_dir_filetrans(gpg_t, gpg_secret_t, dir)
 
 kernel_read_sysctl(gpg_t)
+
+corecmd_exec_shell(gpg_t)
+corecmd_exec_bin(gpg_t)
 
 corenet_all_recvfrom_unlabeled(gpg_t)
 corenet_all_recvfrom_netlabel(gpg_t)
@@ -95,6 +110,7 @@ dev_read_urand(gpg_t)
 dev_read_generic_usb_dev(gpg_t)
 
 fs_getattr_xattr_fs(gpg_t)
+fs_list_inotifyfs(gpg_t)
 
 domain_use_interactive_fds(gpg_t)
 
@@ -112,6 +128,7 @@ userdom_use_user_terminals(gpg_t)
 # sign/encrypt user files
 userdom_manage_user_tmp_files(gpg_t)
 userdom_manage_user_home_content_files(gpg_t)
+userdom_user_home_dir_filetrans_user_home_content(gpg_t, file)
 
 mta_write_config(gpg_t)
 
@@ -123,6 +140,11 @@ tunable_policy(`use_nfs_home_dirs',`
 tunable_policy(`use_samba_home_dirs',`
 	fs_manage_cifs_dirs(gpg_t)
 	fs_manage_cifs_files(gpg_t)
+')
+
+optional_policy(`
+	mozilla_read_user_home_files(gpg_t)
+	mozilla_write_user_home_files(gpg_t)
 ')
 
 optional_policy(`
@@ -143,7 +165,7 @@ optional_policy(`
 allow gpg_helper_t self:process { getsched setsched };
 
 # for helper programs (which automatically fetch keys)
-# Note: this is only tested with the hkp interface. If you use eg the 
+# Note: this is only tested with the hkp interface. If you use eg the
 # mail interface you will likely need additional permissions.
 
 allow gpg_helper_t self:unix_stream_socket create_stream_socket_perms;
@@ -206,6 +228,7 @@ files_tmp_filetrans(gpg_agent_t, gpg_agent_tmp_t, { file sock_file dir })
 stream_connect_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t, gpg_agent_t)
 
 corecmd_search_bin(gpg_agent_t)
+corecmd_exec_shell(gpg_agent_t)
 
 domain_use_interactive_fds(gpg_agent_t)
 
@@ -242,25 +265,57 @@ tunable_policy(`use_samba_home_dirs',`
 # Pinentry local policy
 #
 
-allow gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
+allow gpg_pinentry_t self:process { getcap getsched setsched signal };
 allow gpg_pinentry_t self:fifo_file rw_fifo_file_perms;
+allow gpg_pinentry_t self:netlink_route_socket create_netlink_socket_perms;
+allow gpg_pinentry_t self:shm create_shm_perms;
+allow gpg_pinentry_t self:tcp_socket create_stream_socket_perms;
+allow gpg_pinentry_t self:unix_dgram_socket sendto;
+allow gpg_pinentry_t self:unix_stream_socket { connect create getattr read shutdown write };
 
-# we need to allow gpg-agent to call pinentry so it can get the passphrase 
+can_exec(gpg_pinentry_t, pinentry_exec_t)
+
+# we need to allow gpg-agent to call pinentry so it can get the passphrase
 # from the user.
 domtrans_pattern(gpg_agent_t, pinentry_exec_t, gpg_pinentry_t)
+
+manage_sock_files_pattern(gpg_pinentry_t, gpg_pinentry_tmp_t, gpg_pinentry_tmp_t)
+userdom_user_tmp_filetrans(gpg_pinentry_t, gpg_pinentry_tmp_t, sock_file)
+
+manage_dirs_pattern(gpg_pinentry_t, gpg_pinentry_tmpfs_t, gpg_pinentry_tmpfs_t)
+manage_files_pattern(gpg_pinentry_t, gpg_pinentry_tmpfs_t, gpg_pinentry_tmpfs_t)
+fs_tmpfs_filetrans(gpg_pinentry_t, gpg_pinentry_tmpfs_t, { file dir })
+fs_getattr_tmpfs(gpg_pinentry_t)
 
 # read /proc/meminfo
 kernel_read_system_state(gpg_pinentry_t)
 
+corecmd_exec_bin(gpg_pinentry_t)
+
+corenet_all_recvfrom_netlabel(gpg_pinentry_t)
+corenet_all_recvfrom_unlabeled(gpg_pinentry_t)
+corenet_sendrecv_pulseaudio_client_packets(gpg_pinentry_t)
+corenet_tcp_bind_generic_node(gpg_pinentry_t)
+corenet_tcp_connect_pulseaudio_port(gpg_pinentry_t)
+corenet_tcp_sendrecv_generic_if(gpg_pinentry_t)
+corenet_tcp_sendrecv_generic_node(gpg_pinentry_t)
+corenet_tcp_sendrecv_generic_port(gpg_pinentry_t)
+
+dev_read_urand(gpg_pinentry_t)
+dev_read_rand(gpg_pinentry_t)
+
 files_read_usr_files(gpg_pinentry_t)
 # read /etc/X11/qtrc
 files_read_etc_files(gpg_pinentry_t)
+
+logging_send_syslog_msg(gpg_pinentry_t)
 
 miscfiles_read_fonts(gpg_pinentry_t)
 miscfiles_read_localization(gpg_pinentry_t)
 
 # for .Xauthority
 userdom_read_user_home_content_files(gpg_pinentry_t)
+userdom_read_user_tmpfs_files(gpg_pinentry_t)
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_read_nfs_files(gpg_pinentry_t)
@@ -271,5 +326,16 @@ tunable_policy(`use_samba_home_dirs',`
 ')
 
 optional_policy(`
-	xserver_stream_connect(gpg_pinentry_t)
+	dbus_session_bus_client(gpg_pinentry_t)
+	dbus_system_bus_client(gpg_pinentry_t)
+')
+
+optional_policy(`
+	pulseaudio_exec(gpg_pinentry_t)
+	pulseaudio_setattr_home_dir(gpg_pinentry_t)
+	pulseaudio_stream_connect(gpg_pinentry_t)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(gpg_pinentry, gpg_pinentry_t, gpg_pinentry_tmpfs_t)
 ')
