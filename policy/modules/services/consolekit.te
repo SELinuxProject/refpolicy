@@ -1,5 +1,5 @@
 
-policy_module(consolekit, 1.5.1)
+policy_module(consolekit, 1.5.2)
 
 ########################################
 #
@@ -21,7 +21,7 @@ files_pid_file(consolekit_var_run_t)
 # consolekit local policy
 #
 
-allow consolekit_t self:capability { setuid setgid sys_tty_config dac_override sys_nice sys_ptrace };
+allow consolekit_t self:capability { chown setuid setgid sys_tty_config dac_override sys_nice sys_ptrace };
 allow consolekit_t self:process { getsched signal };
 allow consolekit_t self:fifo_file rw_fifo_file_perms;
 allow consolekit_t self:unix_stream_socket create_stream_socket_perms;
@@ -59,6 +59,8 @@ mcs_ptrace_all(consolekit_t)
 term_use_all_terms(consolekit_t)
 
 auth_use_nsswitch(consolekit_t)
+auth_manage_pam_console_data(consolekit_t)
+auth_write_login_records(consolekit_t)
 
 init_telinit(consolekit_t)
 init_rw_utmp(consolekit_t)
@@ -74,13 +76,11 @@ userdom_read_user_tmp_files(consolekit_t)
 hal_ptrace(consolekit_t)
 
 tunable_policy(`use_nfs_home_dirs',`
-	fs_dontaudit_list_nfs(consolekit_t)
-	fs_dontaudit_rw_nfs_files(consolekit_t)
+	fs_read_nfs_files(consolekit_t)
 ')
 
 tunable_policy(`use_samba_home_dirs',`
-	fs_dontaudit_list_cifs(consolekit_t)
-	fs_dontaudit_rw_cifs_files(consolekit_t)
+	fs_read_cifs_files(consolekit_t)
 ')
 
 optional_policy(`
@@ -100,16 +100,28 @@ optional_policy(`
 ')
 
 optional_policy(`
+	policykit_dbus_chat(consolekit_t)
 	policykit_domtrans_auth(consolekit_t)
 	policykit_read_lib(consolekit_t)
 	policykit_read_reload(consolekit_t)
 ')
 
 optional_policy(`
+	type consolekit_tmpfs_t;
+	files_tmpfs_file(consolekit_tmpfs_t)
+
 	xserver_read_xdm_pid(consolekit_t)
 	xserver_read_user_xauth(consolekit_t)
 	xserver_non_drawing_client(consolekit_t)
 	corenet_tcp_connect_xserver_port(consolekit_t)
+	xserver_stream_connect(consolekit_t)
+	xserver_user_x_domain_template(consolekit, consolekit_t, consolekit_tmpfs_t)
+')
+
+optional_policy(`
+	udev_domtrans(consolekit_t)
+	udev_read_db(consolekit_t)
+	udev_signal(consolekit_t)
 ')
 
 optional_policy(`
