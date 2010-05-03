@@ -88,7 +88,7 @@ template(`dbus_role_template',`
 	files_tmp_filetrans($1_dbusd_t, session_dbusd_tmp_t, { file dir })
 
 	domtrans_pattern($3, dbusd_exec_t, $1_dbusd_t)
-	allow $3 $1_dbusd_t:process { sigkill signal };
+	allow $3 $1_dbusd_t:process { signull sigkill signal };
 
 	# cjp: this seems very broken
 	corecmd_bin_domtrans($1_dbusd_t, $3)
@@ -127,6 +127,7 @@ template(`dbus_role_template',`
 	fs_getattr_romfs($1_dbusd_t)
 	fs_getattr_xattr_fs($1_dbusd_t)
 	fs_list_inotifyfs($1_dbusd_t)
+	fs_dontaudit_list_nfs($1_dbusd_t)
 
 	selinux_get_fs_mount($1_dbusd_t)
 	selinux_validate_context($1_dbusd_t)
@@ -145,6 +146,8 @@ template(`dbus_role_template',`
 
 	seutil_read_config($1_dbusd_t)
 	seutil_read_default_contexts($1_dbusd_t)
+
+	term_use_all_terms($1_dbusd_t)
 
 	userdom_read_user_home_content_files($1_dbusd_t)
 
@@ -256,7 +259,46 @@ interface(`dbus_read_config',`
 
 ########################################
 ## <summary>
-##	Connect to the the session DBUS
+##	Read system dbus lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_read_lib_files',`
+	gen_require(`
+		type system_dbusd_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	read_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	system dbus lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_manage_lib_files',`
+	gen_require(`
+		type system_dbusd_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	manage_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Connect to the system DBUS
 ##	for service (acquire_svc).
 ## </summary>
 ## <param name="domain">
@@ -272,6 +314,34 @@ interface(`dbus_connect_session_bus',`
 	')
 
 	allow $1 session_bus_type:dbus acquire_svc;
+')
+
+########################################
+## <summary>
+##	Allow a application domain to be started
+##	by the session dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an
+##	entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`dbus_session_domain',`
+	gen_require(`
+		attribute session_bus_type;
+	')
+
+	domtrans_pattern(session_bus_type, $2, $1)
+
+	dbus_session_bus_client($1)
+	dbus_connect_session_bus($1)
 ')
 
 ########################################
@@ -363,6 +433,10 @@ interface(`dbus_system_domain',`
 
 	dbus_system_bus_client($1)
 	dbus_connect_system_bus($1)
+
+	ps_process_pattern(system_dbusd_t, $1)
+
+	userdom_read_all_users_state($1)
 
 	ifdef(`hide_broken_symptoms', `
 		dontaudit $1 system_dbusd_t:netlink_selinux_socket { read write };
