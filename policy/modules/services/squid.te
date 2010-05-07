@@ -14,6 +14,13 @@ policy_module(squid, 1.9.0)
 ## </desc>
 gen_tunable(squid_connect_any, false)
 
+## <desc>
+## <p>
+## Allow squid to run as a transparent proxy (TPROXY)
+## </p>
+## </desc>
+gen_tunable(squid_use_tproxy, false)
+
 type squid_t;
 type squid_exec_t;
 init_daemon_domain(squid_t, squid_exec_t)
@@ -67,7 +74,9 @@ read_lnk_files_pattern(squid_t, squid_conf_t, squid_conf_t)
 
 can_exec(squid_t, squid_exec_t)
 
+manage_dirs_pattern(squid_t, squid_log_t, squid_log_t)
 manage_files_pattern(squid_t, squid_log_t, squid_log_t)
+manage_lnk_files_pattern(squid_t, squid_log_t, squid_log_t)
 logging_log_filetrans(squid_t, squid_log_t, { file dir })
 
 manage_files_pattern(squid_t, squid_var_run_t, squid_var_run_t)
@@ -118,6 +127,8 @@ dev_read_urand(squid_t)
 
 fs_getattr_all_fs(squid_t)
 fs_search_auto_mountpoints(squid_t)
+#squid requires the following when run in diskd mode, the recommended setting
+fs_rw_tmpfs_files(squid_t)
 fs_list_inotifyfs(squid_t)
 
 selinux_dontaudit_getattr_dir(squid_t)
@@ -157,6 +168,11 @@ tunable_policy(`squid_connect_any',`
 	corenet_sendrecv_all_packets(squid_t)
 ')
 
+tunable_policy(`squid_use_tproxy',`
+	allow squid_t self:capability net_admin;
+	corenet_tcp_bind_netport_port(squid_t)
+')
+
 optional_policy(`
 	apache_content_template(squid)
 
@@ -186,8 +202,3 @@ optional_policy(`
 optional_policy(`
 	udev_read_db(squid_t)
 ')
-
-ifdef(`TODO',`
-#squid requires the following when run in diskd mode, the recommended setting
-allow squid_t tmpfs_t:file { read write };
-') dnl end TODO
