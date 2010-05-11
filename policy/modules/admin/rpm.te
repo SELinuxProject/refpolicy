@@ -1,5 +1,5 @@
 
-policy_module(rpm, 1.10.0)
+policy_module(rpm, 1.10.1)
 
 ########################################
 #
@@ -31,6 +31,12 @@ type rpm_var_lib_t;
 files_type(rpm_var_lib_t)
 typealias rpm_var_lib_t alias var_lib_rpm_t;
 
+type rpm_var_cache_t;
+files_type(rpm_var_cache_t)
+
+type rpm_var_run_t;
+files_pid_file(rpm_var_run_t)
+
 type rpm_script_t;
 type rpm_script_exec_t;
 domain_obj_id_change_exemption(rpm_script_t)
@@ -52,8 +58,9 @@ files_tmpfs_file(rpm_script_tmpfs_t)
 # rpm Local policy
 #
 
-allow rpm_t self:capability { chown dac_override fowner fsetid setgid setuid sys_chroot sys_tty_config mknod };
-allow rpm_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow rpm_t self:capability { chown dac_override fowner fsetid ipc_lock setgid setuid sys_chroot sys_nice sys_tty_config mknod };
+
+allow rpm_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execstack execheap };
 allow rpm_t self:process { getattr setexec setfscreate setrlimit };
 allow rpm_t self:fd use;
 allow rpm_t self:fifo_file rw_fifo_file_perms;
@@ -83,10 +90,18 @@ manage_fifo_files_pattern(rpm_t, rpm_tmpfs_t, rpm_tmpfs_t)
 manage_sock_files_pattern(rpm_t, rpm_tmpfs_t, rpm_tmpfs_t)
 fs_tmpfs_filetrans(rpm_t, rpm_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
+manage_dirs_pattern(rpm_t, rpm_var_cache_t, rpm_var_cache_t)
+manage_files_pattern(rpm_t, rpm_var_cache_t, rpm_var_cache_t)
+files_var_filetrans(rpm_t, rpm_var_cache_t, dir)
+
 # Access /var/lib/rpm files
 manage_files_pattern(rpm_t, rpm_var_lib_t, rpm_var_lib_t)
 files_var_lib_filetrans(rpm_t, rpm_var_lib_t, dir)
 
+manage_files_pattern(rpm_t, rpm_var_run_t, rpm_var_run_t)
+files_pid_filetrans(rpm_t, rpm_var_run_t, file)
+
+kernel_read_network_state(rpm_t)
 kernel_read_system_state(rpm_t)
 kernel_read_kernel_sysctls(rpm_t)
 
@@ -108,8 +123,9 @@ corenet_sendrecv_all_client_packets(rpm_t)
 dev_list_sysfs(rpm_t)
 dev_list_usbfs(rpm_t)
 dev_read_urand(rpm_t)
-#devices_manage_all_device_types(rpm_t)
 
+fs_getattr_all_dirs(rpm_t)
+fs_list_inotifyfs(rpm_t)
 fs_manage_nfs_dirs(rpm_t)
 fs_manage_nfs_files(rpm_t)
 fs_manage_nfs_symlinks(rpm_t)
@@ -131,6 +147,8 @@ selinux_compute_user_contexts(rpm_t)
 storage_raw_write_fixed_disk(rpm_t)
 # for installing kernel packages
 storage_raw_read_fixed_disk(rpm_t)
+
+term_list_ptys(rpm_t)
 
 auth_relabel_all_files_except_shadow(rpm_t)
 auth_manage_all_files_except_shadow(rpm_t)
@@ -155,6 +173,7 @@ domain_dontaudit_getattr_all_dgram_sockets(rpm_t)
 files_exec_etc_files(rpm_t)
 
 init_domtrans_script(rpm_t)
+init_use_script_ptys(rpm_t)
 
 libs_exec_ld_so(rpm_t)
 libs_exec_lib_files(rpm_t)
@@ -174,7 +193,15 @@ optional_policy(`
 ')
 
 optional_policy(`
-	hal_dbus_chat(rpm_t)
+	dbus_system_domain(rpm_t, rpm_exec_t)
+
+	optional_policy(`
+		hal_dbus_chat(rpm_t)
+	')
+
+	optional_policy(`
+		networkmanager_dbus_chat(rpm_t)
+	')
 ')
 
 optional_policy(`
@@ -185,25 +212,8 @@ optional_policy(`
 	unconfined_domain(rpm_t)
 	# yum-updatesd requires this
 	unconfined_dbus_chat(rpm_t)
+	unconfined_dbus_chat(rpm_script_t)
 ')
-
-ifdef(`TODO',`
-# read/write/create any files in the system
-dontaudit rpm_t domain:{ socket unix_dgram_socket udp_socket unix_stream_socket tcp_socket fifo_file rawip_socket packet_socket } getattr;
-allow rpm_t ttyfile:chr_file unlink;
-
-# needs rw permission to the directory for an rpm package that includes a mount
-# point
-allow rpm_t fs_type:dir { setattr rw_dir_perms };
-
-allow rpm_t mount_t:tcp_socket write;
-
-allow rpm_t rpc_pipefs_t:dir search;
-
-optional_policy(`
-allow rpm_t sysadm_gph_t:fd use;
-')
-') dnl endif TODO
 
 ########################################
 #
@@ -239,6 +249,8 @@ fs_tmpfs_filetrans(rpm_script_t, rpm_script_tmpfs_t, { dir file lnk_file sock_fi
 
 kernel_read_kernel_sysctls(rpm_script_t)
 kernel_read_system_state(rpm_script_t)
+kernel_read_network_state(rpm_script_t)
+kernel_read_software_raid_state(rpm_script_t)
 
 dev_list_sysfs(rpm_script_t)
 
@@ -250,6 +262,8 @@ dev_manage_all_chr_files(rpm_script_t)
 
 fs_manage_nfs_files(rpm_script_t)
 fs_getattr_nfs(rpm_script_t)
+fs_search_all(rpm_script_t)
+fs_getattr_all_fs(rpm_script_t)
 # why is this not using mount?
 fs_getattr_xattr_fs(rpm_script_t)
 fs_mount_xattr_fs(rpm_script_t)
@@ -272,6 +286,8 @@ selinux_compute_user_contexts(rpm_script_t)
 storage_raw_read_fixed_disk(rpm_script_t)
 storage_raw_write_fixed_disk(rpm_script_t)
 
+term_getattr_unallocated_ttys(rpm_script_t)
+term_list_ptys(rpm_script_t)
 term_use_all_terms(rpm_script_t)
 
 auth_dontaudit_getattr_shadow(rpm_script_t)
@@ -293,6 +309,7 @@ files_read_etc_runtime_files(rpm_script_t)
 files_exec_usr_files(rpm_script_t)
 
 init_domtrans_script(rpm_script_t)
+init_telinit(rpm_script_t)
 
 libs_exec_ld_so(rpm_script_t)
 libs_exec_lib_files(rpm_script_t)
@@ -326,8 +343,16 @@ optional_policy(`
 ')
 
 optional_policy(`
+	lvm_domtrans(rpm_script_t)
+')
+
+optional_policy(`
 	tzdata_domtrans(rpm_t)
 	tzdata_domtrans(rpm_script_t)
+')
+
+optional_policy(`
+	udev_domtrans(rpm_script_t)
 ')
 
 optional_policy(`
