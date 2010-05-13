@@ -1,5 +1,5 @@
 
-policy_module(asterisk, 1.7.1)
+policy_module(asterisk, 1.7.2)
 
 ########################################
 #
@@ -40,12 +40,13 @@ files_pid_file(asterisk_var_run_t)
 #
 
 # dac_override for /var/run/asterisk
-allow asterisk_t self:capability { dac_override setgid setuid sys_nice };
+allow asterisk_t self:capability { dac_override setgid setuid sys_nice net_admin };
 dontaudit asterisk_t self:capability sys_tty_config;
-allow asterisk_t self:process { setsched signal_perms };
+allow asterisk_t self:process { getsched setsched signal_perms getcap setcap };
 allow asterisk_t self:fifo_file rw_fifo_file_perms;
 allow asterisk_t self:sem create_sem_perms;
 allow asterisk_t self:shm create_shm_perms;
+allow asterisk_t self:unix_stream_socket connectto;
 allow asterisk_t self:tcp_socket create_stream_socket_perms;
 allow asterisk_t self:udp_socket create_socket_perms;
 
@@ -53,6 +54,8 @@ allow asterisk_t asterisk_etc_t:dir list_dir_perms;
 read_files_pattern(asterisk_t, asterisk_etc_t, asterisk_etc_t)
 read_lnk_files_pattern(asterisk_t, asterisk_etc_t, asterisk_etc_t)
 files_search_etc(asterisk_t)
+
+can_exec(asterisk_t, asterisk_exec_t)
 
 manage_files_pattern(asterisk_t, asterisk_log_t, asterisk_log_t)
 logging_log_filetrans(asterisk_t, asterisk_log_t, { file dir })
@@ -81,9 +84,10 @@ files_pid_filetrans(asterisk_t, asterisk_var_run_t, file)
 
 kernel_read_system_state(asterisk_t)
 kernel_read_kernel_sysctls(asterisk_t)
+kernel_request_load_module(asterisk_t)
 
 corecmd_exec_bin(asterisk_t)
-corecmd_search_bin(asterisk_t)
+corecmd_exec_shell(asterisk_t)
 
 corenet_all_recvfrom_unlabeled(asterisk_t)
 corenet_all_recvfrom_netlabel(asterisk_t)
@@ -104,10 +108,14 @@ corenet_tcp_bind_generic_port(asterisk_t)
 corenet_udp_bind_generic_port(asterisk_t)
 corenet_dontaudit_udp_bind_all_ports(asterisk_t)
 corenet_sendrecv_generic_server_packets(asterisk_t)
+corenet_tcp_connect_postgresql_port(asterisk_t)
+corenet_tcp_connect_snmp_port(asterisk_t)
 
+dev_rw_generic_usb_dev(asterisk_t)
 dev_read_sysfs(asterisk_t)
 dev_read_sound(asterisk_t)
 dev_write_sound(asterisk_t)
+dev_read_urand(asterisk_t)
 
 domain_use_interactive_fds(asterisk_t)
 
@@ -118,19 +126,29 @@ files_search_spool(asterisk_t)
 files_read_usr_files(asterisk_t)
 
 fs_getattr_all_fs(asterisk_t)
+fs_list_inotifyfs(asterisk_t)
+fs_read_anon_inodefs_files(asterisk_t)
 fs_search_auto_mountpoints(asterisk_t)
+
+auth_use_nsswitch(asterisk_t)
 
 logging_send_syslog_msg(asterisk_t)
 
 miscfiles_read_localization(asterisk_t)
 
-sysnet_read_config(asterisk_t)
-
 userdom_dontaudit_use_unpriv_user_fds(asterisk_t)
 userdom_dontaudit_search_user_home_dirs(asterisk_t)
 
 optional_policy(`
-	nis_use_ypbind(asterisk_t)
+	mysql_stream_connect(asterisk_t)
+')
+
+optional_policy(`
+	mta_send_mail(asterisk_t)
+')
+
+optional_policy(`
+	postgresql_stream_connect(asterisk_t)
 ')
 
 optional_policy(`
@@ -138,10 +156,10 @@ optional_policy(`
 ')
 
 optional_policy(`
-	udev_read_db(asterisk_t)
+	snmp_read_snmp_var_lib_files(asterisk_t)
+	snmp_stream_connect(asterisk_t)
 ')
 
-ifdef(`TODO',`
-allow initrc_t asterisk_var_run_t:fifo_file unlink;
-allow sysadm_t asterisk_t:unix_stream_socket { connectto rw_stream_socket_perms };
+optional_policy(`
+	udev_read_db(asterisk_t)
 ')
