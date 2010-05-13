@@ -1,5 +1,5 @@
 
-policy_module(munin, 1.7.0)
+policy_module(munin, 1.7.1)
 
 ########################################
 #
@@ -28,6 +28,14 @@ files_type(munin_var_lib_t)
 type munin_var_run_t alias lrrd_var_run_t;
 files_pid_file(munin_var_run_t)
 
+munin_plugin_template(disk)
+
+munin_plugin_template(mail)
+
+munin_plugin_template(services)
+
+munin_plugin_template(system)
+
 ########################################
 #
 # Local policy
@@ -55,7 +63,8 @@ logging_log_filetrans(munin_t, munin_log_t, { file dir })
 
 manage_dirs_pattern(munin_t, munin_tmp_t, munin_tmp_t)
 manage_files_pattern(munin_t, munin_tmp_t, munin_tmp_t)
-files_tmp_filetrans(munin_t, munin_tmp_t, { file dir })
+manage_sock_files_pattern(munin_t, munin_tmp_t, munin_tmp_t)
+files_tmp_filetrans(munin_t, munin_tmp_t, { file dir sock_file })
 
 # Allow access to the munin databases
 manage_dirs_pattern(munin_t, munin_var_lib_t, munin_var_lib_t)
@@ -131,6 +140,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	lpd_domtrans_lpr(munin_t)
+')
+
+optional_policy(`
 	mta_read_config(munin_t)
 	mta_send_mail(munin_t)
 	mta_read_queue(munin_t)
@@ -164,3 +177,140 @@ optional_policy(`
 optional_policy(`
 	udev_read_db(munin_t)
 ')
+
+###################################
+#
+# local policy for disk plugins
+#
+
+allow disk_munin_plugin_t self:tcp_socket create_stream_socket_perms;
+
+rw_files_pattern(disk_munin_plugin_t, munin_var_lib_t, munin_var_lib_t)
+
+corecmd_exec_shell(disk_munin_plugin_t)
+
+corenet_tcp_connect_hddtemp_port(disk_munin_plugin_t)
+
+files_read_etc_files(disk_munin_plugin_t)
+files_read_etc_runtime_files(disk_munin_plugin_t)
+
+fs_getattr_all_fs(disk_munin_plugin_t)
+
+dev_read_sysfs(disk_munin_plugin_t)
+dev_read_urand(disk_munin_plugin_t)
+
+storage_getattr_fixed_disk_dev(disk_munin_plugin_t)
+
+sysnet_read_config(disk_munin_plugin_t)
+
+optional_policy(`
+	hddtemp_exec(disk_munin_plugin_t)
+')
+
+optional_policy(`
+	fstools_exec(disk_munin_plugin_t)
+')
+
+####################################
+#
+# local policy for mail plugins
+#
+
+allow mail_munin_plugin_t self:capability dac_override;
+
+rw_files_pattern(mail_munin_plugin_t, munin_var_lib_t, munin_var_lib_t)
+
+dev_read_urand(mail_munin_plugin_t)
+
+files_read_etc_files(mail_munin_plugin_t)
+
+fs_getattr_all_fs(mail_munin_plugin_t)
+
+logging_read_generic_logs(mail_munin_plugin_t)
+
+mta_read_config(mail_munin_plugin_t)
+mta_send_mail(mail_munin_plugin_t)
+mta_read_queue(mail_munin_plugin_t)
+
+optional_policy(`
+	postfix_read_config(mail_munin_plugin_t)
+	postfix_list_spool(mail_munin_plugin_t)
+')
+
+optional_policy(`
+	sendmail_read_log(mail_munin_plugin_t)
+')
+
+###################################
+#
+# local policy for service plugins
+#
+
+allow services_munin_plugin_t self:tcp_socket create_stream_socket_perms;
+allow services_munin_plugin_t self:udp_socket create_socket_perms;
+allow services_munin_plugin_t self:netlink_route_socket r_netlink_socket_perms;
+
+corenet_tcp_connect_all_ports(services_munin_plugin_t)
+corenet_tcp_connect_http_port(services_munin_plugin_t)
+
+dev_read_urand(services_munin_plugin_t)
+dev_read_rand(services_munin_plugin_t)
+
+fs_getattr_all_fs(services_munin_plugin_t)
+
+files_read_etc_files(services_munin_plugin_t)
+
+sysnet_read_config(services_munin_plugin_t)
+
+optional_policy(`
+	cups_stream_connect(services_munin_plugin_t)
+')
+
+optional_policy(`
+	lpd_exec_lpr(services_munin_plugin_t)
+')
+
+optional_policy(`
+	mysql_read_config(services_munin_plugin_t)
+	mysql_stream_connect(services_munin_plugin_t)
+')
+
+optional_policy(`
+	netutils_domtrans_ping(services_munin_plugin_t)
+')
+
+optional_policy(`
+	postgresql_stream_connect(services_munin_plugin_t)
+')
+
+optional_policy(`
+	snmp_read_snmp_var_lib_files(services_munin_plugin_t)
+')
+
+##################################
+#
+# local policy for system plugins
+#
+
+allow system_munin_plugin_t self:udp_socket create_socket_perms;
+
+rw_files_pattern(system_munin_plugin_t, munin_var_lib_t, munin_var_lib_t)
+
+kernel_read_network_state(system_munin_plugin_t)
+kernel_read_all_sysctls(system_munin_plugin_t)
+
+corecmd_exec_shell(system_munin_plugin_t)
+
+fs_getattr_all_fs(system_munin_plugin_t)
+
+dev_read_sysfs(system_munin_plugin_t)
+dev_read_urand(system_munin_plugin_t)
+
+domain_read_all_domains_state(system_munin_plugin_t)
+
+# needed by users plugin
+init_read_utmp(system_munin_plugin_t)
+
+sysnet_exec_ifconfig(system_munin_plugin_t)
+
+term_getattr_unallocated_ttys(system_munin_plugin_t)

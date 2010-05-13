@@ -2,6 +2,55 @@
 
 ########################################
 ## <summary>
+##	Create a set of derived types for various
+##	munin plugins,
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The name to be used for deriving type names.
+##	</summary>
+## </param>
+#
+template(`munin_plugin_template',`
+	gen_require(`
+		type munin_t, munin_exec_t, munin_etc_t;
+	')
+
+	type $1_munin_plugin_t;
+	type $1_munin_plugin_exec_t;
+	typealias $1_munin_plugin_t alias munin_$1_plugin_t;
+	typealias $1_munin_plugin_exec_t alias munin_$1_plugin_exec_t;
+	application_domain($1_munin_plugin_t, $1_munin_plugin_exec_t)
+	role system_r types $1_munin_plugin_t;
+
+	type $1_munin_plugin_tmp_t;
+	typealias $1_munin_plugin_tmp_t alias munin_$1_plugin_tmp_t;
+	files_tmp_file($1_munin_plugin_tmp_t)
+
+	allow $1_munin_plugin_t self:fifo_file rw_fifo_file_perms;
+
+	manage_files_pattern($1_munin_plugin_t, $1_munin_plugin_tmp_t, $1_munin_plugin_tmp_t)
+	manage_dirs_pattern($1_munin_plugin_t, $1_munin_plugin_tmp_t, $1_munin_plugin_tmp_t)
+	files_tmp_filetrans($1_munin_plugin_t, $1_munin_plugin_tmp_t, { dir file })
+
+	# automatic transition rules from munin domain
+	# to specific munin plugin domain
+	domtrans_pattern(munin_t, $1_munin_plugin_exec_t, $1_munin_plugin_t)
+
+	allow $1_munin_plugin_t munin_exec_t:file read_file_perms;
+	allow $1_munin_plugin_t munin_t:tcp_socket rw_socket_perms;
+
+	read_lnk_files_pattern($1_munin_plugin_t, munin_etc_t, munin_etc_t)
+
+	kernel_read_system_state($1_munin_plugin_t)
+
+	corecmd_exec_bin($1_munin_plugin_t)
+
+	miscfiles_read_localization($1_munin_plugin_t)
+')
+
+########################################
+## <summary>
 ##	Connect to munin over a unix domain
 ##	stream socket.
 ## </summary>
@@ -104,7 +153,7 @@ interface(`munin_dontaudit_search_lib',`
 
 ########################################
 ## <summary>
-##	All of the rules required to administrate 
+##	All of the rules required to administrate
 ##	an munin environment
 ## </summary>
 ## <param name="domain">
