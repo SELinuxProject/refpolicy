@@ -1,5 +1,5 @@
 
-policy_module(cups, 1.13.0)
+policy_module(cups, 1.13.1)
 
 ########################################
 #
@@ -22,6 +22,9 @@ files_config_file(cupsd_etc_t)
 
 type cupsd_initrc_exec_t;
 init_script_file(cupsd_initrc_exec_t)
+
+type cupsd_interface_t;
+files_type(cupsd_interface_t)
 
 type cupsd_rw_etc_t;
 files_config_file(cupsd_rw_etc_t)
@@ -70,6 +73,9 @@ files_config_file(hplip_etc_t)
 type hplip_tmp_t;
 files_tmp_file(hplip_tmp_t)
 
+type hplip_var_lib_t;
+files_type(hplip_var_lib_t)
+
 type hplip_var_run_t;
 files_pid_file(hplip_var_run_t)
 
@@ -97,7 +103,7 @@ ifdef(`enable_mls',`
 #
 
 # /usr/lib/cups/backend/serial needs sys_admin(?!)
-allow cupsd_t self:capability { sys_admin dac_override dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_rawio sys_resource sys_tty_config };
+allow cupsd_t self:capability { ipc_lock sys_admin dac_override dac_read_search kill setgid setuid fsetid net_bind_service fowner chown dac_override sys_rawio sys_resource sys_tty_config };
 dontaudit cupsd_t self:capability { sys_tty_config net_admin };
 allow cupsd_t self:process { getpgid setpgid setsched signal_perms };
 allow cupsd_t self:fifo_file rw_fifo_file_perms;
@@ -105,6 +111,7 @@ allow cupsd_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow cupsd_t self:unix_dgram_socket create_socket_perms;
 allow cupsd_t self:netlink_selinux_socket create_socket_perms;
 allow cupsd_t self:shm create_shm_perms;
+allow cupsd_t self:sem create_sem_perms;
 allow cupsd_t self:tcp_socket create_stream_socket_perms;
 allow cupsd_t self:udp_socket create_socket_perms;
 allow cupsd_t self:appletalk_socket create_socket_perms;
@@ -115,6 +122,8 @@ allow cupsd_t cupsd_etc_t:{ dir file } setattr;
 read_files_pattern(cupsd_t, cupsd_etc_t, cupsd_etc_t)
 read_lnk_files_pattern(cupsd_t, cupsd_etc_t, cupsd_etc_t)
 files_search_etc(cupsd_t)
+
+manage_files_pattern(cupsd_t, cupsd_interface_t, cupsd_interface_t)
 
 manage_dirs_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t)
 manage_files_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t)
@@ -156,6 +165,7 @@ allow cupsd_t ptal_var_run_t : sock_file setattr;
 kernel_read_system_state(cupsd_t)
 kernel_read_network_state(cupsd_t)
 kernel_read_all_sysctls(cupsd_t)
+kernel_request_load_module(cupsd_t)
 
 corenet_all_recvfrom_unlabeled(cupsd_t)
 corenet_all_recvfrom_netlabel(cupsd_t)
@@ -171,6 +181,7 @@ corenet_tcp_bind_generic_node(cupsd_t)
 corenet_udp_bind_generic_node(cupsd_t)
 corenet_tcp_bind_ipp_port(cupsd_t)
 corenet_udp_bind_ipp_port(cupsd_t)
+corenet_udp_bind_howl_port(cupsd_t)
 corenet_tcp_bind_reserved_port(cupsd_t)
 corenet_dontaudit_tcp_bind_all_reserved_ports(cupsd_t)
 corenet_tcp_bind_all_rpc_ports(cupsd_t)
@@ -191,6 +202,7 @@ domain_read_all_domains_state(cupsd_t)
 
 fs_getattr_all_fs(cupsd_t)
 fs_search_auto_mountpoints(cupsd_t)
+fs_search_fusefs(cupsd_t)
 fs_read_anon_inodefs_files(cupsd_t)
 
 mls_file_downgrade(cupsd_t)
@@ -250,6 +262,7 @@ logging_send_syslog_msg(cupsd_t)
 miscfiles_read_localization(cupsd_t)
 # invoking ghostscript needs to read fonts
 miscfiles_read_fonts(cupsd_t)
+miscfiles_setattr_fonts_cache_dirs(cupsd_t)
 
 seutil_read_config(cupsd_t)
 sysnet_exec_ifconfig(cupsd_t)
@@ -317,6 +330,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	snmp_read_snmp_var_lib_files(cupsd_t)
+')
+
+optional_policy(`
 	udev_read_db(cupsd_t)
 ')
 
@@ -327,7 +344,7 @@ optional_policy(`
 
 allow cupsd_config_t self:capability { chown dac_override sys_tty_config };
 dontaudit cupsd_config_t self:capability sys_tty_config;
-allow cupsd_config_t self:process signal_perms;
+allow cupsd_config_t self:process { getsched signal_perms };
 allow cupsd_config_t self:fifo_file rw_fifo_file_perms;
 allow cupsd_config_t self:unix_stream_socket create_socket_perms;
 allow cupsd_config_t self:unix_dgram_socket create_socket_perms;
@@ -344,7 +361,7 @@ manage_files_pattern(cupsd_config_t, cupsd_rw_etc_t, cupsd_rw_etc_t)
 manage_lnk_files_pattern(cupsd_config_t, cupsd_rw_etc_t, cupsd_rw_etc_t)
 files_var_filetrans(cupsd_config_t, cupsd_rw_etc_t, file)
 
-can_exec(cupsd_config_t, cupsd_config_exec_t) 
+can_exec(cupsd_config_t, cupsd_config_exec_t)
 
 allow cupsd_config_t cupsd_log_t:file rw_file_perms;
 
@@ -377,6 +394,8 @@ dev_read_sysfs(cupsd_config_t)
 dev_read_urand(cupsd_config_t)
 dev_read_rand(cupsd_config_t)
 dev_rw_generic_usb_dev(cupsd_config_t)
+
+files_search_all_mountpoints(cupsd_config_t)
 
 fs_getattr_all_fs(cupsd_config_t)
 fs_search_auto_mountpoints(cupsd_config_t)
@@ -419,12 +438,15 @@ ifdef(`distro_redhat',`
 ')
 
 optional_policy(`
+	term_use_generic_ptys(cupsd_config_t)
+')
+
+optional_policy(`
 	cron_system_entry(cupsd_config_t, cupsd_config_exec_t)
 ')
 
 optional_policy(`
-	dbus_system_bus_client(cupsd_config_t)
-	dbus_connect_system_bus(cupsd_config_t)
+	dbus_system_domain(cupsd_config_t, cupsd_config_exec_t)
 
 	optional_policy(`
 		hal_dbus_chat(cupsd_config_t)
@@ -446,6 +468,11 @@ optional_policy(`
 ')
 
 optional_policy(`
+	policykit_dbus_chat(cupsd_config_t)
+	userdom_read_all_users_state(cupsd_config_t)
+')
+
+optional_policy(`
 	rpm_read_db(cupsd_config_t)
 ')
 
@@ -455,6 +482,10 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(cupsd_config_t)
+')
+
+optional_policy(`
+	unconfined_stream_connect(cupsd_config_t)
 ')
 
 ########################################
@@ -520,6 +551,7 @@ auth_use_nsswitch(cupsd_lpd_t)
 logging_send_syslog_msg(cupsd_lpd_t)
 
 miscfiles_read_localization(cupsd_lpd_t)
+miscfiles_setattr_fonts_cache_dirs(cupsd_lpd_t)
 
 cups_stream_connect(cupsd_lpd_t)
 
@@ -532,7 +564,7 @@ optional_policy(`
 # cups_pdf local policy
 #
 
-allow cups_pdf_t self:capability { chown fsetid setuid setgid dac_override };
+allow cups_pdf_t self:capability { chown fowner fsetid setuid setgid dac_override };
 allow cups_pdf_t self:fifo_file rw_file_perms;
 allow cups_pdf_t self:unix_stream_socket create_stream_socket_perms;
 
@@ -541,6 +573,8 @@ manage_files_pattern(cups_pdf_t, cupsd_log_t, cupsd_log_t)
 manage_files_pattern(cups_pdf_t, cups_pdf_tmp_t, cups_pdf_tmp_t)
 manage_dirs_pattern(cups_pdf_t, cups_pdf_tmp_t, cups_pdf_tmp_t)
 files_tmp_filetrans(cups_pdf_t, cups_pdf_tmp_t, { file dir })
+
+fs_rw_anon_inodefs_files(cups_pdf_t)
 
 kernel_read_system_state(cups_pdf_t)
 
@@ -563,6 +597,7 @@ lpd_manage_spool(cups_pdf_t)
 
 
 tunable_policy(`use_nfs_home_dirs',`
+	fs_search_auto_mountpoints(cups_pdf_t)
 	fs_manage_nfs_dirs(cups_pdf_t)
 	fs_manage_nfs_files(cups_pdf_t)
 ')
@@ -601,6 +636,9 @@ read_files_pattern(hplip_t, hplip_etc_t, hplip_etc_t)
 read_lnk_files_pattern(hplip_t, hplip_etc_t, hplip_etc_t)
 files_search_etc(hplip_t)
 
+manage_files_pattern(hplip_t, hplip_var_lib_t, hplip_var_lib_t)
+manage_lnk_files_pattern(hplip_t, hplip_var_lib_t, hplip_var_lib_t)
+
 manage_fifo_files_pattern(hplip_t, hplip_tmp_t, hplip_tmp_t)
 files_tmp_filetrans(hplip_t, hplip_tmp_t, fifo_file )
 
@@ -627,6 +665,7 @@ corenet_tcp_connect_hplip_port(hplip_t)
 corenet_tcp_connect_ipp_port(hplip_t)
 corenet_sendrecv_hplip_client_packets(hplip_t)
 corenet_receive_hplip_server_packets(hplip_t)
+corenet_udp_bind_howl_port(hplip_t)
 
 dev_read_sysfs(hplip_t)
 dev_rw_printer(hplip_t)
