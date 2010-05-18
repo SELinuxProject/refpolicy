@@ -1,0 +1,100 @@
+
+policy_module(plymouthd, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type plymouth_t;
+type plymouth_exec_t;
+application_domain(plymouth_t, plymouth_exec_t)
+
+type plymouthd_t;
+type plymouthd_exec_t;
+init_daemon_domain(plymouthd_t, plymouthd_exec_t)
+
+type plymouthd_spool_t;
+files_type(plymouthd_spool_t)
+
+type plymouthd_var_lib_t;
+files_type(plymouthd_var_lib_t)
+
+type plymouthd_var_run_t;
+files_pid_file(plymouthd_var_run_t)
+
+########################################
+#
+# Plymouthd private policy
+#
+
+allow plymouthd_t self:capability { sys_admin sys_tty_config };
+dontaudit plymouthd_t self:capability dac_override;
+allow plymouthd_t self:process signal;
+allow plymouthd_t self:fifo_file rw_fifo_file_perms;
+allow plymouthd_t self:unix_stream_socket create_stream_socket_perms;
+
+manage_dirs_pattern(plymouthd_t, plymouthd_spool_t, plymouthd_spool_t)
+manage_files_pattern(plymouthd_t, plymouthd_spool_t, plymouthd_spool_t)
+manage_sock_files_pattern(plymouthd_t, plymouthd_spool_t, plymouthd_spool_t)
+files_spool_filetrans(plymouthd_t, plymouthd_spool_t, { file dir sock_file })
+
+manage_dirs_pattern(plymouthd_t, plymouthd_var_lib_t, plymouthd_var_lib_t)
+manage_files_pattern(plymouthd_t, plymouthd_var_lib_t, plymouthd_var_lib_t)
+files_var_lib_filetrans(plymouthd_t, plymouthd_var_lib_t, { file dir })
+
+manage_dirs_pattern(plymouthd_t, plymouthd_var_run_t, plymouthd_var_run_t)
+manage_files_pattern(plymouthd_t, plymouthd_var_run_t, plymouthd_var_run_t)
+files_pid_filetrans(plymouthd_t, plymouthd_var_run_t, { file dir })
+
+kernel_read_system_state(plymouthd_t)
+kernel_request_load_module(plymouthd_t)
+kernel_change_ring_buffer_level(plymouthd_t)
+
+dev_rw_dri(plymouthd_t)
+dev_read_sysfs(plymouthd_t)
+dev_read_framebuffer(plymouthd_t)
+dev_write_framebuffer(plymouthd_t)
+
+domain_use_interactive_fds(plymouthd_t)
+
+files_read_etc_files(plymouthd_t)
+files_read_usr_files(plymouthd_t)
+
+miscfiles_read_localization(plymouthd_t)
+miscfiles_read_fonts(plymouthd_t)
+miscfiles_manage_fonts_cache(plymouthd_t)
+
+########################################
+#
+# Plymouth private policy
+#
+
+allow plymouth_t self:process signal;
+allow plymouth_t self:fifo_file rw_file_perms;
+allow plymouth_t self:unix_stream_socket create_stream_socket_perms;
+
+kernel_read_system_state(plymouth_t)
+
+domain_use_interactive_fds(plymouth_t)
+
+files_read_etc_files(plymouth_t)
+
+term_use_ptmx(plymouth_t)
+
+miscfiles_read_localization(plymouth_t)
+
+sysnet_read_config(plymouth_t)
+
+plymouthd_stream_connect(plymouth_t)
+
+ifdef(`hide_broken_symptoms', `
+	optional_policy(`
+		hal_dontaudit_write_log(plymouth_t)
+		hal_dontaudit_rw_pipes(plymouth_t)
+	')
+')
+
+optional_policy(`
+	lvm_domtrans(plymouth_t)
+')
