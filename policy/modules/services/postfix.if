@@ -46,6 +46,7 @@ template(`postfix_domain_template',`
 
 	allow postfix_$1_t postfix_etc_t:dir list_dir_perms;
 	read_files_pattern(postfix_$1_t, postfix_etc_t, postfix_etc_t)
+	read_lnk_files_pattern(postfix_$1_t, postfix_etc_t, postfix_etc_t)
 
 	can_exec(postfix_$1_t, postfix_$1_exec_t)
 
@@ -79,6 +80,7 @@ template(`postfix_domain_template',`
 	files_read_usr_symlinks(postfix_$1_t)
 	files_search_spool(postfix_$1_t)
 	files_getattr_tmp_dirs(postfix_$1_t)
+	files_search_all_mountpoints(postfix_$1_t)
 
 	init_dontaudit_use_fds(postfix_$1_t)
 	init_sigchld(postfix_$1_t)
@@ -110,10 +112,17 @@ template(`postfix_domain_template',`
 template(`postfix_server_domain_template',`
 	postfix_domain_template($1)
 
+	type postfix_$1_tmp_t;
+	files_tmp_file(postfix_$1_tmp_t)
+
 	allow postfix_$1_t self:capability { setuid setgid dac_override };
 	allow postfix_$1_t postfix_master_t:unix_stream_socket { connectto rw_stream_socket_perms };
 	allow postfix_$1_t self:tcp_socket create_socket_perms;
 	allow postfix_$1_t self:udp_socket create_socket_perms;
+
+	manage_dirs_pattern(postfix_$1_t, postfix_$1_tmp_t, postfix_$1_tmp_t)
+	manage_files_pattern(postfix_$1_t, postfix_$1_tmp_t, postfix_$1_tmp_t)
+	files_tmp_filetrans(postfix_$1_t, postfix_$1_tmp_t, { file dir })
 
 	domtrans_pattern(postfix_master_t, postfix_$1_exec_t, postfix_$1_t)
 
@@ -174,9 +183,8 @@ interface(`postfix_read_config',`
 		type postfix_etc_t;
 	')
 
-	allow $1 postfix_etc_t:dir list_dir_perms;
-	allow $1 postfix_etc_t:file read_file_perms;
-	allow $1 postfix_etc_t:lnk_file read_lnk_file_perms;
+	read_files_pattern($1, postfix_etc_t, postfix_etc_t)
+	read_lnk_files_pattern($1, postfix_etc_t, postfix_etc_t)
 	files_search_etc($1)
 ')
 
@@ -228,6 +236,25 @@ interface(`postfix_dontaudit_rw_local_tcp_sockets',`
 	')
 
 	dontaudit $1 postfix_local_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Allow read/write postfix local pipes
+##	TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`postfix_rw_local_pipes',`
+	gen_require(`
+		type postfix_local_t;
+	')
+
+	allow $1 postfix_local_t:fifo_file rw_fifo_file_perms;
 ')
 
 ########################################
@@ -368,6 +395,81 @@ interface(`postfix_exec_master',`
 	can_exec($1, postfix_master_exec_t)
 ')
 
+#######################################
+## <summary>
+##	Connect to postfix master process using a unix domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`postfix_stream_connect_master',`
+	gen_require(`
+		type postfix_master_t, postfix_public_t;
+	')
+
+	stream_connect_pattern($1, postfix_public_t, postfix_public_t, postfix_master_t)
+')
+
+########################################
+## <summary>
+##	Execute the master postdrop in the
+##	postfix_postdrop domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`postfix_domtrans_postdrop',`
+	gen_require(`
+		type postfix_postdrop_t, postfix_postdrop_exec_t;
+	')
+
+	domtrans_pattern($1, postfix_postdrop_exec_t, postfix_postdrop_t)
+')
+
+########################################
+## <summary>
+##	Execute the master postqueue in the
+##	postfix_postqueue domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`postfix_domtrans_postqueue',`
+	gen_require(`
+		type postfix_postqueue_t, postfix_postqueue_exec_t;
+	')
+
+	domtrans_pattern($1, postfix_postqueue_exec_t, postfix_postqueue_t)
+')
+
+#######################################
+## <summary>
+##	Execute the master postqueue in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`posftix_exec_postqueue',`
+	gen_require(`
+		type postfix_postqueue_exec_t;
+	')
+
+	can_exec($1, postfix_postqueue_exec_t)
+')
+
 ########################################
 ## <summary>
 ##	Create a named socket in a postfix private directory.
@@ -378,13 +480,32 @@ interface(`postfix_exec_master',`
 ##	</summary>
 ## </param>
 #
-interface(`postfix_create_pivate_sockets',`
+interface(`postfix_create_private_sockets',`
 	gen_require(`
 		type postfix_private_t;
 	')
 
 	allow $1 postfix_private_t:dir list_dir_perms;
 	create_sock_files_pattern($1, postfix_private_t, postfix_private_t)
+')
+
+########################################
+## <summary>
+##	manage named socket in a postfix private directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`postfix_manage_private_sockets',`
+	gen_require(`
+		type postfix_private_t;
+	')
+
+	allow $1 postfix_private_t:dir list_dir_perms;
+	manage_sock_files_pattern($1, postfix_private_t, postfix_private_t)
 ')
 
 ########################################
