@@ -19,6 +19,9 @@ files_config_file(dnsmasq_etc_t)
 type dnsmasq_lease_t;
 files_type(dnsmasq_lease_t)
 
+type dnsmasq_var_log_t;
+logging_log_file(dnsmasq_var_log_t)
+
 type dnsmasq_var_run_t;
 files_pid_file(dnsmasq_var_run_t)
 
@@ -27,7 +30,7 @@ files_pid_file(dnsmasq_var_run_t)
 # Local policy
 #
 
-allow dnsmasq_t self:capability { net_admin setgid setuid net_bind_service net_raw };
+allow dnsmasq_t self:capability { chown dac_override net_admin setgid setuid net_bind_service net_raw };
 dontaudit dnsmasq_t self:capability sys_tty_config;
 allow dnsmasq_t self:process { getcap setcap signal_perms };
 allow dnsmasq_t self:fifo_file rw_fifo_file_perms;
@@ -37,11 +40,14 @@ allow dnsmasq_t self:udp_socket create_socket_perms;
 allow dnsmasq_t self:packet_socket create_socket_perms;
 allow dnsmasq_t self:rawip_socket create_socket_perms;
 
-allow dnsmasq_t dnsmasq_etc_t:file read_file_perms;
+read_files_pattern(dnsmasq_t, dnsmasq_etc_t, dnsmasq_etc_t)
 
 # dhcp leases
 manage_files_pattern(dnsmasq_t, dnsmasq_lease_t, dnsmasq_lease_t)
 files_var_lib_filetrans(dnsmasq_t, dnsmasq_lease_t, file)
+
+manage_files_pattern(dnsmasq_t, dnsmasq_var_log_t, dnsmasq_var_log_t)
+logging_log_filetrans(dnsmasq_t, dnsmasq_var_log_t, file)
 
 manage_files_pattern(dnsmasq_t, dnsmasq_var_run_t, dnsmasq_var_run_t)
 files_pid_filetrans(dnsmasq_t, dnsmasq_var_run_t, file)
@@ -85,6 +91,14 @@ miscfiles_read_localization(dnsmasq_t)
 
 userdom_dontaudit_use_unpriv_user_fds(dnsmasq_t)
 userdom_dontaudit_search_user_home_dirs(dnsmasq_t)
+
+optional_policy(`
+	cobbler_read_lib_files(dnsmasq_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(dnsmasq_t)
+')
 
 optional_policy(`
 	seutil_sigchld_newrole(dnsmasq_t)
