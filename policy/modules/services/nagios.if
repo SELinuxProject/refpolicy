@@ -2,6 +2,45 @@
 
 ########################################
 ## <summary>
+##	Create a set of derived types for various
+##	nagios plugins,
+## </summary>
+## <param name="plugins_group_name">
+##	<summary>
+##	The name to be used for deriving type names.
+##	</summary>
+## </param>
+#
+template(`nagios_plugin_template',`
+
+	gen_require(`
+		type nagios_t, nrpe_t;
+		type nagios_log_t;
+	')
+
+	type nagios_$1_plugin_t;
+	type nagios_$1_plugin_exec_t;
+	application_domain(nagios_$1_plugin_t, nagios_$1_plugin_exec_t)
+	role system_r types nagios_$1_plugin_t;
+
+	allow nagios_$1_plugin_t self:fifo_file rw_fifo_file_perms;
+
+	domtrans_pattern(nrpe_t, nagios_$1_plugin_exec_t, nagios_$1_plugin_t)
+
+	# needed by command.cfg
+	domtrans_pattern(nagios_t, nagios_$1_plugin_exec_t, nagios_$1_plugin_t)
+
+	allow nagios_t nagios_$1_plugin_t:process signal_perms;
+
+	# cjp: leaked file descriptor
+	dontaudit nagios_$1_plugin_t nrpe_t:tcp_socket { read write };
+	dontaudit nagios_$1_plugin_t nagios_log_t:file { read write };
+
+	miscfiles_read_localization(nagios_$1_plugin_t)
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to read or write nagios
 ##	unnamed pipes.
 ## </summary>
@@ -42,6 +81,44 @@ interface(`nagios_read_config',`
 	files_search_etc($1)
 ')
 
+######################################
+## <summary>
+##	Read nagios logs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`nagios_read_log',`
+	gen_require(`
+		type nagios_log_t;
+	')
+
+	logging_search_logs($1)
+	read_files_pattern($1, nagios_log_t, nagios_log_t)
+')
+
+########################################
+## <summary>
+##	Search nagios spool directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`nagios_search_spool',`
+	gen_require(`
+		type nagios_spool_t;
+	')
+
+	allow $1 nagios_spool_t:dir search_dir_perms;
+	files_search_spool($1)
+')
+
 ########################################
 ## <summary>
 ##	Allow the specified domain to read
@@ -64,8 +141,8 @@ interface(`nagios_read_tmp_files',`
 
 ########################################
 ## <summary>
-##	Execute the nagios CGI with
-##	a domain transition.
+##	Allow the specified domain to read
+##	nagios temporary files.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -73,12 +150,13 @@ interface(`nagios_read_tmp_files',`
 ##	</summary>
 ## </param>
 #
-interface(`nagios_domtrans_cgi',`
+interface(`nagios_rw_inherited_tmp_files',`
 	gen_require(`
-		type nagios_cgi_t, nagios_cgi_exec_t;
+		type nagios_tmp_t;
 	')
 
-	domtrans_pattern($1, nagios_cgi_exec_t, nagios_cgi_t)
+	allow $1 nagios_tmp_t:file rw_inherited_file_perms;
+	files_search_tmp($1)
 ')
 
 ########################################
@@ -98,4 +176,56 @@ interface(`nagios_domtrans_nrpe',`
 	')
 
 	domtrans_pattern($1, nrpe_exec_t, nrpe_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate
+##	an nagios environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed to manage the nagios domain.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nagios_admin',`
+	gen_require(`
+		type nagios_t, nrpe_t;
+		type nagios_tmp_t, nagios_log_t;
+		type nagios_etc_t, nrpe_etc_t;
+		type nagios_spool_t, nagios_var_run_t;
+		type nagios_initrc_exec_t;
+	')
+
+	allow $1 nagios_t:process { ptrace signal_perms };
+	ps_process_pattern($1, nagios_t)
+
+	init_labeled_script_domtrans($1, nagios_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 nagios_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_list_tmp($1)
+	admin_pattern($1, nagios_tmp_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, nagios_log_t)
+
+	files_list_etc($1)
+	admin_pattern($1, nagios_etc_t)
+
+	files_list_spool($1)
+	admin_pattern($1, nagios_spool_t)
+
+	files_list_pids($1)
+	admin_pattern($1, nagios_var_run_t)
+
+	admin_pattern($1, nrpe_etc_t)
 ')
