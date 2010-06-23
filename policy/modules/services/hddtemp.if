@@ -1,12 +1,13 @@
-## <summary>hddtemp hard disk temperature tool running as a daemon</summary>
+## <summary>hddtemp hard disk temperature tool running as a daemon.</summary>
 
 #######################################
 ## <summary>
-##	Execute hddtemp in the hddtemp domain.
+##	Execute a domain transition to run
+##	hddtemp.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
-##	Domain allowed access.
+##	Domain allowed to transition.
 ##	</summary>
 ## </param>
 #
@@ -15,13 +16,13 @@ interface(`hddtemp_domtrans',`
 		type hddtemp_t, hddtemp_exec_t;
 	')
 
-	corecmd_search_bin($1)
 	domtrans_pattern($1, hddtemp_exec_t, hddtemp_t)
+	corecmd_search_bin($1)
 ')
 
 ######################################
 ## <summary>
-##	Execute hddtemp 
+##	Execute hddtemp.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -35,4 +36,43 @@ interface(`hddtemp_exec',`
 	')
 
 	can_exec($1, hddtemp_exec_t)
+	corecmd_search_bin($1)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an hddtemp environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`hddtemp_admin',`
+	gen_require(`
+		type hddtemp_t, hddtemp_etc_t, hddtemp_initrc_exec_t;
+	')
+
+	allow $1 hddtemp_t:process { ptrace signal_perms };
+	ps_process_pattern($1, hddtemp_t)
+
+	init_labeled_script_domtrans($1, hddtemp_initrc_exec_t)
+	domain_system_change_exemption($1)
+	role_transition $2 hddtemp_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	admin_pattern($1, hddtemp_etc_t)
+	files_search_etc($1)
+
+	allow $1 hddtemp_t:dir list_dir_perms;
+	read_lnk_files_pattern($1, hddtemp_t, hddtemp_t)
+	kernel_search_proc($1)
 ')
