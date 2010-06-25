@@ -30,6 +30,7 @@
 template(`wm_role_template',`
 	gen_require(`
 		type wm_exec_t;
+		class dbus send_msg;
 	')
 
 	type $1_wm_t;
@@ -42,6 +43,12 @@ template(`wm_role_template',`
 	allow $1_wm_t self:shm create_shm_perms;
 
 	allow $1_wm_t $3:unix_stream_socket connectto;
+	allow $3 $1_wm_t:unix_stream_socket connectto;
+	allow $3 $1_wm_t:process { signal sigchld };
+	allow $1_wm_t $3:process { signull sigkill };
+
+	allow $1_wm_t $3:dbus send_msg;
+	allow $3 $1_wm_t:dbus send_msg;
 
 	domtrans_pattern($3, wm_exec_t, $1_wm_t)
 
@@ -54,6 +61,8 @@ template(`wm_role_template',`
 
 	files_read_etc_files($1_wm_t)
 	files_read_usr_files($1_wm_t)
+
+	fs_getattr_tmpfs($1_wm_t)
 
 	mls_file_read_all_levels($1_wm_t)
 	mls_file_write_all_levels($1_wm_t)
@@ -72,10 +81,16 @@ template(`wm_role_template',`
 
 	optional_policy(`
 		dbus_system_bus_client($1_wm_t)
+		dbus_session_bus_client($1_wm_t)
+	')
+
+	optional_policy(`
+		pulseaudio_stream_connect($1_wm_t)
 	')
 
 	optional_policy(`
 		xserver_role($2, $1_wm_t)
+		xserver_manage_core_devices($1_wm_t)
 	')
 ')
 
