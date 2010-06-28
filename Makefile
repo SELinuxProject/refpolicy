@@ -212,8 +212,8 @@ endif
 
 # default MLS/MCS sensitivity and category settings.
 MLS_SENS ?= 16
-MLS_CATS ?= 256
-MCS_CATS ?= 256
+MLS_CATS ?= 1024
+MCS_CATS ?= 1024
 
 ifeq ($(QUIET),y)
 	verbose = @
