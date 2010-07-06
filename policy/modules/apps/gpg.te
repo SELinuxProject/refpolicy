@@ -1,4 +1,4 @@
-policy_module(gpg, 2.3.0)
+policy_module(gpg, 2.3.1)
 
 ########################################
 #
@@ -226,10 +226,15 @@ files_tmp_filetrans(gpg_agent_t, gpg_agent_tmp_t, { file sock_file dir })
 # allow gpg to connect to the gpg agent
 stream_connect_pattern(gpg_t, gpg_agent_tmp_t, gpg_agent_tmp_t, gpg_agent_t)
 
+corecmd_read_bin_symlinks(gpg_agent_t)
 corecmd_search_bin(gpg_agent_t)
 corecmd_exec_shell(gpg_agent_t)
 
+dev_read_urand(gpg_agent_t)
+
 domain_use_interactive_fds(gpg_agent_t)
+
+fs_dontaudit_list_inotifyfs(gpg_agent_t)
 
 miscfiles_read_localization(gpg_agent_t)
 
@@ -237,6 +242,10 @@ miscfiles_read_localization(gpg_agent_t)
 userdom_use_user_terminals(gpg_agent_t)
 # read and write ~/.gnupg (gpg-agent stores secret keys in ~/.gnupg/private-keys-v1.d )
 userdom_search_user_home_dirs(gpg_agent_t)
+
+ifdef(`hide_broken_symptoms',`
+	userdom_dontaudit_read_user_tmp_files(gpg_agent_t)
+')
 
 tunable_policy(`gpg_agent_env_file',`
 	# write ~/.gpg-agent-info or a similar to the users home dir
@@ -257,6 +266,10 @@ tunable_policy(`use_samba_home_dirs',`
 	fs_manage_cifs_dirs(gpg_agent_t)
 	fs_manage_cifs_files(gpg_agent_t)
 	fs_manage_cifs_symlinks(gpg_agent_t)
+')
+
+optional_policy(`
+	mozilla_dontaudit_rw_user_home_files(gpg_agent_t)
 ')
 
 ##############################
@@ -284,7 +297,6 @@ userdom_user_tmp_filetrans(gpg_pinentry_t, gpg_pinentry_tmp_t, sock_file)
 manage_dirs_pattern(gpg_pinentry_t, gpg_pinentry_tmpfs_t, gpg_pinentry_tmpfs_t)
 manage_files_pattern(gpg_pinentry_t, gpg_pinentry_tmpfs_t, gpg_pinentry_tmpfs_t)
 fs_tmpfs_filetrans(gpg_pinentry_t, gpg_pinentry_tmpfs_t, { file dir })
-fs_getattr_tmpfs(gpg_pinentry_t)
 
 # read /proc/meminfo
 kernel_read_system_state(gpg_pinentry_t)
@@ -306,6 +318,11 @@ dev_read_rand(gpg_pinentry_t)
 files_read_usr_files(gpg_pinentry_t)
 # read /etc/X11/qtrc
 files_read_etc_files(gpg_pinentry_t)
+
+fs_dontaudit_list_inotifyfs(gpg_pinentry_t)
+fs_getattr_tmpfs(gpg_pinentry_t)
+
+auth_use_nsswitch(gpg_pinentry_t)
 
 logging_send_syslog_msg(gpg_pinentry_t)
 
@@ -331,8 +348,10 @@ optional_policy(`
 
 optional_policy(`
 	pulseaudio_exec(gpg_pinentry_t)
+	pulseaudio_rw_home_files(gpg_pinentry_t)
 	pulseaudio_setattr_home_dir(gpg_pinentry_t)
 	pulseaudio_stream_connect(gpg_pinentry_t)
+	pulseaudio_signull(gpg_pinentry_t)
 ')
 
 optional_policy(`
