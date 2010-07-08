@@ -1,9 +1,12 @@
-policy_module(rpm, 1.11.0)
+policy_module(rpm, 1.11.1)
 
 ########################################
 #
 # Declarations
 #
+
+type debuginfo_exec_t;
+domain_entry_file(rpm_t, debuginfo_exec_t)
 
 type rpm_t;
 type rpm_exec_t;
@@ -193,6 +196,7 @@ optional_policy(`
 
 optional_policy(`
 	dbus_system_domain(rpm_t, rpm_exec_t)
+	dbus_system_domain(rpm_t, debuginfo_exec_t)
 
 	optional_policy(`
 		hal_dbus_chat(rpm_t)
@@ -219,8 +223,8 @@ optional_policy(`
 # rpm-script Local policy
 #
 
-allow rpm_script_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid ipc_lock sys_chroot sys_nice mknod kill };
-allow rpm_script_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow rpm_script_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid ipc_lock sys_admin sys_chroot sys_ptrace sys_rawio sys_nice mknod kill net_admin };
+allow rpm_script_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execheap };
 allow rpm_script_t self:fd use;
 allow rpm_script_t self:fifo_file rw_fifo_file_perms;
 allow rpm_script_t self:unix_dgram_socket create_socket_perms;
@@ -231,6 +235,7 @@ allow rpm_script_t self:shm create_shm_perms;
 allow rpm_script_t self:sem create_sem_perms;
 allow rpm_script_t self:msgq create_msgq_perms;
 allow rpm_script_t self:msg { send receive };
+allow rpm_script_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 allow rpm_script_t rpm_tmp_t:file read_file_perms;
 
@@ -293,6 +298,7 @@ auth_dontaudit_getattr_shadow(rpm_script_t)
 auth_use_nsswitch(rpm_script_t)
 # ideally we would not need this
 auth_manage_all_files_except_shadow(rpm_script_t)
+auth_relabel_shadow(rpm_script_t)
 
 corecmd_exec_all_executables(rpm_script_t)
 
@@ -306,6 +312,7 @@ domain_signull_all_domains(rpm_script_t)
 files_exec_etc_files(rpm_script_t)
 files_read_etc_runtime_files(rpm_script_t)
 files_exec_usr_files(rpm_script_t)
+files_relabel_all_files(rpm_script_t)
 
 init_domtrans_script(rpm_script_t)
 init_telinit(rpm_script_t)
@@ -339,6 +346,10 @@ tunable_policy(`allow_execmem',`
 
 optional_policy(`
 	bootloader_domtrans(rpm_script_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(rpm_script_t)
 ')
 
 optional_policy(`
