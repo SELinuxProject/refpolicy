@@ -77,10 +77,10 @@ type $1_node_t alias node_$1_t, node_type;
 declare_nodes($1_node_t,shift($*))
 ')
 
-# bindresvport in glibc starts searching for reserved ports at 600
+# bindresvport in glibc starts searching for reserved ports at 512
 define(`declare_ports',`dnl
 ifelse(eval(range_start($3) < 1024),1,`typeattribute $1 reserved_port_type;
-ifelse(eval(range_start($3) >= 600),1,`typeattribute $1 rpc_port_type;',`dnl')
+ifelse(eval(range_start($3) >= 512),1,`typeattribute $1 rpc_port_type;',`dnl')
 ',`dnl')
 portcon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
