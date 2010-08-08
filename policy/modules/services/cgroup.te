@@ -5,6 +5,10 @@ policy_module(cgroup, 1.0.0)
 # Declarations
 #
 
+type cgclear_t;
+type cgclear_exec_t;
+init_daemon_domain(cgclear_t, cgclear_exec_t)
+
 type cgred_t;
 type cgred_exec_t;
 init_daemon_domain(cgred_t, cgred_exec_t)
@@ -30,6 +34,21 @@ files_config_file(cgconfig_etc_t)
 
 ########################################
 #
+# cgclear personal policy.
+#
+
+allow cgclear_t self:capability sys_admin;
+
+kernel_read_system_state(cgclear_t)
+
+domain_setpriority_all_domains(cgclear_t)
+
+fs_manage_cgroup_dirs(cgclear_t)
+fs_manage_cgroup_files(cgclear_t)
+fs_unmount_cgroup(cgclear_t)
+
+########################################
+#
 # cgconfig personal policy.
 #
 
@@ -37,38 +56,44 @@ allow cgconfig_t self:capability { chown sys_admin };
 
 allow cgconfig_t cgconfig_etc_t:file read_file_perms;
 
+# search will do.
 kernel_list_unlabeled(cgconfig_t)
 kernel_read_system_state(cgconfig_t)
 
+# /etc/nsswitch.conf, /etc/passwd
 files_read_etc_files(cgconfig_t)
 
 fs_manage_cgroup_dirs(cgconfig_t)
 fs_manage_cgroup_files(cgconfig_t)
 fs_mount_cgroup(cgconfig_t)
 fs_mounton_cgroup(cgconfig_t)
-fs_unmount_cgroup(cgconfig_t)
 
 ########################################
 #
 # cgred personal policy.
 #
 
-allow cgred_t self:capability { net_admin sys_ptrace dac_override };
+allow cgred_t self:capability { net_admin sys_admin sys_ptrace dac_override };
 allow cgred_t self:netlink_socket { write bind create read };
 allow cgred_t self:unix_dgram_socket { write create connect };
 
 allow cgred_t cgrules_etc_t:file read_file_perms;
 
+# rc script creates pid file 
+manage_files_pattern(cgred_t, cgred_var_run_t, cgred_var_run_t)
 manage_sock_files_pattern(cgred_t, cgred_var_run_t, cgred_var_run_t)
-files_pid_filetrans(cgred_t, cgred_var_run_t, sock_file)
+files_pid_filetrans(cgred_t, cgred_var_run_t, { file sock_file })
 
 kernel_read_system_state(cgred_t)
 
 domain_read_all_domains_state(cgred_t)
+domain_setpriority_all_domains(cgred_t)
 
 files_getattr_all_files(cgred_t)
 files_getattr_all_sockets(cgred_t)
 files_read_all_symlinks(cgred_t)
+
+# /etc/group
 files_read_etc_files(cgred_t)
 
 fs_write_cgroup_files(cgred_t)
