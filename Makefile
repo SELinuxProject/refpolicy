@@ -196,6 +196,10 @@ ifneq ($(OUTPUT_POLICY),)
 	CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
 
+ifneq "$(CUSTOM_BUILDOPT)" ""
+	M4PARAM += $(foreach opt,$(CUSTOM_BUILDOPT),-D $(opt))
+endif
+
 # if not set, use the type as the name.
 NAME ?= $(TYPE)
 
