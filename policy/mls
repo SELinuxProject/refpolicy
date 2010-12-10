@@ -727,17 +727,23 @@ mlsconstrain context contains
 #
 
 # make sure these database classes are "single level"
-mlsconstrain { db_database db_table db_procedure db_column db_blob } { create relabelto }
+mlsconstrain { db_database db_schema db_table db_sequence db_view db_procedure db_language db_column db_blob } { create relabelto }
 	( l2 eq h2 );
 mlsconstrain { db_tuple } { insert relabelto }
 	( l2 eq h2 );
 
 # new database labels must be dominated by the relabeling subjects clearance
-mlsconstrain { db_database db_table db_procedure db_column db_tuple db_blob } { relabelto }
+mlsconstrain { db_database db_schema db_table db_sequence db_view db_procedure db_language db_column db_tuple db_blob } { relabelto }
 	( h1 dom h2 );
 
 # the database "read" ops (note the check is dominance of the low level)
 mlsconstrain { db_database } { getattr access get_param }
+	(( l1 dom l2 ) or
+	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
+	 ( t1 == mlsdbread ) or
+	 ( t2 == mlstrustedobject ));
+
+mlsconstrain { db_schema } { getattr search }
 	(( l1 dom l2 ) or
 	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
 	 ( t1 == mlsdbread ) or
@@ -755,7 +761,25 @@ mlsconstrain { db_column } { getattr use select }
 	 ( t1 == mlsdbread ) or
 	 ( t2 == mlstrustedobject ));
 
+mlsconstrain { db_sequence } { getattr get_value next_value }
+	(( l1 dom l2 ) or
+	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
+	 ( t1 == mlsdbread ) or
+	 ( t2 == mlstrustedobject ));
+
+mlsconstrain { db_view } { getattr expand }
+	(( l1 dom l2 ) or
+	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
+	 ( t1 == mlsdbread ) or
+	 ( t2 == mlstrustedobject ));
+
 mlsconstrain { db_procedure } { getattr execute install }
+	(( l1 dom l2 ) or
+	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
+	 ( t1 == mlsdbread ) or
+	 ( t2 == mlstrustedobject ));
+
+mlsconstrain { db_language } { getattr execute }
 	(( l1 dom l2 ) or
 	 (( t1 == mlsdbreadtoclr ) and ( h1 dom l2 )) or
 	 ( t1 == mlsdbread ) or
@@ -781,6 +805,13 @@ mlsconstrain { db_database } { create drop setattr relabelfrom install_module lo
 	 ( t1 == mlsdbwrite ) or
 	 ( t2 == mlstrustedobject ));
 
+mlsconstrain { db_schema } { create drop setattr relabelfrom add_name remove_name }
+	(( l1 eq l2 ) or
+	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
+	 (( t2 == mlsdbwriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
+	 ( t1 == mlsdbwrite ) or
+	 ( t2 == mlstrustedobject ));
+
 mlsconstrain { db_table } { create drop setattr relabelfrom update insert delete }
 	(( l1 eq l2 ) or
 	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
@@ -795,7 +826,28 @@ mlsconstrain { db_column } { create drop setattr relabelfrom update insert }
 	 ( t1 == mlsdbwrite ) or
 	 ( t2 == mlstrustedobject ));
 
+mlsconstrain { db_sequence } { create drop setattr relabelfrom set_value }
+	(( l1 eq l2 ) or
+	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
+	 (( t2 == mlsdbwriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
+	 ( t1 == mlsdbwrite ) or
+	 ( t2 == mlstrustedobject ));
+
+mlsconstrain { db_view } { create drop setattr relabelfrom }
+	(( l1 eq l2 ) or
+	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
+	 (( t2 == mlsdbwriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
+	 ( t1 == mlsdbwrite ) or
+	 ( t2 == mlstrustedobject ));
+
 mlsconstrain { db_procedure } { create drop setattr relabelfrom }
+	(( l1 eq l2 ) or
+	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
+	 (( t2 == mlsdbwriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
+	 ( t1 == mlsdbwrite ) or
+	 ( t2 == mlstrustedobject ));
+
+mlsconstrain { db_language } { create drop setattr relabelfrom }
 	(( l1 eq l2 ) or
 	 (( t1 == mlsdbwritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 (( t2 == mlsdbwriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
@@ -817,7 +869,7 @@ mlsconstrain { db_tuple } { relabelfrom update insert delete }
 	 ( t2 == mlstrustedobject ));
 
 # the database upgrade/downgrade rule
-mlsvalidatetrans { db_database db_table db_procedure db_column db_tuple db_blob }
+mlsvalidatetrans { db_database db_schema db_table db_sequence db_view db_procedure db_language db_column db_tuple db_blob }
 	((( l1 eq l2 ) or
 	  (( t3 == mlsdbupgrade ) and ( l1 domby l2 )) or
 	  (( t3 == mlsdbdowngrade ) and ( l1 dom l2 )) or

@@ -60,9 +60,13 @@ attribute sepgsql_unconfined_type;
 
 # database objects attribute
 attribute sepgsql_database_type;
+attribute sepgsql_schema_type;
 attribute sepgsql_table_type;
 attribute sepgsql_sysobj_table_type;
+attribute sepgsql_sequence_type;
+attribute sepgsql_view_type;
 attribute sepgsql_procedure_type;
+attribute sepgsql_language_type;
 attribute sepgsql_blob_type;
 attribute sepgsql_module_type;
 
@@ -76,6 +80,12 @@ postgresql_database_object(sepgsql_db_t)
 type sepgsql_fixed_table_t;
 postgresql_table_object(sepgsql_fixed_table_t)
 
+type sepgsql_lang_t;
+postgresql_language_object(sepgsql_lang_t)
+
+type sepgsql_priv_lang_t;
+postgresql_language_object(sepgsql_priv_lang_t)
+
 type sepgsql_proc_exec_t;
 typealias sepgsql_proc_exec_t alias sepgsql_proc_t;
 postgresql_procedure_object(sepgsql_proc_exec_t)
@@ -86,11 +96,20 @@ postgresql_blob_object(sepgsql_ro_blob_t)
 type sepgsql_ro_table_t;
 postgresql_table_object(sepgsql_ro_table_t)
 
+type sepgsql_safe_lang_t;
+postgresql_language_object(sepgsql_safe_lang_t)
+
+type sepgsql_schema_t;
+postgresql_schema_object(sepgsql_schema_t)
+
 type sepgsql_secret_blob_t;
 postgresql_blob_object(sepgsql_secret_blob_t)
 
 type sepgsql_secret_table_t;
 postgresql_table_object(sepgsql_secret_table_t)
+
+type sepgsql_seq_t;
+postgresql_sequence_object(sepgsql_seq_t)
 
 type sepgsql_sysobj_t;
 postgresql_system_table_object(sepgsql_sysobj_t)
@@ -100,6 +119,9 @@ postgresql_table_object(sepgsql_table_t)
 
 type sepgsql_trusted_proc_exec_t;
 postgresql_procedure_object(sepgsql_trusted_proc_exec_t)
+
+type sepgsql_view_t;
+postgresql_view_object(sepgsql_view_t)
 
 # Trusted Procedure Domain
 type sepgsql_trusted_proc_t;
@@ -114,11 +136,20 @@ postgresql_blob_object(unpriv_sepgsql_blob_t)
 type unpriv_sepgsql_proc_exec_t;
 postgresql_procedure_object(unpriv_sepgsql_proc_exec_t)
 
+type unpriv_sepgsql_schema_t;
+postgresql_schema_object(unpriv_sepgsql_schema_t);
+
+type unpriv_sepgsql_seq_t;
+postgresql_sequence_object(unpriv_sepgsql_seq_t)
+
 type unpriv_sepgsql_sysobj_t;
 postgresql_system_table_object(unpriv_sepgsql_sysobj_t)
 
 type unpriv_sepgsql_table_t;
 postgresql_table_object(unpriv_sepgsql_table_t)
+
+type unpriv_sepgsql_view_t;
+postgresql_view_object(unpriv_sepgsql_view_t)
 
 # Types for UBAC
 type user_sepgsql_blob_t;
@@ -131,6 +162,16 @@ typealias user_sepgsql_proc_exec_t alias { staff_sepgsql_proc_exec_t sysadm_sepg
 typealias user_sepgsql_proc_exec_t alias { auditadm_sepgsql_proc_exec_t secadm_sepgsql_proc_exec_t };
 postgresql_procedure_object(user_sepgsql_proc_exec_t)
 
+type user_sepgsql_schema_t;
+typealias user_sepgsql_schema_t alias { staff_sepgsql_schema_t sysadm_sepgsql_schema_t };
+typealias user_sepgsql_schema_t alias { auditadm_sepgsql_schema_t secadm_sepgsql_schema_t };
+postgresql_schema_object(user_sepgsql_schema_t)
+
+type user_sepgsql_seq_t;
+typealias user_sepgsql_seq_t alias { staff_sepgsql_seq_t sysadm_sepgsql_seq_t };
+typealias user_sepgsql_seq_t alias { auditadm_sepgsql_seq_t secadm_sepgsql_seq_t };
+postgresql_sequence_object(user_sepgsql_seq_t)
+
 type user_sepgsql_sysobj_t;
 typealias user_sepgsql_sysobj_t alias { staff_sepgsql_sysobj_t sysadm_sepgsql_sysobj_t };
 typealias user_sepgsql_sysobj_t alias { auditadm_sepgsql_sysobj_t secadm_sepgsql_sysobj_t };
@@ -140,6 +181,11 @@ type user_sepgsql_table_t;
 typealias user_sepgsql_table_t alias { staff_sepgsql_table_t sysadm_sepgsql_table_t };
 typealias user_sepgsql_table_t alias { auditadm_sepgsql_table_t secadm_sepgsql_table_t };
 postgresql_table_object(user_sepgsql_table_t)
+
+type user_sepgsql_view_t;
+typealias user_sepgsql_view_t alias { staff_sepgsql_view_t sysadm_sepgsql_view_t };
+typealias user_sepgsql_view_t alias { auditadm_sepgsql_view_t secadm_sepgsql_view_t };
+postgresql_view_object(user_sepgsql_view_t)
 
 ########################################
 #
@@ -165,8 +211,14 @@ allow postgresql_t sepgsql_module_type:db_database install_module;
 # Database/Loadable module
 allow sepgsql_database_type sepgsql_module_type:db_database load_module;
 
+allow postgresql_t sepgsql_schema_type:db_schema *;
+
 allow postgresql_t sepgsql_table_type:{ db_table db_column db_tuple } *;
 type_transition postgresql_t sepgsql_database_type:db_table sepgsql_sysobj_t;
+
+allow postgresql_t sepgsql_sequence_type:db_sequence *;
+
+allow postgresql_t sepgsql_view_type:db_view *;
 
 allow postgresql_t sepgsql_procedure_type:db_procedure *;
 type_transition postgresql_t sepgsql_database_type:db_procedure sepgsql_proc_exec_t;
@@ -314,6 +366,14 @@ optional_policy(`
 allow sepgsql_client_type sepgsql_db_t:db_database { getattr access get_param set_param };
 type_transition sepgsql_client_type sepgsql_client_type:db_database sepgsql_db_t;
 
+allow sepgsql_client_type sepgsql_schema_t:db_schema { getattr search };
+# Note that permission of creation/deletion are eventually controlled by
+# create or drop permission of individual objects within shared schemas.
+# So, it just allows to create/drop user specific types.
+tunable_policy(`sepgsql_enable_users_ddl',`
+	allow sepgsql_client_type sepgsql_schema_t:db_schema { add_name remove_name };
+')
+
 allow sepgsql_client_type sepgsql_fixed_table_t:db_table { getattr use select insert lock };
 allow sepgsql_client_type sepgsql_fixed_table_t:db_column { getattr use select insert };
 allow sepgsql_client_type sepgsql_fixed_table_t:db_tuple { use select insert };
@@ -333,8 +393,21 @@ allow sepgsql_client_type sepgsql_sysobj_t:db_table { getattr use select lock };
 allow sepgsql_client_type sepgsql_sysobj_t:db_column { getattr use select };
 allow sepgsql_client_type sepgsql_sysobj_t:db_tuple { use select };
 
+allow sepgsql_client_type sepgsql_seq_t:db_sequence { getattr get_value next_value };
+
+allow sepgsql_client_type sepgsql_view_t:db_view { getattr expand };
+
 allow sepgsql_client_type sepgsql_proc_exec_t:db_procedure { getattr execute install };
 allow sepgsql_client_type sepgsql_trusted_proc_exec_t:db_procedure { getattr execute entrypoint };
+
+allow sepgsql_client_type sepgsql_lang_t:db_language { getattr };
+allow sepgsql_client_type sepgsql_safe_lang_t:db_language { getattr execute };
+
+# Only DBA can implement SQL procedures using `unsafe' procedural languages.
+# The `unsafe' one provides a capability to access internal data structure,
+# so we don't allow user-defined function being implemented using `unsafe' one.
+allow sepgsql_proc_exec_t sepgsql_lang_t:db_language { implement };
+allow sepgsql_procedure_type sepgsql_safe_lang_t:db_language { implement };
 
 allow sepgsql_client_type sepgsql_blob_t:db_blob { create drop getattr setattr read write };
 allow sepgsql_client_type sepgsql_ro_blob_t:db_blob { getattr read };
@@ -361,16 +434,33 @@ dontaudit { postgresql_t sepgsql_admin_type sepgsql_client_type sepgsql_unconfin
 allow sepgsql_admin_type sepgsql_database_type:db_database { create drop getattr setattr relabelfrom relabelto access };
 type_transition sepgsql_admin_type sepgsql_admin_type:db_database sepgsql_db_t;
 
+allow sepgsql_admin_type sepgsql_schema_type:db_schema { create drop getattr setattr relabelfrom relabelto search add_name remove_name };
+type_transition sepgsql_admin_type sepgsql_database_type:db_schema sepgsql_schema_t;
+
 allow sepgsql_admin_type sepgsql_table_type:db_table { create drop getattr setattr relabelfrom relabelto lock };
 allow sepgsql_admin_type sepgsql_table_type:db_column { create drop getattr setattr relabelfrom relabelto };
 allow sepgsql_admin_type sepgsql_sysobj_table_type:db_tuple { relabelfrom relabelto select update insert delete };
 
-type_transition sepgsql_admin_type sepgsql_database_type:db_table sepgsql_table_t;
+type_transition sepgsql_admin_type sepgsql_database_type:db_table sepgsql_table_t;	# deprecated
+type_transition sepgsql_admin_type sepgsql_schema_type:db_table sepgsql_table_t;
+
+allow sepgsql_admin_type sepgsql_sequence_type:db_sequence { create drop getattr setattr relabelfrom relabelto get_value next_value set_value };
+
+type_transition sepgsql_admin_type sepgsql_schema_type:db_schema sepgsql_seq_t;
+
+allow sepgsql_admin_type sepgsql_view_type:db_view { create drop getattr setattr relabelfrom relabelto expand };
+
+type_transition sepgsql_admin_type sepgsql_view_type:db_view sepgsql_view_t;
 
 allow sepgsql_admin_type sepgsql_procedure_type:db_procedure { create drop getattr relabelfrom relabelto };
 allow sepgsql_admin_type sepgsql_proc_exec_t:db_procedure execute;
 
-type_transition sepgsql_admin_type sepgsql_database_type:db_procedure sepgsql_proc_exec_t;
+type_transition sepgsql_admin_type sepgsql_database_type:db_procedure sepgsql_proc_exec_t;	# deprecated
+type_transition sepgsql_admin_type sepgsql_schema_type:db_procedure sepgsql_proc_exec_t;
+
+allow sepgsql_admin_type sepgsql_language_type:db_language { create drop getattr setattr relabelfrom relabelto execute };
+
+type_transition sepgsql_admin_type sepgsql_database_type:db_language sepgsql_lang_t;
 
 allow sepgsql_admin_type sepgsql_blob_type:db_blob { create drop getattr setattr relabelfrom relabelto };
 
@@ -383,11 +473,17 @@ kernel_relabelfrom_unlabeled_database(sepgsql_admin_type)
 tunable_policy(`sepgsql_unconfined_dbadm',`
 	allow sepgsql_admin_type sepgsql_database_type:db_database *;
 
+	allow sepgsql_admin_type sepgsql_schema_type:db_schema *;
+
 	allow sepgsql_admin_type sepgsql_table_type:{ db_table db_column db_tuple } *;
+	allow sepgsql_admin_type sepgsql_sequence_type:db_sequence *;
+	allow sepgsql_admin_type sepgsql_view_type:db_view *;
 
 	allow sepgsql_admin_type sepgsql_proc_exec_t:db_procedure *;
 	allow sepgsql_admin_type sepgsql_trusted_proc_exec_t:db_procedure ~install;
 	allow sepgsql_admin_type sepgsql_procedure_type:db_procedure ~{ execute install };
+
+	allow sepgsql_admin_type sepgsql_language_type:db_language ~implement;
 
 	allow sepgsql_admin_type sepgsql_blob_type:db_blob *;
 ')
@@ -400,17 +496,29 @@ tunable_policy(`sepgsql_unconfined_dbadm',`
 allow sepgsql_unconfined_type sepgsql_database_type:db_database *;
 type_transition sepgsql_unconfined_type sepgsql_unconfined_type:db_database sepgsql_db_t;
 
-type_transition sepgsql_unconfined_type sepgsql_database_type:db_table sepgsql_table_t;
-type_transition sepgsql_unconfined_type sepgsql_database_type:db_procedure sepgsql_proc_exec_t;
+allow sepgsql_unconfined_type sepgsql_schema_type:db_schema *;
+type_transition sepgsql_unconfined_type sepgsql_database_type:db_schema sepgsql_schema_t;
+
+type_transition sepgsql_unconfined_type sepgsql_database_type:db_table sepgsql_table_t;		# deprecated
+type_transition sepgsql_unconfined_type sepgsql_database_type:db_procedure sepgsql_proc_exec_t;	# deprecated
+type_transition sepgsql_unconfined_type sepgsql_schema_type:db_table sepgsql_table_t;
+type_transition sepgsql_unconfined_type sepgsql_schema_type:db_sequence sepgsql_seq_t;
+type_transition sepgsql_unconfined_type sepgsql_schema_type:db_view sepgsql_view_t;
+type_transition sepgsql_unconfined_type sepgsql_schema_type:db_procedure sepgsql_proc_exec_t;
+type_transition sepgsql_unconfined_type sepgsql_database_type:db_language sepgsql_lang_t;
 type_transition sepgsql_unconfined_type sepgsql_database_type:db_blob sepgsql_blob_t;
 
 allow sepgsql_unconfined_type sepgsql_table_type:{ db_table db_column db_tuple } *;
+allow sepgsql_unconfined_type sepgsql_sequence_type:db_sequence *;
+allow sepgsql_unconfined_type sepgsql_view_type:db_view *;
 
 # unconfined domain is not allowed to invoke user defined procedure directly.
 # They have to confirm and relabel it at first.
 allow sepgsql_unconfined_type sepgsql_proc_exec_t:db_procedure *;
 allow sepgsql_unconfined_type sepgsql_trusted_proc_exec_t:db_procedure ~install;
 allow sepgsql_unconfined_type sepgsql_procedure_type:db_procedure ~{ execute install };
+
+allow sepgsql_unconfined_type sepgsql_language_type:db_language ~implement;
 
 allow sepgsql_unconfined_type sepgsql_blob_type:db_blob *;
 
