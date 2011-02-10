@@ -72,6 +72,7 @@ files_tmp_file(xenstored_tmp_t)
 # var/lib files
 type xenstored_var_lib_t;
 files_type(xenstored_var_lib_t)
+files_mountpoint(xenstored_var_lib_t)
 
 # log files
 type xenstored_var_log_t;
@@ -94,6 +95,38 @@ type xm_exec_t;
 domain_type(xm_t)
 init_system_domain(xm_t, xm_exec_t)
 
+## <desc>
+## <p>
+## Allow xend to run qemu-dm.
+## Not required if using paravirt and no vfb.
+## </p>
+## </desc>
+gen_tunable(xend_run_qemu, true)
+
+type qemu_dm_t;
+domain_type(qemu_dm_t)
+type qemu_dm_exec_t;
+files_type(qemu_dm_exec_t)
+domain_entry_file(qemu_dm_t, qemu_dm_exec_t)
+role system_r types qemu_dm_t;
+
+## <desc>
+## <p>
+## Allow xend to run blktapctrl/tapdisk.
+## Not required if using dedicated logical volumes for disk images.
+## </p>
+## </desc>
+gen_tunable(xend_run_blktap, true)
+
+type blktap_t;
+domain_type(blktap_t)
+role system_r types blktap_t;
+type blktap_exec_t;
+files_type(blktap_exec_t)
+domain_entry_file(blktap_t, blktap_exec_t)
+type blktap_var_run_t;
+files_pid_file(blktap_var_run_t)
+
 #######################################
 #
 # evtchnd local policy
@@ -113,7 +146,7 @@ files_pid_filetrans(evtchnd_t, evtchnd_var_run_t, { file sock_file dir })
 # xend local policy
 #
 
-allow xend_t self:capability { mknod dac_override ipc_lock net_admin setuid sys_nice sys_ptrace sys_tty_config net_raw };
+allow xend_t self:capability { dac_override ipc_lock net_admin setuid sys_nice sys_tty_config net_raw };
 dontaudit xend_t self:capability { sys_ptrace };
 allow xend_t self:process { signal sigkill };
 dontaudit xend_t self:process ptrace;
@@ -161,6 +194,12 @@ files_var_lib_filetrans(xend_t, xend_var_lib_t, { file dir })
 # transition to store
 domtrans_pattern(xend_t, xenstored_exec_t, xenstored_t)
 
+# manage xenstored pid file
+manage_files_pattern(xend_t, xenstored_var_run_t, xenstored_var_run_t)
+
+# mount tmpfs on /var/lib/xenstored
+allow xend_t xenstored_var_lib_t:dir read;
+
 # transition to console
 domtrans_pattern(xend_t, xenconsoled_exec_t, xenconsoled_t)
 
@@ -193,12 +232,10 @@ corenet_sendrecv_soundd_server_packets(xend_t)
 corenet_rw_tun_tap_dev(xend_t)
 
 dev_read_urand(xend_t)
-dev_manage_xen(xend_t)
 dev_filetrans_xen(xend_t)
 dev_rw_sysfs(xend_t)
 dev_rw_xen(xend_t)
 
-domain_read_all_domains_state(xend_t)
 domain_dontaudit_read_all_domains_state(xend_t)
 domain_dontaudit_ptrace_all_domains(xend_t)
 
@@ -209,10 +246,6 @@ files_manage_etc_runtime_files(xend_t)
 files_etc_filetrans_etc_runtime(xend_t, file)
 files_read_usr_files(xend_t)
 files_read_default_symlinks(xend_t)
-
-storage_raw_read_fixed_disk(xend_t)
-storage_raw_write_fixed_disk(xend_t)
-storage_raw_read_removable_device(xend_t)
 
 term_getattr_all_ptys(xend_t)
 term_use_generic_ptys(xend_t)
@@ -228,6 +261,7 @@ logging_send_syslog_msg(xend_t)
 lvm_domtrans(xend_t)
 
 miscfiles_read_localization(xend_t)
+miscfiles_read_hwdata(xend_t)
 
 mount_domtrans(xend_t)
 
@@ -274,7 +308,7 @@ kernel_read_kernel_sysctls(xenconsoled_t)
 kernel_write_xen_state(xenconsoled_t)
 kernel_read_xen_state(xenconsoled_t)
 
-dev_manage_xen(xenconsoled_t)
+dev_rw_xen(xenconsoled_t)
 dev_filetrans_xen(xenconsoled_t)
 dev_rw_sysfs(xenconsoled_t)
 
@@ -308,7 +342,7 @@ optional_policy(`
 # Xen store local policy
 #
 
-allow xenstored_t self:capability { dac_override mknod ipc_lock sys_resource };
+allow xenstored_t self:capability { dac_override ipc_lock sys_resource };
 allow xenstored_t self:unix_stream_socket create_stream_socket_perms;
 allow xenstored_t self:unix_dgram_socket create_socket_perms;
 
@@ -338,19 +372,15 @@ stream_connect_pattern(xenstored_t, evtchnd_var_run_t, evtchnd_var_run_t, evtchn
 kernel_write_xen_state(xenstored_t)
 kernel_read_xen_state(xenstored_t)
 
-dev_create_generic_dirs(xenstored_t)
-dev_manage_xen(xenstored_t)
 dev_filetrans_xen(xenstored_t)
 dev_rw_xen(xenstored_t)
 dev_read_sysfs(xenstored_t)
 
+files_read_etc_files(xenstored_t)
+
 files_read_usr_files(xenstored_t)
 
 fs_manage_xenfs_files(xenstored_t)
-
-storage_raw_read_fixed_disk(xenstored_t)
-storage_raw_write_fixed_disk(xenstored_t)
-storage_raw_read_removable_device(xenstored_t)
 
 term_use_generic_ptys(xenstored_t)
 
@@ -410,8 +440,6 @@ files_read_etc_files(xm_t)
 fs_getattr_all_fs(xm_t)
 fs_manage_xenfs_dirs(xm_t)
 fs_manage_xenfs_files(xm_t)
-
-storage_raw_read_fixed_disk(xm_t)
 
 term_use_all_terms(xm_t)
 
@@ -473,4 +501,56 @@ optional_policy(`
 	optional_policy(`
 		unconfined_domain(xend_t)
 	')
+')
+
+########################################
+#
+# qemu-dm local policy
+#
+# Do we need to allow execution of qemu-dm?
+tunable_policy(`xend_run_qemu',`
+	# If yes, transition to its own domain.
+	domtrans_pattern(xend_t, qemu_dm_exec_t, qemu_dm_t)
+	allow qemu_dm_t self:capability sys_resource;
+	allow qemu_dm_t self:process setrlimit;
+	allow qemu_dm_t self:fifo_file { read write };
+	allow qemu_dm_t self:tcp_socket create_stream_socket_perms;
+	rw_fifo_files_pattern(qemu_dm_t, xend_var_run_t, xend_var_run_t)
+	append_files_pattern(qemu_dm_t, xend_var_log_t, xend_var_log_t)
+	libs_use_ld_so(qemu_dm_t)
+	libs_use_shared_libs(qemu_dm_t)
+	files_read_etc_files(qemu_dm_t)
+	files_read_usr_files(qemu_dm_t)
+	miscfiles_read_localization(qemu_dm_t)
+	corenet_tcp_bind_generic_node(qemu_dm_t)
+	corenet_tcp_bind_vnc_port(qemu_dm_t)
+	dev_rw_xen(qemu_dm_t)
+	xen_stream_connect_xenstore(qemu_dm_t)
+	fs_manage_xenfs_dirs(qemu_dm_t)
+	fs_manage_xenfs_files(qemu_dm_t)
+',`
+	# If no, then silently refuse to run it.
+	dontaudit xend_t qemu_dm_exec_t:file { execute execute_no_trans };
+')
+
+########################################
+#
+# blktap local policy
+#
+# Do we need to allow execution of blktap?
+tunable_policy(`xend_run_blktap',`
+	# If yes, transition to its own domain.
+	domtrans_pattern(xend_t, blktap_exec_t, blktap_t)
+	allow blktap_t self:fifo_file { read write };
+	libs_use_ld_so(blktap_t)
+	libs_use_shared_libs(blktap_t)
+	miscfiles_read_localization(blktap_t)
+	files_read_etc_files(blktap_t)
+	dev_read_sysfs(blktap_t)
+	logging_send_syslog_msg(blktap_t)
+	dev_rw_xen(blktap_t)
+	xen_stream_connect_xenstore(blktap_t)
+',`
+	# If no, then silently refuse to run it.
+	dontaudit xend_t blktap_exec_t:file { execute execute_no_trans };
 ')
