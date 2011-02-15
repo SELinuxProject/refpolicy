@@ -7,10 +7,35 @@ policy_module(xen, 1.10.0)
 
 ## <desc>
 ## <p>
+## Allow xend to run blktapctrl/tapdisk.
+## Not required if using dedicated logical volumes for disk images.
+## </p>
+## </desc>
+gen_tunable(xend_run_blktap, true)
+
+## <desc>
+## <p>
+## Allow xend to run qemu-dm.
+## Not required if using paravirt and no vfb.
+## </p>
+## </desc>
+gen_tunable(xend_run_qemu, true)
+
+## <desc>
+## <p>
 ## Allow xen to manage nfs files
 ## </p>
 ## </desc>
 gen_tunable(xen_use_nfs, false)
+
+type blktap_t;
+domain_type(blktap_t)
+role system_r types blktap_t;
+type blktap_exec_t;
+files_type(blktap_exec_t)
+domain_entry_file(blktap_t, blktap_exec_t)
+type blktap_var_run_t;
+files_pid_file(blktap_var_run_t)
 
 type evtchnd_t;
 type evtchnd_exec_t;
@@ -23,6 +48,13 @@ logging_log_file(evtchnd_var_log_t)
 # pid files
 type evtchnd_var_run_t;
 files_pid_file(evtchnd_var_run_t)
+
+type qemu_dm_t;
+domain_type(qemu_dm_t)
+type qemu_dm_exec_t;
+files_type(qemu_dm_exec_t)
+domain_entry_file(qemu_dm_t, qemu_dm_exec_t)
+role system_r types qemu_dm_t;
 
 # console ptys
 type xen_devpts_t;
@@ -95,37 +127,27 @@ type xm_exec_t;
 domain_type(xm_t)
 init_system_domain(xm_t, xm_exec_t)
 
-## <desc>
-## <p>
-## Allow xend to run qemu-dm.
-## Not required if using paravirt and no vfb.
-## </p>
-## </desc>
-gen_tunable(xend_run_qemu, true)
-
-type qemu_dm_t;
-domain_type(qemu_dm_t)
-type qemu_dm_exec_t;
-files_type(qemu_dm_exec_t)
-domain_entry_file(qemu_dm_t, qemu_dm_exec_t)
-role system_r types qemu_dm_t;
-
-## <desc>
-## <p>
-## Allow xend to run blktapctrl/tapdisk.
-## Not required if using dedicated logical volumes for disk images.
-## </p>
-## </desc>
-gen_tunable(xend_run_blktap, true)
-
-type blktap_t;
-domain_type(blktap_t)
-role system_r types blktap_t;
-type blktap_exec_t;
-files_type(blktap_exec_t)
-domain_entry_file(blktap_t, blktap_exec_t)
-type blktap_var_run_t;
-files_pid_file(blktap_var_run_t)
+########################################
+#
+# blktap local policy
+#
+# Do we need to allow execution of blktap?
+tunable_policy(`xend_run_blktap',`
+        # If yes, transition to its own domain.
+	domtrans_pattern(xend_t, blktap_exec_t, blktap_t)
+	allow blktap_t self:fifo_file { read write };
+	libs_use_ld_so(blktap_t)
+	libs_use_shared_libs(blktap_t)
+	miscfiles_read_localization(blktap_t)
+	files_read_etc_files(blktap_t)
+	dev_read_sysfs(blktap_t)
+	logging_send_syslog_msg(blktap_t)
+	dev_rw_xen(blktap_t)
+	xen_stream_connect_xenstore(blktap_t)
+',`
+        # If no, then silently refuse to run it.
+	dontaudit xend_t blktap_exec_t:file { execute execute_no_trans };
+')
 
 #######################################
 #
@@ -140,6 +162,36 @@ manage_dirs_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
 manage_files_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
 manage_sock_files_pattern(evtchnd_t, evtchnd_var_run_t, evtchnd_var_run_t)
 files_pid_filetrans(evtchnd_t, evtchnd_var_run_t, { file sock_file dir })
+
+########################################
+#
+# qemu-dm local policy
+#
+# Do we need to allow execution of qemu-dm?
+tunable_policy(`xend_run_qemu',`
+        # If yes, transition to its own domain.
+	domtrans_pattern(xend_t, qemu_dm_exec_t, qemu_dm_t)
+	allow qemu_dm_t self:capability sys_resource;
+	allow qemu_dm_t self:process setrlimit;
+	allow qemu_dm_t self:fifo_file { read write };
+	allow qemu_dm_t self:tcp_socket create_stream_socket_perms;
+	rw_fifo_files_pattern(qemu_dm_t, xend_var_run_t, xend_var_run_t)
+	append_files_pattern(qemu_dm_t, xend_var_log_t, xend_var_log_t)
+	libs_use_ld_so(qemu_dm_t)
+	libs_use_shared_libs(qemu_dm_t)
+	files_read_etc_files(qemu_dm_t)
+	files_read_usr_files(qemu_dm_t)
+	miscfiles_read_localization(qemu_dm_t)
+	corenet_tcp_bind_generic_node(qemu_dm_t)
+	corenet_tcp_bind_vnc_port(qemu_dm_t)
+	dev_rw_xen(qemu_dm_t)
+	xen_stream_connect_xenstore(qemu_dm_t)
+	fs_manage_xenfs_dirs(qemu_dm_t)
+	fs_manage_xenfs_files(qemu_dm_t)
+',`
+        # If no, then silently refuse to run it.
+	dontaudit xend_t qemu_dm_exec_t:file { execute execute_no_trans };
+')
 
 ########################################
 #
@@ -501,56 +553,4 @@ optional_policy(`
 	optional_policy(`
 		unconfined_domain(xend_t)
 	')
-')
-
-########################################
-#
-# qemu-dm local policy
-#
-# Do we need to allow execution of qemu-dm?
-tunable_policy(`xend_run_qemu',`
-	# If yes, transition to its own domain.
-	domtrans_pattern(xend_t, qemu_dm_exec_t, qemu_dm_t)
-	allow qemu_dm_t self:capability sys_resource;
-	allow qemu_dm_t self:process setrlimit;
-	allow qemu_dm_t self:fifo_file { read write };
-	allow qemu_dm_t self:tcp_socket create_stream_socket_perms;
-	rw_fifo_files_pattern(qemu_dm_t, xend_var_run_t, xend_var_run_t)
-	append_files_pattern(qemu_dm_t, xend_var_log_t, xend_var_log_t)
-	libs_use_ld_so(qemu_dm_t)
-	libs_use_shared_libs(qemu_dm_t)
-	files_read_etc_files(qemu_dm_t)
-	files_read_usr_files(qemu_dm_t)
-	miscfiles_read_localization(qemu_dm_t)
-	corenet_tcp_bind_generic_node(qemu_dm_t)
-	corenet_tcp_bind_vnc_port(qemu_dm_t)
-	dev_rw_xen(qemu_dm_t)
-	xen_stream_connect_xenstore(qemu_dm_t)
-	fs_manage_xenfs_dirs(qemu_dm_t)
-	fs_manage_xenfs_files(qemu_dm_t)
-',`
-	# If no, then silently refuse to run it.
-	dontaudit xend_t qemu_dm_exec_t:file { execute execute_no_trans };
-')
-
-########################################
-#
-# blktap local policy
-#
-# Do we need to allow execution of blktap?
-tunable_policy(`xend_run_blktap',`
-	# If yes, transition to its own domain.
-	domtrans_pattern(xend_t, blktap_exec_t, blktap_t)
-	allow blktap_t self:fifo_file { read write };
-	libs_use_ld_so(blktap_t)
-	libs_use_shared_libs(blktap_t)
-	miscfiles_read_localization(blktap_t)
-	files_read_etc_files(blktap_t)
-	dev_read_sysfs(blktap_t)
-	logging_send_syslog_msg(blktap_t)
-	dev_rw_xen(blktap_t)
-	xen_stream_connect_xenstore(blktap_t)
-',`
-	# If no, then silently refuse to run it.
-	dontaudit xend_t blktap_exec_t:file { execute execute_no_trans };
 ')
