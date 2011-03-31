@@ -66,6 +66,10 @@ interface(`auth_use_pam',`
 		optional_policy(`
 			consolekit_dbus_chat($1)
 		')
+
+		optional_policy(`
+			fprintd_dbus_chat($1)
+		')
 	')
 
 	optional_policy(`
@@ -361,7 +365,6 @@ interface(`auth_domtrans_chk_passwd',`
 
 	optional_policy(`
 		kerberos_read_keytab($1)
-		kerberos_connect_524($1)
 	')
 
 	optional_policy(`
@@ -694,7 +697,7 @@ interface(`auth_relabel_shadow',`
 	')
 
 	files_search_etc($1)
-	allow $1 shadow_t:file { relabelfrom relabelto };
+	allow $1 shadow_t:file relabel_file_perms;
 	typeattribute $1 can_relabelto_shadow_passwords;
 ')
 
@@ -874,6 +877,46 @@ interface(`auth_exec_pam',`
 
 ########################################
 ## <summary>
+##	Read var auth files. Used by various other applications
+##	and pam applets etc.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_read_var_auth',`
+	gen_require(`
+		type var_auth_t;
+	')
+
+	files_search_var($1)
+	read_files_pattern($1, var_auth_t, var_auth_t)
+')
+
+#######################################
+## <summary>
+##  Read and write var auth files. Used by various other applications
+##  and pam applets etc.
+## </summary>
+## <param name="domain">
+##  <summary>
+##  Domain allowed access.
+##  </summary>
+## </param>
+#
+interface(`auth_rw_var_auth',`
+    gen_require(`
+		type var_auth_t;
+    ')
+
+    files_search_var($1)
+    rw_files_pattern($1, var_auth_t, var_auth_t)
+')
+
+########################################
+## <summary>
 ##	Manage var auth files. Used by various other applications
 ##	and pam applets etc.
 ## </summary>
@@ -1028,6 +1071,24 @@ interface(`auth_list_pam_console_data',`
 
 	files_search_pids($1)
 	allow $1 pam_var_console_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Relabel pam_console data directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_relabel_pam_console_data_dirs',`
+	gen_require(`
+		type pam_var_console_t;
+	')
+
+	relabel_dirs_pattern($1, pam_var_console_t, pam_var_console_t)
 ')
 
 ########################################
@@ -1480,6 +1541,24 @@ interface(`auth_manage_login_records',`
 
 ########################################
 ## <summary>
+##	Relabel login record files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_relabel_login_records',`
+	gen_require(`
+		type wtmp_t;
+	')
+
+	allow $1 wtmp_t:file relabel_file_perms;
+')
+
+########################################
+## <summary>
 ##	Use nsswitch to look up user, password, group, or
 ##	host information.
 ## </summary>
@@ -1532,6 +1611,14 @@ interface(`auth_use_nsswitch',`
 
 	optional_policy(`
 		nscd_socket_use($1)
+	')
+
+	optional_policy(`
+		nslcd_stream_connect($1)
+	')
+
+	optional_policy(`
+		sssd_stream_connect($1)
 	')
 
 	optional_policy(`

@@ -6,7 +6,7 @@ policy_module(daemontools, 1.2.0)
 #
 
 type svc_conf_t;
-files_type(svc_conf_t)
+files_config_file(svc_conf_t)
 
 type svc_log_t;
 files_type(svc_log_t)
@@ -52,7 +52,7 @@ daemontools_ipc_domain(svc_multilog_t)
 # ie. softlimit, setuidgid, envuidgid, envdir, fghack ..
 #
 
-allow svc_run_t self:capability { setgid setuid chown fsetid };
+allow svc_run_t self:capability { setgid setuid chown fsetid sys_resource };
 allow svc_run_t self:process setrlimit;
 allow svc_run_t self:fifo_file rw_fifo_file_perms;
 allow svc_run_t self:unix_stream_socket create_stream_socket_perms;
@@ -63,6 +63,8 @@ allow svc_run_t svc_conf_t:file read_file_perms;
 can_exec(svc_run_t, svc_run_exec_t)
 
 kernel_read_system_state(svc_run_t)
+
+dev_read_urand(svc_run_t)
 
 corecmd_exec_bin(svc_run_t)
 corecmd_exec_shell(svc_run_t)
@@ -88,13 +90,17 @@ optional_policy(`
 # ie svc, svscan, supervise ...
 #
 
-allow svc_start_t svc_run_t:process signal;
+allow svc_start_t svc_run_t:process { signal setrlimit };
 
 allow svc_start_t self:fifo_file rw_fifo_file_perms;
 allow svc_start_t self:capability kill;
+allow svc_start_t self:tcp_socket create_stream_socket_perms;
 allow svc_start_t self:unix_stream_socket create_socket_perms;
 
 can_exec(svc_start_t, svc_start_exec_t)
+
+kernel_read_kernel_sysctls(svc_start_t)
+kernel_read_system_state(svc_start_t)
 
 corecmd_exec_bin(svc_start_t)
 corecmd_exec_shell(svc_start_t)
@@ -106,3 +112,7 @@ files_search_pids(svc_start_t)
 
 daemontools_domtrans_run(svc_start_t)
 daemontools_manage_svc(svc_start_t)
+
+logging_send_syslog_msg(svc_start_t)
+
+miscfiles_read_localization(svc_start_t)
