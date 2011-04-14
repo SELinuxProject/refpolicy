@@ -1,4 +1,4 @@
-policy_module(logging, 1.17.1)
+policy_module(logging, 1.17.2)
 
 ########################################
 #
@@ -18,6 +18,10 @@ files_security_file(auditd_etc_t)
 type auditd_log_t;
 files_security_file(auditd_log_t)
 files_security_mountpoint(auditd_log_t)
+
+type audit_spool_t;
+files_security_file(audit_spool_t)
+files_security_mountpoint(audit_spool_t)
 
 type auditd_t;
 type auditd_exec_t;
@@ -55,7 +59,7 @@ type klogd_var_run_t;
 files_pid_file(klogd_var_run_t)
 
 type syslog_conf_t;
-files_type(syslog_conf_t)
+files_config_file(syslog_conf_t)
 
 type syslogd_t;
 type syslogd_exec_t;
@@ -253,7 +257,16 @@ optional_policy(`
 # Audit remote logger local policy
 #
 
+allow audisp_remote_t self:capability { setuid setpcap };
+allow audisp_remote_t self:process { getcap setcap };
 allow audisp_remote_t self:tcp_socket create_socket_perms;
+allow audisp_remote_t var_log_t:dir search_dir_perms;
+
+manage_dirs_pattern(audisp_remote_t, audit_spool_t, audit_spool_t)
+manage_files_pattern(audisp_remote_t, audit_spool_t, audit_spool_t)
+files_spool_filetrans(audisp_remote_t, audit_spool_t, { dir file })
+
+corecmd_exec_bin(audisp_remote_t)
 
 corenet_all_recvfrom_unlabeled(audisp_remote_t)
 corenet_all_recvfrom_netlabel(audisp_remote_t)
@@ -268,6 +281,7 @@ corenet_sendrecv_audit_client_packets(audisp_remote_t)
 files_read_etc_files(audisp_remote_t)
 
 logging_send_syslog_msg(audisp_remote_t)
+logging_send_audit_msgs(audisp_remote_t)
 
 miscfiles_read_localization(audisp_remote_t)
 

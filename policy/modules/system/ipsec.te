@@ -1,4 +1,4 @@
-policy_module(ipsec, 1.11.1)
+policy_module(ipsec, 1.11.2)
 
 ########################################
 #
@@ -73,7 +73,7 @@ role system_r types setkey_t;
 #
 
 allow ipsec_t self:capability { net_admin dac_override dac_read_search setpcap sys_nice };
-dontaudit ipsec_t self:capability sys_tty_config;
+dontaudit ipsec_t self:capability { sys_ptrace sys_tty_config };
 allow ipsec_t self:process { getcap setcap getsched signal setsched };
 allow ipsec_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_t self:udp_socket create_socket_perms;
@@ -95,9 +95,10 @@ manage_dirs_pattern(ipsec_t, ipsec_tmp_t, ipsec_tmp_t)
 manage_files_pattern(ipsec_t, ipsec_tmp_t, ipsec_tmp_t)
 files_tmp_filetrans(ipsec_t, ipsec_tmp_t, { dir file })
 
+manage_dirs_pattern(ipsec_t, ipsec_var_run_t, ipsec_var_run_t)
 manage_files_pattern(ipsec_t, ipsec_var_run_t, ipsec_var_run_t)
 manage_sock_files_pattern(ipsec_t, ipsec_var_run_t, ipsec_var_run_t)
-files_pid_filetrans(ipsec_t, ipsec_var_run_t, { file sock_file })
+files_pid_filetrans(ipsec_t, ipsec_var_run_t, { dir file sock_file })
 
 can_exec(ipsec_t, ipsec_mgmt_exec_t)
 
@@ -108,8 +109,8 @@ can_exec(ipsec_t, ipsec_mgmt_exec_t)
 corecmd_shell_domtrans(ipsec_t, ipsec_mgmt_t)
 allow ipsec_mgmt_t ipsec_t:fd use;
 allow ipsec_mgmt_t ipsec_t:fifo_file rw_fifo_file_perms;
-dontaudit ipsec_mgmt_t ipsec_t:unix_stream_socket { read write };
-allow ipsec_mgmt_t ipsec_t:process sigchld;
+allow ipsec_mgmt_t ipsec_t:unix_stream_socket { read write };
+allow ipsec_mgmt_t ipsec_t:process { rlimitinh sigchld };
 
 kernel_read_kernel_sysctls(ipsec_t)
 kernel_list_proc(ipsec_t)
@@ -150,6 +151,7 @@ domain_use_interactive_fds(ipsec_t)
 files_list_tmp(ipsec_t)
 files_read_etc_files(ipsec_t)
 files_read_usr_files(ipsec_t)
+files_dontaudit_search_home(ipsec_t)
 
 fs_getattr_all_fs(ipsec_t)
 fs_search_auto_mountpoints(ipsec_t)
@@ -185,8 +187,8 @@ optional_policy(`
 #
 
 allow ipsec_mgmt_t self:capability { dac_override dac_read_search net_admin setpcap sys_nice };
-dontaudit ipsec_mgmt_t self:capability sys_tty_config;
-allow ipsec_mgmt_t self:process { getsched ptrace setrlimit signal };
+dontaudit ipsec_mgmt_t self:capability { sys_ptrace sys_tty_config };
+allow ipsec_mgmt_t self:process { getsched ptrace setrlimit setsched signal };
 allow ipsec_mgmt_t self:unix_stream_socket create_stream_socket_perms;
 allow ipsec_mgmt_t self:tcp_socket create_stream_socket_perms;
 allow ipsec_mgmt_t self:udp_socket create_socket_perms;
@@ -225,7 +227,6 @@ allow ipsec_mgmt_t ipsec_conf_file_t:file read_file_perms;
 
 manage_files_pattern(ipsec_mgmt_t, ipsec_key_file_t, ipsec_key_file_t)
 manage_lnk_files_pattern(ipsec_mgmt_t, ipsec_key_file_t, ipsec_key_file_t)
-files_etc_filetrans(ipsec_mgmt_t, ipsec_key_file_t, file)
 
 # whack needs to connect to pluto
 stream_connect_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t, ipsec_t)
@@ -258,7 +259,7 @@ dev_read_urand(ipsec_mgmt_t)
 
 domain_use_interactive_fds(ipsec_mgmt_t)
 # denials when ps tries to search /proc. Do not audit these denials.
-domain_dontaudit_list_all_domains_state(ipsec_mgmt_t)
+domain_dontaudit_read_all_domains_state(ipsec_mgmt_t)
 # suppress audit messages about unnecessary socket access
 # cjp: this seems excessive
 domain_dontaudit_rw_all_udp_sockets(ipsec_mgmt_t)
@@ -278,6 +279,9 @@ fs_list_tmpfs(ipsec_mgmt_t)
 term_use_console(ipsec_mgmt_t)
 term_dontaudit_getattr_unallocated_ttys(ipsec_mgmt_t)
 
+auth_dontaudit_read_login_records(ipsec_mgmt_t)
+
+init_read_utmp(ipsec_mgmt_t)
 init_use_script_ptys(ipsec_mgmt_t)
 init_exec_script_files(ipsec_mgmt_t)
 init_use_fds(ipsec_mgmt_t)
@@ -287,16 +291,37 @@ logging_send_syslog_msg(ipsec_mgmt_t)
 
 miscfiles_read_localization(ipsec_mgmt_t)
 
-modutils_domtrans_insmod(ipsec_mgmt_t)
-
 seutil_dontaudit_search_config(ipsec_mgmt_t)
 
+sysnet_manage_config(ipsec_mgmt_t)
 sysnet_domtrans_ifconfig(ipsec_mgmt_t)
+sysnet_etc_filetrans_config(ipsec_mgmt_t)
 
 userdom_use_user_terminals(ipsec_mgmt_t)
 
 optional_policy(`
 	consoletype_exec(ipsec_mgmt_t)
+')
+
+optional_policy(`
+	hostname_exec(ipsec_mgmt_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(ipsec_mgmt_t)
+	dbus_connect_system_bus(ipsec_mgmt_t)
+
+	optional_policy(`
+		networkmanager_dbus_chat(ipsec_mgmt_t)
+	')
+')
+
+optional_policy(`
+	iptables_domtrans(ipsec_mgmt_t)
+')
+
+optional_policy(`
+	modutils_domtrans_insmod(ipsec_mgmt_t)
 ')
 
 optional_policy(`
@@ -412,6 +437,7 @@ domain_ipsec_setcontext_all_domains(setkey_t)
 files_read_etc_files(setkey_t)
 
 init_dontaudit_use_fds(setkey_t)
+init_read_script_tmp_files(setkey_t)
 
 # allow setkey to set the context for ipsec SAs and policy.
 corenet_setcontext_all_spds(setkey_t)
