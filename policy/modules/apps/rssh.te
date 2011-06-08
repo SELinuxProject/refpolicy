@@ -1,4 +1,4 @@
-policy_module(rssh, 2.0.0)
+policy_module(rssh, 2.0.1)
 
 ########################################
 #
@@ -14,6 +14,10 @@ domain_user_exemption_target(rssh_t)
 domain_interactive_fd(rssh_t)
 ubac_constrained(rssh_t)
 role system_r types rssh_t;
+
+type rssh_chroot_helper_t;
+type rssh_chroot_helper_exec_t;
+init_system_domain(rssh_chroot_helper_t, rssh_chroot_helper_exec_t)
 
 type rssh_devpts_t;
 typealias rssh_devpts_t alias { user_rssh_devpts_t staff_rssh_devpts_t sysadm_rssh_devpts_t };
@@ -72,9 +76,30 @@ logging_send_syslog_msg(rssh_t)
 
 miscfiles_read_localization(rssh_t)
 
+rssh_domtrans_chroot_helper(rssh_t)
+
 ssh_rw_tcp_sockets(rssh_t)
 ssh_rw_stream_sockets(rssh_t)
 
 optional_policy(`
 	nis_use_ypbind(rssh_t)
 ')
+
+########################################
+#
+# rssh_chroot_helper local policy
+#
+
+allow rssh_chroot_helper_t self:capability { sys_chroot setuid };
+allow rssh_chroot_helper_t self:fifo_file rw_fifo_file_perms;
+allow rssh_chroot_helper_t self:unix_stream_socket create_stream_socket_perms;
+
+domain_use_interactive_fds(rssh_chroot_helper_t)
+
+files_read_etc_files(rssh_chroot_helper_t)
+
+auth_use_nsswitch(rssh_chroot_helper_t)
+
+logging_send_syslog_msg(rssh_chroot_helper_t)
+
+miscfiles_read_localization(rssh_chroot_helper_t)
