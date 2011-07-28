@@ -156,6 +156,7 @@ policypath = $(installdir)/policy
 contextpath = $(installdir)/contexts
 homedirpath = $(contextpath)/files/homedir_template
 fcpath = $(contextpath)/files/file_contexts
+fcsubspath = $(contextpath)/files/file_contexts.subs_dist
 ncpath = $(contextpath)/netfilter_contexts
 sharedir = $(prefix)/share/selinux
 modpkgdir = $(sharedir)/$(strip $(NAME))
@@ -248,7 +249,7 @@ seusers := $(appconf)/seusers
 appdir := $(contextpath)
 user_default_contexts := $(wildcard config/appconfig-$(TYPE)/*_default_contexts)
 user_default_contexts_names := $(addprefix $(contextpath)/users/,$(subst _default_contexts,,$(notdir $(user_default_contexts))))
-appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts sepgsql_contexts x_contexts customizable_types securetty_types) $(contextpath)/files/media $(user_default_contexts_names)
+appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts sepgsql_contexts x_contexts customizable_types securetty_types) $(contextpath)/files/media $(fcsubspath) $(user_default_contexts_names)
 net_contexts := $(builddir)net_contexts
 
 all_layers := $(shell find $(wildcard $(moddir)/*) -maxdepth 0 -type d)
@@ -528,6 +529,10 @@ $(installdir)/booleans: $(booleans)
 	$(verbose) $(INSTALL) -m 644 $(tmpdir)/booleans $@
 
 $(contextpath)/files/media: $(appconf)/media
+	@mkdir -p $(contextpath)/files/
+	$(verbose) $(INSTALL) -m 644 $< $@
+
+$(fcsubspath): config/file_contexts.subs_dist
 	@mkdir -p $(contextpath)/files/
 	$(verbose) $(INSTALL) -m 644 $< $@
 
