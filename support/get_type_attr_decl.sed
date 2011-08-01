@@ -5,7 +5,7 @@
 /require \{/,/} # end require/b nextline
 /optional \{/,/} # end optional/b nextline
 
-/^[[:blank:]]*(attribute|type(alias)?|bool) /{
+/^[[:blank:]]*(attribute(_role)?|type(alias)?|bool) /{
 	s/^[[:blank:]]+//
 	p
 }
