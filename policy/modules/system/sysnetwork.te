@@ -5,6 +5,9 @@ policy_module(sysnetwork, 1.12.2)
 # Declarations
 #
 
+attribute_role dhcpc_roles;
+roleattribute system_r dhcpc_roles;
+
 # this is shared between dhcpc and dhcpd:
 type dhcp_etc_t;
 typealias dhcp_etc_t alias { etc_dhcp_t etc_dhcpc_t etc_dhcpd_t };
@@ -17,7 +20,7 @@ files_type(dhcp_state_t)
 type dhcpc_t;
 type dhcpc_exec_t;
 init_daemon_domain(dhcpc_t, dhcpc_exec_t)
-role system_r types dhcpc_t;
+role dhcpc_roles types dhcpc_t;
 
 type dhcpc_state_t;
 files_type(dhcpc_state_t)
@@ -76,9 +79,6 @@ files_tmp_filetrans(dhcpc_t, dhcpc_tmp_t, { file dir })
 
 can_exec(dhcpc_t, dhcpc_exec_t)
 
-# transition to ifconfig
-domtrans_pattern(dhcpc_t, ifconfig_exec_t, ifconfig_t)
-
 kernel_read_system_state(dhcpc_t)
 kernel_read_network_state(dhcpc_t)
 kernel_search_network_sysctl(dhcpc_t)
@@ -136,7 +136,9 @@ logging_send_syslog_msg(dhcpc_t)
 
 miscfiles_read_localization(dhcpc_t)
 
-modutils_domtrans_insmod(dhcpc_t)
+modutils_run_insmod(dhcpc_t, dhcpc_roles)
+
+sysnet_run_ifconfig(dhcpc_t, dhcpc_roles)
 
 userdom_use_user_terminals(dhcpc_t)
 userdom_dontaudit_search_user_home_dirs(dhcpc_t)
@@ -152,7 +154,7 @@ ifdef(`distro_ubuntu',`
 ')
 
 optional_policy(`
-	consoletype_domtrans(dhcpc_t)
+	consoletype_run(dhcpc_t, dhcpc_roles)
 ')
 
 optional_policy(`
@@ -167,7 +169,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	hostname_domtrans(dhcpc_t)
+	hostname_run(dhcpc_t, dhcpc_roles)
 ')
 
 optional_policy(`
@@ -185,8 +187,8 @@ optional_policy(`
 
 # for the dhcp client to run ping to check IP addresses
 optional_policy(`
-	netutils_domtrans_ping(dhcpc_t)
-	netutils_domtrans(dhcpc_t)
+	netutils_run_ping(dhcpc_t, dhcpc_roles)
+	netutils_run(dhcpc_t, dhcpc_roles)
 ',`
 	allow dhcpc_t self:capability setuid;
 	allow dhcpc_t self:rawip_socket create_socket_perms;
