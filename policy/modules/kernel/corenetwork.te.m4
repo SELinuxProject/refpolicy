@@ -81,7 +81,7 @@ declare_nodes($1_node_t,shift($*))
 define(`declare_ports',`dnl
 ifelse(eval(range_start($3) < 1024),1,`typeattribute $1 reserved_port_type;
 ifelse(eval(range_start($3) >= 512),1,`typeattribute $1 rpc_port_type;',`dnl')
-',`dnl')
+',`typeattribute $1 unreserved_port_type;')
 portcon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 ')
@@ -90,7 +90,7 @@ ifelse(`$5',`',`',`declare_ports($1,shiftn(4,$*))')dnl
 # network_port(port_name,protocol portnum mls_sensitivity [,protocol portnum mls_sensitivity[,...]])
 #
 define(`network_port',`
-type $1_port_t, port_type;
+type $1_port_t, port_type, defined_port_type;
 type $1_client_packet_t, packet_type, client_packet_type;
 type $1_server_packet_t, packet_type, server_packet_type;
 declare_ports($1_port_t,shift($*))dnl
