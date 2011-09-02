@@ -1,8 +1,227 @@
-policy_module(git, 1.0)
+policy_module(git, 1.0.1)
 
 ########################################
 #
 # Declarations
 #
 
+## <desc>
+##	<p>
+##	Determine whether Git CGI
+##	can search home directories.
+##	</p>
+## </desc>
+gen_tunable(git_cgi_enable_homedirs, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git CGI
+##	can access cifs file systems.
+##	</p>
+## </desc>
+gen_tunable(git_cgi_use_cifs, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git CGI
+##	can access nfs file systems.
+##	</p>
+## </desc>
+gen_tunable(git_cgi_use_nfs, false)
+
+## <desc>
+##	<p>
+##	Determine whether calling user domains
+##	can execute Git daemon in the
+##	git_session_t domain.
+##	</p>
+## </desc>
+gen_tunable(git_session_users, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git session daemons
+##	can send syslog messages.
+##	</p>
+## </desc>
+gen_tunable(git_session_send_syslog_msg, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git system daemon
+##	can search home directories.
+##	</p>
+## </desc>
+gen_tunable(git_system_enable_homedirs, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git system daemon
+##	can access cifs file systems.
+##	</p>
+## </desc>
+gen_tunable(git_system_use_cifs, false)
+
+## <desc>
+##	<p>
+##	Determine whether Git system daemon
+##	can access nfs file systems.
+##	</p>
+## </desc>
+gen_tunable(git_system_use_nfs, false)
+
+attribute git_daemon;
+
 apache_content_template(git)
+
+type git_system_t, git_daemon;
+type gitd_exec_t;
+inetd_service_domain(git_system_t, gitd_exec_t)
+
+type git_session_t, git_daemon;
+application_domain(git_session_t, gitd_exec_t)
+ubac_constrained(git_session_t)
+
+type git_sys_content_t;
+files_type(git_sys_content_t)
+
+type git_user_content_t;
+userdom_user_home_content(git_user_content_t)
+
+########################################
+#
+# Git session policy
+#
+
+allow git_session_t self:tcp_socket { accept listen };
+
+list_dirs_pattern(git_session_t, git_user_content_t, git_user_content_t)
+read_files_pattern(git_session_t, git_user_content_t, git_user_content_t)
+userdom_search_user_home_dirs(git_session_t)
+
+corenet_all_recvfrom_netlabel(git_session_t)
+corenet_all_recvfrom_unlabeled(git_session_t)
+corenet_tcp_bind_generic_node(git_session_t)
+corenet_tcp_sendrecv_generic_if(git_session_t)
+corenet_tcp_sendrecv_generic_node(git_session_t)
+corenet_tcp_sendrecv_generic_port(git_session_t)
+corenet_tcp_bind_git_port(git_session_t)
+corenet_tcp_sendrecv_git_port(git_session_t)
+corenet_sendrecv_git_server_packets(git_session_t)
+
+userdom_use_user_terminals(git_session_t)
+
+tunable_policy(`git_session_send_syslog_msg',`
+	logging_send_syslog_msg(git_session_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_read_nfs_files(git_session_t)
+',`
+	fs_dontaudit_read_nfs_files(git_session_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_read_cifs_files(git_session_t)
+',`
+	fs_dontaudit_read_cifs_files(git_session_t)
+')
+
+########################################
+#
+# Git system policy
+#
+
+list_dirs_pattern(git_system_t, git_sys_content_t, git_sys_content_t)
+read_files_pattern(git_system_t, git_sys_content_t, git_sys_content_t)
+files_search_var_lib(git_system_t)
+
+logging_send_syslog_msg(git_system_t)
+
+tunable_policy(`git_system_enable_homedirs',`
+	userdom_search_user_home_dirs(git_system_t)
+')
+
+tunable_policy(`git_system_enable_homedirs && use_nfs_home_dirs',`
+	fs_read_nfs_files(git_system_t)
+',`
+	fs_dontaudit_read_nfs_files(git_system_t)
+')
+
+tunable_policy(`git_system_enable_homedirs && use_samba_home_dirs',`
+	fs_read_cifs_files(git_system_t)
+',`
+	fs_dontaudit_read_cifs_files(git_system_t)
+')
+
+tunable_policy(`git_system_use_cifs',`
+	fs_read_cifs_files(git_system_t)
+',`
+	fs_dontaudit_read_cifs_files(git_system_t)
+')
+
+tunable_policy(`git_system_use_nfs',`
+	fs_read_nfs_files(git_system_t)
+',`
+	fs_dontaudit_read_nfs_files(git_system_t)
+')
+
+########################################
+#
+# Git CGI policy
+#
+
+list_dirs_pattern(httpd_git_script_t, { git_sys_content_t git_user_content_t }, { git_sys_content_t git_user_content_t })
+read_files_pattern(httpd_git_script_t, { git_sys_content_t git_user_content_t }, { git_sys_content_t git_user_content_t })
+files_search_var_lib(httpd_git_script_t)
+
+files_dontaudit_getattr_tmp_dirs(httpd_git_script_t)
+
+auth_use_nsswitch(httpd_git_script_t)
+
+tunable_policy(`git_cgi_enable_homedirs',`
+	userdom_search_user_home_dirs(httpd_git_script_t)
+')
+
+tunable_policy(`git_cgi_enable_homedirs && use_nfs_home_dirs',`
+	fs_read_nfs_files(httpd_git_script_t)
+',`
+	fs_dontaudit_read_nfs_files(httpd_git_script_t)
+')
+
+tunable_policy(`git_cgi_enable_homedirs && use_samba_home_dirs',`
+	fs_read_cifs_files(httpd_git_script_t)
+',`
+	fs_dontaudit_read_cifs_files(httpd_git_script_t)
+')
+
+tunable_policy(`git_cgi_use_cifs',`
+	fs_read_cifs_files(httpd_git_script_t)
+',`
+	fs_dontaudit_read_cifs_files(httpd_git_script_t)
+')
+
+tunable_policy(`git_cgi_use_nfs',`
+	fs_read_nfs_files(httpd_git_script_t)
+',`
+	fs_dontaudit_read_nfs_files(httpd_git_script_t)
+')
+
+########################################
+#
+# Git global policy
+#
+
+allow git_daemon self:fifo_file rw_fifo_file_perms;
+
+kernel_read_system_state(git_daemon)
+
+corecmd_exec_bin(git_daemon)
+
+files_read_usr_files(git_daemon)
+
+fs_search_auto_mountpoints(git_daemon)
+
+auth_use_nsswitch(git_daemon)
+
+miscfiles_read_localization(git_daemon)
