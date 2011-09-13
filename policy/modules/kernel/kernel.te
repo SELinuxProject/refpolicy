@@ -1,16 +1,23 @@
-policy_module(kernel, 1.14.0)
+policy_module(kernel, 1.14.1)
 
 ########################################
 #
 # Declarations
 #
 
+## <desc>
+## <p>
+## Disable kernel module loading.
+## </p>
+## </desc>
+gen_bool(secure_mode_insmod, false)
+
 # assertion related attributes
 attribute can_load_kernmodule;
 attribute can_receive_kernel_messages;
 attribute can_dump_kernel;
 
-neverallow ~{ can_load_kernmodule kern_unconfined } self:capability sys_module;
+neverallow ~can_load_kernmodule self:capability sys_module;
 
 # domains with unconfined access to kernel resources
 attribute kern_unconfined;
@@ -181,7 +188,7 @@ sid tcp_socket		gen_context(system_u:object_r:unlabeled_t,mls_systemhigh)
 # kernel local policy
 #
 
-allow kernel_t self:capability *;
+allow kernel_t self:capability ~sys_module;
 allow kernel_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 allow kernel_t self:shm create_shm_perms;
 allow kernel_t self:sem create_sem_perms;
@@ -371,6 +378,20 @@ optional_policy(`
 	# since you may have compromised system security.
 	init_sigchld(unlabeled_t)
 ')
+
+########################################
+#
+# Kernel module loading policy
+#
+
+if( ! secure_mode_insmod ) {
+	allow can_load_kernmodule self:capability sys_module;
+
+	# load_module() calls stop_machine() which
+	# calls sched_setscheduler()
+	allow can_load_kernmodule self:capability sys_nice;
+	kernel_setsched(can_load_kernmodule)
+}
 
 ########################################
 #
