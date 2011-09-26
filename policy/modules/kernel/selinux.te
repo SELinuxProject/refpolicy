@@ -1,4 +1,4 @@
-policy_module(selinux, 1.10.0)
+policy_module(selinux, 1.10.1)
 
 ########################################
 #
@@ -19,6 +19,9 @@ attribute can_load_policy;
 attribute can_setenforce;
 attribute can_setsecparam;
 attribute selinux_unconfined_type;
+
+type secure_mode_policyload_t;
+selinux_labeled_boolean(secure_mode_policyload_t, secure_mode_policyload)
 
 # 
 # security_t is the target type when checking
@@ -45,16 +48,22 @@ neverallow ~{ selinux_unconfined_type can_setsecparam } security_t:security sets
 allow selinux_unconfined_type security_t:dir list_dir_perms;
 allow selinux_unconfined_type security_t:file rw_file_perms;
 allow selinux_unconfined_type boolean_type:file read_file_perms;
+allow selinux_unconfined_type { boolean_type -secure_mode_policyload_t }:file write_file_perms;
 
 # Access the security API.
-allow selinux_unconfined_type security_t:security ~{ load_policy setenforce setbool };
+allow selinux_unconfined_type security_t:security ~{ load_policy setenforce };
+
+ifdef(`distro_rhel4',`
+	# needed for systems without audit support
+	auditallow selinux_unconfined_type security_t:security setbool;
+')
 
 if(!secure_mode_policyload) {
-	allow selinux_unconfined_type boolean_type:file rw_file_perms;
-	allow selinux_unconfined_type security_t:security { load_policy setenforce setbool };
+	allow selinux_unconfined_type security_t:security { load_policy setenforce };
+	allow selinux_unconfined_type secure_mode_policyload_t:file write_file_perms;
 
 	ifdef(`distro_rhel4',`
 		# needed for systems without audit support
-		auditallow selinux_unconfined_type security_t:security { load_policy setenforce setbool };
+		auditallow selinux_unconfined_type security_t:security { load_policy setenforce };
 	')
 }
