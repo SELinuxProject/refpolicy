@@ -84,8 +84,6 @@ header_layers := $(filter-out $(HEADERDIR)/support,$(shell find $(wildcard $(HEA
 header_xml := $(addsuffix .xml,$(header_layers))
 header_interfaces := $(foreach layer,$(header_layers),$(wildcard $(layer)/*.if))
 
-rolemap := $(HEADERDIR)/rolemap
-
 local_layers := $(filter-out CVS tmp $(docs),$(shell find $(wildcard *) -maxdepth 0 -type d))
 local_xml := $(addprefix tmp/, $(addsuffix .xml,$(local_layers)))
 
@@ -107,35 +105,6 @@ match_loc = $(filter $(all_packages),$(loaded_mods))
 vpath %.te $(local_layers)
 vpath %.if $(local_layers)
 vpath %.fc $(local_layers)
-
-########################################
-#
-# Functions
-#
-
-# parse-rolemap-compat modulename,outputfile
-define parse-rolemap-compat
-	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
-		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_userdomain_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
-endef
-
-# parse-rolemap modulename,outputfile
-define parse-rolemap
-	$(verbose) $(M4) $(M4PARAM) $(rolemap) | \
-		$(AWK) '/^[[:blank:]]*[A-Za-z]/{ print "gen_require(type " $$3 "; role " $$1 ";)\n$1_per_role_template(" $$2 "," $$3 "," $$1 ")" }' >> $2
-endef
-
-# peruser-expansion modulename,outputfile
-define peruser-expansion
-	$(verbose) echo "ifdef(\`""$1""_per_role_template',\`" > $2
-	$(call parse-rolemap,$1,$2)
-	$(verbose) echo "')" >> $2
-
-	$(verbose) echo "ifdef(\`""$1""_per_userdomain_template',\`" >> $2
-	$(verbose) echo "errprint(\`Warning: per_userdomain_templates have been renamed to per_role_templates (""$1""_per_userdomain_template)'__endline__)" >> $2
-	$(call parse-rolemap-compat,$1,$2)
-	$(verbose) echo "')" >> $2
-endef
 
 .PHONY: clean all xml load reload
 .SUFFIXES:
@@ -185,8 +154,7 @@ reload: $(all_packages)
 tmp/%.mod: $(m4support) tmp/all_interfaces.conf %.te
 	@$(EINFO) "Compiling $(NAME) $(basename $(@F)) module"
 	@test -d $(@D) || mkdir -p $(@D)
-	$(call peruser-expansion,$(basename $(@F)),$@.role)
-	$(verbose) $(M4) $(M4PARAM) -s $^ $@.role > $(@:.mod=.tmp)
+	$(verbose) $(M4) $(M4PARAM) -s $^ > $(@:.mod=.tmp)
 	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
 tmp/%.mod.fc: $(m4support) %.fc
