@@ -83,13 +83,13 @@ ifneq "$(UNK_PERMS)" ""
 $(loadpath): CHECKPOLICY += -U $(UNK_PERMS)
 endif
 $(loadpath): $(policy_conf)
-	@mkdir -p $(policypath)
 	@echo "Compiling and installing $(NAME) $(loadpath)"
 ifneq ($(pv),$(kv))
 	@echo
 	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
+	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(CHECKPOLICY) $^ -o $@
 
 ########################################
@@ -193,10 +193,10 @@ $(fcpath): $(fc) $(loadpath) $(userpath)/system.users
 	@echo "Validating $(NAME) file_contexts."
 	$(verbose) $(SETFILES) -q -c $(loadpath) $(fc)
 	@echo "Installing file_contexts."
-	@mkdir -p $(contextpath)/files
-	$(verbose) $(INSTALL) -m 644 $(fc) $(fcpath)
-	$(verbose) $(INSTALL) -m 644 $(homedir_template) $(homedirpath)
-	$(verbose) $(genhomedircon) -d $(topdir) -t $(NAME) $(USEPWD)
+	@$(INSTALL) -d -m 0755 $(@D)
+	$(verbose) $(INSTALL) -m 0644 $(fc) $(fcpath)
+	$(verbose) $(INSTALL) -m 0644 $(homedir_template) $(homedirpath)
+	$(verbose) $(UMASK) 022 ; $(genhomedircon) -d $(topdir) -t $(NAME) $(USEPWD)
 ifeq "$(DISTRO)" "rhel4"
 # Setfiles in RHEL4 does not look at file_contexts.homedirs.
 	$(verbose) cat $@.homedirs >> $@
@@ -211,6 +211,7 @@ endif
 #
 $(ncpath): $(net_contexts)
 	@echo "Installing $(NAME) netfilter_contexts."
+	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $^ $@
 
 ########################################
@@ -230,14 +231,14 @@ $(builddir)longcheck.res: $(policy_conf) $(fc)
 # Appconfig files
 #
 $(appdir)/customizable_types: $(policy_conf)
-	@mkdir -p $(appdir)
 	$(verbose) $(GREP) '^[[:blank:]]*type .*customizable' $< | cut -d';' -f1 | cut -d',' -f1 | cut -d' ' -f2 | $(SORT) -u > $(tmpdir)/customizable_types
-	$(verbose) $(INSTALL) -m 644 $(tmpdir)/customizable_types $@ 
+	@$(INSTALL) -d -m 0755 $(@D)
+	$(verbose) $(INSTALL) -m 0644 $(tmpdir)/customizable_types $@
 
 $(installdir)/seusers: $(seusers)
-	@mkdir -p $(installdir)
 	$(verbose) $(M4) $(M4PARAM) $(m4support) $^ | $(GREP) '^[a-z_]' > $(tmpdir)/seusers
-	$(verbose) $(INSTALL) -m 644 $(tmpdir)/seusers $@
+	@$(INSTALL) -d -m 0755 $(@D)
+	$(verbose) $(INSTALL) -m 0644 $(tmpdir)/seusers $@
 
 ########################################
 #
