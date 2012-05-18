@@ -27,17 +27,17 @@ gen_tunable(sepgsql_enable_users_ddl, true)
 
 ## <desc>
 ## <p>
-## Allow database admins to execute DML statement
-## </p>
-## </desc>
-gen_tunable(sepgsql_unconfined_dbadm, true)
-
-## <desc>
-## <p>
 ## Allow transmit client label to foreign database
 ## </p>
 ## </desc>
 gen_tunable(sepgsql_transmit_client_label, false)
+
+## <desc>
+## <p>
+## Allow database admins to execute DML statement
+## </p>
+## </desc>
+gen_tunable(sepgsql_unconfined_dbadm, true)
 
 type postgresql_t;
 type postgresql_exec_t;
@@ -132,38 +132,13 @@ postgresql_table_object(sepgsql_table_t)
 type sepgsql_trusted_proc_exec_t;
 postgresql_trusted_procedure_object(sepgsql_trusted_proc_exec_t)
 
-type sepgsql_ranged_proc_exec_t;
-postgresql_trusted_procedure_object(sepgsql_ranged_proc_exec_t)
-
-type sepgsql_view_t;
-postgresql_view_object(sepgsql_view_t)
-
-# Trusted Procedure Domain
-type sepgsql_trusted_proc_t;
-domain_type(sepgsql_trusted_proc_t)
-postgresql_unconfined(sepgsql_trusted_proc_t)
-role system_r types sepgsql_trusted_proc_t;
-
 # Ranged Trusted Procedure Domain
-#
-# XXX - the purpose of this domain is to switch security context of
-# the database client using dynamic domain transition; typically,
-# used for connection pooling software that shall assign a security
-# context at beginning of the user session based on the credentials
-# being invisible from unprivileged domains.
-#
 type sepgsql_ranged_proc_t;
 domain_type(sepgsql_ranged_proc_t)
-postgresql_unconfined(sepgsql_ranged_proc_t)
-domain_dyntrans_type(sepgsql_ranged_proc_t)
-allow sepgsql_ranged_proc_t self:process { setcurrent };
 role system_r types sepgsql_ranged_proc_t;
-optional_policy(`
-	mcs_process_set_categories(sepgsql_ranged_proc_t)
-')
-optional_policy(`
-	mls_process_set_level(sepgsql_ranged_proc_t)
-')
+
+type sepgsql_ranged_proc_exec_t;
+postgresql_trusted_procedure_object(sepgsql_ranged_proc_exec_t)
 
 # Types for temporary objects
 #
@@ -172,11 +147,19 @@ optional_policy(`
 # operations on temporary object. For policy simplification, only one type
 # is defined for temporary objects under the "pg_temp" schema.
 type sepgsql_temp_object_t;
-
 postgresql_table_object(sepgsql_temp_object_t)
 postgresql_sequence_object(sepgsql_temp_object_t)
 postgresql_view_object(sepgsql_temp_object_t)
 postgresql_procedure_object(sepgsql_temp_object_t)
+
+# Trusted Procedure Domain
+type sepgsql_trusted_proc_t;
+domain_type(sepgsql_trusted_proc_t)
+postgresql_unconfined(sepgsql_trusted_proc_t)
+role system_r types sepgsql_trusted_proc_t;
+
+type sepgsql_view_t;
+postgresql_view_object(sepgsql_view_t)
 
 # Types for unprivileged client
 type unpriv_sepgsql_blob_t;
@@ -418,6 +401,26 @@ optional_policy(`
 
 ########################################
 #
+# Ranged Trusted Procedure Domain
+#
+# XXX - the purpose of this domain is to switch security context of
+# the database client using dynamic domain transition; typically,
+# used for connection pooling software that shall assign a security
+# context at beginning of the user session based on the credentials
+# being invisible from unprivileged domains.
+#
+allow sepgsql_ranged_proc_t self:process setcurrent;
+
+domain_dyntrans_type(sepgsql_ranged_proc_t)
+
+mcs_process_set_categories(sepgsql_ranged_proc_t)
+
+mls_process_set_level(sepgsql_ranged_proc_t)
+
+postgresql_unconfined(sepgsql_ranged_proc_t)
+
+########################################
+#
 # Rules common to all clients
 #
 
@@ -518,6 +521,8 @@ allow sepgsql_admin_type sepgsql_proc_exec_t:db_procedure execute;
 
 type_transition sepgsql_admin_type sepgsql_schema_type:db_procedure sepgsql_proc_exec_t;
 
+allow sepgsql_admin_type sepgsql_temp_object_t:{db_schema db_table db_column db_tuple db_sequence db_view db_procedure} ~{ relabelto relabelfrom };
+
 allow sepgsql_admin_type sepgsql_language_type:db_language { create drop getattr setattr relabelfrom relabelto execute };
 
 type_transition sepgsql_admin_type sepgsql_database_type:db_language sepgsql_lang_t;
@@ -547,8 +552,6 @@ tunable_policy(`sepgsql_unconfined_dbadm',`
 
 	allow sepgsql_admin_type sepgsql_blob_type:db_blob *;
 ')
-
-allow sepgsql_admin_type sepgsql_temp_object_t:{db_schema db_table db_column db_tuple db_sequence db_view db_procedure} ~{ relabelto relabelfrom };
 
 ########################################
 #
