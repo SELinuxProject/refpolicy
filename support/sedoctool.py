@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #  Author: Joshua Brindle <jbrindle@tresys.com>
-#          Caleb Case <ccase@tresys.com>
+#	  Caleb Case <ccase@tresys.com>
 #
 # Copyright (C) 2005 - 2006 Tresys Technology, LLC
 #      This program is free software; you can redistribute it and/or modify
@@ -62,7 +62,7 @@ def gen_booleans_conf(doc, file_name, namevalue_list):
 	for node in doc.getElementsByTagName("bool"):
 		for desc in node.getElementsByTagName("desc"):
 			bool_desc = format_txt_desc(desc)
-		s = string.split(bool_desc, "\n")
+		s = bool_desc.split("\n")
 		file_name.write("#\n")
 		for line in s:
 			file_name.write("# %s\n" % line)
@@ -80,14 +80,14 @@ def gen_booleans_conf(doc, file_name, namevalue_list):
 				bool_val = BOOL_DISABLED
 
 			if bool_name and bool_val:
-	            		file_name.write("%s = %s\n\n" % (bool_name, bool_val))
+				file_name.write("%s = %s\n\n" % (bool_name, bool_val))
 				bool_name = bool_val = None
 
 	# tunables are currently implemented as booleans
 	for node in doc.getElementsByTagName("tunable"):
 		for desc in node.getElementsByTagName("desc"):
 			bool_desc = format_txt_desc(desc)
-		s = string.split(bool_desc, "\n")
+		s = bool_desc.split("\n")
 		file_name.write("#\n")
 		for line in s:
 			file_name.write("# %s\n" % line)
@@ -105,7 +105,7 @@ def gen_booleans_conf(doc, file_name, namevalue_list):
 				bool_val = BOOL_DISABLED
 
 			if bool_name and bool_val:
-	            		file_name.write("%s = %s\n\n" % (bool_name, bool_val))
+				file_name.write("%s = %s\n\n" % (bool_name, bool_val))
 				bool_name = bool_val = None
 
 def gen_module_conf(doc, file_name, namevalue_list):
@@ -153,7 +153,7 @@ def gen_module_conf(doc, file_name, namevalue_list):
 			for desc in node.getElementsByTagName("summary"):
 				if not desc.parentNode == node:
 					continue
-				s = string.split(format_txt_desc(desc), "\n")
+				s = format_txt_desc(desc).split("\n")
 				for line in s:
 					file_name.write("# %s\n" % line)
 
@@ -209,39 +209,40 @@ def get_conf(conf):
 
 	return namevalue_list
 
-def first_cmp(a, b):
+def first_cmp_func(a):
 	"""
-	Compares the two first elements of a list instead of the entire list.
-	"""
-
-	return cmp(a[0], b[0])
-
-def int_cmp(a, b):
-	"""
-	Compares two interfaces.
+	Return the first element to sort/compare on.
 	"""
 
-	return cmp(a["interface_name"], b["interface_name"])
+	return a[0]
+
+def int_cmp_func(a):
+	"""
+	Return the interface name to sort/compare on.
+	"""
+
+	return a["interface_name"]
 		
-def temp_cmp(a, b):
+def temp_cmp_func(a):
 	"""
-	Compares two templates.
-	"""
-
-	return cmp(a["template_name"], b["template_name"])
-
-def tun_cmp(a, b):
-	"""
-	Compares two tunables.
+	Return the template name to sort/compare on.
 	"""
 
-	return cmp(a["tun_name"], b["tun_name"])
-def bool_cmp(a, b):
+	return a["template_name"]
+
+def tun_cmp_func(a):
 	"""
-	Compares two booleans.
+	Return the tunable name to sort/compare on.
 	"""
 
-	return cmp(a["bool_name"], b["bool_name"])
+	return a["tun_name"]
+
+def bool_cmp_func(a):
+	"""
+	Return the boolean name to sort/compare on.
+	"""
+
+	return a["bool_name"]
 
 def gen_doc_menu(mod_layer, module_list):
 	"""
@@ -249,18 +250,18 @@ def gen_doc_menu(mod_layer, module_list):
 	"""
 
 	menu = []
-	for layer, value in module_list.iteritems():
+	for layer, value in module_list.items():
 		cur_menu = (layer, [])
 		menu.append(cur_menu)
 		if layer != mod_layer and mod_layer != None:
 			continue
 		#we are in our layer so fill in the other modules or we want them all
-		for mod, desc in value.iteritems():
+		for mod, desc in value.items():
 			cur_menu[1].append((mod, desc))
 
-	menu.sort(first_cmp)
+	menu.sort(key=first_cmp_func)
 	for x in menu:
-		x[1].sort(first_cmp)
+		x[1].sort(key=first_cmp_func)
 	return menu
 
 def format_html_desc(node):
@@ -364,7 +365,7 @@ def gen_docs(doc, working_dir, templatedir):
 #arg, i have to go through this dom tree ahead of time to build up the menus
 	module_list = {}
 	for node in doc.getElementsByTagName("module"):
-                mod_name = mod_layer = interface_buf = ''
+		mod_name = mod_layer = interface_buf = ''
 
 		mod_name = node.getAttribute("name")
 		mod_layer = node.parentNode.getAttribute("name")
@@ -372,14 +373,14 @@ def gen_docs(doc, working_dir, templatedir):
 		for desc in node.getElementsByTagName("summary"):
 			if desc.parentNode == node and desc:
 				mod_summary = format_html_desc(desc)
-		if not module_list.has_key(mod_layer):
+		if not mod_layer in module_list:
 			module_list[mod_layer] = {}
 
 		module_list[mod_layer][mod_name] = mod_summary
 
 #generate index pages
 	main_content_buf = ''
-	for mod_layer,modules in module_list.iteritems():
+	for mod_layer,modules in module_list.items():
 		menu = gen_doc_menu(mod_layer, module_list)
 
 		layer_summary = None
@@ -428,7 +429,7 @@ def gen_docs(doc, working_dir, templatedir):
 	all_tunables = []
 	all_booleans = []
 	for node in doc.getElementsByTagName("module"):
-                mod_name = mod_layer = mod_desc = interface_buf = ''
+		mod_name = mod_layer = mod_desc = interface_buf = ''
 
 		mod_name = node.getAttribute("name")
 		mod_layer = node.parentNode.getAttribute("name")
@@ -485,7 +486,7 @@ def gen_docs(doc, working_dir, templatedir):
 					   "interface_parameters" : interface_parameters,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
-		interfaces.sort(int_cmp)	
+		interfaces.sort(key=int_cmp_func)	
 		interface_tpl = pyplate.Template(intdata)
 		interface_buf = interface_tpl.execute_string({"interfaces" : interfaces})
 	
@@ -532,7 +533,7 @@ def gen_docs(doc, working_dir, templatedir):
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
 
-		templates.sort(temp_cmp)	
+		templates.sort(key=temp_cmp_func)	
 		template_tpl = pyplate.Template(templatedata)
 		template_buf = template_tpl.execute_string({"templates" : templates})
 
@@ -556,7 +557,7 @@ def gen_docs(doc, working_dir, templatedir):
 					   "def_val" : boolean_dftval,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
-		booleans.sort(bool_cmp)
+		booleans.sort(key=bool_cmp_func)
 		boolean_tpl = pyplate.Template(booldata)
 		boolean_buf = boolean_tpl.execute_string({"booleans" : booleans})
 
@@ -580,7 +581,7 @@ def gen_docs(doc, working_dir, templatedir):
 					   "def_val" : tunable_dftval,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
-		tunables.sort(tun_cmp)
+		tunables.sort(key=tun_cmp_func)
 		tunable_tpl = pyplate.Template(tundata)
 		tunable_buf = tunable_tpl.execute_string({"tunables" : tunables})
 	
@@ -639,7 +640,7 @@ def gen_docs(doc, working_dir, templatedir):
 	menu_buf = menu_tpl.execute_string(menu_args)
 	
 	#build the interface index
-	all_interfaces.sort(int_cmp)
+	all_interfaces.sort(key=int_cmp_func)
 	interface_tpl = pyplate.Template(intlistdata)
 	interface_buf = interface_tpl.execute_string({"interfaces" : all_interfaces})
 	int_file = "interfaces.html"
@@ -654,7 +655,7 @@ def gen_docs(doc, working_dir, templatedir):
 
 
 	#build the template index
-	all_templates.sort(temp_cmp)
+	all_templates.sort(key=temp_cmp_func)
 	template_tpl = pyplate.Template(templistdata)
 	template_buf = template_tpl.execute_string({"templates" : all_templates})
 	temp_file = "templates.html"
@@ -679,7 +680,7 @@ def gen_docs(doc, working_dir, templatedir):
 			global_tun.append( { "tun_name" : tunable_name,
 						"def_val" : default_value,
 						"desc" : description } )
-	global_tun.sort(tun_cmp)
+	global_tun.sort(key=tun_cmp_func)
 	global_tun_tpl = pyplate.Template(gtunlistdata)
 	global_tun_buf = global_tun_tpl.execute_string({"tunables" : global_tun})
 	global_tun_file = "global_tunables.html"
@@ -694,7 +695,7 @@ def gen_docs(doc, working_dir, templatedir):
 
 	#build the tunable index
 	all_tunables = all_tunables + global_tun
-	all_tunables.sort(tun_cmp)
+	all_tunables.sort(key=tun_cmp_func)
 	tunable_tpl = pyplate.Template(tunlistdata)
 	tunable_buf = tunable_tpl.execute_string({"tunables" : all_tunables})
 	temp_file = "tunables.html"
@@ -718,7 +719,7 @@ def gen_docs(doc, working_dir, templatedir):
 			global_bool.append( { "bool_name" : bool_name,
 						"def_val" : default_value,
 						"desc" : description } )
-	global_bool.sort(bool_cmp)
+	global_bool.sort(key=bool_cmp_func)
 	global_bool_tpl = pyplate.Template(gboollistdata)
 	global_bool_buf = global_bool_tpl.execute_string({"booleans" : global_bool})
 	global_bool_file = "global_booleans.html"
@@ -733,7 +734,7 @@ def gen_docs(doc, working_dir, templatedir):
 	
 	#build the boolean index
 	all_booleans = all_booleans + global_bool
-	all_booleans.sort(bool_cmp)
+	all_booleans.sort(key=bool_cmp_func)
 	boolean_tpl = pyplate.Template(boollistdata)
 	boolean_buf = boolean_tpl.execute_string({"booleans" : all_booleans})
 	temp_file = "booleans.html"
@@ -753,10 +754,10 @@ def error(error):
 	Print an error message and exit.
 	"""
 
-        sys.stderr.write("%s exiting for: " % sys.argv[0])
-        sys.stderr.write("%s\n" % error)
-        sys.stderr.flush()
-        sys.exit(1)
+	sys.stderr.write("%s exiting for: " % sys.argv[0])
+	sys.stderr.write("%s\n" % error)
+	sys.stderr.flush()
+	sys.exit(1)
 
 def warning(warn):
 	"""

@@ -51,7 +51,7 @@ PyPlate defines the following directives:
 #
 
 from __future__ import nested_scopes
-import sys, string, re, cStringIO
+import sys, string, re, io
 
 re_directive = re.compile("\[\[(.*)\]\]")
 re_for_loop = re.compile("for (.*) in (.*)")
@@ -82,7 +82,10 @@ class Template:
     file.close()
 
   def parse_string(self, template):
-    file = cStringIO.StringIO(template)
+    if sys.version_info >= (3,0):
+      file = io.StringIO(template)
+    else:
+      file = io.StringIO(template.decode('utf-8'))
     self.parse(file)
     file.close()
 
@@ -111,7 +114,7 @@ class Template:
     file.close()
 
   def execute_string(self, data):
-    s = cStringIO.StringIO()
+    s = io.StringIO()
     self.execute(s, data)
     return s.getvalue()
 
@@ -185,7 +188,7 @@ class ForTemplateNode(TemplateNode):
   def execute(self, stream, data):
     remember_vars = {}
     for var in self.vars:
-      if data.has_key(var):
+      if var in data:
         remember_vars[var] = data[var]
     for list in eval(self.expression, globals(), data):
       if is_sequence(list):
@@ -264,7 +267,7 @@ class FunctionTemplateNode(TemplateNode):
   def call(self, args, stream, data):
     remember_vars = {}
     for index, var in enumerate(self.vars):
-      if data.has_key(var):
+      if var in data:
         remember_vars[var] = data[var]
       data[var] = args[index]
     TemplateNode.execute(self, stream, data)
@@ -288,7 +291,10 @@ class CommentTemplateNode(LeafTemplateNode):
 
 class ExpressionTemplateNode(LeafTemplateNode):
   def execute(self, stream, data):
-    stream.write(str(eval(self.s, globals(), data)))
+    if sys.version_info >= (3,0):
+      stream.write(str(eval(self.s, globals(), data)))
+    else:
+      stream.write(str(eval(self.s, globals(), data)).decode('utf-8'))
 
 class ExecTemplateNode(LeafTemplateNode):
   def __init__(self, parent, s):

@@ -287,10 +287,10 @@ def error(error):
 	Print an error message and exit.
 	"""
 
-        sys.stderr.write("%s exiting for: " % sys.argv[0])
-        sys.stderr.write("%s\n" % error)
-        sys.stderr.flush()
-        sys.exit(1)
+	sys.stderr.write("%s exiting for: " % sys.argv[0])
+	sys.stderr.write("%s\n" % error)
+	sys.stderr.flush()
+	sys.exit(1)
 
 # MAIN PROGRAM
 app_name = sys.argv[0]

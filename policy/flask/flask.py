@@ -313,7 +313,7 @@ class Flask:
 		results = []
 		results.append(self.autogen)
 		for c in self.vectors:
-			if self.inherits.has_key(c):
+			if c in self.inherits:
 				i = self.inherits[c]
 				count = len(self.common[i])
 				if not (mode == self.KERNEL and self.userspace[c]):
@@ -355,7 +355,7 @@ class Flask:
 			count = 0
 
 			ps = []
-			if self.inherits.has_key(c):
+			if c in self.inherits:
 				ps += self.common[self.inherits[c]]
 			ps += self.vector[c]
 			for p in ps: 
