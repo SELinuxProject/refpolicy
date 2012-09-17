@@ -47,9 +47,9 @@ endif
 BINDIR ?= /usr/bin
 SBINDIR ?= /usr/sbin
 ifdef TEST_TOOLCHAIN
-tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(BINDIR)
-tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
-tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib" $(TEST_TOOLCHAIN)/sbin
+tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)$(BINDIR)
+tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
+tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)/sbin
 else
 tc_usrbindir := $(BINDIR)
 tc_usrsbindir := $(SBINDIR)
