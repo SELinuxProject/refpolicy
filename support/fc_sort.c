@@ -1,4 +1,4 @@
-/* Copyright 2005, Tresys Technology 
+/* Copyright 2005,2013 Tresys Technology
  * 
  * Some parts of this came from matchpathcon.c in libselinux
  */
@@ -523,7 +523,7 @@ int main(int argc, char *argv[])
 	fc_merge_sort(master);
 
 	/* Open the output file. */
-	if (!(out_file = fopen(argv[2], "w"))) {
+	if (!(out_file = fopen(output_name, "w"))) {
 		printf("Error: failure opening output file for write.\n");
 		return -1;
 	}
