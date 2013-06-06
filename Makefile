@@ -97,6 +97,7 @@ support := support
 genxml := $(PYTHON) -E $(support)/segenxml.py
 gendoc := $(PYTHON) -E $(support)/sedoctool.py
 genperm := $(PYTHON) -E $(support)/genclassperms.py
+policyvers := $(PYTHON) -E $(support)/policyvers.py
 fcsort := $(tmpdir)/fc_sort
 setbools := $(AWK) -f $(support)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
