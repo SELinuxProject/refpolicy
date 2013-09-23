@@ -1,3 +1,4 @@
 #!/usr/bin/python
 import selinux
-print selinux.security_policyvers()
+if selinux.is_selinux_enabled():
+	print selinux.security_policyvers()
