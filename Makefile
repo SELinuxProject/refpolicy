@@ -609,27 +609,27 @@ resetlabels:
 # Clean everything
 #
 bare: clean
-	rm -f $(polxml)
-	rm -f $(layerxml)
-	rm -f $(modxml)
-	rm -f $(tunxml)
-	rm -f $(boolxml)
-	rm -f $(mod_conf)
-	rm -f $(booleans)
-	rm -fR $(htmldir)
-	rm -f $(tags)
+	$(verbose) rm -f $(polxml)
+	$(verbose) rm -f $(layerxml)
+	$(verbose) rm -f $(modxml)
+	$(verbose) rm -f $(tunxml)
+	$(verbose) rm -f $(boolxml)
+	$(verbose) rm -f $(mod_conf)
+	$(verbose) rm -f $(booleans)
+	$(verbose) rm -fR $(htmldir)
+	$(verbose) rm -f $(tags)
 # don't remove these files if we're given a local root
 ifndef LOCAL_ROOT
-	rm -f $(fcsort)
-	rm -f $(support)/*.pyc
+	$(verbose) rm -f $(fcsort)
+	$(verbose) rm -f $(support)/*.pyc
 ifneq ($(generated_te),)
-	rm -f $(generated_te)
+	$(verbose) rm -f $(generated_te)
 endif
 ifneq ($(generated_if),)
-	rm -f $(generated_if)
+	$(verbose) rm -f $(generated_if)
 endif
 ifneq ($(generated_fc),)
-	rm -f $(generated_fc)
+	$(verbose) rm -f $(generated_fc)
 endif
 endif
 
