@@ -346,6 +346,7 @@ int main(int argc, char *argv[])
 
 	/* Initialize the head of the linked list. */
 	head = current = (file_context_node_t*)malloc(sizeof(file_context_node_t));
+	head->next = NULL;
 
 	/* Parse the file into a file_context linked list. */
 	line_buf = NULL;
@@ -489,6 +490,8 @@ int main(int argc, char *argv[])
 	bcurrent = master =
 	    (file_context_bucket_t *)
 	    malloc(sizeof(file_context_bucket_t));
+	bcurrent->next = NULL;
+	bcurrent->data = NULL;
 
 	/* Go until all the nodes have been put in individual buckets. */
 	while (current) {
