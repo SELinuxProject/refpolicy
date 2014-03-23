@@ -81,7 +81,7 @@ typedef struct file_context_bucket {
  *      -> a is less specific than b.
  *     If a's string length is shorter than b's string length,
  *      -> a is less specific than b.
- *     If a does not have a specified type and b does not,
+ *     If a does not have a specified type and b does,
  *      -> a is less specific than b.
  */
 int fc_compare(file_context_node_t *a, file_context_node_t *b)
@@ -496,7 +496,7 @@ int main(int argc, char *argv[])
 		bcurrent->data = current;
 		current = current->next;
 
-		/* Detatch the node in the bucket from the old list. */
+		/* Detach the node in the bucket from the old list. */
 		bcurrent->data->next = NULL;
 
 		/* If there should be another bucket, put one at the end. */
