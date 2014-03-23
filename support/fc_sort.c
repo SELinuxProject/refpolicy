@@ -328,13 +328,13 @@ int main(int argc, char *argv[])
 
 
 	/* Check for the correct number of command line arguments. */
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s <infile> <outfile>\n",argv[0]);
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "Usage: %s <infile> [<outfile>]\n",argv[0]);
 		return 1;
 	}
 	
 	input_name = argv[1];
-	output_name = argv[2];
+	output_name = (argc >= 3) ? argv[2] : NULL;
 
 	i = j = lines = 0;
 
@@ -526,9 +526,13 @@ int main(int argc, char *argv[])
 	fc_merge_sort(master);
 
 	/* Open the output file. */
-	if (!(out_file = fopen(output_name, "w"))) {
-		printf("Error: failure opening output file for write.\n");
-		return -1;
+	if (output_name) {
+		if (!(out_file = fopen(output_name, "w"))) {
+			printf("Error: failure opening output file for write.\n");
+			return -1;
+		}
+	} else {
+		out_file = stdout;
 	}
 
 	/* Output the sorted file_context linked list to the output file. */
@@ -555,7 +559,9 @@ int main(int argc, char *argv[])
 	}
 	free(master);
 
-	fclose(out_file);
+	if (output_name) {
+		fclose(out_file);
+	}
 
 	return 0;
 }
