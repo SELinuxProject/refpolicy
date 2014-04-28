@@ -134,6 +134,7 @@ globaltun = $(poldir)/global_tunables
 globalbool = $(poldir)/global_booleans
 user_files := $(poldir)/users
 policycaps := $(poldir)/policy_capabilities
+ctx_defaults := $(poldir)/context_defaults
 
 # local config file paths
 ifndef LOCAL_ROOT
