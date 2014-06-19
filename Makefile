@@ -207,7 +207,7 @@ endif
 NAME ?= $(TYPE)
 
 # default unknown permissions setting
-#UNK_PERMS ?= deny
+UNK_PERMS ?= deny
 
 ifeq ($(DIRECT_INITRC),y)
 	M4PARAM += -D direct_sysadm_daemon
