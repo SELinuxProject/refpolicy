@@ -1,0 +1,96 @@
+# Derived from Nicolas Iooss: https://github.com/fishilico/selinux-refpolicy-patched/blob/travis-upstream/.travis.yml
+
+language: python
+python:
+ - "2.7"
+
+env:
+  - TYPE=standard DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=standard DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=standard DISTRO=debian DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=standard DISTRO=debian DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=standard DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=standard DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mcs DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mcs DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mcs DISTRO=debian DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mcs DISTRO=debian DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mcs DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mcs DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mls DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mls DISTRO=redhat DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mls DISTRO=debian DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mls DISTRO=debian DIRECT_INITRC=y MONOLITHIC=n
+  - TYPE=mls DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=y
+  - TYPE=mls DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=n
+
+# Install SELinux userspace utilities dependencies
+before_install:
+# Show OS version information
+  - lsb_release -a
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libaudit-dev libcap-ng-dev libustr-dev libustr-dev libpcre3-dev swig
+
+# Compile and install a newer version of SELinux userspace utilities
+install:
+  # Setup the directory where SELinux utilities will be installed
+  - export DESTDIR="$HOME/selinux-project"
+  - mkdir "$DESTDIR"
+  - export PATH="$DESTDIR/usr/bin:$DESTDIR/usr/sbin:$DESTDIR/bin:$DESTDIR/sbin:$PATH"
+  - export LD_LIBRARY_PATH="$DESTDIR/usr/lib:$DESTDIR/lib:$LD_LIBRARY_PATH"
+
+  # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
+  #    error: declaration of 'index' shadows a global declarationo
+  # So define our own CFLAGS
+  - export CFLAGS="-O2 -pipe -fPIC -Wall"
+
+  # Download SELinux userspace tools and libraries
+  - wget https://github.com/SELinuxProject/selinux/archive/20150202.tar.gz
+  - tar -xzf 20150202.tar.gz
+  - mv selinux-20150202 selinux-src
+
+  # Ubuntu 12.04 coreutils is too old to provide "ln --relative" :(
+  - sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libsepol/src/Makefile
+  - sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libselinux/src/Makefile
+
+  # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
+  - sed -i -e 's/sepolicy//' selinux-src/policycoreutils/Makefile
+
+  # Compile and install SELinux toolchain
+  - export LIBDIR="$DESTDIR/usr/lib"
+  - export LIBEXECDIR="$DESTDIR/usr/lib"
+  - export SHLIBDIR="$DESTDIR/usr/lib"
+  - export SEMODULE_PATH="$DESTDIR/usr/bin"
+  - make -C selinux-src install
+
+  # Use the newly-built toolchain
+  - export TEST_TOOLCHAIN="$DESTDIR"
+
+  # Drop build.conf settings to listen to env vars
+  - sed -r -i -e '/(DIRECT_INITRC|MONOLITHIC|TYPE|DISTRO)/d' build.conf
+
+# Use a heartbeat loop to produce output while compiling the policy, which takes a quite long time.
+script:
+  - POLVER=$(checkpolicy -V | cut -d' ' -f1)
+  - export TYPE DISTRO DIRECT_INITRC MONOLITHIC
+  - echo $TYPE $DISTRO $DIRECT_INITRC $MONOLITHIC $POLVER
+
+  # Prepare sources:
+  - make bare
+  - make conf
+
+  # Monolithic builds:
+  - if [ "$MONOLITHIC" = y ]; then
+    ( for A in $(seq 8) ; do sleep 300 ; echo "Heartbeat $((A*5)) minutes" ; done ) &
+    make ;
+    fi
+  - if [ "$MONOLITHIC" = y ]; then make file_contexts ; fi
+  - if [ "$MONOLITHIC" = y ]; then setfiles -c policy.$POLVER file_contexts ; fi
+
+  # Modular builds:
+  - if [ "$MONOLITHIC" = n ]; then make base ; fi
+  - if [ "$MONOLITHIC" = n ]; then make modules ; fi
+  - if [ "$MONOLITHIC" = n ]; then
+    ( for A in $(seq 8) ; do sleep 300 ; echo "Heartbeat $((A*5)) minutes" ; done ) &
+    make validate ;
+    fi
