@@ -24,29 +24,17 @@ env:
   - TYPE=mls DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=y
   - TYPE=mls DISTRO=gentoo DIRECT_INITRC=y MONOLITHIC=n
 
-# Install SELinux userspace utilities dependencies
 before_install:
-# Show OS version information
   - lsb_release -a
+  - bison -V
+  - flex -V
   - sudo apt-get update -qq
-  - sudo apt-get install -qq libaudit-dev libcap-ng-dev libustr-dev libustr-dev libpcre3-dev swig
 
-# Compile and install a newer version of SELinux userspace utilities
-install:
-  # Setup the directory where SELinux utilities will be installed
-  - export DESTDIR="$HOME/selinux-project"
-  - mkdir "$DESTDIR"
-  - export PATH="$DESTDIR/usr/bin:$DESTDIR/usr/sbin:$DESTDIR/bin:$DESTDIR/sbin:$PATH"
-  - export LD_LIBRARY_PATH="$DESTDIR/usr/lib:$DESTDIR/lib:$LD_LIBRARY_PATH"
+  # Install SELinux userspace utilities dependencies
+  - sudo apt-get install -qq libaudit-dev libcap-ng-dev libustr-dev libpcre3-dev swig
 
-  # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
-  #    error: declaration of 'index' shadows a global declarationo
-  # So define our own CFLAGS
-  - export CFLAGS="-O2 -pipe -fPIC -Wall"
-
-  # Download SELinux userspace tools and libraries
-  - wget https://github.com/SELinuxProject/selinux/archive/20150202.tar.gz
-  - tar -xzf 20150202.tar.gz
+  # Download current SELinux userspace tools and libraries
+  - curl -sS -L https://github.com/SELinuxProject/selinux/archive/20150202.tar.gz | tar xz
   - mv selinux-20150202 selinux-src
 
   # Ubuntu 12.04 coreutils is too old to provide "ln --relative" :(
@@ -57,14 +45,9 @@ install:
   - sed -i -e 's/sepolicy//' selinux-src/policycoreutils/Makefile
 
   # Compile and install SELinux toolchain
-  - export LIBDIR="$DESTDIR/usr/lib"
-  - export LIBEXECDIR="$DESTDIR/usr/lib"
-  - export SHLIBDIR="$DESTDIR/usr/lib"
-  - export SEMODULE_PATH="$DESTDIR/usr/bin"
-  - make -C selinux-src install
-
-  # Use the newly-built toolchain
-  - export TEST_TOOLCHAIN="$DESTDIR"
+  # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
+  #    error: declaration of 'index' shadows a global declarationo
+  - sudo make CFLAGS="-O2 -pipe -fPIC -Wall" -C selinux-src install
 
   # Drop build.conf settings to listen to env vars
   - sed -r -i -e '/(DIRECT_INITRC|MONOLITHIC|TYPE|DISTRO)/d' build.conf
