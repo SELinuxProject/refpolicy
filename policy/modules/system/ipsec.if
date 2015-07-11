@@ -369,3 +369,54 @@ interface(`ipsec_run_setkey',`
 	ipsec_domtrans_setkey($1)
 	role $2 types setkey_t;
 ')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an ipsec environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ipsec_admin',`
+	gen_require(`
+		type ipsec_t, ipsec_initrc_exec_t, ipsec_conf_file_t;
+		type ipsec_key_file_t, ipsec_log_t, ipsec_tmp_t;
+		type ipsec_var_run_t, ipsec_mgmt_lock_t;
+		type ipsec_mgmt_var_run_t, racoon_tmp_t;
+	')
+
+	allow $1 ipsec_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ipsec_t)
+
+	init_startstop_service($1, $2, ipsec_t, ipsec_initrc_exec_t)
+
+	ipsec_exec_mgmt($1)
+	ipsec_stream_connect($1)
+	# for lsof
+	ipsec_getattr_key_sockets($1)
+
+	files_search_etc($1)
+	admin_pattern($1, { ipsec_conf_file_t ipsec_key_file_t })
+
+	files_search_tmp($1)
+	admin_pattern($1, { ipsec_tmp_t racoon_tmp_t })
+
+	files_search_pids($1)
+	admin_pattern($1, { ipsec_var_run_t ipsec_mgmt_var_run_t })
+
+	files_search_locks($1)
+	admin_pattern($1, ipsec_mgmt_lock_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, ipsec_log_t)
+')
