@@ -54,6 +54,11 @@ files_lock_file(ipsec_mgmt_lock_t)
 type ipsec_mgmt_var_run_t;
 files_pid_file(ipsec_mgmt_var_run_t)
 
+type ipsec_supervisor_t;
+type ipsec_supervisor_exec_t;
+init_daemon_domain(ipsec_supervisor_t, ipsec_supervisor_exec_t);
+role system_r types ipsec_supervisor_t;
+
 type racoon_t;
 type racoon_exec_t;
 init_daemon_domain(racoon_t, racoon_exec_t)
@@ -66,11 +71,6 @@ type setkey_t;
 type setkey_exec_t;
 init_system_domain(setkey_t, setkey_exec_t)
 role system_r types setkey_t;
-
-type ipsec_supervisor_t;
-type ipsec_supervisor_exec_t;
-init_daemon_domain(ipsec_supervisor_t, ipsec_supervisor_exec_t);
-role system_r types ipsec_supervisor_t;
 
 ########################################
 #
@@ -202,40 +202,39 @@ allow ipsec_mgmt_t self:udp_socket create_socket_perms;
 allow ipsec_mgmt_t self:key_socket create_socket_perms;
 allow ipsec_mgmt_t self:fifo_file rw_fifo_file_perms;
 
-allow ipsec_mgmt_t ipsec_supervisor_t:process { signal signull };
-
-allow ipsec_mgmt_t ipsec_mgmt_lock_t:file manage_file_perms;
-files_lock_filetrans(ipsec_mgmt_t, ipsec_mgmt_lock_t, file)
-
-manage_dirs_pattern(ipsec_mgmt_t, ipsec_tmp_t, ipsec_tmp_t)
-manage_files_pattern(ipsec_mgmt_t, ipsec_tmp_t, ipsec_tmp_t)
-files_tmp_filetrans(ipsec_mgmt_t, ipsec_tmp_t, { dir file })
-
-manage_files_pattern(ipsec_mgmt_t, ipsec_log_t, ipsec_log_t)
-logging_log_filetrans(ipsec_mgmt_t, ipsec_log_t, file)
-
-allow ipsec_mgmt_t ipsec_mgmt_var_run_t:file manage_file_perms;
-files_pid_filetrans(ipsec_mgmt_t, ipsec_mgmt_var_run_t, file)
-
-manage_files_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t)
-manage_lnk_files_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t)
-
-allow ipsec_mgmt_t ipsec_var_run_t:sock_file manage_sock_file_perms;
-files_pid_filetrans(ipsec_mgmt_t, ipsec_var_run_t, sock_file)
+domtrans_pattern(ipsec_mgmt_t, ipsec_exec_t, ipsec_t)
 
 # _realsetup needs to be able to cat /var/run/pluto.pid,
 # run ps on that pid, and delete the file
 read_files_pattern(ipsec_mgmt_t, ipsec_t, ipsec_t)
 read_lnk_files_pattern(ipsec_mgmt_t, ipsec_t, ipsec_t)
 
-# logger, running in ipsec_mgmt_t needs to use sockets
-allow ipsec_mgmt_t self:unix_dgram_socket { create connect write };
-allow ipsec_mgmt_t ipsec_t:unix_dgram_socket { create connect write };
-
 allow ipsec_mgmt_t ipsec_conf_file_t:file read_file_perms;
 
 manage_files_pattern(ipsec_mgmt_t, ipsec_key_file_t, ipsec_key_file_t)
 manage_lnk_files_pattern(ipsec_mgmt_t, ipsec_key_file_t, ipsec_key_file_t)
+
+allow ipsec_mgmt_t ipsec_mgmt_lock_t:file manage_file_perms;
+files_lock_filetrans(ipsec_mgmt_t, ipsec_mgmt_lock_t, file)
+
+manage_files_pattern(ipsec_mgmt_t, ipsec_log_t, ipsec_log_t)
+logging_log_filetrans(ipsec_mgmt_t, ipsec_log_t, file)
+
+manage_dirs_pattern(ipsec_mgmt_t, ipsec_tmp_t, ipsec_tmp_t)
+manage_files_pattern(ipsec_mgmt_t, ipsec_tmp_t, ipsec_tmp_t)
+files_tmp_filetrans(ipsec_mgmt_t, ipsec_tmp_t, { dir file })
+
+allow ipsec_mgmt_t ipsec_mgmt_var_run_t:file manage_file_perms;
+manage_files_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t)
+manage_lnk_files_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t)
+files_pid_filetrans(ipsec_mgmt_t, ipsec_mgmt_var_run_t, file)
+
+allow ipsec_mgmt_t ipsec_var_run_t:sock_file manage_sock_file_perms;
+files_pid_filetrans(ipsec_mgmt_t, ipsec_var_run_t, sock_file)
+
+# logger, running in ipsec_mgmt_t needs to use sockets
+allow ipsec_mgmt_t self:unix_dgram_socket { create connect write };
+allow ipsec_mgmt_t ipsec_t:unix_dgram_socket { create connect write };
 
 # whack needs to connect to pluto
 stream_connect_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t, ipsec_t)
@@ -243,8 +242,8 @@ stream_connect_pattern(ipsec_mgmt_t, ipsec_var_run_t, ipsec_var_run_t, ipsec_t)
 can_exec(ipsec_mgmt_t, ipsec_mgmt_exec_t)
 allow ipsec_mgmt_t ipsec_mgmt_exec_t:lnk_file read;
 
-domtrans_pattern(ipsec_mgmt_t, ipsec_exec_t, ipsec_t)
 domtrans_pattern(ipsec_mgmt_t, ipsec_supervisor_exec_t, ipsec_supervisor_t);
+allow ipsec_mgmt_t ipsec_supervisor_t:process { signal signull };
 
 kernel_rw_net_sysctls(ipsec_mgmt_t)
 # allow pluto to access /proc/net/ipsec_eroute;
