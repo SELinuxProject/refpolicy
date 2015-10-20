@@ -120,6 +120,10 @@ locallogin_dontaudit_use_fds(auditctl_t)
 logging_set_audit_parameters(auditctl_t)
 logging_send_syslog_msg(auditctl_t)
 
+ifdef(`init_systemd',`
+	init_rw_stream_sockets(auditctl_t)
+')
+
 ########################################
 #
 # Auditd local policy
@@ -247,6 +251,10 @@ logging_send_syslog_msg(audisp_t)
 miscfiles_read_localization(audisp_t)
 
 sysnet_dns_name_resolve(audisp_t)
+
+ifdef(`init_systemd',`
+	kernel_dgram_send(audisp_t)
+')
 
 optional_policy(`
 	dbus_system_bus_client(audisp_t)
@@ -479,6 +487,20 @@ miscfiles_read_localization(syslogd_t)
 
 userdom_dontaudit_use_unpriv_user_fds(syslogd_t)
 userdom_dontaudit_search_user_home_dirs(syslogd_t)
+
+ifdef(`init_systemd',`
+	allow syslogd_t self:capability { chown setuid setgid };
+
+	kernel_use_fds(syslogd_t)
+	kernel_getattr_dgram_sockets(syslogd_t)
+	kernel_rw_unix_dgram_sockets(syslogd_t)
+	kernel_rw_stream_sockets(syslogd_t)
+
+	init_daemon_pid_file(syslogd_var_run_t, dir, "syslogd")
+	init_dgram_send(syslogd_t)
+
+	udev_read_pid_files(syslogd_t)
+')
 
 ifdef(`distro_gentoo',`
 	# default gentoo syslog-ng config appends kernel
