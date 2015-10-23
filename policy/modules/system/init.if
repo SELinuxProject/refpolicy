@@ -44,6 +44,26 @@ interface(`init_script_file',`
 
 ########################################
 ## <summary>
+##   Make the specified type usable for
+##   systemd unit files.
+## </summary>
+## <param name="type">
+##   <summary>
+##   Type to be used for systemd unit files.
+##   </summary>
+## </param>
+#
+interface(`init_unit_file',`
+	gen_require(`
+		attribute systemdunit;
+	')
+
+	files_type($1)
+	typeattribute $1 systemdunit;
+')
+
+########################################
+## <summary>
 ##	Create a domain used for init scripts.
 ## </summary>
 ## <desc>
@@ -108,6 +128,10 @@ interface(`init_domain',`
 	role system_r types $1;
 
 	domtrans_pattern(init_t, $2, $1)
+
+	ifdef(`init_systemd',`
+		allow $1 init_t:unix_stream_socket { getattr read write ioctl };
+	')
 ')
 
 ########################################
@@ -212,6 +236,12 @@ interface(`init_daemon_domain',`
 		userdom_dontaudit_use_user_terminals($1)
 	')
 
+	ifdef(`init_systemd',`
+		init_domain($1, $2)
+		# this may be because of late labelling
+		kernel_dgram_send($1)
+	')
+
 	optional_policy(`
 		nscd_use($1)
 	')
@@ -264,15 +294,68 @@ interface(`init_ranged_daemon_domain',`
 		type initrc_t;
 	')
 
-	init_daemon_domain($1, $2)
+	ifdef(`init_systemd',`
+		init_ranged_domain($1, $2, $3)
+	',`
+		init_daemon_domain($1, $2)
 
-	ifdef(`enable_mcs',`
-		range_transition initrc_t $2:process $3;
+		ifdef(`enable_mcs',`
+			range_transition initrc_t $2:process $3;
+		')
+
+		ifdef(`enable_mls',`
+			range_transition initrc_t $2:process $3;
+			mls_rangetrans_target($1)
+		')
 	')
+')
 
-	ifdef(`enable_mls',`
-		range_transition initrc_t $2:process $3;
-		mls_rangetrans_target($1)
+#########################################
+## <summary>
+##	Abstract socket service activation (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The domain to be started by systemd socket activation.
+##	</summary>
+## </param>
+#
+interface(`init_abstract_socket_activation',`
+	ifdef(`init_systemd',`
+		gen_require(`
+			type init_t;
+		')
+
+		allow init_t $1:unix_stream_socket create_stream_socket_perms;
+	')
+')
+
+#########################################
+## <summary>
+##	Named socket service activation (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The domain to be started by systemd socket activation.
+##	</summary>
+## </param>
+## <param name="sock_file">
+##	<summary>
+##	The domain socket file type.
+##	</summary>
+## </param>
+#
+interface(`init_named_socket_activation',`
+	ifdef(`init_systemd',`
+		gen_require(`
+			type init_t;
+		')
+
+		allow init_t $1:unix_dgram_socket create_socket_perms;
+		allow init_t $1:unix_stream_socket create_stream_socket_perms;
+		allow init_t $2:dir manage_dir_perms;
+		allow init_t $2:fifo_file manage_fifo_file_perms;
+		allow init_t $2:sock_file manage_sock_file_perms;
 	')
 ')
 
@@ -324,6 +407,10 @@ interface(`init_system_domain',`
 	role system_r types $1;
 
 	domtrans_pattern(initrc_t, $2, $1)
+
+	ifdef(`init_systemd',`
+		init_domain($1, $2)
+	')
 ')
 
 ########################################
@@ -374,15 +461,19 @@ interface(`init_ranged_system_domain',`
 		type initrc_t;
 	')
 
-	init_system_domain($1, $2)
+	ifdef(`init_systemd',`
+		init_ranged_domain($1, $2, $3)
+	',`
+		init_system_domain($1, $2)
 
-	ifdef(`enable_mcs',`
-		range_transition initrc_t $2:process $3;
-	')
+		ifdef(`enable_mcs',`
+			range_transition initrc_t $2:process $3;
+		')
 
-	ifdef(`enable_mls',`
-		range_transition initrc_t $2:process $3;
-		mls_rangetrans_target($1)
+		ifdef(`enable_mls',`
+			range_transition initrc_t $2:process $3;
+			mls_rangetrans_target($1)
+		')
 	')
 ')
 
@@ -579,10 +670,11 @@ interface(`init_sigchld',`
 #
 interface(`init_stream_connect',`
 	gen_require(`
-		type init_t;
+		type init_t, init_var_run_t;
 	')
 
-	allow $1 init_t:unix_stream_socket connectto;
+	stream_connect_pattern($1, init_var_run_t, init_var_run_t, init_t)
+	files_search_pids($1)
 ')
 
 ########################################
@@ -664,6 +756,45 @@ interface(`init_dontaudit_use_fds',`
 
 ########################################
 ## <summary>
+##	Send messages to init unix datagram sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`init_dgram_send',`
+	gen_require(`
+		type init_t, init_var_run_t;
+	')
+
+	dgram_send_pattern($1, init_var_run_t, init_var_run_t, init_t)
+	files_search_pids($1)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read/write to
+##	init with unix domain stream sockets.
+##	</summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_rw_stream_sockets',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:unix_stream_socket rw_stream_socket_perms;
+')
+
+########################################
+## <summary>
 ##	Send UDP network traffic to init.  (Deprecated)
 ## </summary>
 ## <param name="domain">
@@ -674,6 +805,276 @@ interface(`init_dontaudit_use_fds',`
 #
 interface(`init_udp_send',`
 	refpolicywarn(`$0($*) has been deprecated.')
+')
+
+########################################
+## <summary>
+##	Get all service status (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_get_system_status',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system status;
+')
+
+########################################
+## <summary>
+##	Enable all systemd services (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_enable',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system enable;
+')
+
+########################################
+## <summary>
+##	Disable all services (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_disable',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system disable;
+')
+
+########################################
+## <summary>
+##	Reload all services (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_reload',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system reload;
+')
+
+########################################
+## <summary>
+##	Reboot the system (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_reboot_system',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system reboot;
+')
+
+########################################
+## <summary>
+##	Shutdown (halt) the system (systemd).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_shutdown_system',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:system halt;
+')
+
+########################################
+## <summary>
+## 	Allow specified domain to get init status
+## </summary>
+## <param name="domain">
+## <summary>
+## 	Domain to allow access.
+## </summary>
+## </param>
+#
+interface(`init_service_status',`
+	gen_require(`
+		type init_t;
+		class service status;
+	')
+
+	allow $1 init_t:service status;
+')
+
+########################################
+## <summary>
+## 	Allow specified domain to get init start
+## </summary>
+## <param name="domain">
+## <summary>
+## 	Domain to allow access.
+## </summary>
+## </param>
+#
+interface(`init_service_start',`
+	gen_require(`
+		type init_t;
+		class service start;
+	')
+
+	allow $1 init_t:service start;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	systemd over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_dbus_chat',`
+	gen_require(`
+		type initrc_t;
+		class dbus send_msg;
+	')
+
+	allow $1 init_t:dbus send_msg;
+	allow init_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Manage files in /var/lib/systemd/.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="file_type">
+##	<summary>
+##	The type of the object to be created
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	The object class.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`init_manage_var_lib_files',`
+	gen_require(`
+		type init_var_lib_t;
+	')
+
+	manage_files_pattern($1, init_var_lib_t, init_var_lib_t)
+	files_search_var_lib($1)
+')
+
+########################################
+## <summary>
+##	Create files in /var/lib/systemd
+##	with an automatic type transition.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="type">
+##	<summary>
+##	The type of object to be created
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	The object class.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`init_var_lib_filetrans',`
+	gen_require(`
+		type init_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	filetrans_pattern($1, init_var_lib_t, $2, $3, $4)
+')
+
+########################################
+## <summary>
+##	Create files in an init PID directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="file_type">
+##	<summary>
+##	The type of the object to be created
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	The object class.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`init_pid_filetrans',`
+	gen_require(`
+		type init_var_run_t;
+	')
+
+	files_search_pids($1)
+	filetrans_pattern($1, init_var_run_t, $2, $3, $4)
 ')
 
 ########################################
@@ -1908,4 +2309,181 @@ interface(`init_udp_recvfrom_all_daemons',`
 		attribute daemon;
 	')
 	corenet_udp_recvfrom_labeled($1, daemon)
+')
+
+######################################
+## <summary>
+##	Search systemd unit dirs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_search_units',`
+	gen_require(`
+		type init_var_run_t, systemd_unit_t;
+	')
+
+	search_dirs_pattern($1, init_var_run_t, systemd_unit_t)
+
+	# Units are in /etc/systemd/system, /usr/lib/systemd/system and /run/systemd
+	files_search_etc($1)
+	files_search_usr($1)
+	libs_search_lib($1)
+
+	fs_search_tmpfs($1)
+')
+
+########################################
+## <summary>
+##	Get status of generic systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_get_generic_units_status',`
+	gen_require(`
+		type systemd_unit_t;
+		class service status;
+	')
+
+	allow $1 systemd_unit_t:service status;
+')
+
+########################################
+## <summary>
+##	Start generic systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_start_generic_units',`
+	gen_require(`
+		type systemd_unit_t;
+		class service start;
+	')
+
+	allow $1 systemd_unit_t:service start;
+')
+
+########################################
+## <summary>
+##	Stop generic systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+## 	Domain to not audit.
+## </summary>
+## </param>
+#
+interface(`init_stop_generic_units',`
+	gen_require(`
+		type systemd_unit_t;
+		class service stop;
+	')
+
+	allow $1 systemd_unit_t:service stop;
+')
+
+#######################################
+## <summary>
+##	Reload generic systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_reload_generic_units',`
+	gen_require(`
+		type systemd_unit_t;
+		class service reload;
+	')
+
+	allow $1 systemd_unit_t:service reload;
+')
+
+########################################
+## <summary>
+##	Get status of all systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_get_all_units_status',`
+	gen_require(`
+		attribute systemdunit;
+		class service status;
+	')
+
+	allow $1 systemdunit:service status;
+')
+
+########################################
+## <summary>
+##	Start all systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_start_all_units',`
+	gen_require(`
+		attribute systemdunit;
+		class service start;
+	')
+
+	allow $1 systemdunit:service start;
+')
+
+########################################
+## <summary>
+##	Stop all systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+## 	Domain to not audit.
+## </summary>
+## </param>
+#
+interface(`init_stop_all_units',`
+	gen_require(`
+		attribute systemdunit;
+		class service stop;
+	')
+
+	allow $1 systemdunit:service stop;
+')
+
+#######################################
+## <summary>
+##	Reload all systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_reload_all_units',`
+	gen_require(`
+		attribute systemdunit;
+		class service reload;
+	')
+
+	allow $1 systemdunit:service reload;
 ')

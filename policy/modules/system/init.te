@@ -19,6 +19,7 @@ gen_tunable(init_upstart, false)
 attribute init_script_domain_type;
 attribute init_script_file_type;
 attribute init_run_all_scripts_domain;
+attribute systemdunit;
 
 # Mark process types as daemons
 attribute daemon;
@@ -64,6 +65,7 @@ type initrc_t, init_script_domain_type, init_run_all_scripts_domain;
 type initrc_exec_t, init_script_file_type;
 domain_type(initrc_t)
 domain_entry_file(initrc_t, initrc_exec_t)
+init_named_socket_activation(initrc_t, init_var_run_t)
 role system_r types initrc_t;
 # should be part of the true block
 # of the below init_upstart tunable
@@ -73,6 +75,9 @@ corecmd_shell_entry_type(initrc_t)
 type initrc_devpts_t;
 term_pty(initrc_devpts_t)
 files_type(initrc_devpts_t)
+
+type initrc_lock_t;
+files_lock_file(initrc_lock_t)
 
 type initrc_state_t;
 files_type(initrc_state_t)
@@ -85,6 +90,9 @@ logging_log_file(initrc_var_log_t)
 
 type initrc_var_run_t;
 files_pid_file(initrc_var_run_t)
+
+type systemd_unit_t;
+init_unit_file(systemd_unit_t)
 
 ifdef(`distro_gentoo',`
 	type rc_exec_t;
@@ -182,6 +190,115 @@ seutil_read_config(init_t)
 
 miscfiles_read_localization(init_t)
 
+ifdef(`init_systemd',`
+	# handle instances where an old labeled init script is encountered.
+	typeattribute init_t init_run_all_scripts_domain;
+
+	allow init_t self:process { getcap getsched setsched setpgid setfscreate setsockcreate setcap setrlimit };
+	allow init_t self:capability2 block_suspend;
+	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
+	allow init_t self:netlink_route_socket create_netlink_socket_perms;
+	allow init_t self:netlink_selinux_socket create_socket_perms;
+
+	manage_files_pattern(init_t, init_var_run_t, init_var_run_t)
+	manage_lnk_files_pattern(init_t, init_var_run_t, init_var_run_t)
+	manage_sock_files_pattern(init_t, init_var_run_t, init_var_run_t)
+	manage_dirs_pattern(init_t, init_var_run_t, init_var_run_t)
+
+	manage_files_pattern(init_t, systemd_unit_t, systemdunit)
+
+	manage_dirs_pattern(init_t, systemd_unit_t, systemd_unit_t)
+	manage_lnk_files_pattern(init_t, systemd_unit_t, systemd_unit_t)
+	allow init_t systemd_unit_t:dir relabel_dir_perms;
+
+	kernel_dyntrans_to(init_t)
+	kernel_read_network_state(init_t)
+	kernel_read_kernel_sysctls(init_t)
+	kernel_read_vm_sysctls(init_t)
+	kernel_dgram_send(init_t)
+	kernel_stream_connect(init_t)
+	kernel_getattr_proc(init_t)
+	kernel_read_fs_sysctls(init_t)
+
+	dev_rw_autofs(init_t)
+	dev_create_generic_dirs(init_t)
+	dev_relabel_all_dev_nodes(init_t)
+	dev_read_urand(init_t)
+	dev_write_kmsg(init_t)
+
+	domain_read_all_domains_state(init_t)
+
+	files_read_all_pids(init_t)
+	files_list_usr(init_t)
+	files_list_var(init_t)
+	files_list_var_lib(init_t)
+	files_relabel_all_lock_dirs(init_t)
+	files_mounton_root(init_t)
+	files_search_pids(init_t)
+	files_relabel_all_pids(init_t)
+	files_read_all_locks(init_t)
+	files_search_kernel_modules(init_t)
+	# for privatetmp functions
+	files_manage_generic_tmp_dirs(init_t)
+	files_mounton_tmp(init_t)
+
+	fs_manage_cgroup_dirs(init_t)
+	fs_relabel_cgroup_dirs(init_t)
+	fs_rw_cgroup_files(init_t)
+	fs_list_auto_mountpoints(init_t)
+	fs_mount_autofs(init_t)
+	fs_manage_hugetlbfs_dirs(init_t)
+	fs_getattr_tmpfs(init_t)
+	fs_read_tmpfs_files(init_t)
+	fs_read_cgroup_files(init_t)
+	fs_dontaudit_getattr_xattr_fs(init_t)
+	# for privatetmp functions
+	fs_relabel_tmpfs_dirs(init_t)
+	fs_relabel_tmpfs_files(init_t)
+	# mount-setup
+	fs_unmount_autofs(init_t)
+	fs_getattr_pstore_dirs(init_t)
+
+	# systemd_socket_activated policy
+	mls_socket_write_all_levels(init_t)
+
+	selinux_compute_create_context(init_t)
+	selinux_compute_access_vector(init_t)
+
+	term_relabel_pty_dirs(init_t)
+
+	clock_read_adjtime(init_t)
+
+	logging_manage_pid_sockets(init_t)
+	logging_send_audit_msgs(init_t)
+	logging_relabelto_devlog_sock_files(init_t)
+
+	seutil_read_file_contexts(init_t)
+
+	systemd_relabelto_kmod_files(init_t)
+	systemd_dbus_chat_logind(init_t)
+
+	# udevd is a "systemd kobject uevent socket activated daemon"
+	udev_create_kobject_uevent_sockets(init_t)
+
+	optional_policy(`
+		dbus_system_bus_client(init_t)
+		dbus_connect_system_bus(init_t)
+	')
+
+	optional_policy(`
+		modutils_domtrans_insmod(init_t)
+	')
+',`
+	tunable_policy(`init_upstart',`
+		corecmd_shell_domtrans(init_t, initrc_t)
+	',`
+		# Run the shell in the sysadm role for single-user mode.
+		# causes problems with upstart
+		sysadm_shell_domtrans(init_t)
+	')
+')
+
 ifdef(`distro_debian',`
 	fs_tmpfs_filetrans(init_t, initctl_t, fifo_file, "initctl")
 
@@ -199,14 +316,6 @@ ifdef(`distro_redhat',`
 	fs_read_tmpfs_symlinks(init_t)
 	fs_rw_tmpfs_chr_files(init_t)
 	fs_tmpfs_filetrans(init_t, initctl_t, fifo_file)
-')
-
-tunable_policy(`init_upstart',`
-	corecmd_shell_domtrans(init_t, initrc_t)
-',`
-	# Run the shell in the sysadm role for single-user mode.
-	# causes problems with upstart
-	sysadm_shell_domtrans(init_t)
 ')
 
 optional_policy(`
@@ -606,6 +715,57 @@ ifdef(`distro_suse',`
 	optional_policy(`
 		# set permissions on /tmp/.X11-unix
 		xserver_setattr_xdm_tmp_dirs(initrc_t)
+	')
+')
+
+ifdef(`init_systemd',`
+	manage_files_pattern(initrc_t, initrc_lock_t, initrc_lock_t)
+	files_lock_filetrans(initrc_t, initrc_lock_t, file)
+
+	manage_dirs_pattern(initrc_t, init_var_run_t, init_var_run_t)
+
+	manage_dirs_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
+	manage_chr_files_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
+	manage_lnk_files_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
+	files_pid_filetrans(initrc_t, initrc_var_run_t, dir_file_class_set)
+
+	create_dirs_pattern(initrc_t, systemd_unit_t, systemd_unit_t)
+
+	manage_files_pattern(initrc_t, systemdunit, systemdunit)
+	manage_lnk_files_pattern(initrc_t, systemdunit, systemdunit)
+
+	kernel_dgram_send(initrc_t)
+
+	# run systemd misc initializations
+	# in the initrc_t domain, as would be
+	# done in traditional sysvinit/upstart.
+	corecmd_bin_entry_type(initrc_t)
+	corecmd_shell_entry_type(initrc_t)
+	corecmd_bin_domtrans(init_t, initrc_t)
+	corecmd_shell_domtrans(init_t, initrc_t)
+
+	files_read_boot_files(initrc_t)
+	files_setattr_pid_dirs(initrc_t)
+
+	selinux_set_enforce_mode(initrc_t)
+
+	init_stream_connect(initrc_t)
+	init_manage_var_lib_files(initrc_t)
+	init_rw_stream_sockets(initrc_t)
+	init_get_all_units_status(initrc_t)
+	init_stop_all_units(initrc_t)
+
+	# Create /etc/audit.rules.prev after firstboot remediation
+	logging_manage_audit_config(initrc_t)
+
+	# lvm2-activation-generator checks file labels
+	seutil_read_file_contexts(initrc_t)
+
+	systemd_start_power_units(initrc_t)
+
+	optional_policy(`
+		# create /var/lock/lvm/
+		lvm_create_lock_dirs(initrc_t)
 	')
 ')
 
