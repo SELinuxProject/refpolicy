@@ -553,6 +553,25 @@ interface(`logging_send_syslog_msg',`
 
 ########################################
 ## <summary>
+##	Allow domain to relabelto devlog sock_files
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`logging_relabelto_devlog_sock_files',`
+	gen_require(`
+		type devlog_t;
+	')
+
+	allow $1 devlog_t:sock_file relabelto_sock_file_perms;
+')
+
+########################################
+## <summary>
 ##	Read the auditd configuration files.
 ## </summary>
 ## <param name="domain">
@@ -608,6 +627,25 @@ interface(`logging_read_syslog_config',`
 	')
 
 	allow $1 syslog_conf_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete syslog PID sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`logging_manage_pid_sockets',`
+	gen_require(`
+		type syslogd_var_run_t;
+	')
+
+	manage_sock_files_pattern($1, syslogd_var_run_t, syslogd_var_run_t)
+	files_search_pids($1)
 ')
 
 ########################################
@@ -986,7 +1024,7 @@ interface(`logging_admin_audit',`
 	gen_require(`
 		type auditd_t, auditd_etc_t, auditd_log_t;
 		type auditd_var_run_t;
-		type auditd_initrc_exec_t;
+		type auditd_initrc_exec_t, auditd_unit_t;
 	')
 
 	allow $1 auditd_t:process { ptrace signal_perms };
@@ -1003,7 +1041,7 @@ interface(`logging_admin_audit',`
 
 	logging_run_auditctl($1, $2)
 
-	init_startstop_service($1, $2, auditd_t, auditd_initrc_exec_t)
+	init_startstop_service($1, $2, auditd_t, auditd_initrc_exec_t, auditd_unit_t)
 ')
 
 ########################################
@@ -1029,7 +1067,7 @@ interface(`logging_admin_syslog',`
 		type syslogd_tmp_t, syslogd_var_lib_t;
 		type syslogd_var_run_t, klogd_var_run_t;
 		type klogd_tmp_t, var_log_t;
-		type syslogd_initrc_exec_t;
+		type syslogd_initrc_exec_t, syslogd_unit_t;
 	')
 
 	allow $1 syslogd_t:process { ptrace signal_perms };
@@ -1058,7 +1096,7 @@ interface(`logging_admin_syslog',`
 
 	logging_manage_all_logs($1)
 
-	init_startstop_service($1, $2, syslogd_t, syslogd_initrc_exec_t)
+	init_startstop_service($1, $2, syslogd_t, syslogd_initrc_exec_t, syslogd_unit_t)
 ')
 
 ########################################
