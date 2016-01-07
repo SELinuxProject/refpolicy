@@ -1,13 +1,13 @@
 /* Copyright 2005,2013 Tresys Technology
- * 
+ *
  * Some parts of this came from matchpathcon.c in libselinux
  */
 
 /* PURPOSE OF THIS PROGRAM
- * The original setfiles sorting algorithm did not take into 
- * account regular expression specificity. With the current 
- * strict and targeted policies this is not an issue because 
- * the file contexts are partially hand sorted and concatenated 
+ * The original setfiles sorting algorithm did not take into
+ * account regular expression specificity. With the current
+ * strict and targeted policies this is not an issue because
+ * the file contexts are partially hand sorted and concatenated
  * in the right order so that the matches are generally correct.
  * The way reference policy and loadable policy modules handle
  * file contexts makes them come out in an unpredictable order
@@ -27,7 +27,7 @@ typedef unsigned char bool_t;
 
 /* file_context_node
  * A node used in a linked list of file contexts.c
- * Each node contains the regular expression, the type and 
+ * Each node contains the regular expression, the type and
  *  the context, as well as information about the regular
  *  expression. The regular expression data (meta, stem_len
  *  and str_len) can be filled in by using the fc_fill_data
@@ -114,7 +114,7 @@ int fc_compare(file_context_node_t *a, file_context_node_t *b)
 	if (!b->file_type && a->file_type)
 		return 1;
 
-	/* If none of the above conditions were satisfied, 
+	/* If none of the above conditions were satisfied,
 	 * then a and b are equally specific. */
 	return 0;
 }
@@ -251,7 +251,7 @@ void fc_merge_sort(file_context_bucket_t *master)
 /* fc_fill_data
  * This processes a regular expression in a file context
  *  and sets the data held in file_context_node, namely
- *  meta, str_len and stem_len. 
+ *  meta, str_len and stem_len.
  * The following changes are made to fc_node after the
  *  the completion of the function:
  *     fc_node->meta =		1 if path has a meta character, 0 if not.
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Usage: %s <infile> [<outfile>]\n",argv[0]);
 		return 1;
 	}
-	
+
 	input_name = argv[1];
 	output_name = (argc >= 3) ? argv[2] : NULL;
 
@@ -395,7 +395,7 @@ int main(int argc, char *argv[])
 
 			continue;
 		}
-		
+
 		temp->path = (char*)strndup(&line_buf[start], regex_len);
 		if (!temp->path) {
 			file_context_node_destroy(temp);
@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
 
 			if (!isspace(line_buf[i]))
 				break;
-		}	
+		}
 
 		if (i == line_len) {
 			file_context_node_destroy(temp);
@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		/* Parse out the type from the line (if it 
+		/* Parse out the type from the line (if it
 			*  is there). */
 		if (line_buf[i] == '-') {
 			temp->file_type = (char *)malloc(sizeof(char) * 3);
