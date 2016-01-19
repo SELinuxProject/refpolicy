@@ -820,7 +820,7 @@ define(`network_node',`
 create_node_type_interfaces($1)
 ')
 
-# These next three macros have formatting, and should not me indented
+# These next three macros have formatting, and should not be indented
 define(`determine_reserved_capability',`dnl
 ifelse($2,`',`',`dnl
 ifelse(eval($2 < 1024),1,``allow' dollarsone self:capability net_bind_service;',`dnl
