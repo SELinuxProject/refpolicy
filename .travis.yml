@@ -1,8 +1,6 @@
 # Derived from Nicolas Iooss: https://github.com/fishilico/selinux-refpolicy-patched/blob/travis-upstream/.travis.yml
 
-language: python
-python:
- - "2.7"
+language: generic
 
 env:
   - TYPE=standard DISTRO=redhat MONOLITHIC=y SYSTEMD=y
@@ -24,14 +22,30 @@ env:
   - TYPE=mls DISTRO=gentoo MONOLITHIC=y SYSTEMD=n
   - TYPE=mls DISTRO=gentoo MONOLITHIC=n SYSTEMD=n
 
-before_install:
+# Uncomment to use Travis-CI container infrastructure (https://docs.travis-ci.com/user/ci-environment/)
+#sudo: false
+
+# Uncomment these two lines to use Travis-CI Trusty Beta environment
+#sudo: required
+#dist: trusty
+
+addons:
+  apt:
+    packages:
+    # Install SELinux userspace utilities dependencies
+    - bison
+    - flex
+    - gettext
+    - libaudit-dev
+    - libbz2-dev
+    - libustr-dev
+    - libpcre3-dev
+    - swig
+
+install:
   - lsb_release -a
   - bison -V
   - flex -V
-  - sudo apt-get update -qq
-
-  # Install SELinux userspace utilities dependencies
-  - sudo apt-get install -qq libaudit-dev libcap-ng-dev libustr-dev libpcre3-dev swig
 
   # Download current SELinux userspace tools and libraries
   - curl -sS -L https://github.com/SELinuxProject/selinux/archive/20160223.tar.gz | tar xz
@@ -47,10 +61,19 @@ before_install:
   # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
   - sed -i -e 's/sepolicy//' selinux-src/policycoreutils/Makefile
 
-  # Compile and install SELinux toolchain
+  # Drop restorecond to break glib dependence
+  - sed -i -e 's/ restorecond//' selinux-src/policycoreutils/Makefile
+
+  # Drop sandbox to break libcap-ng dependence
+  - sed -i -e 's/ sandbox//' selinux-src/policycoreutils/Makefile
+
+  # Compile and install SELinux toolchain into ~/selinux
   # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
   #    error: declaration of 'index' shadows a global declarationo
-  - sudo make CFLAGS="-O2 -pipe -fPIC -Wall" -C selinux-src install
+  - make "DESTDIR=$HOME/selinux" CFLAGS="-O2 -pipe -fPIC -Wall -I$HOME/selinux/usr/include" -C selinux-src install
+
+  # Use TEST_TOOLCHAIN variable to tell refpolicy Makefile about the installed location
+  - export TEST_TOOLCHAIN="$HOME/selinux"
 
   # Drop build.conf settings to listen to env vars
   - sed -r -i -e '/(MONOLITHIC|TYPE|DISTRO|SYSTEMD)/d' build.conf
