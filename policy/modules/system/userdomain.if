@@ -572,9 +572,36 @@ template(`userdom_common_user_template',`
 		dev_read_mouse($1_t)
 	')
 
+	tunable_policy(`user_rw_noexattrfile',`
+		fs_manage_noxattr_fs_files($1_t)
+		fs_manage_noxattr_fs_dirs($1_t)
+	',`
+		fs_read_noxattr_fs_files($1_t)
+	')
+
 	tunable_policy(`user_ttyfile_stat',`
 		term_getattr_all_ttys($1_t)
 	')
+
+	ifndef(`enable_mls',`
+		tunable_policy(`user_write_removable',`
+			# Read/write floppies and other removable devices
+			storage_raw_read_removable_device($1_t)
+			storage_raw_write_removable_device($1_t)
+		',`
+			# Read floppies
+			storage_raw_read_removable_device($1_t)
+		')
+	')
+
+	tunable_policy(`user_write_removable',`
+		# Read/write USB devices (e.g. external removable USB mass storage devices)
+		dev_rw_generic_usb_dev($1_t)
+	',`
+		# Read USB devices (e.g. external removable USB mass storage devices)
+		dev_read_generic_usb_dev($1_t)
+	')
+
 
 	optional_policy(`
 		alsa_home_filetrans_alsa_home($1_t, file, ".asoundrc")
@@ -1034,24 +1061,14 @@ template(`userdom_unpriv_user_template', `
 
 	files_exec_usr_files($1_t)
 
-	ifndef(`enable_mls',`
-		fs_exec_noxattr($1_t)
-
-		tunable_policy(`user_rw_noexattrfile',`
-			fs_manage_noxattr_fs_files($1_t)
-			fs_manage_noxattr_fs_dirs($1_t)
-			# Write floppies
-			storage_raw_read_removable_device($1_t)
-			storage_raw_write_removable_device($1_t)
-		',`
-			storage_raw_read_removable_device($1_t)
-		')
-	')
-
 	tunable_policy(`user_dmesg',`
 		kernel_read_ring_buffer($1_t)
 	',`
 		kernel_dontaudit_read_ring_buffer($1_t)
+	')
+
+	tunable_policy(`user_exec_noexattrfile',`
+		fs_exec_noxattr($1_t)
 	')
 
 	# Allow users to run TCP servers (bind to ports and accept connection from
@@ -1234,13 +1251,6 @@ template(`userdom_admin_user_template',`
 	userdom_manage_user_home_content_pipes($1_t)
 	userdom_manage_user_home_content_sockets($1_t)
 	userdom_user_home_dir_filetrans_user_home_content($1_t, { dir file lnk_file fifo_file sock_file })
-
-	tunable_policy(`user_rw_noexattrfile',`
-		fs_manage_noxattr_fs_files($1_t)
-		fs_manage_noxattr_fs_dirs($1_t)
-	',`
-		fs_read_noxattr_fs_files($1_t)
-	')
 
 	optional_policy(`
 		postgresql_unconfined($1_t)
