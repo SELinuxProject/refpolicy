@@ -310,7 +310,7 @@ SELinux Reference policy mysql module.
 %config %{_usr}/share/selinux/*/*/mysql.pp
 
 %post mysql
-semodule -i %{_usr}/share/selinux/targeted/targeted-mcsmysql.pp
+semodule -i %{_usr}/share/selinux/targeted/targeted-mcs/mysql.pp
 
 %preun mysql
 semodule -r mysql
