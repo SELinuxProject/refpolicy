@@ -7,17 +7,21 @@
 %define type2 strict-mcs
 Summary: SELinux policy configuration
 Name: selinux-policy
-Version: 20051019
+Version: 2.20151208
 Release: 1
-License: GPL
+License: GPLv2
 Group: System Environment/Base
 Source: refpolicy-%{version}.tar.bz2
 Url: http://serefpolicy.sourceforge.net
 BuildRoot: %{_tmppath}/refpolicy-buildroot
 BuildArch: noarch
 # FIXME Need to ensure these have correct versions
-BuildRequires: checkpolicy m4 policycoreutils python make gcc
-PreReq: kernel >= 2.6.4-1.300 policycoreutils >= %{POLICYCOREUTILSVER}
+BuildRequires: checkpolicy >= 2.1.8
+BuildRequires: policycoreutils >= 2.1.10
+BuildRequires: python >= 2.6
+BuildRequires: libsepol >= 2.1.4
+BuildRequires: libsemanage >= 2.0.29
+BuildRequires: m4 make gcc
 Obsoletes: policy 
 
 %description
