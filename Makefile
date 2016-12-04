@@ -2,7 +2,7 @@
 # Makefile for the security policy.
 #
 # Targets:
-# 
+#
 # install       - compile and install the policy configuration, and context files.
 # load          - compile, install, and load the policy configuration.
 # reload        - compile, install, and load/reload the policy configuration.
@@ -32,7 +32,7 @@ ifdef LOCAL_ROOT
 endif
 
 # refpolicy version
-version = $(shell cat VERSION)
+version := $(shell cat VERSION)
 
 ifdef LOCAL_ROOT
 builddir := $(LOCAL_ROOT)/
@@ -70,13 +70,13 @@ SECHECK ?= $(BINDIR)/sechecker
 AWK ?= gawk
 GREP ?= egrep
 INSTALL ?= install
-M4 ?= m4
-PYTHON ?= python
+M4 ?= m4 -E -E
+PYTHON ?= python -t -t
 SED ?= sed
 SORT ?= LC_ALL=C sort
 UMASK ?= umask
 
-CFLAGS += -Wall
+CFLAGS += -Wall -Wextra -Werror -O2
 
 # policy source layout
 poldir := policy
@@ -112,58 +112,58 @@ genhomedircon := $(PYTHON) -E $(support)/genhomedircon
 
 # documentation paths
 docs := doc
-xmldtd = $(docs)/policy.dtd
-metaxml = metadata.xml
-doctemplate = $(docs)/templates
-docfiles = $(docs)/Makefile.example $(addprefix $(docs)/,example.te example.if example.fc)
+xmldtd := $(docs)/policy.dtd
+metaxml := metadata.xml
+doctemplate := $(docs)/templates
+docfiles := $(docs)/Makefile.example $(addprefix $(docs)/,example.te example.if example.fc)
 
 ifndef LOCAL_ROOT
-polxml = $(docs)/policy.xml
-tunxml = $(docs)/global_tunables.xml
-boolxml = $(docs)/global_booleans.xml
-htmldir = $(docs)/html
+polxml := $(docs)/policy.xml
+tunxml := $(docs)/global_tunables.xml
+boolxml := $(docs)/global_booleans.xml
+htmldir := $(docs)/html
 else
-polxml = $(LOCAL_ROOT)/doc/policy.xml
-tunxml = $(LOCAL_ROOT)/doc/global_tunables.xml
-boolxml = $(LOCAL_ROOT)/doc/global_booleans.xml
-htmldir = $(LOCAL_ROOT)/doc/html
+polxml := $(LOCAL_ROOT)/doc/policy.xml
+tunxml := $(LOCAL_ROOT)/doc/global_tunables.xml
+boolxml := $(LOCAL_ROOT)/doc/global_booleans.xml
+htmldir := $(LOCAL_ROOT)/doc/html
 endif
 
 # config file paths
-globaltun = $(poldir)/global_tunables
-globalbool = $(poldir)/global_booleans
+globaltun := $(poldir)/global_tunables
+globalbool := $(poldir)/global_booleans
 user_files := $(poldir)/users
 policycaps := $(poldir)/policy_capabilities
 ctx_defaults := $(poldir)/context_defaults
 
 # local config file paths
 ifndef LOCAL_ROOT
-mod_conf = $(poldir)/modules.conf
-booleans = $(poldir)/booleans.conf
-tunables = $(poldir)/tunables.conf
+mod_conf := $(poldir)/modules.conf
+booleans := $(poldir)/booleans.conf
+tunables := $(poldir)/tunables.conf
 else
-mod_conf = $(local_poldir)/modules.conf
-booleans = $(local_poldir)/booleans.conf
-tunables = $(local_poldir)/tunables.conf
+mod_conf := $(local_poldir)/modules.conf
+booleans := $(local_poldir)/booleans.conf
+tunables := $(local_poldir)/tunables.conf
 endif
 
 # install paths
 PKGNAME ?= refpolicy-$(version)
-prefix = $(DESTDIR)/usr
-topdir = $(DESTDIR)/etc/selinux
-installdir = $(topdir)/$(strip $(NAME))
-srcpath = $(installdir)/src
-userpath = $(installdir)/users
-policypath = $(installdir)/policy
-contextpath = $(installdir)/contexts
-homedirpath = $(contextpath)/files/homedir_template
-fcpath = $(contextpath)/files/file_contexts
-fcsubspath = $(contextpath)/files/file_contexts.subs_dist
-ncpath = $(contextpath)/netfilter_contexts
-sharedir = $(prefix)/share/selinux
-modpkgdir = $(sharedir)/$(strip $(NAME))
-headerdir = $(modpkgdir)/include
-docsdir = $(prefix)/share/doc/$(PKGNAME)
+prefix := $(DESTDIR)/usr
+topdir := $(DESTDIR)/etc/selinux
+installdir := $(topdir)/$(strip $(NAME))
+srcpath := $(installdir)/src
+userpath := $(installdir)/users
+policypath := $(installdir)/policy
+contextpath := $(installdir)/contexts
+homedirpath := $(contextpath)/files/homedir_template
+fcpath := $(contextpath)/files/file_contexts
+fcsubspath := $(contextpath)/files/file_contexts.subs_dist
+ncpath := $(contextpath)/netfilter_contexts
+sharedir := $(prefix)/share/selinux
+modpkgdir := $(sharedir)/$(strip $(NAME))
+headerdir := $(modpkgdir)/include
+docsdir := $(prefix)/share/doc/$(PKGNAME)
 
 # enable MLS if requested.
 ifeq "$(TYPE)" "mls"
@@ -234,7 +234,7 @@ ifeq ($(DISTRO),debian)
 endif
 
 ifeq ($(DISTRO),gentoo)
-	CTAGS := exuberant-ctags	
+	CTAGS := exuberant-ctags
 endif
 
 CTAGS ?= ctags
@@ -389,10 +389,13 @@ $(net_contexts): $(moddir)/kernel/corenetwork.te.in
 #
 # Create config files
 #
-conf: $(mod_conf) $(booleans) $(generated_te) $(generated_if) $(generated_fc)
+conf: $(mod_conf) $(booleans) generate
 
-$(mod_conf) $(booleans): $(polxml)
-	@echo "Updating $(mod_conf) and $(booleans)"
+$(booleans) $(mod_conf): conf.intermediate
+
+.INTERMEDIATE: conf.intermediate
+conf.intermediate: $(polxml)
+	@echo "Updating $(booleans) and $(mod_conf)"
 	$(verbose) $(gendoc) -b $(booleans) -m $(mod_conf) -x $(polxml)
 
 ########################################
@@ -412,7 +415,7 @@ $(layerxml): %.xml: $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*)
 	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
 ifdef LOCAL_ROOT
 	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
-endif	
+endif
 
 $(tunxml): $(globaltun)
 	$(verbose) $(genxml) -w -t $< > $@
