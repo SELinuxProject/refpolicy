@@ -2,7 +2,7 @@
 # Makefile for the security policy.
 #
 # Targets:
-# 
+#
 # install       - compile and install the policy configuration, and context files.
 # load          - compile, install, and load the policy configuration.
 # reload        - compile, install, and load/reload the policy configuration.
@@ -234,7 +234,7 @@ ifeq ($(DISTRO),debian)
 endif
 
 ifeq ($(DISTRO),gentoo)
-	CTAGS := exuberant-ctags	
+	CTAGS := exuberant-ctags
 endif
 
 CTAGS ?= ctags
@@ -391,13 +391,12 @@ $(net_contexts): $(moddir)/kernel/corenetwork.te.in
 #
 conf: $(mod_conf) $(booleans) generate
 
-$(booleans): $(polxml)
-	@echo "Updating $(booleans)"
-	$(verbose) $(gendoc) -b $(booleans) -x $(polxml)
+$(booleans) $(mod_conf): conf.intermediate
 
-$(mod_conf): $(polxml)
-	@echo "Updating $(mod_conf)"
-	$(verbose) $(gendoc) -m $(mod_conf) -x $(polxml)
+.INTERMEDIATE: conf.intermediate
+conf.intermediate: $(polxml)
+	@echo "Updating $(booleans) and $(mod_conf)"
+	$(verbose) $(gendoc) -b $(booleans) -m $(mod_conf) -x $(polxml)
 
 ########################################
 #
@@ -416,7 +415,7 @@ $(layerxml): %.xml: $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*)
 	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
 ifdef LOCAL_ROOT
 	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
-endif	
+endif
 
 $(tunxml): $(globaltun)
 	$(verbose) $(genxml) -w -t $< > $@
