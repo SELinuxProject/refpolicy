@@ -22,7 +22,7 @@ BuildRequires: python >= 2.6
 BuildRequires: libsepol >= 2.1.4
 BuildRequires: libsemanage >= 2.0.29
 BuildRequires: m4 make gcc
-Obsoletes: policy 
+Obsoletes: policy
 
 %description
 SELinux Reference Policy - modular.

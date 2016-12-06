@@ -5,7 +5,7 @@ BEGIN {
 	FS="="
 }
 
-/^[[:blank:]]*[[:alpha:]]+/{ 
+/^[[:blank:]]*[[:alpha:]]+/{
 	gsub(/[[:blank:]]*/,"")
 	print "define(`"$1"_conf',`"$2"')"
 }

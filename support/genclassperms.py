@@ -94,7 +94,7 @@ def get_av_db(file_name):
 		#  their own word. It doesn't matter if there will be extra
 		#  white space, it'll get thrown away when the string is split.
 		av_line.replace("{"," { ")
-		av_line.replace("}"," } ")		
+		av_line.replace("}"," } ")
 
 		# Split up the words on the line and add it to av_data.
 		av_data += av_line.split()
