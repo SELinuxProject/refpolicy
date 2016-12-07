@@ -7,7 +7,7 @@ define(`shiftn',`ifelse($1,0,`shift($*)',`shiftn(decr($1),shift(shift($*)))')')
 
 ########################################
 #
-# Network Interface generated macros 
+# Network Interface generated macros
 #
 ########################################
 
@@ -283,7 +283,7 @@ interface(`corenet_raw_sendrecv_$1_if',`
 
 ########################################
 #
-# Network node generated macros 
+# Network node generated macros
 #
 ########################################
 
@@ -456,7 +456,7 @@ interface(`corenet_udp_bind_$1_node',`
 
 ########################################
 #
-# Network port generated macros 
+# Network port generated macros
 #
 ########################################
 

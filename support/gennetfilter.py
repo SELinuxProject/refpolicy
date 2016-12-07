@@ -112,7 +112,7 @@ def parse_corenet(file_name):
 				del parms[:3]
 
 			packets.append(Packet(name,ports))
-		
+
 	corenet_te_in.close()
 
 	return packets

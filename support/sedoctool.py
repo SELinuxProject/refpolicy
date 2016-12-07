@@ -9,8 +9,8 @@
 #      the Free Software Foundation, version 2.
 
 """
-	This module generates configuration files and documentation from the 
-	SELinux reference policy XML format. 
+	This module generates configuration files and documentation from the
+	SELinux reference policy XML format.
 """
 
 import sys
@@ -46,11 +46,11 @@ def read_policy_xml(filename):
 
 	try:
 		doc = parseString(xml_fh.read())
-	except: 
+	except:
 		xml_fh.close()
 		error("Error while parsing xml")
 
-	xml_fh.close()	
+	xml_fh.close()
 	return doc
 
 def gen_booleans_conf(doc, file_name, namevalue_list):
@@ -141,7 +141,7 @@ def gen_module_conf(doc, file_name, namevalue_list):
 
 			mod_name = mod_layer = None
 
-			mod_name = node.getAttribute("name")	
+			mod_name = node.getAttribute("name")
 			mod_layer = node.parentNode.getAttribute("name")
 
 			if mod_name and mod_layer:
@@ -171,7 +171,7 @@ def gen_module_conf(doc, file_name, namevalue_list):
 					# Set the module to base if it is marked as required.
 					if mod_req:
 						file_name.write("%s = %s\n\n" % (mod_name, MOD_BASE))
-					# Set the module to enabled if it is not required. 
+					# Set the module to enabled if it is not required.
 					else:
 						file_name.write("%s = %s\n\n" % (mod_name, MOD_ENABLED))
 
@@ -222,7 +222,7 @@ def int_cmp_func(a):
 	"""
 
 	return a["interface_name"]
-		
+
 def temp_cmp_func(a):
 	"""
 	Return the template name to sort/compare on.
@@ -295,7 +295,7 @@ def format_txt_desc(node):
 			desc_buf += desc.data + "\n"
 		elif desc.nodeName == "p":
 			desc_buf += desc.firstChild.data + "\n"
-			for chld in desc.childNodes: 
+			for chld in desc.childNodes:
 				if chld.nodeName == "ul":
 					desc_buf += "\n"
 					for li in chld.getElementsByTagName("li"):
@@ -359,7 +359,7 @@ def gen_docs(doc, working_dir, templatedir):
 	try:
 		os.chdir(working_dir)
 	except:
-		error("Could not chdir to target directory")	
+		error("Could not chdir to target directory")
 
 
 #arg, i have to go through this dom tree ahead of time to build up the menus
@@ -401,12 +401,12 @@ def gen_docs(doc, working_dir, templatedir):
 
 		body_args = { "menu" : menu_buf,
 			      "content" : content_buf }
-	
+
 		index_file = mod_layer + ".html"
 		index_fh = open(index_file, "w")
 		body_tpl = pyplate.Template(bodydata)
 		body_tpl.execute(index_fh, body_args)
-		index_fh.close()	
+		index_fh.close()
 
 	menu = gen_doc_menu(None, module_list)
 	menu_args = { "menulist" : menu,
@@ -486,10 +486,10 @@ def gen_docs(doc, working_dir, templatedir):
 					   "interface_parameters" : interface_parameters,
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
-		interfaces.sort(key=int_cmp_func)	
+		interfaces.sort(key=int_cmp_func)
 		interface_tpl = pyplate.Template(intdata)
 		interface_buf = interface_tpl.execute_string({"interfaces" : interfaces})
-	
+
 
 # now generate individual template pages
 		templates = []
@@ -533,7 +533,7 @@ def gen_docs(doc, working_dir, templatedir):
 					   "mod_name": mod_name,
 					   "mod_layer" : mod_layer })
 
-		templates.sort(key=temp_cmp_func)	
+		templates.sort(key=temp_cmp_func)
 		template_tpl = pyplate.Template(templatedata)
 		template_buf = template_tpl.execute_string({"templates" : templates})
 
@@ -584,7 +584,7 @@ def gen_docs(doc, working_dir, templatedir):
 		tunables.sort(key=tun_cmp_func)
 		tunable_tpl = pyplate.Template(tundata)
 		tunable_buf = tunable_tpl.execute_string({"tunables" : tunables})
-	
+
 
 		menu = gen_doc_menu(mod_layer, module_list)
 
@@ -611,7 +611,7 @@ def gen_docs(doc, working_dir, templatedir):
 			boolean_buf = None
 
 		module_args = { "mod_layer" : mod_layer,
-			      "mod_name" : mod_name,	
+			      "mod_name" : mod_name,
 			      "mod_summary" : mod_summary,
 			      "mod_desc" : mod_desc,
 			      "mod_req" : mod_req,
@@ -625,20 +625,20 @@ def gen_docs(doc, working_dir, templatedir):
 
 		body_args = { "menu" : menu_buf,
 			      "content" : module_buf }
-			  
+
 		module_file = mod_layer + "_" + mod_name + ".html"
 		module_fh = open(module_file, "w")
 		body_tpl = pyplate.Template(bodydata)
 		body_tpl.execute(module_fh, body_args)
 		module_fh.close()
 
-		
+
 	menu = gen_doc_menu(None, module_list)
 	menu_args = { "menulist" : menu,
 		      "mod_layer" : None }
 	menu_tpl = pyplate.Template(menudata)
 	menu_buf = menu_tpl.execute_string(menu_args)
-	
+
 	#build the interface index
 	all_interfaces.sort(key=int_cmp_func)
 	interface_tpl = pyplate.Template(intlistdata)
@@ -647,7 +647,7 @@ def gen_docs(doc, working_dir, templatedir):
 	int_fh = open(int_file, "w")
 	body_tpl = pyplate.Template(bodydata)
 
-	body_args = { "menu" : menu_buf, 
+	body_args = { "menu" : menu_buf,
 		      "content" : interface_buf }
 
 	body_tpl.execute(int_fh, body_args)
@@ -662,7 +662,7 @@ def gen_docs(doc, working_dir, templatedir):
 	temp_fh = open(temp_file, "w")
 	body_tpl = pyplate.Template(bodydata)
 
-	body_args = { "menu" : menu_buf, 
+	body_args = { "menu" : menu_buf,
 		      "content" : template_buf }
 
 	body_tpl.execute(temp_fh, body_args)
@@ -702,7 +702,7 @@ def gen_docs(doc, working_dir, templatedir):
 	temp_fh = open(temp_file, "w")
 	body_tpl = pyplate.Template(bodydata)
 
-	body_args = { "menu" : menu_buf, 
+	body_args = { "menu" : menu_buf,
 		      "content" : tunable_buf }
 
 	body_tpl.execute(temp_fh, body_args)
@@ -731,7 +731,7 @@ def gen_docs(doc, working_dir, templatedir):
 
 	body_tpl.execute(global_bool_fh, body_args)
 	global_bool_fh.close()
-	
+
 	#build the boolean index
 	all_booleans = all_booleans + global_bool
 	all_booleans.sort(key=bool_cmp_func)
@@ -741,7 +741,7 @@ def gen_docs(doc, working_dir, templatedir):
 	temp_fh = open(temp_file, "w")
 	body_tpl = pyplate.Template(bodydata)
 
-	body_args = { "menu" : menu_buf, 
+	body_args = { "menu" : menu_buf,
 		      "content" : boolean_buf }
 
 	body_tpl.execute(temp_fh, body_args)
@@ -805,7 +805,7 @@ for opt, val in opts:
 		templatedir = val
 
 doc = read_policy_xml(xmlfile)
-		
+
 if booleans:
 	namevalue_list = []
 	if os.path.exists(booleans):
@@ -834,7 +834,7 @@ if modules:
 			conf = open(modules, 'r')
 		except:
 			error("Could not open modules file for reading")
-		namevalue_list = get_conf(conf)	
+		namevalue_list = get_conf(conf)
 		conf.close()
 
 	try:
@@ -844,5 +844,5 @@ if modules:
 	gen_module_conf(doc, conf, namevalue_list)
 	conf.close()
 
-if docsdir: 
+if docsdir:
 	gen_docs(doc, docsdir, templatedir)

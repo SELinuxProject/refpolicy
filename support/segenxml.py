@@ -90,7 +90,7 @@ def getModuleXML(file_name):
 	module_buf = []
 
 	# Infer the module name, which is the base of the file name.
-	module_buf.append("<module name=\"%s\" filename=\"%s\">\n" 
+	module_buf.append("<module name=\"%s\" filename=\"%s\">\n"
 		% (os.path.splitext(os.path.split(file_name)[-1])[0], module_if))
 
 	temp_buf = []
@@ -157,7 +157,7 @@ def getModuleXML(file_name):
 			# Add default summaries and parameters so that the
 			#  DTD is happy.
 			else:
-				warning ("unable to find XML for %s %s()" % (groups[0], groups[1]))	
+				warning ("unable to find XML for %s %s()" % (groups[0], groups[1]))
 				module_buf.append("<summary>\n")
 				module_buf.append("Summary is missing!\n")
 				module_buf.append("</summary>\n")
