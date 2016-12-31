@@ -42,6 +42,14 @@ gen_tunable(xdm_sysadm_login, false)
 
 ## <desc>
 ## <p>
+## Use gnome-shell in gdm mode as the
+## X Display Manager (XDM)
+## </p>
+## </desc>
+gen_tunable(xserver_gnome_xdm, false)
+
+## <desc>
+## <p>
 ## Support X userspace object manager
 ## </p>
 ## </desc>
@@ -307,6 +315,7 @@ optional_policy(`
 #
 
 allow xdm_t self:capability { setgid setuid sys_resource kill sys_tty_config mknod chown dac_override dac_read_search fowner fsetid ipc_owner sys_nice sys_rawio net_bind_service };
+dontaudit xdm_t self:capability sys_admin;
 allow xdm_t self:process { setexec setpgid getsched setsched setrlimit signal_perms };
 allow xdm_t self:fifo_file rw_fifo_file_perms;
 allow xdm_t self:shm create_shm_perms;
@@ -319,7 +328,7 @@ allow xdm_t self:socket create_socket_perms;
 allow xdm_t self:appletalk_socket create_socket_perms;
 allow xdm_t self:key { search link write };
 
-allow xdm_t xconsole_device_t:fifo_file { getattr setattr };
+allow xdm_t xconsole_device_t:fifo_file { read_fifo_file_perms setattr_fifo_file_perms };
 
 # Allow gdm to run gdm-binary
 can_exec(xdm_t, xdm_exec_t)
@@ -510,6 +519,10 @@ tunable_policy(`xdm_sysadm_login',`
 #	allow xserver_t xdm_tmpfs_t:file rw_file_perms;
 ')
 
+tunable_policy(`xserver_gnome_xdm',`
+	allow xdm_t self:process execmem;
+')
+
 optional_policy(`
 	alsa_domtrans(xdm_t)
 ')
@@ -589,10 +602,6 @@ optional_policy(`
 optional_policy(`
 	unconfined_domain(xdm_t)
 	unconfined_domtrans(xdm_t)
-
-	ifndef(`distro_redhat',`
-		allow xdm_t self:process { execheap execmem };
-	')
 ')
 
 optional_policy(`
@@ -658,6 +667,7 @@ manage_fifo_files_pattern(xserver_t, xserver_tmpfs_t, xserver_tmpfs_t)
 manage_sock_files_pattern(xserver_t, xserver_tmpfs_t, xserver_tmpfs_t)
 fs_tmpfs_filetrans(xserver_t, xserver_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
+# Run xkbcomp
 manage_files_pattern(xserver_t, xkb_var_lib_t, xkb_var_lib_t)
 manage_lnk_files_pattern(xserver_t, xkb_var_lib_t, xkb_var_lib_t)
 files_search_var_lib(xserver_t)
@@ -806,6 +816,7 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_db(xserver_t)
+	udev_read_pid_files(xserver_t)
 ')
 
 optional_policy(`
@@ -842,10 +853,6 @@ read_files_pattern(xserver_t, xdm_var_run_t, xdm_var_run_t)
 manage_files_pattern(xserver_t, xdm_tmp_t, xdm_tmp_t)
 manage_lnk_files_pattern(xserver_t, xdm_tmp_t, xdm_tmp_t)
 manage_sock_files_pattern(xserver_t, xdm_tmp_t, xdm_tmp_t)
-
-# Run xkbcomp.
-allow xserver_t xkb_var_lib_t:lnk_file read;
-can_exec(xserver_t, xkb_var_lib_t)
 
 # Run Xorg.wrap
 can_exec(xserver_t, xserver_exec_t)
