@@ -516,7 +516,8 @@ install-headers: $(layerxml) $(tunxml) $(boolxml)
 	@echo "Installing $(NAME) policy headers."
 	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
 	$(verbose) mkdir -p $(headerdir)/support
-	$(verbose) $(INSTALL) -m 644 $(m4support) $(word $(words $(genxml)),$(genxml)) $(xmldtd) $(headerdir)/support
+	$(verbose) $(INSTALL) -m 644 $(m4support) $(xmldtd) $(headerdir)/support
+	$(verbose) $(INSTALL) -m 755 $(word $(words $(genxml)),$(genxml)) $(headerdir)/support
 	$(verbose) $(genperm) $(avs) $(secclass) > $(headerdir)/support/all_perms.spt
 	$(verbose) for i in $(notdir $(all_layers)); do \
 		mkdir -p $(headerdir)/$$i ;\
