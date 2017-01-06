@@ -11,9 +11,8 @@ init_domain(getty_t, getty_exec_t)
 init_system_domain(getty_t, getty_exec_t)
 domain_interactive_fd(getty_t)
 
-type getty_etc_t;
-typealias getty_etc_t alias etc_getty_t;
-files_config_file(getty_etc_t)
+type getty_conf_t alias getty_etc_t;
+files_config_file(getty_conf_t)
 
 type getty_lock_t;
 files_lock_file(getty_lock_t)
@@ -21,11 +20,11 @@ files_lock_file(getty_lock_t)
 type getty_log_t;
 logging_log_file(getty_log_t)
 
+type getty_runtime_t alias getty_var_run_t;
+files_pid_file(getty_runtime_t)
+
 type getty_tmp_t;
 files_tmp_file(getty_tmp_t)
-
-type getty_var_run_t;
-files_pid_file(getty_var_run_t)
 
 ########################################
 #
@@ -35,25 +34,24 @@ files_pid_file(getty_var_run_t)
 # Use capabilities.
 allow getty_t self:capability { chown dac_override fowner fsetid setgid sys_admin sys_resource sys_tty_config };
 dontaudit getty_t self:capability sys_tty_config;
-allow getty_t self:process { getpgid setpgid getsession signal_perms };
+allow getty_t self:process { getpgid getsession setpgid signal_perms };
 allow getty_t self:fifo_file rw_fifo_file_perms;
 
-read_files_pattern(getty_t, getty_etc_t, getty_etc_t)
-read_lnk_files_pattern(getty_t, getty_etc_t, getty_etc_t)
-files_etc_filetrans(getty_t, getty_etc_t,{ file dir })
+read_files_pattern(getty_t, getty_conf_t, getty_conf_t)
+read_lnk_files_pattern(getty_t, getty_conf_t, getty_conf_t)
 
 allow getty_t getty_lock_t:file manage_file_perms;
 files_lock_filetrans(getty_t, getty_lock_t, file)
 
-allow getty_t getty_log_t:file manage_file_perms;
+allow getty_t getty_log_t:file { append_file_perms create_file_perms setattr_file_perms };
 logging_log_filetrans(getty_t, getty_log_t, file)
+
+manage_files_pattern(getty_t, getty_runtime_t, getty_runtime_t)
+files_pid_filetrans(getty_t, getty_runtime_t, file)
 
 allow getty_t getty_tmp_t:file manage_file_perms;
 allow getty_t getty_tmp_t:dir manage_dir_perms;
 files_tmp_filetrans(getty_t, getty_tmp_t, { file dir })
-
-manage_files_pattern(getty_t, getty_var_run_t, getty_var_run_t)
-files_pid_filetrans(getty_t, getty_var_run_t, file)
 
 kernel_read_system_state(getty_t)
 
@@ -63,7 +61,6 @@ corecmd_exec_shell(getty_t)
 
 dev_read_sysfs(getty_t)
 
-files_rw_generic_pids(getty_t)
 files_read_etc_runtime_files(getty_t)
 files_read_etc_files(getty_t)
 files_search_spool(getty_t)
@@ -87,8 +84,6 @@ term_setattr_console(getty_t)
 auth_rw_login_records(getty_t)
 
 init_rw_utmp(getty_t)
-init_use_script_ptys(getty_t)
-init_dontaudit_use_script_ptys(getty_t)
 
 locallogin_domtrans(getty_t)
 
