@@ -33,6 +33,10 @@ sudo: false
 #sudo: required
 #dist: trusty
 
+cache:
+  directories:
+    - ${TRAVIS_BUILD_DIR}/selinux
+
 addons:
   apt:
     packages:
@@ -54,33 +58,39 @@ before_install:
   - python -V
 
 install:
-  # Download current SELinux userspace tools and libraries
-  - curl -sS -L https://github.com/SELinuxProject/selinux/archive/20161014.tar.gz | tar xz
-  - mv selinux-20161014 selinux-src
+  - SELINUX_USERSPACE_VERSION=20161014
 
-  # Ubuntu 12.04 coreutils is too old to provide "ln --relative" :(
-  - sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libsepol/src/Makefile
-  - sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libselinux/src/Makefile
+  - |
+      if [[ "${SELINUX_USERSPACE_VERSION}" != "$(cat ${TRAVIS_BUILD_DIR}/selinux/travis.version)" ]]; then
+        # Download current SELinux userspace tools and libraries
+        curl -sS -L "https://github.com/SELinuxProject/selinux/archive/${SELINUX_USERSPACE_VERSION}.tar.gz" | tar xz
+        mv "selinux-${SELINUX_USERSPACE_VERSION}" selinux-src
 
-  # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
-  - sed -i -e 's/secilc//' selinux-src/Makefile
+        # Ubuntu 12.04 coreutils is too old to provide "ln --relative" :(
+        sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libsepol/src/Makefile
+        sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libselinux/src/Makefile
 
-  # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
-  - sed -i -e 's/sepolicy//' selinux-src/policycoreutils/Makefile
+        # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
+        sed -i -e 's/secilc//' selinux-src/Makefile
 
-  # Drop restorecond to break glib dependence
-  - sed -i -e 's/ restorecond//' selinux-src/policycoreutils/Makefile
+        # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
+        sed -i -e 's/sepolicy//' selinux-src/policycoreutils/Makefile
 
-  # Drop sandbox to break libcap-ng dependence
-  - sed -i -e 's/ sandbox//' selinux-src/policycoreutils/Makefile
+        # Drop restorecond to break glib dependence
+        sed -i -e 's/ restorecond//' selinux-src/policycoreutils/Makefile
 
-  # Compile and install SELinux toolchain into ~/selinux
-  # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
-  #    error: declaration of 'index' shadows a global declarationo
-  - make "DESTDIR=$TRAVIS_BUILD_DIR/selinux" CFLAGS="-O2 -Wall" -C selinux-src install
+        # Drop sandbox to break libcap-ng dependence
+        sed -i -e 's/ sandbox//' selinux-src/policycoreutils/Makefile
+
+        # Compile and install SELinux toolchain into ~/selinux
+        # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
+        #    error: declaration of 'index' shadows a global declarationo
+        make "DESTDIR=${TRAVIS_BUILD_DIR}/selinux" CFLAGS="-O2 -Wall" -C selinux-src install
+        echo "${SELINUX_USERSPACE_VERSION}" > "${TRAVIS_BUILD_DIR}/selinux/travis.version"
+      fi
 
   # Use TEST_TOOLCHAIN variable to tell refpolicy Makefile about the installed location
-  - export TEST_TOOLCHAIN="$TRAVIS_BUILD_DIR/selinux"
+  - export TEST_TOOLCHAIN="${TRAVIS_BUILD_DIR}/selinux"
 
   # Drop build.conf settings to listen to env vars
   - sed -r -i -e '/(MONOLITHIC|TYPE|DISTRO|SYSTEMD)/d' build.conf
