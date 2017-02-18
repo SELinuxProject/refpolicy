@@ -106,6 +106,7 @@ gennetfilter := $(PYTHON) -E $(support)/gennetfilter.py
 m4iferror := $(support)/iferror.m4
 m4divert := $(support)/divert.m4
 m4undivert := $(support)/undivert.m4
+m4terminate := $(support)/fatal_error.m4
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) -E $(support)/genhomedircon
@@ -210,6 +211,10 @@ UNK_PERMS ?= deny
 
 ifeq ($(DIRECT_INITRC),y)
 	M4PARAM += -D direct_sysadm_daemon
+endif
+
+ifeq "$(WERROR)" "y"
+	M4PARAM += -D m4_werror
 endif
 
 ifeq "$(UBAC)" "y"
