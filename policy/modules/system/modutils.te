@@ -23,8 +23,12 @@ files_type(modules_conf_t)
 type modules_dep_t;
 files_type(modules_dep_t)
 
-type kmod_var_run_t;
-files_pid_file(kmod_var_run_t)
+ifdef(`init_systemd',`
+	type kmod_tmpfiles_conf_t;
+	typealias kmod_tmpfiles_conf_t alias { kmod_var_run_t systemd_kmod_conf_t };
+	systemd_tmpfiles_conf_file(kmod_tmpfiles_conf_t)
+	systemd_tmpfiles_conf_filetrans(kmod_t, kmod_tmpfiles_conf_t, file)
+')
 
 ########################################
 #
@@ -68,11 +72,6 @@ kernel_dontaudit_search_unlabeled(kmod_t)
 corecmd_exec_bin(kmod_t)
 corecmd_exec_shell(kmod_t)
 
-# for /run/tmpfiles.d/kmod.conf
-files_pid_filetrans(kmod_t, kmod_var_run_t, dir)
-allow kmod_t kmod_var_run_t:dir manage_dir_perms;
-allow kmod_t kmod_var_run_t:file manage_file_perms;
-
 dev_rw_sysfs(kmod_t)
 dev_search_usbfs(kmod_t)
 dev_rw_mtrr(kmod_t)
@@ -115,9 +114,12 @@ userdom_use_user_terminals(kmod_t)
 userdom_dontaudit_search_user_home_dirs(kmod_t)
 
 ifdef(`init_systemd',`
-	init_rw_stream_sockets(kmod_t)
+	# for /run/tmpfiles.d/kmod.conf
+	allow kmod_t kmod_tmpfiles_conf_t:file manage_file_perms;
+	# kmod needs to create /run/tmpdiles.d
+	systemd_tmpfiles_creator(kmod_t)
 
-	systemd_write_kmod_files(kmod_t)
+	init_rw_stream_sockets(kmod_t)
 ')
 
 optional_policy(`
@@ -158,10 +160,6 @@ optional_policy(`
 	xserver_dontaudit_write_log(kmod_t)
 	xserver_stream_connect(kmod_t)
 	xserver_dontaudit_rw_stream_sockets(kmod_t)
-
-	ifdef(`hide_broken_symptoms',`
-		xserver_dontaudit_rw_tcp_sockets(kmod_t)
-	')
 ')
 
 optional_policy(`
