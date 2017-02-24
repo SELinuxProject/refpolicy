@@ -1,4 +1,4 @@
-policy_module(systemd, 1.3.5)
+policy_module(systemd, 1.3.6)
 
 #########################################
 #
@@ -11,6 +11,14 @@ policy_module(systemd, 1.3.5)
 ## </p>
 ## </desc>
 gen_tunable(systemd_tmpfiles_manage_all, false)
+
+## <desc>
+## <p>
+## Allow systemd-nspawn to create a labelled namespace with the same types
+## as parent environment
+## </p>
+## </desc>
+gen_tunable(systemd_nspawn_labeled_namespace, false)
 
 attribute systemd_log_parse_env_type;
 
@@ -57,6 +65,9 @@ type systemd_coredump_t;
 type systemd_coredump_exec_t;
 init_system_domain(systemd_coredump_t, systemd_coredump_exec_t)
 
+type systemd_coredump_var_lib_t;
+files_type(systemd_coredump_var_lib_t)
+
 type systemd_detect_virt_t;
 type systemd_detect_virt_exec_t;
 init_daemon_domain(systemd_detect_virt_t, systemd_detect_virt_exec_t)
@@ -64,6 +75,10 @@ init_daemon_domain(systemd_detect_virt_t, systemd_detect_virt_exec_t)
 type systemd_hostnamed_t;
 type systemd_hostnamed_exec_t;
 init_daemon_domain(systemd_hostnamed_t, systemd_hostnamed_exec_t)
+
+type systemd_journal_t;
+files_type(systemd_journal_t)
+logging_log_file(systemd_journal_t)
 
 type systemd_locale_t;
 type systemd_locale_exec_t;
@@ -85,9 +100,20 @@ type systemd_machined_t;
 type systemd_machined_exec_t;
 init_daemon_domain(systemd_machined_t, systemd_machined_exec_t)
 
+type systemd_machined_var_run_t;
+files_pid_file(systemd_machined_var_run_t)
+init_daemon_pid_file(systemd_machined_var_run_t, dir, "machines")
+
+type systemd_notify_t;
+type systemd_notify_exec_t;
+init_daemon_domain(systemd_notify_t, systemd_notify_exec_t)
+
 type systemd_nspawn_t;
 type systemd_nspawn_exec_t;
 init_system_domain(systemd_nspawn_t, systemd_nspawn_exec_t)
+
+type systemd_nspawn_var_run_t;
+files_pid_file(systemd_nspawn_var_run_t)
 
 type systemd_resolved_t;
 type systemd_resolved_exec_t;
@@ -107,6 +133,9 @@ init_system_domain(systemd_stdio_bridge_t, systemd_stdio_bridge_exec_t)
 type systemd_passwd_agent_t;
 type systemd_passwd_agent_exec_t;
 init_system_domain(systemd_passwd_agent_t, systemd_passwd_agent_exec_t)
+
+type systemd_passwd_var_run_t;
+files_pid_file(systemd_passwd_var_run_t)
 
 type systemd_sessions_t;
 type systemd_sessions_exec_t;
@@ -152,6 +181,8 @@ logging_send_syslog_msg(systemd_log_parse_env_type)
 # Backlight local policy
 #
 
+allow systemd_backlight_t self:unix_dgram_socket { connect connected_socket_perms };
+
 allow systemd_backlight_t systemd_backlight_var_lib_t:dir manage_dir_perms;
 init_var_lib_filetrans(systemd_backlight_t, systemd_backlight_var_lib_t, dir)
 manage_files_pattern(systemd_backlight_t, systemd_backlight_var_lib_t, systemd_backlight_var_lib_t)
@@ -161,8 +192,10 @@ systemd_log_parse_environment(systemd_backlight_t)
 # Allow systemd-backlight to write to /sys/class/backlight/*/brightness
 dev_rw_sysfs(systemd_backlight_t)
 
+# for udev.conf
 files_read_etc_files(systemd_backlight_t)
 
+# for /run/udev/data/+backlight*
 udev_read_pid_files(systemd_backlight_t)
 
 #######################################
@@ -292,6 +325,14 @@ optional_policy(`
 	dbus_connect_system_bus(systemd_logind_t)
 ')
 
+########################################
+#
+# Nspawn local policy
+#
+
+init_pid_filetrans(systemd_nspawn_t, systemd_nspawn_var_run_t, dir)
+
+
 #########################################
 #
 # Resolved local policy
@@ -308,7 +349,6 @@ init_pid_filetrans(systemd_resolved_t, systemd_resolved_var_run_t, dir)
 
 kernel_read_crypto_sysctls(systemd_resolved_t)
 kernel_read_kernel_sysctls(systemd_resolved_t)
-kernel_read_system_state(systemd_resolved_t)
 
 corenet_tcp_bind_generic_node(systemd_resolved_t)
 corenet_tcp_bind_llmnr_port(systemd_resolved_t)
@@ -342,6 +382,11 @@ systemd_log_parse_environment(systemd_sessions_t)
 
 allow systemd_tmpfiles_t self:capability  { chown dac_override fowner fsetid mknod };
 allow systemd_tmpfiles_t self:process { setfscreate getcap };
+
+manage_dirs_pattern(systemd_tmpfiles_t, systemd_journal_t, systemd_journal_t)
+manage_files_pattern(systemd_tmpfiles_t, systemd_journal_t, systemd_journal_t)
+allow systemd_tmpfiles_t systemd_journal_t:dir { relabelfrom relabelto };
+allow systemd_tmpfiles_t systemd_journal_t:file { relabelfrom relabelto };
 
 kernel_read_kernel_sysctls(systemd_tmpfiles_t)
 

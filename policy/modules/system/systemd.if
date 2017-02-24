@@ -35,7 +35,8 @@ interface(`systemd_read_logind_pids',`
 	')
 
 	files_search_pids($1)
-	read_files_pattern($1, systemd_logind_var_run_t, systemd_logind_var_run_t)
+	allow $1 systemd_logind_var_run_t:dir list_dir_perms;
+	allow $1 systemd_logind_var_run_t:file read_file_perms;
 ')
 
 ######################################
@@ -74,6 +75,26 @@ interface(`systemd_use_logind_fds',`
 	')
 
 	allow $1 systemd_logind_t:fd use;
+')
+
+######################################
+## <summary>
+##      Write inherited logind sessions pipes.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_write_inherited_logind_sessions_pipes',`
+	gen_require(`
+		type systemd_logind_t, systemd_sessions_var_run_t;
+	')
+
+	allow $1 systemd_logind_t:fd use;
+	allow $1 systemd_sessions_var_run_t:fifo_file write;
+	allow systemd_logind_t $1:process signal;
 ')
 
 ########################################
@@ -116,6 +137,29 @@ interface(`systemd_write_kmod_files',`
 	write_files_pattern($1, var_run_t, systemd_kmod_conf_t)
 ')
 
+#######################################
+## <summary>
+##  Allow systemd_tmpfiles_t to manage filesystem objects
+## </summary>
+## <param name="type">
+## <summary>
+##  type of object to manage
+## </summary>
+## </param>
+## <param name="class">
+## <summary>
+##  object class to manage
+## </summary>
+## </param>
+#
+interface(`systemd_tmpfilesd_managed',`
+	gen_require(`
+		type systemd_tmpfiles_t;
+	')
+
+	allow systemd_tmpfiles_t $1:$2 { setattr relabelfrom relabelto create };
+')
+
 ########################################
 ## <summary>
 ##   Allow process to relabel to systemd_kmod_conf_t.
@@ -133,6 +177,82 @@ interface(`systemd_relabelto_kmod_files',`
 	')
 
 	allow $1 systemd_kmod_conf_t:file relabelto_file_perms;
+')
+
+########################################
+## <summary>
+##      allow systemd_passwd_agent to inherit fds
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain that owns the fds
+##      </summary>
+## </param>
+#
+interface(`systemd_use_passwd_agent_fds',`
+	gen_require(`
+		type systemd_passwd_agent_t;
+	')
+
+	allow systemd_passwd_agent_t $1:fd use;
+')
+
+########################################
+## <summary>
+##      Transition to systemd_passwd_var_run_t when creating dirs
+## </summary>
+## <param name="domain">
+##      <summary>
+##	Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_filetrans_passwd_runtime_dirs',`
+	gen_require(`
+		type systemd_passwd_var_run_t;
+	')
+
+	init_pid_filetrans($1, systemd_passwd_var_run_t, dir, "ask-password-block")
+	init_pid_filetrans($1, systemd_passwd_var_run_t, dir, "ask-password")
+')
+
+########################################
+## <summary>
+##      manage systemd unit dirs and the files in them
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_manage_all_units',`
+	gen_require(`
+		attribute systemdunit;
+	')
+
+	manage_dirs_pattern($1, systemdunit, systemdunit)
+	manage_files_pattern($1, systemdunit, systemdunit)
+	manage_lnk_files_pattern($1, systemdunit, systemdunit)
+')
+
+########################################
+## <summary>
+##      Allow domain to create/manage systemd_journal_t files
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_manage_journal_files',`
+	gen_require(`
+		type systemd_logind_t;
+	')
+
+	manage_dirs_pattern($1, systemd_journal_t, systemd_journal_t)
+	manage_files_pattern($1, systemd_journal_t, systemd_journal_t)
 ')
 
 ########################################

@@ -209,7 +209,7 @@ interface(`init_ranged_domain',`
 #
 interface(`init_daemon_domain',`
 	gen_require(`
-		type initrc_t;
+		type init_t, initrc_t;
 		role system_r;
 		attribute daemon;
 	')
@@ -240,6 +240,8 @@ interface(`init_daemon_domain',`
 		init_domain($1, $2)
 		# this may be because of late labelling
 		kernel_dgram_send($1)
+
+		allow $1 init_t:unix_dgram_socket sendto;
 	')
 
 	optional_policy(`
@@ -400,8 +402,10 @@ interface(`init_system_domain',`
 	gen_require(`
 		type initrc_t;
 		role system_r;
+		attribute systemprocess;
 	')
 
+	typeattribute $1 systemprocess;
 	application_domain($1, $2)
 
 	role system_r types $1;
@@ -475,6 +479,24 @@ interface(`init_ranged_system_domain',`
 			mls_rangetrans_target($1)
 		')
 	')
+')
+
+######################################
+## <summary>
+##	Allow domain dyntransition to init_t domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`init_dyntrans',`
+	gen_require(`
+		type init_t;
+	')
+
+	dyntrans_pattern($1, init_t)
 ')
 
 ########################################
@@ -708,6 +730,7 @@ interface(`init_stream_connect',`
 
 	stream_connect_pattern($1, init_var_run_t, init_var_run_t, init_t)
 	files_search_pids($1)
+	allow $1 init_t:unix_stream_socket getattr;
 ')
 
 ########################################
@@ -1225,23 +1248,24 @@ interface(`init_write_initctl',`
 #
 interface(`init_telinit',`
 	gen_require(`
-		type initctl_t;
+		type initctl_t, init_t;
 	')
 
-	dev_list_all_dev_nodes($1)
+	ps_process_pattern($1, init_t)
+	allow $1 init_t:process signal;
+	# upstart uses a datagram socket instead of initctl pipe
+	allow $1 self:unix_dgram_socket create_socket_perms;
+	allow $1 init_t:unix_dgram_socket sendto;
+	#576913
+	allow $1 init_t:unix_stream_socket connectto;
+
 	allow $1 initctl_t:fifo_file rw_fifo_file_perms;
 
+	corecmd_exec_bin($1)
+
+	dev_list_all_dev_nodes($1)
+
 	init_exec($1)
-
-	tunable_policy(`init_upstart',`
-		gen_require(`
-			type init_t;
-		')
-
-		# upstart uses a datagram socket instead of initctl pipe
-		allow $1 self:unix_dgram_socket create_socket_perms;
-		allow $1 init_t:unix_dgram_socket sendto;
-	')
 ')
 
 ########################################
@@ -1365,6 +1389,37 @@ interface(`init_domtrans_script',`
 
 ########################################
 ## <summary>
+##	Execute labelled init scripts with an automatic domain transition.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`init_domtrans_labeled_script',`
+	gen_require(`
+		type initrc_t;
+		attribute init_script_file_type;
+		attribute initrc_transition_domain;
+	')
+
+	typeattribute $1 initrc_transition_domain;
+
+	files_list_etc($1)
+	domtrans_pattern($1, init_script_file_type, initrc_t)
+
+	ifdef(`enable_mcs',`
+		range_transition $1 init_script_file_type:process s0;
+	')
+
+	ifdef(`enable_mls',`
+		range_transition $1 init_script_file_type:process s0 - mls_systemhigh;
+	')
+')
+
+########################################
+## <summary>
 ##	Execute a init script in a specified domain.
 ## </summary>
 ## <desc>
@@ -1435,8 +1490,10 @@ interface(`init_manage_script_service',`
 interface(`init_labeled_script_domtrans',`
 	gen_require(`
 		type initrc_t;
+		attribute initrc_transition_domain;
 	')
 
+	typeattribute $1 initrc_transition_domain;
 	domtrans_pattern($1, $2, initrc_t)
 	files_search_etc($1)
 ')
@@ -1569,6 +1626,7 @@ interface(`init_run_daemon',`
 interface(`init_startstop_all_script_services',`
 	gen_require(`
 		attribute init_script_file_type;
+		class service { start status stop };
 	')
 
 	allow $1 init_script_file_type:service { start status stop };
@@ -1779,12 +1837,7 @@ interface(`init_read_script_state',`
 	')
 
 	kernel_search_proc($1)
-	read_files_pattern($1, initrc_t, initrc_t)
-	read_lnk_files_pattern($1, initrc_t, initrc_t)
-	list_dirs_pattern($1, initrc_t, initrc_t)
-
-	# should move this to separate interface
-	allow $1 initrc_t:process getattr;
+	ps_process_pattern($1, initrc_t)
 ')
 
 ########################################
@@ -2368,7 +2421,7 @@ interface(`init_dontaudit_rw_utmp',`
 		type initrc_var_run_t;
 	')
 
-	dontaudit $1 initrc_var_run_t:file { getattr read write append lock };
+	dontaudit $1 initrc_var_run_t:file rw_file_perms;
 ')
 
 ########################################
@@ -2407,6 +2460,98 @@ interface(`init_pid_filetrans_utmp',`
 	')
 
 	files_pid_filetrans($1, initrc_var_run_t, file, "utmp")
+')
+
+#######################################
+## <summary>
+##	Create a directory in the /run/systemd directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_create_pid_dirs',`
+	gen_require(`
+		type init_var_run_t;
+	')
+
+	allow $1 init_var_run_t:dir list_dir_perms;
+	create_dirs_pattern($1, init_var_run_t, init_var_run_t)
+')
+
+########################################
+## <summary>
+##      Rename init_var_run_t files
+## </summary>
+## <param name="domain">
+##      <summary>
+##      domain
+##      </summary>
+## </param>
+#
+interface(`init_rename_pid_files',`
+	gen_require(`
+		type init_var_run_t;
+	')
+
+	rename_files_pattern($1, init_var_run_t, init_var_run_t)
+')
+
+########################################
+## <summary>
+##      Rename and de init_var_run_t files
+## </summary>
+## <param name="domain">
+##      <summary>
+##      domain
+##      </summary>
+## </param>
+#
+interface(`init_delete_pid_files',`
+	gen_require(`
+		type init_var_run_t;
+	')
+
+	delete_files_pattern($1, init_var_run_t, init_var_run_t)
+')
+
+#######################################
+## <summary>
+##  Allow the specified domain to write to
+##  init sock file.
+## </summary>
+## <param name="domain">
+##  <summary>
+##  Domain allowed access.
+##  </summary>
+## </param>
+#
+interface(`init_write_pid_socket',`
+    gen_require(`
+        type init_var_run_t;
+    ')
+
+    allow $1 init_var_run_t:sock_file write;
+')
+
+########################################
+## <summary>
+##	Read init unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_read_pid_pipes',`
+	gen_require(`
+		type init_var_run_t;
+	')
+
+	read_fifo_files_pattern($1, init_var_run_t, init_var_run_t)
 ')
 
 ########################################
