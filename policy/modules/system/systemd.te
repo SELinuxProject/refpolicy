@@ -1,4 +1,4 @@
-policy_module(systemd, 1.3.7)
+policy_module(systemd, 1.3.8)
 
 #########################################
 #
@@ -160,24 +160,6 @@ init_unit_file(power_unit_t)
 
 ######################################
 #
-# systemd log parse enviroment
-#
-
-# Do not audit setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, ...) failure (e.g. when using create_log_socket() internal function)
-dontaudit systemd_log_parse_env_type self:capability net_admin;
-
-kernel_read_system_state(systemd_log_parse_env_type)
-
-dev_write_kmsg(systemd_log_parse_env_type)
-
-term_use_console(systemd_log_parse_env_type)
-
-init_read_state(systemd_log_parse_env_type)
-
-logging_send_syslog_msg(systemd_log_parse_env_type)
-
-######################################
-#
 # Backlight local policy
 #
 
@@ -226,23 +208,43 @@ init_stream_connect(systemd_cgroups_t)
 
 systemd_log_parse_environment(systemd_cgroups_t)
 
-#######################################
+######################################
 #
-# locale local policy
+# coredump local policy
 #
 
-kernel_read_kernel_sysctls(systemd_locale_t)
+allow systemd_coredump_t self:unix_dgram_socket { create write connect getopt setopt };
+allow systemd_coredump_t self:capability { setgid setuid setpcap };
+allow systemd_coredump_t self:process { getcap setcap setfscreate };
 
-files_read_etc_files(systemd_locale_t)
+manage_files_pattern(systemd_coredump_t, systemd_coredump_var_lib_t, systemd_coredump_var_lib_t)
 
-seutil_read_file_contexts(systemd_locale_t)
+kernel_read_kernel_sysctls(systemd_coredump_t)
+kernel_read_system_state(systemd_coredump_t)
+kernel_rw_pipes(systemd_coredump_t)
+kernel_use_fds(systemd_coredump_t)
 
-systemd_log_parse_environment(systemd_locale_t)
+corecmd_exec_bin(systemd_coredump_t)
+corecmd_read_all_executables(systemd_coredump_t)
 
-optional_policy(`
-	dbus_connect_system_bus(systemd_locale_t)
-	dbus_system_bus_client(systemd_locale_t)
-')
+dev_write_kmsg(systemd_coredump_t)
+
+files_read_etc_files(systemd_coredump_t)
+files_search_var_lib(systemd_coredump_t)
+
+fs_getattr_xattr_fs(systemd_coredump_t)
+
+selinux_getattr_fs(systemd_coredump_t)
+
+init_list_var_lib_dirs(systemd_coredump_t)
+init_read_state(systemd_coredump_t)
+init_search_pids(systemd_coredump_t)
+init_write_pid_socket(systemd_coredump_t)
+
+logging_send_syslog_msg(systemd_coredump_t)
+
+seutil_search_default_contexts(systemd_coredump_t)
+
 
 #######################################
 #
@@ -261,6 +263,42 @@ optional_policy(`
 	dbus_system_bus_client(systemd_hostnamed_t)
 	dbus_connect_system_bus(systemd_hostnamed_t)
 ')
+
+#######################################
+#
+# locale local policy
+#
+
+kernel_read_kernel_sysctls(systemd_locale_t)
+
+files_read_etc_files(systemd_locale_t)
+
+seutil_read_file_contexts(systemd_locale_t)
+
+systemd_log_parse_environment(systemd_locale_t)
+
+optional_policy(`
+	dbus_connect_system_bus(systemd_locale_t)
+	dbus_system_bus_client(systemd_locale_t)
+')
+
+######################################
+#
+# systemd log parse enviroment
+#
+
+# Do not audit setsockopt(fd, SOL_SOCKET, SO_SNDBUFFORCE, ...) failure (e.g. when using create_log_socket() internal function)
+dontaudit systemd_log_parse_env_type self:capability net_admin;
+
+kernel_read_system_state(systemd_log_parse_env_type)
+
+dev_write_kmsg(systemd_log_parse_env_type)
+
+term_use_console(systemd_log_parse_env_type)
+
+init_read_state(systemd_log_parse_env_type)
+
+logging_send_syslog_msg(systemd_log_parse_env_type)
 
 #########################################
 #
@@ -325,12 +363,137 @@ optional_policy(`
 	dbus_connect_system_bus(systemd_logind_t)
 ')
 
+#########################################
+#
+# machined local policy
+#
+
+allow systemd_machined_t self:capability sys_ptrace;
+allow systemd_machined_t self:process setfscreate;
+allow systemd_machined_t self:unix_dgram_socket { connected_socket_perms connect };
+
+manage_files_pattern(systemd_machined_t, systemd_machined_var_run_t, systemd_machined_var_run_t)
+allow systemd_machined_t systemd_machined_var_run_t:lnk_file manage_lnk_file_perms;
+
+kernel_read_kernel_sysctls(systemd_machined_t)
+kernel_read_system_state(systemd_machined_t)
+
+files_read_etc_files(systemd_machined_t)
+
+fs_getattr_cgroup(systemd_machined_t)
+fs_getattr_tmpfs(systemd_machined_t)
+
+selinux_getattr_fs(systemd_machined_t)
+
+init_read_script_state(systemd_machined_t)
+init_get_system_status(systemd_machined_t)
+init_read_state(systemd_machined_t)
+init_service_start(systemd_machined_t)
+init_service_status(systemd_machined_t)
+init_start_system(systemd_machined_t)
+init_stop_system(systemd_machined_t)
+
+logging_send_syslog_msg(systemd_machined_t)
+
+seutil_search_default_contexts(systemd_machined_t)
+
+optional_policy(`
+	init_dbus_chat(systemd_machined_t)
+	init_dbus_send_script(systemd_machined_t)
+
+	dbus_connect_system_bus(systemd_machined_t)
+	dbus_system_bus_client(systemd_machined_t)
+')
+
+########################################
+#
+# systemd_notify local policy
+#
+allow systemd_notify_t self:capability chown;
+allow systemd_notify_t self:process { setfscreate setsockcreate };
+
+allow systemd_notify_t self:fifo_file rw_fifo_file_perms;
+allow systemd_notify_t self:unix_stream_socket create_stream_socket_perms;
+
+domain_use_interactive_fds(systemd_notify_t)
+
+files_read_etc_files(systemd_notify_t)
+files_read_usr_files(systemd_notify_t)
+
+fs_getattr_cgroup_files(systemd_notify_t)
+
+auth_use_nsswitch(systemd_notify_t)
+
+init_rw_stream_sockets(systemd_notify_t)
+
+miscfiles_read_localization(systemd_notify_t)
+
 ########################################
 #
 # Nspawn local policy
 #
 
 init_pid_filetrans(systemd_nspawn_t, systemd_nspawn_var_run_t, dir)
+
+#######################################
+#
+# systemd_passwd_agent_t local policy
+#
+
+allow systemd_passwd_agent_t self:capability { chown sys_tty_config dac_override };
+allow systemd_passwd_agent_t self:process { setfscreate setsockcreate signal };
+allow systemd_passwd_agent_t self:unix_dgram_socket create_socket_perms;
+
+manage_dirs_pattern(systemd_passwd_agent_t, systemd_passwd_var_run_t, systemd_passwd_var_run_t);
+manage_files_pattern(systemd_passwd_agent_t, systemd_passwd_var_run_t, systemd_passwd_var_run_t);
+manage_sock_files_pattern(systemd_passwd_agent_t, systemd_passwd_var_run_t, systemd_passwd_var_run_t);
+manage_fifo_files_pattern(systemd_passwd_agent_t, systemd_passwd_var_run_t, systemd_passwd_var_run_t);
+init_pid_filetrans(systemd_passwd_agent_t, systemd_passwd_var_run_t, { dir fifo_file file })
+
+kernel_read_system_state(systemd_passwd_agent_t)
+kernel_stream_connect(systemd_passwd_agent_t)
+
+dev_create_generic_dirs(systemd_passwd_agent_t)
+dev_read_generic_files(systemd_passwd_agent_t)
+dev_write_generic_sock_files(systemd_passwd_agent_t)
+dev_write_kmsg(systemd_passwd_agent_t)
+
+files_read_etc_files(systemd_passwd_agent_t)
+
+fs_getattr_xattr_fs(systemd_passwd_agent_t)
+
+selinux_get_enforce_mode(systemd_passwd_agent_t)
+selinux_getattr_fs(systemd_passwd_agent_t)
+
+term_read_console(systemd_passwd_agent_t)
+
+auth_use_nsswitch(systemd_passwd_agent_t)
+
+init_create_pid_dirs(systemd_passwd_agent_t)
+init_read_pid_pipes(systemd_passwd_agent_t)
+init_read_state(systemd_passwd_agent_t)
+init_read_utmp(systemd_passwd_agent_t)
+init_stream_connect(systemd_passwd_agent_t)
+
+logging_send_syslog_msg(systemd_passwd_agent_t)
+
+miscfiles_read_localization(systemd_passwd_agent_t)
+
+seutil_search_default_contexts(systemd_passwd_agent_t)
+
+userdom_use_user_ptys(systemd_passwd_agent_t)
+
+optional_policy(`
+	getty_use_fds(systemd_passwd_agent_t)
+')
+
+optional_policy(`
+	lvm_signull(systemd_passwd_agent_t)
+')
+
+optional_policy(`
+	plymouthd_stream_connect(systemd_passwd_agent_t)
+')
 
 
 #########################################
