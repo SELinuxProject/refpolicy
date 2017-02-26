@@ -1,4 +1,4 @@
-## <summary>Run shells with substitute user and group</summary>
+## <summary>Run shells with substitute user and group.</summary>
 
 #######################################
 ## <summary>
@@ -100,11 +100,6 @@ template(`su_restricted_domain_template', `
 		')
 	')
 
-	ifdef(`hide_broken_symptoms',`
-		# dontaudit leaked sockets from parent
-		dontaudit $1_su_t $2:socket_class_set { read write };
-	')
-
 	optional_policy(`
 		cron_read_pipes($1_su_t)
 	')
@@ -142,12 +137,10 @@ template(`su_restricted_domain_template', `
 #
 template(`su_role_template',`
 	gen_require(`
-		attribute su_domain_type;
 		type su_exec_t;
-		bool secure_mode;
 	')
 
-	type $1_su_t, su_domain_type;
+	type $1_su_t;
 	userdom_user_application_domain($1_su_t, su_exec_t)
 	domain_interactive_fd($1_su_t)
 	role $2 types $1_su_t;
@@ -155,7 +148,7 @@ template(`su_role_template',`
 	allow $3 $1_su_t:process signal;
 
 	allow $1_su_t self:capability { audit_control audit_write chown dac_override fowner net_bind_service setgid setuid sys_nice sys_resource };
-	dontaudit $1_su_t self:capability sys_tty_config;
+	dontaudit $1_su_t self:capability { net_admin sys_tty_config };
 	allow $1_su_t self:process { setexec setsched setrlimit };
 	allow $1_su_t self:fifo_file rw_fifo_file_perms;
 	allow $1_su_t self:netlink_audit_socket { nlmsg_relay create_netlink_socket_perms };
@@ -191,6 +184,7 @@ template(`su_role_template',`
 	auth_dontaudit_read_shadow($1_su_t)
 	auth_use_nsswitch($1_su_t)
 	auth_rw_faillog($1_su_t)
+	auth_use_pam_systemd($1_su_t)
 
 	corecmd_search_bin($1_su_t)
 
@@ -202,6 +196,7 @@ template(`su_role_template',`
 	files_dontaudit_getattr_tmp_dirs($1_su_t)
 
 	init_dontaudit_use_fds($1_su_t)
+	init_dontaudit_read_state($1_su_t)
 	# Write to utmp.
 	init_rw_utmp($1_su_t)
 
@@ -224,11 +219,6 @@ template(`su_role_template',`
 		optional_policy(`
 			locallogin_search_keys($1_su_t)
 		')
-	')
-
-	ifdef(`hide_broken_symptoms',`
-		# dontaudit leaked sockets from parent
-		dontaudit $1_su_t $3:socket_class_set { read write };
 	')
 
 	tunable_policy(`allow_polyinstantiation',`
