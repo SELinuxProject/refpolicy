@@ -5,6 +5,7 @@
 
 all_modules := $(base_mods) $(mod_mods) $(off_mods)
 all_interfaces := $(all_modules:.te=.if)
+all_mod_fc := $(addprefix $(tmpdir)/,$(notdir $(all_modules:.te=.mod.fc)))
 
 base_pkg := $(builddir)base.pp
 base_fc := $(builddir)base.fc
@@ -30,7 +31,7 @@ vpath %.te $(all_layers)
 vpath %.if $(all_layers)
 vpath %.fc $(all_layers)
 
-.SECONDARY: $(addprefix $(tmpdir)/,$(mod_pkgs:.pp=.mod)) $(addprefix $(tmpdir)/,$(mod_pkgs:.pp=.mod.fc))
+.SECONDARY: $(all_mod_fc:.mod.fc=.mod) $(all_mod_fc)
 
 ########################################
 #
@@ -84,6 +85,9 @@ $(builddir)%.pp: $(tmpdir)/%.mod $(tmpdir)/%.mod.fc
 	@echo "Creating $(NAME) $(@F) policy package"
 	@test -d $(builddir) || mkdir -p $(builddir)
 	$(verbose) $(SEMOD_PKG) -o $@ -m $< -f $<.fc
+
+$(tmpdir)/all_mods.fc: $(all_mod_fc)
+	$(verbose) cat $^ > $@
 
 ########################################
 #
@@ -198,10 +202,12 @@ $(appdir)/customizable_types: $(base_conf)
 #
 # Validate linking and expanding of modules
 #
-validate: $(base_pkg) $(mod_pkgs)
+validate: $(base_pkg) $(mod_pkgs) $(tmpdir)/all_mods.fc
 	@echo "Validating policy linking."
-	$(verbose) $(SEMOD_LNK) -o $(tmpdir)/test.lnk $^
+	$(verbose) $(SEMOD_LNK) -o $(tmpdir)/test.lnk $(base_pkg) $(mod_pkgs)
 	$(verbose) $(SEMOD_EXP) $(tmpdir)/test.lnk $(tmpdir)/policy.bin
+	@echo "Validating policy file contexts."
+	$(verbose) $(SETFILES) -q -c $(tmpdir)/policy.bin $(tmpdir)/all_mods.fc
 	@echo "Success."
 
 ########################################
