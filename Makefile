@@ -71,7 +71,7 @@ AWK ?= gawk
 GREP ?= egrep
 INSTALL ?= install
 M4 ?= m4 -E -E
-PYTHON ?= python -t -t
+PYTHON ?= python -t -t -E -W error
 SED ?= sed
 SORT ?= LC_ALL=C sort
 UMASK ?= umask
@@ -94,22 +94,22 @@ endif
 
 # policy building support tools
 support := support
-genxml := $(PYTHON) -E $(support)/segenxml.py
-gendoc := $(PYTHON) -E $(support)/sedoctool.py
-genperm := $(PYTHON) -E $(support)/genclassperms.py
-policyvers := $(PYTHON) -E $(support)/policyvers.py
+genxml := $(PYTHON) $(support)/segenxml.py
+gendoc := $(PYTHON) $(support)/sedoctool.py
+genperm := $(PYTHON) $(support)/genclassperms.py
+policyvers := $(PYTHON) $(support)/policyvers.py
 fcsort := $(tmpdir)/fc_sort
 setbools := $(AWK) -f $(support)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed
 comment_move_decl := $(SED) -r -f $(support)/comment_move_decl.sed
-gennetfilter := $(PYTHON) -E $(support)/gennetfilter.py
+gennetfilter := $(PYTHON) $(support)/gennetfilter.py
 m4iferror := $(support)/iferror.m4
 m4divert := $(support)/divert.m4
 m4undivert := $(support)/undivert.m4
 m4terminate := $(support)/fatal_error.m4
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
-genhomedircon := $(PYTHON) -E $(support)/genhomedircon
+genhomedircon := $(PYTHON) $(support)/genhomedircon.py
 
 # documentation paths
 docs := doc

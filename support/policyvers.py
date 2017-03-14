@@ -1,5 +1,6 @@
-#!/usr/bin/python
-from __future__ import print_function
+#!/usr/bin/env python3
+
 import selinux
+
 if selinux.is_selinux_enabled():
 	print(selinux.security_policyvers())
