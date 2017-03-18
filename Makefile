@@ -558,7 +558,9 @@ install-docs: $(tmpdir)/html
 #
 install-src:
 	rm -rf $(srcpath)/policy.old
-	-mv $(srcpath)/policy $(srcpath)/policy.old
+	if test -d $(srcpath)/policy; then \
+		mv $(srcpath)/policy $(srcpath)/policy.old ;\
+	fi
 	mkdir -p $(srcpath)/policy
 	cp -R . $(srcpath)/policy
 
