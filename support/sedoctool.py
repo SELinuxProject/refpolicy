@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 #  Author: Joshua Brindle <jbrindle@tresys.com>
 #	  Caleb Case <ccase@tresys.com>
@@ -17,8 +17,7 @@ import sys
 import getopt
 import pyplate
 import os
-import string
-from xml.dom.minidom import parse, parseString
+from xml.dom.minidom import parseString
 
 #modules enabled and disabled values
 MOD_BASE = "base"
@@ -28,11 +27,6 @@ MOD_DISABLED = "off"
 #booleans enabled and disabled values
 BOOL_ENABLED = "true"
 BOOL_DISABLED = "false"
-
-#tunables enabled and disabled values
-TUN_ENABLED = "true"
-TUN_DISABLED = "false"
-
 
 def read_policy_xml(filename):
 	"""
@@ -451,7 +445,6 @@ def gen_docs(doc, working_dir, templatedir):
 			interface_parameters = []
 			interface_desc = interface_summary = None
 			interface_name = interface.getAttribute("name")
-			interface_line = interface.getAttribute("lineno")
 			for desc in interface.childNodes:
 				if desc.nodeName == "desc":
 					interface_desc = format_html_desc(desc)
@@ -497,7 +490,6 @@ def gen_docs(doc, working_dir, templatedir):
 			template_parameters = []
 			template_desc = template_summary = None
 			template_name = template.getAttribute("name")
-			template_line = template.getAttribute("lineno")
 			for desc in template.childNodes:
 				if desc.nodeName == "desc":
 					template_desc = format_html_desc(desc)
@@ -540,7 +532,6 @@ def gen_docs(doc, working_dir, templatedir):
 		#generate 'boolean' pages
 		booleans = []
 		for boolean in node.getElementsByTagName("bool"):
-			boolean_parameters = []
 			boolean_desc = None
 			boolean_name = boolean.getAttribute("name")
 			boolean_dftval = boolean.getAttribute("dftval")
@@ -564,7 +555,6 @@ def gen_docs(doc, working_dir, templatedir):
 		#generate 'tunable' pages
 		tunables = []
 		for tunable in node.getElementsByTagName("tunable"):
-			tunable_parameters = []
 			tunable_desc = None
 			tunable_name = tunable.getAttribute("name")
 			tunable_dftval = tunable.getAttribute("dftval")

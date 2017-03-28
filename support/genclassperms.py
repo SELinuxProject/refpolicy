@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 # Author: Donald Miner <dminer@tresys.com>
 #
@@ -120,8 +120,10 @@ def get_av_db(file_name):
 		# Figure out whether the next class will be a common or a class.
 		if av_data[0] == "class":
 			common = False
+			keyword = "class"
 		elif av_data[0] == "common":
 			common = True
+			keyword = "common"
 		else:
 			error("Unexpected token in file " + file_name + ": "\
 				+ av_data[0] + ".")
@@ -249,7 +251,7 @@ def gen_class_perms(av_db, sc_db):
 	class_perms = ""
 	for obj in av_db:
 		# Don't output commons
-		if obj.common == True:
+		if obj.common:
 			continue
 
 		# Get the list of permissions from the specified class.

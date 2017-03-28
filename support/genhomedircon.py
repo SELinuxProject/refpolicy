@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2004 Tresys Technology, LLC
 # see file 'COPYING' for use and warranty information
 #
@@ -40,13 +40,26 @@
 #  are always "real" (including root, in the default configuration).
 #
 
-import commands, sys, os, pwd, string, getopt, re
+import sys, os, pwd, getopt, re
 
 EXCLUDE_LOGINS=["/sbin/nologin", "/bin/false"]
 
+# Python 2/3 wrapper
+def getstatusoutput_wrapper(cmd):
+    if sys.version_info.major is 2:
+        import commands
+        return commands.getstatusoutput(cmd)
+    elif sys.version_info.major is 3:
+        import subprocess
+        return subprocess.getstatusoutput(cmd)
+    else:
+        print("Unsupported Python major version: " + sys.version_info.major)
+        exit(1)
+
+
 def getStartingUID():
-	starting_uid = sys.maxint
-	rc=commands.getstatusoutput("grep -h '^UID_MIN' /etc/login.defs")
+	starting_uid = 99999
+	rc=getstatusoutput_wrapper("grep -h '^UID_MIN' /etc/login.defs")
 	if rc[0] == 0:
 		uid_min = re.sub("^UID_MIN[^0-9]*", "", rc[1])
 		#stip any comment from the end of the line
@@ -54,7 +67,7 @@ def getStartingUID():
 		uid_min = uid_min.strip()
 		if int(uid_min) < starting_uid:
 			starting_uid = int(uid_min)
-	rc=commands.getstatusoutput("grep -h '^LU_UIDNUMBER' /etc/libuser.conf")
+	rc=getstatusoutput_wrapper("grep -h '^LU_UIDNUMBER' /etc/libuser.conf")
 	if rc[0] == 0:
 		lu_uidnumber = re.sub("^LU_UIDNUMBER[^0-9]*", "", rc[1])
 		#stip any comment from the end of the line
@@ -63,7 +76,7 @@ def getStartingUID():
 		lu_uidnumber = lu_uidnumber.strip()
 		if int(lu_uidnumber) < starting_uid:
 			starting_uid = int(lu_uidnumber)
-	if starting_uid == sys.maxint:
+	if starting_uid == 99999:
 		starting_uid = 500
 	return starting_uid
 
@@ -80,14 +93,14 @@ def getPrefixes():
 		if u[2] >= STARTING_UID and \
 				not u[6] in EXCLUDE_LOGINS and \
 				u[5] != "/" and \
-				string.count(u[5], "/") > 1:
-			prefix = u[5][:string.rfind(u[5], "/")]
+				u[5].count("/") > 1:
+			prefix = u[5][:u[5].rfind("/")]
 			if not prefix in prefixes:
 				prefixes[prefix] = ""
 	return prefixes
 
 def getUsers(filecontextdir):
-	rc = commands.getstatusoutput("grep ^user %s/users" % filecontextdir)
+	rc = getstatusoutput_wrapper("grep ^user %s/users" % filecontextdir)
 	udict = {}
 	if rc[0] == 0:
 		ulist = rc[1].strip().split("\n")
@@ -113,22 +126,22 @@ def getUsers(filecontextdir):
 	return udict
 
 def update(filecontext, user, prefs):
-	rc=commands.getstatusoutput("grep -h '^HOME_DIR' %s | grep -v vmware | sed -e 's|HOME_DIR|%s|' -e 's/ROLE/%s/' -e 's/system_u/%s/'" % (filecontext, prefs["home"], prefs["role"], user))
+	rc=getstatusoutput_wrapper("grep -h '^HOME_DIR' %s | grep -v vmware | sed -e 's|HOME_DIR|%s|' -e 's/ROLE/%s/' -e 's/system_u/%s/'" % (filecontext, prefs["home"], prefs["role"], user))
 	if rc[0] == 0:
-		print rc[1]
+		print(rc[1])
 	else:
-		errorExit(string.join("grep/sed error ", rc[1]))
+		errorExit("grep/sed error " + rc[1])
 	return rc
 
 def oldgenhomedircon(filecontextdir, filecontext):
-	sys.stderr.flush()
+        sys.stderr.flush()
 
-	if os.path.isdir(filecontextdir) == 0:
-		sys.stderr.write("New usage is the following\n")
-		usage()
+        if os.path.isdir(filecontextdir) == 0:
+                sys.stderr.write("New usage is the following\n")
+                usage()
         #We are going to define home directory used by libuser and show-utils as a home directory root
         prefixes = {}
-        rc=commands.getstatusoutput("grep -h '^HOME' /etc/default/useradd")
+        rc=getstatusoutput_wrapper("grep -h '^HOME' /etc/default/useradd")
         if rc[0] == 0:
                 homedir = rc[1].split("=")[1]
                 homedir = homedir.split("#")[0]
@@ -143,7 +156,7 @@ def oldgenhomedircon(filecontextdir, filecontext):
                         sys.stderr.flush()
 
 
-        rc=commands.getstatusoutput("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
+        rc=getstatusoutput_wrapper("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
         if rc[0] == 0:
                 homedir = rc[1].split("=")[1]
                 homedir = homedir.split("#")[0]
@@ -165,7 +178,7 @@ def oldgenhomedircon(filecontextdir, filecontext):
         #this works by grepping the file_contexts for
         # 1. ^/ makes sure this is not a comment
         # 2. prints only the regex in the first column first cut on \t then on space
-        rc=commands.getstatusoutput("grep \"^/\" %s | cut -f 1 | cut -f 1 -d \" \" " %  (sys.argv[2]) )
+        rc=getstatusoutput_wrapper("grep \"^/\" %s | cut -f 1 | cut -f 1 -d \" \" " %  (sys.argv[2]) )
         if rc[0] == 0:
                 prefix_regex = rc[1].split("\n")
         else:
@@ -199,23 +212,23 @@ def oldgenhomedircon(filecontextdir, filecontext):
                 sys.stderr.flush()
                 prefixes["/home"] = ""
 
-	# There may be a more elegant sed script to expand a macro to multiple lines, but this works
-	sed_root = "h; s|^HOME_ROOT|%s|" % (string.join(prefixes.keys(), "|; p; g; s|^HOME_ROOT|"),)
-	sed_dir = "h; s|^HOME_DIR|%s/[^/]+|; s|ROLE_|user_|" % (string.join(prefixes.keys(), "/[^/]+|; s|ROLE_|user_|; p; g; s|^HOME_DIR|"),)
+        # There may be a more elegant sed script to expand a macro to multiple lines, but this works
+        sed_root = "h; s|^HOME_ROOT|%s|" % (prefixes.keys() + "|; p; g; s|^HOME_ROOT|")
+        sed_dir = "h; s|^HOME_DIR|%s/[^/]+|; s|ROLE_|user_|" % (prefixes.keys() + "/[^/]+|; s|ROLE_|user_|; p; g; s|^HOME_DIR|")
 
-	# Fill in HOME_ROOT, HOME_DIR, and ROLE for users not explicitly defined in /etc/security/selinux/src/policy/users
-	rc=commands.getstatusoutput("sed -e \"/^HOME_ROOT/{%s}\" -e \"/^HOME_DIR/{%s}\" %s" % (sed_root, sed_dir, filecontext))
-	if rc[0] == 0:
-		print rc[1]
-	else:
-		errorExit(string.join("sed error ", rc[1]))
+        # Fill in HOME_ROOT, HOME_DIR, and ROLE for users not explicitly defined in /etc/security/selinux/src/policy/users
+        rc=getstatusoutput_wrapper("sed -e \"/^HOME_ROOT/{%s}\" -e \"/^HOME_DIR/{%s}\" %s" % (sed_root, sed_dir, filecontext))
+        if rc[0] == 0:
+                print(rc[1])
+        else:
+                errorExit("sed error " + rc[1])
 
-	users = getUsers(filecontextdir)
-	print "\n#\n# User-specific file contexts\n#\n"
+        users = getUsers(filecontextdir)
+        print("\n#\n# User-specific file contexts\n#\n")
 
-	# Fill in HOME and ROLE for users that are defined
-	for u in users.keys():
-		update(filecontext, u, users[u])
+        # Fill in HOME and ROLE for users that are defined
+        for u in users.keys():
+                update(filecontext, u, users[u])
 
 #############################################################################
 #
@@ -225,7 +238,7 @@ def oldgenhomedircon(filecontextdir, filecontext):
 
 def getDefaultHomeDir():
 	ret = []
-	rc=commands.getstatusoutput("grep -h '^HOME' /etc/default/useradd")
+	rc=getstatusoutput_wrapper("grep -h '^HOME' /etc/default/useradd")
 	if rc[0] == 0:
 		homedir = rc[1].split("=")[1]
 		homedir = homedir.split("#")[0]
@@ -238,7 +251,7 @@ def getDefaultHomeDir():
 			sys.stderr.write("%s\n" % rc[1])
 			sys.stderr.write("You do not have access to /etc/default/useradd HOME=\n")
 			sys.stderr.flush()
-	rc=commands.getstatusoutput("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
+	rc=getstatusoutput_wrapper("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
 	if rc[0] == 0:
 		homedir = rc[1].split("=")[1]
 		homedir = homedir.split("#")[0]
@@ -256,7 +269,7 @@ def getDefaultHomeDir():
 	return ret
 
 def getSELinuxType(directory):
-	rc=commands.getstatusoutput("grep ^SELINUXTYPE= %s/config" % directory)
+	rc=getstatusoutput_wrapper("grep ^SELINUXTYPE= %s/config" % directory)
 	if rc[0]==0:
 		return rc[1].split("=")[-1].strip()
 	return "targeted"
@@ -279,37 +292,37 @@ def errorExit(error):
 	sys.exit(1)
 
 class selinuxConfig:
-	def __init__(self, selinuxdir="/etc/selinux", type="targeted", usepwd=1):
-		self.type=type
+	def __init__(self, selinuxdir="/etc/selinux", setype="targeted", usepwd=1):
+		self.setype=setype
 		self.selinuxdir=selinuxdir +"/"
 		self.contextdir="/contexts"
 		self.filecontextdir=self.contextdir+"/files"
 		self.usepwd=usepwd
 
 	def getFileContextDir(self):
-		return self.selinuxdir+self.type+self.filecontextdir
+		return self.selinuxdir+self.setype+self.filecontextdir
 
 	def getFileContextFile(self):
 		return self.getFileContextDir()+"/file_contexts"
 
 	def getContextDir(self):
-		return self.selinuxdir+self.type+self.contextdir
+		return self.selinuxdir+self.setype+self.contextdir
 
 	def getHomeDirTemplate(self):
 		return self.getFileContextDir()+"/homedir_template"
 
 	def getHomeRootContext(self, homedir):
-		rc=commands.getstatusoutput("grep HOME_ROOT  %s | sed -e \"s|^HOME_ROOT|%s|\"" % ( self.getHomeDirTemplate(), homedir))
+		rc=getstatusoutput_wrapper("grep HOME_ROOT  %s | sed -e \"s|^HOME_ROOT|%s|\"" % ( self.getHomeDirTemplate(), homedir))
 		if rc[0] == 0:
 			return rc[1]+"\n"
 		else:
-			errorExit(string.join("sed error ", rc[1]))
+			errorExit("sed error " + rc[1])
 
 	def getUsersFile(self):
-		return self.selinuxdir+self.type+"/users/local.users"
+		return self.selinuxdir+self.setype+"/users/local.users"
 
 	def getSystemUsersFile(self):
-		return self.selinuxdir+self.type+"/users/system.users"
+		return self.selinuxdir+self.setype+"/users/system.users"
 
 	def heading(self):
 		ret = "\n#\n#\n# User-specific file contexts, generated via %s\n" % sys.argv[0]
@@ -318,10 +331,10 @@ class selinuxConfig:
 
 	def getUsers(self):
 		users=""
-		rc = commands.getstatusoutput('grep "^user" %s' % self.getSystemUsersFile())
+		rc = getstatusoutput_wrapper('grep "^user" %s' % self.getSystemUsersFile())
 		if rc[0] == 0:
 			users+=rc[1]+"\n"
-		rc = commands.getstatusoutput("grep ^user %s" % self.getUsersFile())
+		rc = getstatusoutput_wrapper("grep ^user %s" % self.getUsersFile())
 		if rc[0] == 0:
 			users+=rc[1]
 		udict = {}
@@ -351,7 +364,7 @@ class selinuxConfig:
 
 	def getHomeDirContext(self, user, home, role):
 		ret="\n\n#\n# Context for user %s\n#\n\n" % user
-		rc=commands.getstatusoutput("grep '^HOME_DIR' %s | sed -e 's|HOME_DIR|%s|' -e 's/ROLE/%s/' -e 's/system_u/%s/'" % (self.getHomeDirTemplate(), home, role, user))
+		rc=getstatusoutput_wrapper("grep '^HOME_DIR' %s | sed -e 's|HOME_DIR|%s|' -e 's/ROLE/%s/' -e 's/system_u/%s/'" % (self.getHomeDirTemplate(), home, role, user))
 		return ret + rc[1] + "\n"
 
 	def genHomeDirContext(self):
@@ -363,12 +376,12 @@ class selinuxConfig:
 		return ret+"\n"
 
 	def checkExists(self, home):
-		if commands.getstatusoutput("grep -E '^%s[^[:alnum:]_-]' %s" % (home, self.getFileContextFile()))[0] == 0:
+		if getstatusoutput_wrapper("grep -E '^%s[^[:alnum:]_-]' %s" % (home, self.getFileContextFile()))[0] == 0:
 			return 0
 		#this works by grepping the file_contexts for
 		# 1. ^/ makes sure this is not a comment
 		# 2. prints only the regex in the first column first cut on \t then on space
-		rc=commands.getstatusoutput("grep \"^/\" %s | cut -f 1 | cut -f 1 -d \" \" " %  self.getFileContextFile() )
+		rc=getstatusoutput_wrapper("grep \"^/\" %s | cut -f 1 | cut -f 1 -d \" \" " %  self.getFileContextFile() )
 		if rc[0] == 0:
 			prefix_regex = rc[1].split("\n")
 		else:
@@ -406,8 +419,8 @@ class selinuxConfig:
 			if u[2] >= starting_uid and \
 					not u[6] in EXCLUDE_LOGINS and \
 					u[5] != "/" and \
-					string.count(u[5], "/") > 1:
-				homedir = u[5][:string.rfind(u[5], "/")]
+					u[5].count("/") > 1:
+				homedir = u[5][:u[5].rfind("/")]
 				if not homedir in homedirs:
 					if self.checkExists(homedir)==0:
 						warning("%s is already defined in %s,\n%s will not create a new context." % (homedir, self.getFileContextFile(), sys.argv[0]))
@@ -426,14 +439,14 @@ class selinuxConfig:
 		return ret
 
 	def printout(self):
-		print self.genoutput()
+		print(self.genoutput())
 
 	def write(self):
 		try:
 			fd = open(self.getFileContextDir()+"/file_contexts.homedirs", "w")
 			fd.write(self.genoutput())
 			fd.close()
-		except IOError, error:
+		except IOError as error:
 			sys.stderr.write("%s: %s\n" % ( sys.argv[0], error ))
 
 
@@ -445,14 +458,14 @@ class selinuxConfig:
 try:
 	usepwd=1
 	directory="/etc/selinux"
-	type=None
+	setype=None
 	gopts, cmds = getopt.getopt(sys.argv[1:], 'nd:t:', ['help',
 						'type=',
 						'nopasswd',
 						'dir='])
 	for o,a in gopts:
 		if o == '--type' or o == "-t":
-			type=a
+			setype=a
 		if o == '--nopasswd'  or o == "-n":
 			usepwd=0
 		if o == '--dir'  or o == "-d":
@@ -461,8 +474,8 @@ try:
 			usage()
 
 
-	if type==None:
-		type=getSELinuxType(directory)
+	if setype is None:
+		setype=getSELinuxType(directory)
 
 	if len(cmds) == 2:
 		oldgenhomedircon(cmds[0], cmds[1])
@@ -470,12 +483,12 @@ try:
 
 	if len(cmds) != 0:
 		usage()
-	selconf=selinuxConfig(directory, type, usepwd)
+	selconf=selinuxConfig(directory, setype, usepwd)
 	selconf.write()
 
-except getopt.error, error:
-	errorExit(string.join("Options Error ", error))
-except ValueError, error:
-	errorExit(string.join("ValueError ", error))
-except IndexError, error:
+except getopt.error as error:
+	errorExit("Options Error " + error)
+except ValueError as error:
+	errorExit("ValueError " + error)
+except IndexError:
 	errorExit("IndexError")
