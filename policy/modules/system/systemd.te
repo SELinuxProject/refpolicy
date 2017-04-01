@@ -1,4 +1,4 @@
-policy_module(systemd, 1.3.14)
+policy_module(systemd, 1.3.15)
 
 #########################################
 #
@@ -472,6 +472,9 @@ init_service_start(systemd_machined_t)
 init_service_status(systemd_machined_t)
 init_start_system(systemd_machined_t)
 init_stop_system(systemd_machined_t)
+init_get_generic_units_status(systemd_machined_t)
+init_start_generic_units(systemd_machined_t)
+init_stop_generic_units(systemd_machined_t)
 
 logging_send_syslog_msg(systemd_machined_t)
 
@@ -513,7 +516,121 @@ miscfiles_read_localization(systemd_notify_t)
 # Nspawn local policy
 #
 
+allow systemd_nspawn_t self:process { getcap setcap setfscreate sigkill };
+allow systemd_nspawn_t self:capability { dac_override fsetid mknod net_admin setgid setuid setpcap sys_admin sys_chroot };
+allow systemd_nspawn_t self:capability2 wake_alarm;
+allow systemd_nspawn_t self:unix_dgram_socket connected_socket_perms;
+
+allow systemd_nspawn_t systemd_journal_t:dir search;
+
+allow systemd_nspawn_t systemd_machined_t:dbus send_msg;
+
+allow systemd_nspawn_t systemd_nspawn_var_run_t:dir manage_dir_perms;
+allow systemd_nspawn_t systemd_nspawn_var_run_t:file manage_file_perms;
 init_pid_filetrans(systemd_nspawn_t, systemd_nspawn_var_run_t, dir)
+
+# for /run/systemd/nspawn/incoming in chroot
+allow systemd_nspawn_t systemd_nspawn_var_run_t:dir mounton;
+
+kernel_mount_proc(systemd_nspawn_t)
+kernel_mounton_sysctl_dirs(systemd_nspawn_t)
+kernel_mounton_kernel_sysctl_files(systemd_nspawn_t)
+kernel_mounton_message_if(systemd_nspawn_t)
+kernel_mounton_proc(systemd_nspawn_t)
+kernel_mounton_sysctl_dirs(systemd_nspawn_t)
+kernel_read_kernel_sysctls(systemd_nspawn_t)
+kernel_read_system_state(systemd_nspawn_t)
+kernel_remount_proc(systemd_nspawn_t)
+kernel_unconfined(systemd_nspawn_t)
+
+corecmd_exec_shell(systemd_nspawn_t)
+corecmd_search_bin(systemd_nspawn_t)
+
+corenet_rw_tun_tap_dev(systemd_nspawn_t)
+
+dev_getattr_fs(systemd_nspawn_t)
+dev_manage_sysfs_dirs(systemd_nspawn_t)
+dev_mounton_sysfs_dirs(systemd_nspawn_t)
+dev_mount_sysfs(systemd_nspawn_t)
+dev_read_rand(systemd_nspawn_t)
+dev_read_urand(systemd_nspawn_t)
+
+files_getattr_tmp_dirs(systemd_nspawn_t)
+files_manage_etc_files(systemd_nspawn_t)
+files_manage_mnt_dirs(systemd_nspawn_t)
+files_mounton_mnt(systemd_nspawn_t)
+files_mounton_root(systemd_nspawn_t)
+files_mounton_tmp(systemd_nspawn_t)
+files_setattr_pid_dirs(systemd_nspawn_t)
+
+fs_getattr_tmpfs(systemd_nspawn_t)
+fs_manage_tmpfs_chr_files(systemd_nspawn_t)
+fs_mount_tmpfs(systemd_nspawn_t)
+fs_remount_tmpfs(systemd_nspawn_t)
+fs_search_cgroup_dirs(systemd_nspawn_t)
+
+term_getattr_generic_ptys(systemd_nspawn_t)
+term_getattr_pty_fs(systemd_nspawn_t)
+term_mount_devpts(systemd_nspawn_t)
+term_search_ptys(systemd_nspawn_t)
+term_setattr_generic_ptys(systemd_nspawn_t)
+term_use_ptmx(systemd_nspawn_t)
+
+init_domtrans_script(systemd_nspawn_t)
+init_kill_scripts(systemd_nspawn_t)
+init_read_state(systemd_nspawn_t)
+init_search_run(systemd_nspawn_t)
+init_write_pid_socket(systemd_nspawn_t)
+init_spec_domtrans_script(systemd_nspawn_t)
+
+miscfiles_manage_localization(systemd_nspawn_t)
+
+# for writing inside chroot
+sysnet_manage_config(systemd_nspawn_t)
+
+userdom_manage_user_home_dirs(systemd_nspawn_t)
+
+tunable_policy(`systemd_nspawn_labeled_namespace',`
+	corecmd_exec_shell(systemd_nspawn_t)
+
+	dev_mounton(systemd_nspawn_t)
+	dev_setattr_generic_dirs(systemd_nspawn_t)
+
+	files_search_home(systemd_nspawn_t)
+	files_mounton_pid_dirs(systemd_nspawn_t)
+
+	fs_getattr_cgroup(systemd_nspawn_t)
+	fs_manage_cgroup_dirs(systemd_nspawn_t)
+	fs_manage_tmpfs_dirs(systemd_nspawn_t)
+	fs_manage_tmpfs_files(systemd_nspawn_t)
+	fs_manage_tmpfs_symlinks(systemd_nspawn_t)
+	fs_mount_cgroup(systemd_nspawn_t)
+	fs_mounton_cgroup(systemd_nspawn_t)
+	fs_mounton_tmpfs(systemd_nspawn_t)
+	fs_mounton_tmpfs_files(systemd_nspawn_t)
+	fs_remount_cgroup(systemd_nspawn_t)
+	fs_search_tmpfs(systemd_nspawn_t)
+	fs_write_cgroup_files(systemd_nspawn_t)
+
+	selinux_getattr_fs(systemd_nspawn_t)
+	selinux_search_fs(systemd_nspawn_t)
+
+	init_domtrans(systemd_nspawn_t)
+
+	logging_search_logs(systemd_nspawn_t)
+
+	seutil_search_default_contexts(systemd_nspawn_t)
+')
+
+optional_policy(`
+	allow systemd_machined_t systemd_nspawn_t:dbus send_msg;
+
+	dbus_system_bus_client(systemd_nspawn_t)
+')
+
+optional_policy(`
+	virt_manage_virt_content(systemd_nspawn_t)
+')
 
 #######################################
 #
