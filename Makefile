@@ -634,6 +634,7 @@ bare: clean
 ifndef LOCAL_ROOT
 	$(verbose) rm -f $(fcsort)
 	$(verbose) rm -f $(support)/*.pyc
+	$(verbose) rm -Rf $(support)/__pycache__/
 ifneq ($(generated_te),)
 	$(verbose) rm -f $(generated_te)
 endif
