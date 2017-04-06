@@ -1,4 +1,4 @@
-policy_module(udev, 1.21.6)
+policy_module(udev, 1.21.7)
 
 ########################################
 #
@@ -40,7 +40,7 @@ ifdef(`enable_mcs',`
 
 allow udev_t self:capability { chown dac_override dac_read_search fowner fsetid mknod net_admin net_raw setgid setuid sys_admin sys_nice sys_nice sys_ptrace sys_rawio sys_resource };
 dontaudit udev_t self:capability sys_tty_config;
-allow udev_t self:capability2 block_suspend;
+allow udev_t self:capability2 { wake_alarm block_suspend };
 allow udev_t self:process ~{ setcurrent setexec setfscreate setrlimit execmem execstack execheap };
 allow udev_t self:process { execmem setfscreate };
 allow udev_t self:fd use;
@@ -119,6 +119,7 @@ domain_dontaudit_ptrace_all_domains(udev_t) #pidof triggers these
 files_read_usr_files(udev_t)
 files_read_etc_runtime_files(udev_t)
 files_read_etc_files(udev_t)
+files_read_kernel_modules(udev_t)
 files_exec_etc_files(udev_t)
 files_getattr_generic_locks(udev_t)
 files_search_mnt(udev_t)
@@ -148,8 +149,14 @@ auth_domtrans_pam_console(udev_t)
 auth_use_nsswitch(udev_t)
 
 init_read_utmp(udev_t)
+# systemd-udevd searches /run/systemd
+init_search_run(udev_t)
 init_dontaudit_write_utmp(udev_t)
 init_getattr_initctl(udev_t)
+init_start_all_units(udev_t)
+init_stop_all_units(udev_t)
+# for hdparm init script run by udev
+init_get_script_status(udev_t)
 
 logging_search_logs(udev_t)
 logging_send_syslog_msg(udev_t)
@@ -228,6 +235,7 @@ ifdef(`init_systemd',`
 
 	init_dgram_send(udev_t)
 
+	systemd_read_logind_sessions_files(udev_t)
 	systemd_read_logind_pids(udev_t)
 ',`
 	fs_manage_tmpfs_dirs(udev_t)

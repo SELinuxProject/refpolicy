@@ -60,6 +60,26 @@ interface(`systemd_manage_logind_pid_pipes',`
 
 ######################################
 ## <summary>
+##     Write systemd_login named pipe.
+## </summary>
+## <param name="domain">
+##     <summary>
+##     Domain allowed access.
+##     </summary>
+## </param>
+#
+interface(`systemd_write_logind_pid_pipes',`
+	gen_require(`
+		type systemd_logind_var_run_t;
+	')
+
+	init_search_run($1)
+	files_search_pids($1)
+	allow $1 systemd_logind_var_run_t:fifo_file { getattr write };
+')
+
+######################################
+## <summary>
 ##   Use inherited systemd
 ##   logind file descriptors.
 ## </summary>
@@ -75,6 +95,27 @@ interface(`systemd_use_logind_fds',`
 	')
 
 	allow $1 systemd_logind_t:fd use;
+')
+
+######################################
+## <summary>
+##      Read logind sessions files.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_read_logind_sessions_files',`
+	gen_require(`
+		type systemd_sessions_var_run_t, systemd_logind_t;
+	')
+
+	allow $1 systemd_logind_t:fd use;
+	init_search_run($1)
+	allow $1 systemd_sessions_var_run_t:dir list_dir_perms;
+	read_files_pattern($1, systemd_sessions_var_run_t, systemd_sessions_var_run_t)
 ')
 
 ######################################
@@ -172,6 +213,25 @@ interface(`systemd_signull_logind',`
 
 ########################################
 ## <summary>
+##	Allow reading /run/systemd/machines
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain that can access the machines files
+##	</summary>
+## </param>
+#
+interface(`systemd_read_machines',`
+	gen_require(`
+		type systemd_machined_var_run_t;
+	')
+
+	allow $1 systemd_machined_var_run_t:dir list_dir_perms;
+	allow $1 systemd_machined_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
 ##      allow systemd_passwd_agent to inherit fds
 ## </summary>
 ## <param name="domain">
@@ -186,6 +246,30 @@ interface(`systemd_use_passwd_agent_fds',`
 	')
 
 	allow systemd_passwd_agent_t $1:fd use;
+')
+
+#######################################
+## <summary>
+##	Allow a systemd_passwd_agent_t process to interact with a daemon
+##	that needs a password from the sysadmin.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_use_passwd_agent',`
+	gen_require(`
+		type systemd_passwd_agent_t;
+		type systemd_passwd_var_run_t;
+	')
+
+	manage_files_pattern($1, systemd_passwd_var_run_t, systemd_passwd_var_run_t)
+	manage_sock_files_pattern($1, systemd_passwd_var_run_t, systemd_passwd_var_run_t)
+
+	allow systemd_passwd_agent_t $1:process signull;
+	allow systemd_passwd_agent_t $1:unix_dgram_socket sendto;
 ')
 
 ########################################
