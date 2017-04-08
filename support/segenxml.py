@@ -34,7 +34,7 @@ output_dir = ""
 #	 -> ("interface", "kernel_read_system_state")
 #	"template(`base_user_template',`"
 #	 -> ("template", "base_user_template")
-INTERFACE = re.compile("^\s*(interface|template)\(`(\w*)'")
+INTERFACE = re.compile(r"^\s*(interface|template)\(`(\w*)'")
 
 # Matches either a gen_bool or a gen_tunable statement. Will give the tuple:
 #	("tunable" or "bool", name, "true" or "false")
@@ -43,7 +43,7 @@ INTERFACE = re.compile("^\s*(interface|template)\(`(\w*)'")
 #	 -> ("bool", "secure_mode", "false")
 #	"gen_tunable(allow_kerberos, false)"
 #	 -> ("tunable", "allow_kerberos", "false")
-BOOLEAN = re.compile("^\s*gen_(tunable|bool)\(\s*(\w*)\s*,\s*(true|false)\s*\)")
+BOOLEAN = re.compile(r"^\s*gen_(tunable|bool)\(\s*(\w*)\s*,\s*(true|false)\s*\)")
 
 # Matches a XML comment in the policy, which is defined as any line starting
 #  with two # and at least one character of white space. Will give the single
@@ -54,7 +54,7 @@ BOOLEAN = re.compile("^\s*gen_(tunable|bool)\(\s*(\w*)\s*,\s*(true|false)\s*\)")
 #	 -> ("<summary>")
 #	"##		The domain allowed access.	"
 #	 -> ("The domain allowed access.")
-XML_COMMENT = re.compile("^##\s+(.*?)\s*$")
+XML_COMMENT = re.compile(r"^##\s+(.*?)\s*$")
 
 
 # FUNCTIONS
