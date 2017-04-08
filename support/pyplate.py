@@ -54,14 +54,14 @@ PyPlate defines the following directives:
 
 import sys, re, io
 
-re_directive = re.compile("\[\[(.*)\]\]")
-re_for_loop = re.compile("for (.*) in (.*)")
-re_if = re.compile("if (.*)")
-re_elif = re.compile("elif (.*)")
-re_def = re.compile("def (.*?)\((.*)\)")
-re_call = re.compile("call (.*?)\((.*)\)")
-re_exec = re.compile("exec (.*)")
-re_comment = re.compile("#(.*)#")
+re_directive = re.compile(r"\[\[(.*)\]\]")
+re_for_loop = re.compile(r"for (.*) in (.*)")
+re_if = re.compile(r"if (.*)")
+re_elif = re.compile(r"elif (.*)")
+re_def = re.compile(r"def (.*?)\((.*)\)")
+re_call = re.compile(r"call (.*?)\((.*)\)")
+re_exec = re.compile(r"exec (.*)")
+re_comment = re.compile(r"#(.*)#")
 
 ############################################################
 # Template parser
