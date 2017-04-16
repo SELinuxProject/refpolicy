@@ -1,4 +1,4 @@
-policy_module(init, 2.2.16)
+policy_module(init, 2.2.17)
 
 gen_require(`
 	class passwd rootok;
@@ -204,6 +204,7 @@ libs_rw_ld_so_cache(init_t)
 
 logging_send_syslog_msg(init_t)
 logging_rw_generic_logs(init_t)
+logging_create_devlog(init_t)
 
 seutil_read_config(init_t)
 
@@ -316,6 +317,8 @@ ifdef(`init_systemd',`
 
 	seutil_read_file_contexts(init_t)
 
+	systemd_manage_lnk_file_passwd_run(init_t)
+
 	# udevd is a "systemd kobject uevent socket activated daemon"
 	udev_create_kobject_uevent_sockets(init_t)
 
@@ -402,7 +405,7 @@ optional_policy(`
 
 allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability ~{ sys_admin sys_module };
-allow initrc_t self:capability2 block_suspend;
+allow initrc_t self:capability2 { wake_alarm block_suspend };
 dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
 allow initrc_t self:passwd rootok;
 allow initrc_t self:key manage_key_perms;
@@ -830,6 +833,7 @@ ifdef(`init_systemd',`
 	allow init_t self:process { getcap setcap };
 	allow init_t self:unix_stream_socket { create_stream_socket_perms connectto };
 	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
+	allow init_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
 	# Until systemd is fixed
 	allow daemon init_t:socket_class_set { getopt read getattr ioctl setopt write };
 	allow init_t self:udp_socket create_socket_perms;
