@@ -1,4 +1,4 @@
-policy_module(udev, 1.21.7)
+policy_module(udev, 1.21.8)
 
 ########################################
 #
@@ -57,6 +57,9 @@ allow udev_t self:netlink_kobject_uevent_socket create_socket_perms;
 allow udev_t self:netlink_generic_socket create_socket_perms;
 allow udev_t self:rawip_socket create_socket_perms;
 
+# for systemd-udevd to rename interfaces
+allow udev_t self:netlink_route_socket nlmsg_write;
+
 allow udev_t udev_exec_t:file write;
 can_exec(udev_t, udev_exec_t)
 
@@ -78,6 +81,7 @@ manage_files_pattern(udev_t, udev_var_run_t, udev_var_run_t)
 manage_lnk_files_pattern(udev_t, udev_var_run_t, udev_var_run_t)
 manage_sock_files_pattern(udev_t, udev_var_run_t, udev_var_run_t)
 files_pid_filetrans(udev_t, udev_var_run_t, dir, "udev")
+files_pid_filetrans(udev_t, udev_var_run_t, dir, "console-setup")
 
 kernel_load_module(udev_t)
 kernel_read_system_state(udev_t)
@@ -128,6 +132,7 @@ fs_getattr_all_fs(udev_t)
 fs_list_inotifyfs(udev_t)
 fs_read_cgroup_files(udev_t)
 fs_rw_anon_inodefs_files(udev_t)
+fs_search_tracefs(udev_t)
 
 mcs_ptrace_all(udev_t)
 
@@ -149,6 +154,7 @@ auth_domtrans_pam_console(udev_t)
 auth_use_nsswitch(udev_t)
 
 init_read_utmp(udev_t)
+init_domtrans_script(udev_t)
 # systemd-udevd searches /run/systemd
 init_search_run(udev_t)
 init_dontaudit_write_utmp(udev_t)
@@ -187,6 +193,9 @@ sysnet_etc_filetrans_config(udev_t)
 userdom_dontaudit_search_user_home_content(udev_t)
 
 ifdef(`distro_debian',`
+	# for https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=851933
+	files_read_default_files(udev_t)
+
 	files_pid_filetrans(udev_t, udev_var_run_t, dir, "xen-hotplug")
 
 	optional_policy(`
@@ -340,10 +349,16 @@ optional_policy(`
 ')
 
 optional_policy(`
+	# for systemd-udevd when starting xen domu
+	virt_read_config(udev_t)
+')
+
+optional_policy(`
 	kernel_write_xen_state(udev_t)
 	kernel_read_xen_state(udev_t)
 	xen_manage_log(udev_t)
 	xen_read_image_files(udev_t)
+	fs_manage_xenfs_files(udev_t)
 ')
 
 optional_policy(`
