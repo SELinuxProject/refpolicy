@@ -1,4 +1,4 @@
-policy_module(init, 2.2.18)
+policy_module(init, 2.2.19)
 
 gen_require(`
 	class passwd rootok;
@@ -138,6 +138,11 @@ allow init_t initrc_t:unix_stream_socket connectto;
 allow init_t init_var_run_t:file manage_file_perms;
 files_pid_filetrans(init_t, init_var_run_t, file)
 
+# for /run/initctl
+allow init_t init_var_run_t:fifo_file manage_fifo_file_perms;
+
+allow init_t init_var_run_t:lnk_file manage_lnk_file_perms;
+
 # for systemd to manage service file symlinks
 allow init_t init_var_run_t:file manage_lnk_file_perms;
 
@@ -214,6 +219,11 @@ ifdef(`init_systemd',`
 	# handle instances where an old labeled init script is encountered.
 	typeattribute init_t init_run_all_scripts_domain;
 
+	# for /run/systemd/inaccessible/{chr,blk}
+	allow init_t init_var_run_t:blk_file { create getattr };
+	allow init_t init_var_run_t:chr_file { create getattr };
+
+
 	allow init_t systemprocess:process { dyntransition siginh };
 	allow init_t systemprocess:unix_stream_socket create_stream_socket_perms;
 	allow init_t systemprocess:unix_dgram_socket create_socket_perms;
@@ -221,9 +231,9 @@ ifdef(`init_systemd',`
 	allow init_t self:process { getcap getsched setsched setpgid setfscreate setsockcreate setcap setrlimit };
 	allow init_t self:capability2 { audit_read block_suspend };
 	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
-	allow init_t self:netlink_route_socket create_netlink_socket_perms;
-	allow init_t self:netlink_selinux_socket create_socket_perms;
 	allow init_t self:unix_dgram_socket lock;
+
+	allow init_t init_var_run_t:sock_file manage_sock_file_perms;
 
 	allow init_t daemon:unix_stream_socket create_stream_socket_perms;
 	allow init_t daemon:unix_dgram_socket create_socket_perms;
@@ -257,13 +267,11 @@ ifdef(`init_systemd',`
 	kernel_getattr_proc(init_t)
 	kernel_read_fs_sysctls(init_t)
 
-	dev_rw_autofs(init_t)
 	dev_create_generic_dirs(init_t)
 	dev_manage_input_dev(init_t)
-	dev_relabel_all_dev_nodes(init_t)
 	dev_relabel_all_sysfs(init_t)
+	dev_relabel_generic_symlinks(init_t)
 	dev_read_urand(init_t)
-	dev_write_kmsg(init_t)
 
 	domain_read_all_domains_state(init_t)
 
@@ -271,17 +279,16 @@ ifdef(`init_systemd',`
 	files_list_usr(init_t)
 	files_list_var(init_t)
 	files_list_var_lib(init_t)
-	files_relabel_all_lock_dirs(init_t)
 	files_mounton_root(init_t)
 	files_search_pids(init_t)
 	files_relabel_all_pids(init_t)
+	files_relabelto_etc_runtime_dirs(init_t)
+	files_relabelto_etc_runtime_files(init_t)
 	files_read_all_locks(init_t)
 	files_search_kernel_modules(init_t)
 	# for privatetmp functions
-	files_manage_generic_tmp_dirs(init_t)
 	files_mounton_tmp(init_t)
 
-	fs_manage_cgroup_dirs(init_t)
 	fs_relabel_cgroup_dirs(init_t)
 	fs_rw_cgroup_files(init_t)
 	fs_list_auto_mountpoints(init_t)
@@ -290,6 +297,7 @@ ifdef(`init_systemd',`
 	fs_getattr_tmpfs(init_t)
 	fs_read_tmpfs_files(init_t)
 	fs_read_cgroup_files(init_t)
+	fs_relabel_pstore_dirs(init_t)
 	fs_dontaudit_getattr_xattr_fs(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
@@ -309,18 +317,18 @@ ifdef(`init_systemd',`
 	selinux_compute_create_context(init_t)
 	selinux_compute_access_vector(init_t)
 
-	term_relabel_pty_dirs(init_t)
-
 	logging_manage_pid_sockets(init_t)
 	logging_send_audit_msgs(init_t)
 	logging_relabelto_devlog_sock_files(init_t)
 
-	seutil_read_file_contexts(init_t)
-
 	systemd_manage_passwd_runtime_symlinks(init_t)
+	systemd_use_passwd_agent(init_t)
 
 	# udevd is a "systemd kobject uevent socket activated daemon"
 	udev_create_kobject_uevent_sockets(init_t)
+
+	# for systemd to read udev status
+	udev_read_pid_files(init_t)
 
 	optional_policy(`
 		clock_read_adjtime(init_t)
@@ -331,7 +339,6 @@ ifdef(`init_systemd',`
 	')
 
 	optional_policy(`
-		dbus_system_bus_client(init_t)
 		dbus_connect_system_bus(init_t)
 	')
 
@@ -355,6 +362,13 @@ ifdef(`distro_debian',`
 
 	allow init_t initrc_var_run_t:file manage_file_perms;
 	fs_tmpfs_filetrans(init_t, initrc_var_run_t, file, "utmp")
+	fs_manage_tmpfs_files(initrc_t)
+
+	sysnet_manage_config(initrc_t)
+
+	optional_policy(`
+		postfix_read_config(initrc_t)
+	')
 ')
 
 ifdef(`distro_gentoo',`
@@ -367,6 +381,12 @@ ifdef(`distro_redhat',`
 	fs_read_tmpfs_symlinks(init_t)
 	fs_rw_tmpfs_chr_files(init_t)
 	fs_tmpfs_filetrans(init_t, initctl_t, fifo_file)
+')
+
+optional_policy(`
+	modutils_read_module_config(init_t)
+	modutils_read_module_deps(init_t)
+	modutils_read_module_objects(init_t)
 ')
 
 optional_policy(`
@@ -521,7 +541,6 @@ domain_kill_all_domains(initrc_t)
 domain_signal_all_domains(initrc_t)
 domain_signull_all_domains(initrc_t)
 domain_sigstop_all_domains(initrc_t)
-domain_sigstop_all_domains(initrc_t)
 domain_sigchld_all_domains(initrc_t)
 domain_read_all_domains_state(initrc_t)
 domain_getattr_all_domains(initrc_t)
@@ -639,7 +658,6 @@ ifdef(`distro_debian',`
 	kernel_getattr_core_if(initrc_t)
 
 	dev_getattr_generic_blk_files(initrc_t)
-	dev_setattr_generic_dirs(initrc_t)
 
 	fs_tmpfs_filetrans(initrc_t, initrc_var_run_t, dir)
 
@@ -670,7 +688,6 @@ ifdef(`distro_gentoo',`
 	allow initrc_t self:process setfscreate;
 	dev_create_null_dev(initrc_t)
 	dev_create_zero_dev(initrc_t)
-	dev_create_generic_dirs(initrc_t)
 	term_create_console_dev(initrc_t)
 
 	# unfortunately /sbin/rc does stupid tricks
@@ -692,8 +709,6 @@ ifdef(`distro_gentoo',`
 
 	# init scripts touch this
 	clock_dontaudit_write_adjtime(initrc_t)
-
-	logging_send_audit_msgs(initrc_t)
 
 	# for integrated run_init to read run_init_type.
 	# happens during boot (/sbin/rc execs init scripts)
@@ -830,21 +845,24 @@ ifdef(`init_systemd',`
 
 	allow init_t self:unix_dgram_socket { create_socket_perms sendto };
 	allow init_t self:process { setsockcreate setfscreate setrlimit };
-	allow init_t self:process { getcap setcap };
+	allow init_t self:process { getcap setcap getsched setsched };
 	allow init_t self:unix_stream_socket { create_stream_socket_perms connectto };
-	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
 	allow init_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
+	allow init_t self:netlink_selinux_socket create_socket_perms;
 	# Until systemd is fixed
 	allow daemon init_t:socket_class_set { getopt read getattr ioctl setopt write };
 	allow init_t self:udp_socket create_socket_perms;
 	allow init_t self:netlink_route_socket create_netlink_socket_perms;
 	allow init_t initrc_t:unix_dgram_socket create_socket_perms;
-	allow initrc_t init_t:system { status reboot halt reload };
+	allow initrc_t init_t:system { start status reboot halt reload };
 	allow init_t self:capability2 audit_read;
 	manage_files_pattern(initrc_t, initrc_lock_t, initrc_lock_t)
 	files_lock_filetrans(initrc_t, initrc_lock_t, file)
 
 	manage_dirs_pattern(initrc_t, init_var_run_t, init_var_run_t)
+	allow initrc_t init_var_run_t:file create_file_perms;
+	allow initrc_t init_var_run_t:lnk_file create_lnk_file_perms;
+	allow initrc_t init_var_run_t:service { start status };
 
 	manage_dirs_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
 	manage_chr_files_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
@@ -861,14 +879,16 @@ ifdef(`init_systemd',`
 
 	kernel_dgram_send(initrc_t)
 	kernel_list_unlabeled(init_t)
-	kernel_read_network_state(init_t)
+	kernel_load_module(init_t)
 	kernel_rw_kernel_sysctl(init_t)
 	kernel_rw_net_sysctls(init_t)
 	kernel_read_all_sysctls(init_t)
 	kernel_read_software_raid_state(init_t)
 	kernel_unmount_debugfs(init_t)
 	kernel_setsched(init_t)
+	kernel_rw_unix_sysctls(init_t)
 
+	auth_manage_var_auth(init_t)
 	auth_relabel_login_records(init_t)
 	auth_relabel_pam_console_data_dirs(init_t)
 
@@ -876,10 +896,10 @@ ifdef(`init_systemd',`
 	# in the initrc_t domain, as would be
 	# done in traditional sysvinit/upstart.
 	corecmd_bin_entry_type(initrc_t)
-	corecmd_shell_entry_type(initrc_t)
 	corecmd_bin_domtrans(init_t, initrc_t)
 	corecmd_shell_domtrans(init_t, initrc_t)
 
+	dev_create_generic_dirs(initrc_t)
 	dev_write_kmsg(init_t)
 	dev_write_urand(init_t)
 	dev_rw_lvm_control(init_t)
@@ -894,6 +914,7 @@ ifdef(`init_systemd',`
 	dev_relabel_all_dev_files(init_t)
 	dev_manage_sysfs_dirs(init_t)
 	dev_relabel_sysfs_dirs(init_t)
+	dev_read_usbfs(initrc_t)
 	# systemd writes to /dev/watchdog on shutdown
 	dev_write_watchdog(init_t)
 
@@ -903,13 +924,13 @@ ifdef(`init_systemd',`
 	files_create_all_pid_sockets(init_t)
 	files_create_all_spool_sockets(init_t)
 	files_create_lock_dirs(init_t)
+	files_create_pid_dirs(initrc_t)
 	files_delete_all_pids(init_t)
 	files_delete_all_spool_sockets(init_t)
 	files_exec_generic_pid_files(init_t)
 	files_get_etc_unit_status(initrc_t)
 	files_list_locks(init_t)
 	files_list_spool(init_t)
-	files_list_var(init_t)
 	files_manage_all_pid_dirs(init_t)
 	files_manage_generic_tmp_dirs(init_t)
 	files_manage_urandom_seed(init_t)
@@ -922,28 +943,28 @@ ifdef(`init_systemd',`
 	files_setattr_pid_dirs(initrc_t)
 	files_unmount_all_file_type_fs(init_t)
 
+	fs_create_cgroup_links(init_t)
 	fs_getattr_all_fs(init_t)
-	fs_list_auto_mountpoints(init_t)
 	fs_manage_cgroup_dirs(init_t)
 	fs_manage_cgroup_files(init_t)
-	fs_manage_hugetlbfs_dirs(init_t)
 	fs_manage_tmpfs_dirs(init_t)
 	fs_mount_all_fs(init_t)
 	fs_remount_all_fs(init_t)
+	fs_relabelfrom_tmpfs_symlinks(init_t)
 	fs_unmount_all_fs(init_t)
 	fs_search_cgroup_dirs(daemon)
+
+	# for logsave in strict configuration
+	fstools_write_log(initrc_t)
 
 	init_get_all_units_status(initrc_t)
 	init_manage_var_lib_files(initrc_t)
 	init_read_script_state(init_t)
 	init_rw_stream_sockets(initrc_t)
-	init_stop_all_units(initrc_t)
-	init_stream_connect(initrc_t)
 
 	# Create /etc/audit.rules.prev after firstboot remediation
 	logging_manage_audit_config(initrc_t)
 
-	selinux_compute_create_context(init_t)
 	selinux_set_enforce_mode(initrc_t)
 	selinux_unmount_fs(init_t)
 	selinux_validate_context(init_t)
@@ -992,7 +1013,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	dev_read_usbfs(initrc_t)
 	bluetooth_read_config(initrc_t)
 ')
 
@@ -1076,8 +1096,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	dev_read_usbfs(initrc_t)
-
 	# init scripts run /etc/hotplug/usb.rc
 	hotplug_read_config(initrc_t)
 
@@ -1266,16 +1284,7 @@ optional_policy(`
 optional_policy(`
 	domain_role_change_exemption(initrc_t)
 
-	mcs_file_read_all(initrc_t)
-	mcs_file_write_all(initrc_t)
-	mcs_killall(initrc_t)
-
 	unconfined_domain(initrc_t)
-
-	ifdef(`distro_redhat',`
-		# system-config-services causes avc messages that should be dontaudited
-		unconfined_dontaudit_rw_pipes(daemon)
-	')
 
 	optional_policy(`
 		mono_domtrans(initrc_t)
