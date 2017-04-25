@@ -215,7 +215,8 @@ optional_policy(`
 # Sulogin local policy
 #
 
-allow sulogin_t self:capability dac_override;
+allow sulogin_t self:capability { dac_override sys_admin sys_tty_config };
+allow sulogin_t self:process setexec;
 allow sulogin_t self:fd use;
 allow sulogin_t self:fifo_file rw_fifo_file_perms;
 allow sulogin_t self:unix_dgram_socket create_socket_perms;
@@ -228,6 +229,9 @@ allow sulogin_t self:msgq create_msgq_perms;
 allow sulogin_t self:msg { send receive };
 
 kernel_read_system_state(sulogin_t)
+kernel_read_crypto_sysctls(sulogin_t)
+kernel_stream_connect(sulogin_t)
+kernel_use_fds(sulogin_t)
 # because file systems are not mounted:
 kernel_dontaudit_search_unlabeled(sulogin_t)
 
@@ -238,9 +242,12 @@ files_read_etc_files(sulogin_t)
 
 auth_read_shadow(sulogin_t)
 
+init_getpgid(sulogin_t)
 init_getpgid_script(sulogin_t)
 
 logging_send_syslog_msg(sulogin_t)
+
+miscfiles_read_localization(sulogin_t)
 
 seutil_read_config(sulogin_t)
 seutil_read_default_contexts(sulogin_t)
@@ -252,15 +259,12 @@ userdom_use_user_ptys(sulogin_t)
 
 sysadm_shell_domtrans(sulogin_t)
 
-# suse and debian do not use pam with sulogin...
-ifdef(`distro_suse', `define(`sulogin_no_pam')')
-ifdef(`distro_debian', `define(`sulogin_no_pam')')
+term_use_console(sulogin_t)
+term_use_unallocated_ttys(sulogin_t)
 
-ifdef(`sulogin_no_pam', `
-	allow sulogin_t self:capability sys_tty_config;
-	init_getpgid(sulogin_t)
-', `
-	allow sulogin_t self:process setexec;
+# by default, sulogin does not use pam...
+# sulogin_pam might need to be defined otherwise
+ifdef(`sulogin_pam', `
 	selinux_get_fs_mount(sulogin_t)
 	selinux_validate_context(sulogin_t)
 	selinux_compute_access_vector(sulogin_t)
