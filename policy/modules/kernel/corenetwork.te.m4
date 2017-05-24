@@ -111,3 +111,29 @@ define(`network_packet',`
 type $1_client_packet_t, packet_type, client_packet_type;
 type $1_server_packet_t, packet_type, server_packet_type;
 ')
+
+define(`declare_ibpkeycons',`dnl
+ibpkeycon $2 $3 gen_context(system_u:object_r:$1,$4)
+ifelse(`$5',`',`',`declare_ibpkeycons($1,shiftn(4,$*))')dnl
+')
+
+#
+# ib_pkey(nam, subnet_prefix, pkey_num, mls_sensitivity [,subnet_prefix, pkey_num, mls_sensitivity[,...]])
+#
+define(`ib_pkey',`
+type $1_ibpkey_t, ibpkey_type;
+ifelse(`$2',`',`',`declare_ibpkeycons($1_ibpkey_t,shift($*))')dnl
+')
+
+define(`declare_ibendportcons',`dnl
+ibendportcon $2 $3 gen_context(system_u:object_r:$1,$4)
+ifelse(`$5',`',`',`declare_ibendportcons($1,shiftn(4,$*))')dnl
+')
+
+#
+# ib_endport (name, dev_name, port_num, mls_sensitivity [, dev_name, port_num mls_sensitivity[,...]])
+#
+define(`ib_endport',`
+type $1_ibendport_t, ibendport_type;
+ifelse(`$2',`',`',`declare_ibendportcons($1_ibendport_t,shift($*))')dnl
+')

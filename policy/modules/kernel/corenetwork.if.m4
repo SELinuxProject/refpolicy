@@ -776,6 +776,48 @@ interface(`corenet_relabelto_$1_packets',`
 ')
 '') dnl end create_port_interfaces
 
+define(`create_ibpkey_interfaces',``
+########################################
+## <summary>
+##	Access the infiniband fabric on the $1 ibpkey.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="both" weight="10"/>
+#
+interface(`corenet_ib_access_$1_pkey',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	allow dollarsone $1_$2:infiniband_pkey access;
+')
+'') dnl end create_ibpkey_interfaces
+
+define(`create_ibendport_interfaces',``
+########################################
+## <summary>
+##	Manage the subnet on $1 ibendport.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <infoflow type="both" weight="10"/>
+#
+interface(`corenet_ib_manage_subnet_$1_endport',`
+	gen_require(`
+		$3 $1_$2;
+	')
+
+	allow dollarsone $1_$2:infiniband_endport manage_subnet;
+')
+'') dnl end create_ibendport_interfaces
+
 #
 # create_netif_*_interfaces(linux_interfacename)
 #
@@ -850,4 +892,26 @@ create_packet_interfaces($1_server)
 define(`network_packet',`
 create_packet_interfaces($1_client)
 create_packet_interfaces($1_server)
+')
+
+# create_ibpkey_*_interfaces(name, subnet_prefix, pkeynum,mls_sensitivity)
+# (these wrap create_port_interfaces to handle attributes and types)
+define(`create_ibpkey_type_interfaces',`create_ibpkey_interfaces($1,ibpkey_t,type,determine_reserved_capability(shift($*)))')
+
+#
+# ib_pkey(name,subnet_prefix pkeynum mls_sensitivity)
+#
+define(`ib_pkey',`
+create_ibpkey_type_interfaces($*)
+')
+
+# create_ibendport_*_interfaces(name, devname, portnum,mls_sensitivity)
+# (these wrap create_port_interfaces to handle attributes and types)
+define(`create_ibendport_type_interfaces',`create_ibendport_interfaces($1,ibendport_t,type,determine_reserved_capability(shift($*)))')
+
+#
+# ib_endport(name,device_name, portnum mls_sensitivity)
+#
+define(`ib_endport',`
+create_ibendport_type_interfaces($*)
 ')
