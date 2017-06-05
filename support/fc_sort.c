@@ -292,13 +292,15 @@ void fc_fill_data(file_context_node_t *fc_node)
 			/* If a escape character is found,
 			 *  skip the next character. */
 			c++;
+			break;
 		default:
-			/* If no meta character has been found yet,
-			 *  add one to the stem length. */
-			if (!fc_node->meta)
-				fc_node->stem_len++;
 			break;
 		}
+
+		/* If no meta character has been found yet,
+		 * add one to the stem length. */
+		if (!fc_node->meta)
+			fc_node->stem_len++;
 
 		fc_node->str_len++;
 		c++;
