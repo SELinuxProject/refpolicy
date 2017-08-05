@@ -26,12 +26,12 @@ env:
   - TYPE=mls DISTRO=gentoo MONOLITHIC=n SYSTEMD=n WERROR=y
 
 # Uncomment to use Travis-CI container infrastructure (https://docs.travis-ci.com/user/ci-environment/)
-sudo: false
+#sudo: false
 #dist: trusty  # libustr-dev not whitelisted for trusty
 
 # Uncomment these two lines to use Travis-CI Trusty Beta environment
-#sudo: required
-#dist: trusty
+sudo: required
+dist: trusty
 
 cache:
   directories:
@@ -58,17 +58,15 @@ before_install:
   - python -V
 
 install:
-  - SELINUX_USERSPACE_VERSION=20161014
+  - SELINUX_USERSPACE_VERSION=20170804
 
+  - export DESTDIR="${TRAVIS_BUILD_DIR}/selinux"
+  - export EXPLICIT_MAKE_VARS="CFLAGS=-I$DESTDIR/usr/include LDFLAGS=-L$DESTDIR/usr/lib LDLIBS= CPPFLAGS= OPT_SUBDIRS=semodule-utils"
   - |
       if [[ "${SELINUX_USERSPACE_VERSION}" != "$(cat ${TRAVIS_BUILD_DIR}/selinux/travis.version)" ]]; then
         # Download current SELinux userspace tools and libraries
         curl -sS -L "https://github.com/SELinuxProject/selinux/archive/${SELINUX_USERSPACE_VERSION}.tar.gz" | tar xz
         mv "selinux-${SELINUX_USERSPACE_VERSION}" selinux-src
-
-        # Ubuntu 12.04 coreutils is too old to provide "ln --relative" :(
-        sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libsepol/src/Makefile
-        sed 's/ln -sf --relative /ln -sf /' -i selinux-src/libselinux/src/Makefile
 
         # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
         sed -i -e 's/secilc//' selinux-src/Makefile
@@ -85,7 +83,7 @@ install:
         # Compile and install SELinux toolchain into ~/selinux
         # On Ubuntu 12.04, default CFLAGS make the build fail in libsepol/cil with:
         #    error: declaration of 'index' shadows a global declarationo
-        make "DESTDIR=${TRAVIS_BUILD_DIR}/selinux" CFLAGS="-O2 -Wall" -C selinux-src install
+        make $EXPLICIT_MAKE_VARS -C selinux-src install
         echo "${SELINUX_USERSPACE_VERSION}" > "${TRAVIS_BUILD_DIR}/selinux/travis.version"
       fi
 
