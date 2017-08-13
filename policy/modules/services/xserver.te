@@ -646,7 +646,7 @@ allow xserver_t input_xevent_t:x_event send;
 allow xserver_t self:capability { dac_override fowner fsetid ipc_owner mknod net_bind_service setgid setuid sys_admin sys_nice sys_rawio sys_tty_config };
 dontaudit xserver_t self:capability chown;
 allow xserver_t self:capability2 wake_alarm;
-allow xserver_t self:process ~{ ptrace setcurrent setexec setfscreate setrlimit execmem execstack execheap };
+allow xserver_t self:process { fork transition signal_perms getsched setsched getsession getpgid setpgid getcap setcap share getattr noatsecure siginh rlimitinh dyntransition setkeycreate setsockcreate getrlimit };
 allow xserver_t self:fd use;
 allow xserver_t self:fifo_file rw_fifo_file_perms;
 allow xserver_t self:sock_file read_sock_file_perms;
@@ -791,21 +791,21 @@ tunable_policy(`!xserver_object_manager',`
 	# should be xserver_unconfined(xserver_t),
 	# but typeattribute doesnt work in conditionals
 
-	allow xserver_t xserver_t:x_server *;
-	allow xserver_t { x_domain root_xdrawable_t }:x_drawable *;
-	allow xserver_t xserver_t:x_screen *;
-	allow xserver_t x_domain:x_gc *;
-	allow xserver_t { x_domain root_xcolormap_t }:x_colormap *;
-	allow xserver_t xproperty_type:x_property *;
-	allow xserver_t xselection_type:x_selection *;
-	allow xserver_t x_domain:x_cursor *;
-	allow xserver_t x_domain:x_client *;
-	allow xserver_t { x_domain xserver_t }:x_device *;
-	allow xserver_t { x_domain xserver_t }:x_pointer *;
-	allow xserver_t { x_domain xserver_t }:x_keyboard *;
-	allow xserver_t xextension_type:x_extension *;
-	allow xserver_t { x_domain xserver_t }:x_resource *;
-	allow xserver_t xevent_type:{ x_event x_synthetic_event } *;
+	allow xserver_t xserver_t:x_server { getattr setattr record debug grab manage };
+	allow xserver_t { x_domain root_xdrawable_t }:x_drawable { create destroy read write blend getattr setattr list_child add_child remove_child list_property get_property set_property manage override show hide send receive };
+	allow xserver_t xserver_t:x_screen { getattr setattr hide_cursor show_cursor saver_getattr saver_setattr saver_hide saver_show };
+	allow xserver_t x_domain:x_gc { create destroy getattr setattr use };
+	allow xserver_t { x_domain root_xcolormap_t }:x_colormap { create destroy read write getattr add_color remove_color install uninstall use };
+	allow xserver_t xproperty_type:x_property { create destroy read write append getattr setattr };
+	allow xserver_t xselection_type:x_selection { read write getattr setattr };
+	allow xserver_t x_domain:x_cursor { create destroy read write getattr setattr use };
+	allow xserver_t x_domain:x_client { destroy getattr setattr manage };
+	allow xserver_t { x_domain xserver_t }:x_device { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow xserver_t { x_domain xserver_t }:x_pointer { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow xserver_t { x_domain xserver_t }:x_keyboard { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow xserver_t xextension_type:x_extension { query use };
+	allow xserver_t { x_domain xserver_t }:x_resource { read write };
+	allow xserver_t xevent_type:{ x_event x_synthetic_event } { send receive };
 ')
 
 optional_policy(`
@@ -946,11 +946,11 @@ allow x_domain x_domain:x_drawable { getattr get_property set_property remove_ch
 # can use the default colormap
 allow x_domain root_xcolormap_t:x_colormap { read use add_color remove_color install uninstall };
 # can create and use colormaps
-allow x_domain self:x_colormap *;
+allow x_domain self:x_colormap { create destroy read write getattr add_color remove_color install uninstall use };
 
 # X Devices
 # operations allowed on my own devices
-allow x_domain self:{ x_device x_pointer x_keyboard } *;
+allow x_domain self:{ x_device x_pointer x_keyboard } { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
 # operations allowed on generic devices
 allow x_domain xserver_t:x_device { use getattr setattr getfocus setfocus bell grab freeze force_cursor };
 # operations allowed on core keyboard
@@ -984,9 +984,9 @@ allow x_domain xselection_t:x_selection { getattr setattr read };
 
 # Other X Objects
 # can create and use cursors
-allow x_domain self:x_cursor *;
+allow x_domain self:x_cursor { create destroy read write getattr setattr use };
 # can create and use graphics contexts
-allow x_domain self:x_gc *;
+allow x_domain self:x_gc { create destroy getattr setattr use };
 # can read and write own objects
 allow x_domain self:x_resource { read write };
 # can mess with the screensaver
@@ -1001,35 +1001,35 @@ tunable_policy(`! xserver_object_manager',`
 	# should be xserver_unconfined(x_domain),
 	# but typeattribute doesnt work in conditionals
 
-	allow x_domain xserver_t:x_server *;
-	allow x_domain xdrawable_type:x_drawable *;
-	allow x_domain xserver_t:x_screen *;
-	allow x_domain x_domain:x_gc *;
-	allow x_domain xcolormap_type:x_colormap *;
-	allow x_domain xproperty_type:x_property *;
-	allow x_domain xselection_type:x_selection *;
-	allow x_domain x_domain:x_cursor *;
-	allow x_domain x_domain:x_client *;
-	allow x_domain { x_domain xserver_t }:x_device *;
-	allow x_domain { x_domain xserver_t }:x_pointer *;
-	allow x_domain { x_domain xserver_t }:x_keyboard *;
-	allow x_domain xextension_type:x_extension *;
-	allow x_domain { x_domain xserver_t }:x_resource *;
-	allow x_domain xevent_type:{ x_event x_synthetic_event } *;
+	allow x_domain xserver_t:x_server { getattr setattr record debug grab manage };
+	allow x_domain xdrawable_type:x_drawable { create destroy read write blend getattr setattr list_child add_child remove_child list_property get_property set_property manage override show hide send receive };
+	allow x_domain xserver_t:x_screen { getattr setattr hide_cursor show_cursor saver_getattr saver_setattr saver_hide saver_show };
+	allow x_domain x_domain:x_gc { create destroy getattr setattr use };
+	allow x_domain xcolormap_type:x_colormap { create destroy read write getattr add_color remove_color install uninstall use };
+	allow x_domain xproperty_type:x_property { create destroy read write append getattr setattr };
+	allow x_domain xselection_type:x_selection { read write getattr setattr };
+	allow x_domain x_domain:x_cursor { create destroy read write getattr setattr use };
+	allow x_domain x_domain:x_client { destroy getattr setattr manage };
+	allow x_domain { x_domain xserver_t }:x_device { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow x_domain { x_domain xserver_t }:x_pointer { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow x_domain { x_domain xserver_t }:x_keyboard { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+	allow x_domain xextension_type:x_extension { query use };
+	allow x_domain { x_domain xserver_t }:x_resource { read write };
+	allow x_domain xevent_type:{ x_event x_synthetic_event } { send receive };
 ')
 
-allow xserver_unconfined_type xserver_t:x_server *;
-allow xserver_unconfined_type xdrawable_type:x_drawable *;
-allow xserver_unconfined_type xserver_t:x_screen *;
-allow xserver_unconfined_type x_domain:x_gc *;
-allow xserver_unconfined_type xcolormap_type:x_colormap *;
-allow xserver_unconfined_type xproperty_type:x_property *;
-allow xserver_unconfined_type xselection_type:x_selection *;
-allow xserver_unconfined_type x_domain:x_cursor *;
-allow xserver_unconfined_type x_domain:x_client *;
-allow xserver_unconfined_type { x_domain xserver_t }:x_device *;
-allow xserver_unconfined_type { x_domain xserver_t }:x_pointer *;
-allow xserver_unconfined_type { x_domain xserver_t }:x_keyboard *;
-allow xserver_unconfined_type xextension_type:x_extension *;
-allow xserver_unconfined_type { x_domain xserver_t }:x_resource *;
-allow xserver_unconfined_type xevent_type:{ x_event x_synthetic_event } *;
+allow xserver_unconfined_type xserver_t:x_server { getattr setattr record debug grab manage };
+allow xserver_unconfined_type xdrawable_type:x_drawable { create destroy read write blend getattr setattr list_child add_child remove_child list_property get_property set_property manage override show hide send receive };
+allow xserver_unconfined_type xserver_t:x_screen { getattr setattr hide_cursor show_cursor saver_getattr saver_setattr saver_hide saver_show };
+allow xserver_unconfined_type x_domain:x_gc { create destroy getattr setattr use };
+allow xserver_unconfined_type xcolormap_type:x_colormap { create destroy read write getattr add_color remove_color install uninstall use };
+allow xserver_unconfined_type xproperty_type:x_property { create destroy read write append getattr setattr };
+allow xserver_unconfined_type xselection_type:x_selection { read write getattr setattr };
+allow xserver_unconfined_type x_domain:x_cursor { create destroy read write getattr setattr use };
+allow xserver_unconfined_type x_domain:x_client { destroy getattr setattr manage };
+allow xserver_unconfined_type { x_domain xserver_t }:x_device { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+allow xserver_unconfined_type { x_domain xserver_t }:x_pointer { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+allow xserver_unconfined_type { x_domain xserver_t }:x_keyboard { getattr setattr use read write getfocus setfocus bell force_cursor freeze grab manage list_property get_property set_property add remove create destroy };
+allow xserver_unconfined_type xextension_type:x_extension { query use };
+allow xserver_unconfined_type { x_domain xserver_t }:x_resource { read write };
+allow xserver_unconfined_type xevent_type:{ x_event x_synthetic_event } { send receive };
