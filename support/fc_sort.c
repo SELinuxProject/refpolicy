@@ -512,7 +512,7 @@ int main(int argc, char *argv[])
 			if (!(bcurrent->next)) {
 				printf
 				    ("Error: failure allocating memory.\n");
-				return -1;
+				exit(-1);
 			}
 
 			/* Make sure the new bucket thinks it's the end of the
