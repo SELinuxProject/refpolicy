@@ -138,6 +138,63 @@ interface(`init_domain',`
 
 ########################################
 ## <summary>
+##	Setup a domain which can be manually transitioned to from init.
+## </summary>
+## <desc>
+##	<p>
+##	Create a domain used for systemd services where the SELinuxContext
+##  option is specified in the .service file.  This allows for the
+##  manual transition from systemd into the new domain.  This is used
+##  when automatic transitions won't work.  Used for the case where the
+##  same binary is used for multiple target domains.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program being executed when starting this domain.
+##	</summary>
+## </param>
+#
+interface(`init_spec_daemon_domain',`
+	gen_require(`
+		type init_t;
+		role system_r;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, $2)
+
+	role system_r types $1;
+
+	spec_domtrans_pattern(init_t, $2, $1)
+
+	ifdef(`init_systemd',`
+		allow $1 init_t:unix_stream_socket { getattr read write ioctl };
+
+		allow init_t $1:process2 { nnp_transition nosuid_transition };
+	')
+
+	# daemons started from init will
+	# inherit fds from init for the console
+	init_dontaudit_use_fds($1)
+	term_dontaudit_use_console($1)
+
+	# init script ptys are the stdin/out/err
+	# when using run_init
+	init_use_script_ptys($1)
+
+	ifdef(`direct_sysadm_daemon',`
+		userdom_dontaudit_use_user_terminals($1)
+	')
+')
+
+########################################
+## <summary>
 ##	Create a domain which can be started by init,
 ##	with a range transition.
 ## </summary>
