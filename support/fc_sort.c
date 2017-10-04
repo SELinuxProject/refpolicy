@@ -46,6 +46,9 @@ typedef struct file_context_node {
 
 void file_context_node_destroy(file_context_node_t *x)
 {
+	if (!x)
+		return;
+
 	free(x->path);
 	free(x->file_type);
 	free(x->context);
@@ -135,8 +138,6 @@ file_context_node_t *fc_merge(file_context_node_t *a,
 	file_context_node_t *temp;
 	file_context_node_t *jumpto;
 
-
-
 	/* If a is a empty list, and b is not,
 	 *  set a as b and proceed to the end. */
 	if (!a && b)
@@ -164,7 +165,6 @@ file_context_node_t *fc_merge(file_context_node_t *a,
 			       fc_compare(a_current->next,
 					  b_current) != -1) {
 
-
 				temp = a_current->next;
 				a_current->next = b_current;
 				b_current = b_current->next;
@@ -176,7 +176,6 @@ file_context_node_t *fc_merge(file_context_node_t *a,
 			 *  next node in the original a. */
 			a_current = jumpto;
 		}
-
 
 		/* if there is anything left in b to be inserted,
 		   put it on the end */
@@ -209,10 +208,11 @@ file_context_node_t *fc_merge(file_context_node_t *a,
  */
 void fc_merge_sort(file_context_bucket_t *master)
 {
-
-
 	file_context_bucket_t *current;
 	file_context_bucket_t *temp;
+
+	if (!master)
+		return;
 
 	/* Loop until master is the only bucket left
 	 * so that this will stop when master contains
@@ -222,28 +222,20 @@ void fc_merge_sort(file_context_bucket_t *master)
 
 		/* This loop merges buckets two-by-two. */
 		while (current) {
-
 			if (current->next) {
-
 				current->data =
 				    fc_merge(current->data,
 					     current->next->data);
-
-
 
 				temp = current->next;
 				current->next = current->next->next;
 
 				free(temp);
-
 			}
-
 
 			current = current->next;
 		}
 	}
-
-
 }
 
 
@@ -307,6 +299,25 @@ void fc_fill_data(file_context_node_t *fc_node)
 	}
 }
 
+
+
+/* fc_free_file_context_node_list
+ * Free the memory allocated to the linked list and its elements.
+ */
+void fc_free_file_context_node_list(struct file_context_node *node)
+{
+	struct file_context_node *next;
+
+	while (node) {
+		next = node->next;
+		file_context_node_destroy(node);
+		free(node);
+		node = next;
+	}
+}
+
+
+
 /* main
  * This program takes in two arguments, the input filename and the
  *  output filename. The input file should be syntactically correct.
@@ -328,7 +339,6 @@ int main(int argc, char *argv[])
 
 	FILE *in_file, *out_file;
 
-
 	/* Check for the correct number of command line arguments. */
 	if (argc < 2 || argc > 3) {
 		fprintf(stderr, "Usage: %s <infile> [<outfile>]\n",argv[0]);
@@ -348,24 +358,33 @@ int main(int argc, char *argv[])
 
 	/* Initialize the head of the linked list. */
 	head = current = (file_context_node_t*)malloc(sizeof(file_context_node_t));
+	if (!head) {
+		fprintf(stderr, "Error: failure allocating memory.\n");
+		return 1;
+	}
 	head->next = NULL;
+	head->path = NULL;
+	head->file_type = NULL;
+	head->context = NULL;
 
 	/* Parse the file into a file_context linked list. */
 	line_buf = NULL;
 
 	while ( getline(&line_buf, &buf_len, in_file) != -1 ){
 		line_len = strlen(line_buf);
+
 		if( line_len == 0 || line_len == 1)
 			continue;
+
 		/* Get rid of whitespace from the front of the line. */
 		for (i = 0; i < line_len; i++) {
 			if (!isspace(line_buf[i]))
 				break;
 		}
 
-
 		if (i >= line_len)
 			continue;
+
 		/* Check if the line isn't empty and isn't a comment */
 		if (line_buf[i] == '#')
 			continue;
@@ -373,7 +392,9 @@ int main(int argc, char *argv[])
 		/* We have a valid line - allocate a new node. */
 		temp = (file_context_node_t *)malloc(sizeof(file_context_node_t));
 		if (!temp) {
+			free(line_buf);
 			fprintf(stderr, "Error: failure allocating memory.\n");
+			fc_free_file_context_node_list(head);
 			return 1;
 		}
 		temp->next = NULL;
@@ -382,19 +403,15 @@ int main(int argc, char *argv[])
 		/* Parse out the regular expression from the line. */
 		start = i;
 
-
 		while (i < line_len && (!isspace(line_buf[i])))
 			i++;
 		finish = i;
-
 
 		regex_len = finish - start;
 
 		if (regex_len == 0) {
 			file_context_node_destroy(temp);
 			free(temp);
-
-
 			continue;
 		}
 
@@ -402,13 +419,14 @@ int main(int argc, char *argv[])
 		if (!temp->path) {
 			file_context_node_destroy(temp);
 			free(temp);
+			free(line_buf);
 			fprintf(stderr, "Error: failure allocating memory.\n");
+			fc_free_file_context_node_list(head);
 			return 1;
 		}
 
 		/* Get rid of whitespace after the regular expression. */
 		for (; i < line_len; i++) {
-
 			if (!isspace(line_buf[i]))
 				break;
 		}
@@ -420,18 +438,21 @@ int main(int argc, char *argv[])
 		}
 
 		/* Parse out the type from the line (if it
-			*  is there). */
+		 * is there). */
 		if (line_buf[i] == '-') {
 			temp->file_type = (char *)malloc(sizeof(char) * 3);
 			if (!(temp->file_type)) {
+				file_context_node_destroy(temp);
+				free(temp);
+				free(line_buf);
 				fprintf(stderr, "Error: failure allocating memory.\n");
+				fc_free_file_context_node_list(head);
 				return 1;
 			}
 
 			if( i + 2 >= line_len ) {
 				file_context_node_destroy(temp);
 				free(temp);
-
 				continue;
 			}
 
@@ -448,7 +469,6 @@ int main(int argc, char *argv[])
 			}
 
 			if (i == line_len) {
-
 				file_context_node_destroy(temp);
 				free(temp);
 				continue;
@@ -467,24 +487,23 @@ int main(int argc, char *argv[])
 		if (!temp->context) {
 			file_context_node_destroy(temp);
 			free(temp);
+			free(line_buf);
 			fprintf(stderr, "Error: failure allocating memory.\n");
+			fc_free_file_context_node_list(head);
 			return 1;
 		}
 
 		/* Set all the data about the regular
-			*  expression. */
+		 * expression. */
 		fc_fill_data(temp);
 
 		/* Link this line of code at the end of
-			*  the linked list. */
+		 * the linked list. */
 		current->next = temp;
 		current = current->next;
 		lines++;
-
-
-		free(line_buf);
-		line_buf = NULL;
 	}
+	free(line_buf);
 	fclose(in_file);
 
 	/* Create the bucket linked list from the earlier linked list. */
@@ -492,6 +511,12 @@ int main(int argc, char *argv[])
 	bcurrent = master =
 	    (file_context_bucket_t *)
 	    malloc(sizeof(file_context_bucket_t));
+	if (!bcurrent) {
+		printf
+		    ("Error: failure allocating memory.\n");
+		fc_free_file_context_node_list(head);
+		return -1;
+	}
 	bcurrent->next = NULL;
 	bcurrent->data = NULL;
 
@@ -512,25 +537,33 @@ int main(int argc, char *argv[])
 			if (!(bcurrent->next)) {
 				printf
 				    ("Error: failure allocating memory.\n");
-				exit(-1);
+				free(head);
+				fc_free_file_context_node_list(current);
+				fc_merge_sort(master);
+				fc_free_file_context_node_list(master->data);
+				free(master);
+				return -1;
 			}
 
 			/* Make sure the new bucket thinks it's the end of the
-			 *  list. */
+			 * list. */
 			bcurrent->next->next = NULL;
 
 			bcurrent = bcurrent->next;
 		}
-
 	}
 
 	/* Sort the bucket list. */
 	fc_merge_sort(master);
 
+	free(head);
+
 	/* Open the output file. */
 	if (output_name) {
 		if (!(out_file = fopen(output_name, "w"))) {
 			printf("Error: failure opening output file for write.\n");
+			fc_free_file_context_node_list(master->data);
+			free(master);
 			return -1;
 		}
 	} else {
@@ -539,6 +572,7 @@ int main(int argc, char *argv[])
 
 	/* Output the sorted file_context linked list to the output file. */
 	current = master->data;
+
 	while (current) {
 		/* Output the path. */
 		fprintf(out_file, "%s\t\t", current->path);
@@ -551,14 +585,10 @@ int main(int argc, char *argv[])
 		/* Output the context. */
 		fprintf(out_file, "%s\n", current->context);
 
-		/* Remove the node. */
-		temp = current;
 		current = current->next;
-
-		file_context_node_destroy(temp);
-		free(temp);
-
 	}
+
+	fc_free_file_context_node_list(master->data);
 	free(master);
 
 	if (output_name) {
