@@ -189,13 +189,13 @@ def oldgenhomedircon(filecontextdir, filecontext):
                 addme = 1
                 for regex in prefix_regex:
                         #match a trailing (/*)? which is actually a bug in rpc_pipefs
-                        regex = re.sub("\(/\*\)\?$", "", regex)
+                        regex = re.sub(r"\(/\*\)\?$", "", regex)
                         #match a trailing .+
-                        regex = re.sub("\.+$", "", regex)
+                        regex = re.sub(r"\.+$", "", regex)
                         #match a trailing .*
-                        regex = re.sub("\.\*$", "", regex)
+                        regex = re.sub(r"\.\*$", "", regex)
                         #strip a (/.*)? which matches anything trailing to a /*$ which matches trailing /'s
-                        regex = re.sub("\(\/\.\*\)\?", "", regex)
+                        regex = re.sub(r"\(\/\.\*\)\?", "", regex)
                         regex = regex + "/*$"
                         if re.search(regex, potential, 0):
                                 addme = 0
@@ -391,13 +391,13 @@ class selinuxConfig:
 		exists=1
 		for regex in prefix_regex:
 			#match a trailing (/*)? which is actually a bug in rpc_pipefs
-			regex = re.sub("\(/\*\)\?$", "", regex)
+			regex = re.sub(r"\(/\*\)\?$", "", regex)
 			#match a trailing .+
-			regex = re.sub("\.+$", "", regex)
+			regex = re.sub(r"\.+$", "", regex)
 			#match a trailing .*
-			regex = re.sub("\.\*$", "", regex)
+			regex = re.sub(r"\.\*$", "", regex)
 			#strip a (/.*)? which matches anything trailing to a /*$ which matches trailing /'s
-			regex = re.sub("\(\/\.\*\)\?", "", regex)
+			regex = re.sub(r"\(\/\.\*\)\?", "", regex)
 			regex = regex + "/*$"
 			if re.search(regex, home, 0):
 				exists = 0
