@@ -216,10 +216,22 @@ ifdef(`init_systemd',`
 	# handle instances where an old labeled init script is encountered.
 	typeattribute init_t init_run_all_scripts_domain;
 
+	allow init_t self:unix_dgram_socket { create_socket_perms sendto };
+	allow init_t self:process { setsockcreate setfscreate setrlimit };
+	allow init_t self:process { getcap setcap getsched setsched };
+	allow init_t self:unix_stream_socket { create_stream_socket_perms connectto };
+	allow init_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
+	allow init_t self:netlink_selinux_socket create_socket_perms;
+	allow init_t self:system { status reboot halt reload };
+	# Until systemd is fixed
+	allow init_t self:udp_socket create_socket_perms;
+	allow init_t self:netlink_route_socket create_netlink_socket_perms;
+	allow init_t initrc_t:unix_dgram_socket create_socket_perms;
+	allow init_t self:capability2 audit_read;
+
 	# for /run/systemd/inaccessible/{chr,blk}
 	allow init_t init_var_run_t:blk_file { create getattr };
 	allow init_t init_var_run_t:chr_file { create getattr };
-
 
 	allow init_t systemprocess:process { dyntransition siginh };
 	allow init_t systemprocess:unix_stream_socket create_stream_socket_perms;
@@ -257,18 +269,47 @@ ifdef(`init_systemd',`
 
 	kernel_dyntrans_to(init_t)
 	kernel_read_network_state(init_t)
-	kernel_read_kernel_sysctls(init_t)
-	kernel_read_vm_sysctls(init_t)
 	kernel_dgram_send(init_t)
 	kernel_stream_connect(init_t)
 	kernel_getattr_proc(init_t)
 	kernel_read_fs_sysctls(init_t)
+	kernel_list_unlabeled(init_t)
+	kernel_load_module(init_t)
+	kernel_rw_kernel_sysctl(init_t)
+	kernel_rw_net_sysctls(init_t)
+	kernel_read_all_sysctls(init_t)
+	kernel_read_software_raid_state(init_t)
+	kernel_unmount_debugfs(init_t)
+	kernel_setsched(init_t)
+	kernel_rw_unix_sysctls(init_t)
 
-	dev_create_generic_dirs(init_t)
+	# run systemd misc initializations
+	# in the initrc_t domain, as would be
+	# done in traditional sysvinit/upstart.
+	corecmd_bin_domtrans(init_t, initrc_t)
+	corecmd_shell_domtrans(init_t, initrc_t)
+
 	dev_manage_input_dev(init_t)
 	dev_relabel_all_sysfs(init_t)
 	dev_relabel_generic_symlinks(init_t)
 	dev_read_urand(init_t)
+	dev_write_kmsg(init_t)
+	dev_write_urand(init_t)
+	dev_rw_lvm_control(init_t)
+	dev_rw_autofs(init_t)
+	dev_manage_generic_symlinks(init_t)
+	dev_manage_generic_dirs(init_t)
+	dev_manage_generic_files(init_t)
+	dev_manage_null_service(initrc_t)
+	dev_read_generic_chr_files(init_t)
+	dev_relabel_generic_dev_dirs(init_t)
+	dev_relabel_all_dev_nodes(init_t)
+	dev_relabel_all_dev_files(init_t)
+	dev_manage_sysfs_dirs(init_t)
+	dev_relabel_sysfs_dirs(init_t)
+	dev_read_usbfs(initrc_t)
+	# systemd writes to /dev/watchdog on shutdown
+	dev_write_watchdog(init_t)
 
 	domain_read_all_domains_state(init_t)
 
@@ -283,21 +324,47 @@ ifdef(`init_systemd',`
 	files_relabelto_etc_runtime_files(init_t)
 	files_read_all_locks(init_t)
 	files_search_kernel_modules(init_t)
+	files_create_all_pid_pipes(init_t)
+	files_create_all_pid_sockets(init_t)
+	files_create_all_spool_sockets(init_t)
+	files_create_lock_dirs(init_t)
+	files_delete_all_pids(init_t)
+	files_delete_all_spool_sockets(init_t)
+	files_exec_generic_pid_files(init_t)
+	files_list_locks(init_t)
+	files_list_spool(init_t)
+	files_manage_all_pid_dirs(init_t)
+	files_manage_generic_tmp_dirs(init_t)
+	files_manage_urandom_seed(init_t)
+	files_mounton_all_mountpoints(init_t)
+	files_read_boot_files(initrc_t)
+	files_relabel_all_lock_dirs(init_t)
+	files_relabel_all_pid_dirs(init_t)
+	files_relabel_all_pid_files(init_t)
+	files_search_all(init_t)
+	files_unmount_all_file_type_fs(init_t)
 	# for privatetmp functions
 	files_mounton_tmp(init_t)
 	# for ProtectSystem
 	files_mounton_etc_dirs(init_t)
 
 	fs_relabel_cgroup_dirs(init_t)
-	fs_rw_cgroup_files(init_t)
 	fs_list_auto_mountpoints(init_t)
 	fs_mount_autofs(init_t)
 	fs_manage_hugetlbfs_dirs(init_t)
 	fs_getattr_tmpfs(init_t)
 	fs_read_tmpfs_files(init_t)
-	fs_read_cgroup_files(init_t)
 	fs_relabel_pstore_dirs(init_t)
 	fs_dontaudit_getattr_xattr_fs(init_t)
+	fs_create_cgroup_links(init_t)
+	fs_getattr_all_fs(init_t)
+	fs_manage_cgroup_dirs(init_t)
+	fs_manage_cgroup_files(init_t)
+	fs_manage_tmpfs_dirs(init_t)
+	fs_mount_all_fs(init_t)
+	fs_remount_all_fs(init_t)
+	fs_relabelfrom_tmpfs_symlinks(init_t)
+	fs_unmount_all_fs(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
 	fs_relabel_tmpfs_files(init_t)
@@ -308,19 +375,31 @@ ifdef(`init_systemd',`
 	# for network namespaces
 	fs_read_nsfs_files(init_t)
 
-	# need write to /var/run/systemd/notify
-	init_write_pid_socket(daemon)
+	init_read_script_state(init_t)
 
 	# systemd_socket_activated policy
 	mls_socket_write_all_levels(init_t)
 
+	selinux_unmount_fs(init_t)
+	selinux_validate_context(init_t)
 	selinux_compute_create_context(init_t)
 	selinux_compute_access_vector(init_t)
+
+	storage_getattr_removable_dev(init_t)
+
+	term_relabel_pty_dirs(init_t)
+
+	auth_manage_var_auth(init_t)
+	auth_relabel_login_records(init_t)
+	auth_relabel_pam_console_data_dirs(init_t)
 
 	logging_manage_pid_sockets(init_t)
 	logging_send_audit_msgs(init_t)
 	logging_relabelto_devlog_sock_files(init_t)
 	logging_relabel_generic_log_dirs(init_t)
+
+	# lvm2-activation-generator checks file labels
+	seutil_read_file_contexts(init_t)
 
 	systemd_manage_passwd_runtime_symlinks(init_t)
 	systemd_use_passwd_agent(init_t)
@@ -329,6 +408,7 @@ ifdef(`init_systemd',`
 	systemd_relabelto_tmpfiles_conf_files(init_t)
 	systemd_relabelto_journal_dirs(init_t)
 	systemd_relabelto_journal_files(init_t)
+	systemd_manage_all_units(init_t)
 
 	term_create_devpts_dirs(init_t)
 
@@ -849,21 +929,8 @@ ifdef(`enabled_mls',`
 ')
 
 ifdef(`init_systemd',`
-	allow init_t self:system { status reboot halt reload };
-
-	allow init_t self:unix_dgram_socket { create_socket_perms sendto };
-	allow init_t self:process { setsockcreate setfscreate setrlimit };
-	allow init_t self:process { getcap setcap getsched setsched };
-	allow init_t self:unix_stream_socket { create_stream_socket_perms connectto };
-	allow init_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
-	allow init_t self:netlink_selinux_socket create_socket_perms;
-	# Until systemd is fixed
-	allow daemon init_t:socket_class_set { getopt read getattr ioctl setopt write };
-	allow init_t self:udp_socket create_socket_perms;
-	allow init_t self:netlink_route_socket create_netlink_socket_perms;
-	allow init_t initrc_t:unix_dgram_socket create_socket_perms;
 	allow initrc_t init_t:system { start status reboot halt reload };
-	allow init_t self:capability2 audit_read;
+
 	manage_files_pattern(initrc_t, initrc_lock_t, initrc_lock_t)
 	files_lock_filetrans(initrc_t, initrc_lock_t, file)
 
@@ -886,105 +953,36 @@ ifdef(`init_systemd',`
 	allow initrc_t init_script_file_type:service { stop start status reload };
 
 	kernel_dgram_send(initrc_t)
-	kernel_list_unlabeled(init_t)
-	kernel_load_module(init_t)
-	kernel_rw_kernel_sysctl(init_t)
-	kernel_rw_net_sysctls(init_t)
-	kernel_read_all_sysctls(init_t)
-	kernel_read_software_raid_state(init_t)
-	kernel_unmount_debugfs(init_t)
-	kernel_setsched(init_t)
-	kernel_rw_unix_sysctls(init_t)
-
-	auth_manage_var_auth(init_t)
-	auth_relabel_login_records(init_t)
-	auth_relabel_pam_console_data_dirs(init_t)
 
 	# run systemd misc initializations
 	# in the initrc_t domain, as would be
 	# done in traditional sysvinit/upstart.
 	corecmd_bin_entry_type(initrc_t)
-	corecmd_bin_domtrans(init_t, initrc_t)
-	corecmd_shell_domtrans(init_t, initrc_t)
 
 	dev_create_generic_dirs(initrc_t)
-	dev_write_kmsg(init_t)
-	dev_write_urand(init_t)
-	dev_rw_lvm_control(init_t)
-	dev_rw_autofs(init_t)
-	dev_manage_generic_symlinks(init_t)
-	dev_manage_generic_dirs(init_t)
-	dev_manage_generic_files(init_t)
-	dev_manage_null_service(initrc_t)
-	dev_read_generic_chr_files(init_t)
-	dev_relabel_generic_dev_dirs(init_t)
-	dev_relabel_all_dev_nodes(init_t)
-	dev_relabel_all_dev_files(init_t)
-	dev_manage_sysfs_dirs(init_t)
-	dev_relabel_sysfs_dirs(init_t)
-	dev_read_usbfs(initrc_t)
-	# systemd writes to /dev/watchdog on shutdown
-	dev_write_watchdog(init_t)
 
 	# Allow initrc_t to check /etc/fstab "service." It appears that
 	# systemd is conflating files and services.
-	files_create_all_pid_pipes(init_t)
-	files_create_all_pid_sockets(init_t)
-	files_create_all_spool_sockets(init_t)
-	files_create_lock_dirs(init_t)
-	files_create_pid_dirs(initrc_t)
-	files_delete_all_pids(init_t)
-	files_delete_all_spool_sockets(init_t)
-	files_exec_generic_pid_files(init_t)
 	files_get_etc_unit_status(initrc_t)
-	files_list_locks(init_t)
-	files_list_spool(init_t)
-	files_manage_all_pid_dirs(init_t)
-	files_manage_generic_tmp_dirs(init_t)
-	files_manage_urandom_seed(init_t)
-	files_mounton_all_mountpoints(init_t)
-	files_read_boot_files(initrc_t)
-	files_relabel_all_lock_dirs(init_t)
-	files_relabel_all_pid_dirs(init_t)
-	files_relabel_all_pid_files(init_t)
-	files_search_all(init_t)
+	files_create_pid_dirs(initrc_t)
 	files_setattr_pid_dirs(initrc_t)
-	files_unmount_all_file_type_fs(init_t)
-
-	fs_create_cgroup_links(init_t)
-	fs_getattr_all_fs(init_t)
-	fs_manage_cgroup_dirs(init_t)
-	fs_manage_cgroup_files(init_t)
-	fs_manage_tmpfs_dirs(init_t)
-	fs_mount_all_fs(init_t)
-	fs_remount_all_fs(init_t)
-	fs_relabelfrom_tmpfs_symlinks(init_t)
-	fs_unmount_all_fs(init_t)
-	fs_search_cgroup_dirs(daemon)
 
 	# for logsave in strict configuration
 	fstools_write_log(initrc_t)
 
+	selinux_set_enforce_mode(initrc_t)
+
 	init_get_all_units_status(initrc_t)
 	init_manage_var_lib_files(initrc_t)
-	init_read_script_state(init_t)
 	init_rw_stream_sockets(initrc_t)
 
 	# Create /etc/audit.rules.prev after firstboot remediation
 	logging_manage_audit_config(initrc_t)
 
-	selinux_set_enforce_mode(initrc_t)
-	selinux_unmount_fs(init_t)
-	selinux_validate_context(init_t)
 	# lvm2-activation-generator checks file labels
 	seutil_read_file_contexts(initrc_t)
-	seutil_read_file_contexts(init_t)
 
-	storage_getattr_removable_dev(init_t)
-	systemd_manage_all_units(init_t)
 	systemd_start_power_units(initrc_t)
-
-	term_relabel_pty_dirs(init_t)
 
 	optional_policy(`
 		# create /var/lock/lvm/
@@ -1351,6 +1349,16 @@ init_dontaudit_use_fds(daemon)
 # init script ptys are the stdin/out/err
 # when using run_init
 init_use_script_ptys(daemon)
+
+ifdef(`init_systemd',`
+	# Until systemd is fixed
+	allow daemon init_t:socket_class_set { getopt read getattr ioctl setopt write };
+
+	fs_search_cgroup_dirs(daemon)
+
+	# need write to /var/run/systemd/notify
+	init_write_pid_socket(daemon)
+')
 
 tunable_policy(`init_daemons_use_tty',`
 	term_use_unallocated_ttys(daemon)
