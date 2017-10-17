@@ -357,15 +357,11 @@ int main(int argc, char *argv[])
 	}
 
 	/* Initialize the head of the linked list. */
-	head = current = (file_context_node_t*)malloc(sizeof(file_context_node_t));
+	head = current = (file_context_node_t*)calloc(1, sizeof(file_context_node_t));
 	if (!head) {
 		fprintf(stderr, "Error: failure allocating memory.\n");
 		return 1;
 	}
-	head->next = NULL;
-	head->path = NULL;
-	head->file_type = NULL;
-	head->context = NULL;
 
 	/* Parse the file into a file_context linked list. */
 	line_buf = NULL;
@@ -390,15 +386,13 @@ int main(int argc, char *argv[])
 			continue;
 
 		/* We have a valid line - allocate a new node. */
-		temp = (file_context_node_t *)malloc(sizeof(file_context_node_t));
+		temp = (file_context_node_t *)calloc(1, sizeof(file_context_node_t));
 		if (!temp) {
 			free(line_buf);
 			fprintf(stderr, "Error: failure allocating memory.\n");
 			fc_free_file_context_node_list(head);
 			return 1;
 		}
-		temp->next = NULL;
-		memset(temp, 0, sizeof(file_context_node_t));
 
 		/* Parse out the regular expression from the line. */
 		start = i;
