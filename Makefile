@@ -110,6 +110,7 @@ m4terminate := $(support)/fatal_error.m4
 # use our own genhomedircon to make sure we have a known usable one,
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) $(support)/genhomedircon.py
+gentemplates := $(support)/gentemplates.sh
 
 # documentation paths
 docs := doc
@@ -414,12 +415,20 @@ $(fcsort) : $(support)/fc_sort.c
 #
 # Documentation generation
 #
-$(layerxml): %.xml: $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
+iftemplates:  
+	@echo "generating interface templates into $(tmpdir)/iftemplates"
+	@test -d $(tmpdir)/iftemplates || mkdir -p $(tmpdir)/iftemplates
+	$(gentemplates) -g -s $(moddir) -t $(tmpdir)/iftemplates
+ifdef LOCAL_ROOT
+	$(gentemplates) -g -s $(local_moddir) -t $(tmpdir)/iftemplates
+endif
+
+$(layerxml): %.xml: iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) cat $(filter %$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
 ifdef LOCAL_ROOT
-	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
 endif
 
 $(tunxml): $(globaltun)
