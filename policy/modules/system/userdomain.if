@@ -145,6 +145,102 @@ template(`userdom_base_user_template',`
 
 #######################################
 ## <summary>
+##	Template for handling user content through standard tunables
+## </summary>
+## <desc>
+##	<p>
+##	This template generates the tunable blocks for accessing
+##	end user content, either the generic one (user_home_t)
+##	or the complete one (based on user_home_content_type).
+##	</p>
+##	<p>
+##	It calls the *_read_generic_user_content,
+##	*_read_all_user_content, *_manage_generic_user_content, and
+##	*_manage_all_user_content booleans.
+##	</p>
+## </desc>
+## <param name="prefix">
+##	<summary>
+##	The application domain prefix to use, meant for the boolean
+##	calls
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	The application domain which is granted the necessary privileges
+##	</summary>
+## </param>
+## <rolebase/>
+#
+template(`userdom_user_content_access_template',`
+	## <desc>
+	##	<p>
+	##	Grant the $1 domains read access to generic user content
+	##	</p>
+	## </desc>
+	gen_tunable(`$1_read_generic_user_content', true)
+
+	## <desc>
+	##	<p>
+	##	Grant the $1 domains read access to all user content
+	##	</p>
+	## </desc>
+	gen_tunable(`$1_read_all_user_content', false)
+
+	## <desc>
+	##	<p>
+	##	Grant the $1 domains manage rights on generic user content
+	##	</p>
+	## </desc>
+	gen_tunable(`$1_manage_generic_user_content', false)
+
+	## <desc>
+	##	<p>
+	##	Grant the $1 domains manage rights on all user content
+	##	</p>
+	## </desc>
+	gen_tunable(`$1_manage_all_user_content', false)
+
+	tunable_policy(`$1_read_generic_user_content',`
+		userdom_list_user_tmp($2)
+		userdom_list_user_home_content($2)
+		userdom_read_user_home_content_files($2)
+		userdom_read_user_home_content_symlinks($2)
+		userdom_read_user_tmp_files($2)
+		userdom_read_user_tmp_symlinks($2)
+	',`
+		files_dontaudit_list_home($2)
+		files_dontaudit_list_tmp($2)
+
+		userdom_dontaudit_list_user_home_dirs($2)
+		userdom_dontaudit_list_user_tmp($2)
+		userdom_dontaudit_read_user_home_content_files($2)
+		userdom_dontaudit_read_user_tmp_files($2)
+	')
+
+	tunable_policy(`$1_read_all_user_content',`
+		userdom_list_user_tmp($2)
+		userdom_read_all_user_home_content($2)
+	')
+
+	tunable_policy(`$1_manage_generic_user_content',`
+		userdom_manage_user_tmp_dirs($2)
+		userdom_manage_user_tmp_files($2)
+		userdom_manage_user_tmp_symlinks($2)
+		userdom_manage_user_home_content_dirs($2)
+		userdom_manage_user_home_content_files($2)
+		userdom_manage_user_home_content_symlinks($2)
+		userdom_user_home_dir_filetrans_user_home_content($2, {dir file lnk_file})
+	')
+
+	tunable_policy(`$1_manage_all_user_content',`
+		userdom_manage_all_user_home_content($2)
+		userdom_user_home_dir_filetrans_user_home_content($2, {dir file lnk_file})
+	')
+')
+
+#######################################
+## <summary>
 ##	Allow a home directory for which the
 ##	role has read-only access.
 ## </summary>
@@ -2015,7 +2111,7 @@ interface(`userdom_read_all_user_home_content',`
 #
 interface(`userdom_manage_all_user_home_content',`
 	gen_require(`
-		attribute user_home_content_type:
+		attribute user_home_content_type;
 	')
 
 	manage_dirs_pattern($1, user_home_content_type, user_home_content_type)
