@@ -416,11 +416,11 @@ $(fcsort) : $(support)/fc_sort.c
 # Documentation generation
 #
 iftemplates:  
-	@echo "generating interface templates into $(tmpdir)/iftemplates"
+	@echo "Generating interface templates into $(tmpdir)/iftemplates"
 	@test -d $(tmpdir)/iftemplates || mkdir -p $(tmpdir)/iftemplates
-	$(gentemplates) -g -s $(moddir) -t $(tmpdir)/iftemplates
+	$(verbose) $(gentemplates) -g -s $(moddir) -t $(tmpdir)/iftemplates
 ifdef LOCAL_ROOT
-	$(gentemplates) -g -s $(local_moddir) -t $(tmpdir)/iftemplates
+	$(verbose) $(gentemplates) -g -s $(local_moddir) -t $(tmpdir)/iftemplates
 endif
 
 $(layerxml): %.xml: iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
