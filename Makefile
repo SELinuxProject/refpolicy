@@ -71,7 +71,7 @@ AWK ?= gawk
 GREP ?= egrep
 INSTALL ?= install
 M4 ?= m4 -E -E
-PYTHON ?= python -t -t -E -W error
+PYTHON ?= python3 -t -t -E -W error
 SED ?= sed
 SORT ?= LC_ALL=C sort
 UMASK ?= umask

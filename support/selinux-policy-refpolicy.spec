@@ -18,7 +18,7 @@ BuildArch: noarch
 # FIXME Need to ensure these have correct versions
 BuildRequires: checkpolicy >= 2.1.8
 BuildRequires: policycoreutils >= 2.1.10
-BuildRequires: python >= 2.6
+BuildRequires: python >= 3.4
 BuildRequires: libsepol >= 2.1.4
 BuildRequires: libsemanage >= 2.0.29
 BuildRequires: m4 make gcc

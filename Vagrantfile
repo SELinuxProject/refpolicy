@@ -36,7 +36,6 @@ Vagrant.configure("2") do |config|
       make \
       kernel-devel \
       selinux-policy-devel \
-      libselinux-python \
       libselinux-python3 \
       >/dev/null
 
