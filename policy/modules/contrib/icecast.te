@@ -1,0 +1,88 @@
+policy_module(icecast, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether icecast can listen
+##	on and connect to any TCP port.
+##	</p>
+## </desc>
+gen_tunable(icecast_use_any_tcp_ports, false)
+
+type icecast_t;
+type icecast_exec_t;
+application_executable_file(icecast_exec_t)
+init_daemon_domain(icecast_t, icecast_exec_t)
+
+type icecast_initrc_exec_t;
+init_script_file(icecast_initrc_exec_t)
+
+type icecast_log_t;
+logging_log_file(icecast_log_t)
+
+type icecast_var_run_t;
+files_pid_file(icecast_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow icecast_t self:capability { dac_override setgid setuid sys_nice };
+allow icecast_t self:process { getsched setsched signal };
+allow icecast_t self:fifo_file rw_fifo_file_perms;
+allow icecast_t self:unix_stream_socket create_stream_socket_perms;
+allow icecast_t self:tcp_socket { accept listen };
+
+allow icecast_t icecast_log_t:dir setattr_dir_perms;
+append_files_pattern(icecast_t, icecast_log_t, icecast_log_t)
+create_files_pattern(icecast_t, icecast_log_t, icecast_log_t)
+setattr_files_pattern(icecast_t, icecast_log_t, icecast_log_t)
+
+manage_dirs_pattern(icecast_t, icecast_var_run_t, icecast_var_run_t)
+manage_files_pattern(icecast_t, icecast_var_run_t, icecast_var_run_t)
+files_pid_filetrans(icecast_t, icecast_var_run_t, { file dir })
+
+kernel_read_system_state(icecast_t)
+
+corenet_all_recvfrom_unlabeled(icecast_t)
+corenet_all_recvfrom_netlabel(icecast_t)
+corenet_tcp_sendrecv_generic_if(icecast_t)
+corenet_tcp_sendrecv_generic_node(icecast_t)
+corenet_tcp_bind_generic_node(icecast_t)
+
+corenet_sendrecv_soundd_server_packets(icecast_t)
+corenet_tcp_bind_soundd_port(icecast_t)
+corenet_sendrecv_soundd_client_packets(icecast_t)
+corenet_tcp_connect_soundd_port(icecast_t)
+corenet_tcp_sendrecv_soundd_port(icecast_t)
+
+dev_read_sysfs(icecast_t)
+dev_read_urand(icecast_t)
+dev_read_rand(icecast_t)
+
+domain_use_interactive_fds(icecast_t)
+
+auth_use_nsswitch(icecast_t)
+
+miscfiles_read_localization(icecast_t)
+
+tunable_policy(`icecast_use_any_tcp_ports',`
+	corenet_tcp_connect_all_ports(icecast_t)
+	corenet_sendrecv_all_client_packets(icecast_t)
+	corenet_tcp_bind_all_ports(icecast_t)
+	corenet_sendrecv_all_server_packets(icecast_t)
+	corenet_tcp_sendrecv_all_ports(icecast_t)
+')
+
+optional_policy(`
+	apache_read_sys_content(icecast_t)
+')
+
+optional_policy(`
+	rtkit_scheduled(icecast_t)
+')

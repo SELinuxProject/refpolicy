@@ -1,0 +1,173 @@
+## <summary>POP and IMAP mail server.</summary>
+
+#######################################
+## <summary>
+##	Connect to dovecot using a unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dovecot_stream_connect',`
+	gen_require(`
+		type dovecot_t, dovecot_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, dovecot_var_run_t, dovecot_var_run_t, dovecot_t)
+')
+
+########################################
+## <summary>
+##	Connect to dovecot using a unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`dovecot_stream_connect_auth',`
+	gen_require(`
+		type dovecot_auth_t, dovecot_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, dovecot_var_run_t, dovecot_var_run_t, dovecot_auth_t)
+')
+
+########################################
+## <summary>
+##	Execute dovecot_deliver in the
+##	dovecot_deliver domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`dovecot_domtrans_deliver',`
+	gen_require(`
+		type dovecot_deliver_t, dovecot_deliver_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, dovecot_deliver_exec_t, dovecot_deliver_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	dovecot spool files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dovecot_manage_spool',`
+	gen_require(`
+		type dovecot_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 dovecot_spool_t:dir manage_dir_perms;
+	allow $1 dovecot_spool_t:file manage_file_perms;
+	allow $1 dovecot_spool_t:lnk_file manage_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to delete
+##	dovecot lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`dovecot_dontaudit_unlink_lib_files',`
+	gen_require(`
+		type dovecot_var_lib_t;
+	')
+
+	dontaudit $1 dovecot_var_lib_t:file delete_file_perms;
+')
+
+######################################
+## <summary>
+##	Write inherited dovecot tmp files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`dovecot_write_inherited_tmp_files',`
+	gen_require(`
+		type dovecot_tmp_t;
+	')
+
+	allow $1 dovecot_tmp_t:file write;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an dovecot environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`dovecot_admin',`
+	gen_require(`
+		type dovecot_t, dovecot_etc_t, dovecot_var_log_t;
+		type dovecot_spool_t, dovecot_var_lib_t, dovecot_initrc_exec_t;
+		type dovecot_var_run_t, dovecot_cert_t, dovecot_passwd_t;
+		type dovecot_tmp_t, dovecot_auth_tmp_t, dovecot_deliver_tmp_t;
+		type dovecot_keytab_t;
+	')
+
+	allow $1 dovecot_t:process { ptrace signal_perms };
+	ps_process_pattern($1, dovecot_t)
+
+	init_startstop_service($1, $2, dovecot_t, dovecot_initrc_exec_t)
+
+	files_list_etc($1)
+	admin_pattern($1, { dovecot_keytab_t dovecot_etc_t })
+
+	logging_list_logs($1)
+	admin_pattern($1, dovecot_var_log_t)
+
+	files_list_spool($1)
+	admin_pattern($1, dovecot_spool_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, { dovecot_tmp_t dovecot_auth_tmp_t dovecot_deliver_tmp_t })
+
+	files_list_var_lib($1)
+	admin_pattern($1, dovecot_var_lib_t)
+
+	files_list_pids($1)
+	admin_pattern($1, dovecot_var_run_t)
+
+	admin_pattern($1, { dovecot_cert_t dovecot_passwd_t })
+')

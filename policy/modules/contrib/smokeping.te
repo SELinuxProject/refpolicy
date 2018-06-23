@@ -1,0 +1,78 @@
+policy_module(smokeping, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+type smokeping_t;
+type smokeping_exec_t;
+init_daemon_domain(smokeping_t, smokeping_exec_t)
+
+type smokeping_initrc_exec_t;
+init_script_file(smokeping_initrc_exec_t)
+
+type smokeping_var_run_t;
+files_pid_file(smokeping_var_run_t)
+
+type smokeping_var_lib_t;
+files_type(smokeping_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+dontaudit smokeping_t self:capability { dac_override dac_read_search };
+allow smokeping_t self:fifo_file rw_fifo_file_perms;
+allow smokeping_t self:unix_stream_socket { accept listen };
+
+manage_dirs_pattern(smokeping_t, smokeping_var_run_t, smokeping_var_run_t)
+manage_files_pattern(smokeping_t, smokeping_var_run_t, smokeping_var_run_t)
+files_pid_filetrans(smokeping_t, smokeping_var_run_t, { file dir })
+
+manage_dirs_pattern(smokeping_t, smokeping_var_lib_t, smokeping_var_lib_t)
+manage_files_pattern(smokeping_t, smokeping_var_lib_t, smokeping_var_lib_t)
+files_var_lib_filetrans(smokeping_t, smokeping_var_lib_t, { file dir })
+
+corecmd_exec_bin(smokeping_t)
+
+dev_read_urand(smokeping_t)
+
+files_read_usr_files(smokeping_t)
+files_search_tmp(smokeping_t)
+
+auth_use_nsswitch(smokeping_t)
+auth_dontaudit_read_shadow(smokeping_t)
+
+logging_send_syslog_msg(smokeping_t)
+
+miscfiles_read_localization(smokeping_t)
+
+netutils_domtrans_ping(smokeping_t)
+
+optional_policy(`
+	mta_send_mail(smokeping_t)
+')
+
+#######################################
+#
+# Cgi local policy
+#
+
+optional_policy(`
+	apache_content_template(smokeping_cgi)
+
+	manage_dirs_pattern(httpd_smokeping_cgi_script_t, smokeping_var_lib_t, smokeping_var_lib_t)
+	manage_files_pattern(httpd_smokeping_cgi_script_t, smokeping_var_lib_t, smokeping_var_lib_t)
+
+	getattr_files_pattern(httpd_smokeping_cgi_script_t, smokeping_var_run_t, smokeping_var_run_t)
+
+	files_read_etc_files(httpd_smokeping_cgi_script_t)
+	files_search_tmp(httpd_smokeping_cgi_script_t)
+	files_search_var_lib(httpd_smokeping_cgi_script_t)
+
+	sysnet_dns_name_resolve(httpd_smokeping_cgi_script_t)
+
+	netutils_domtrans_ping(httpd_smokeping_cgi_script_t)
+')

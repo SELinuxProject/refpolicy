@@ -1,0 +1,63 @@
+policy_module(mandb, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role mandb_roles;
+roleattribute system_r mandb_roles;
+
+type mandb_t;
+type mandb_exec_t;
+init_system_domain(mandb_t, mandb_exec_t)
+role mandb_roles types mandb_t;
+
+type mandb_unit_t;
+init_unit_file(mandb_unit_t)
+
+########################################
+#
+# Local policy
+#
+
+# dac_override : write /var/cache/man/*
+# fowner       : chmod /var/cache/man/*
+# chown        : lchown32 /var/cache/man/*
+# fsetid       : chmod /var/cache/man/*
+allow mandb_t self:capability { chown dac_override fowner fsetid setgid setuid };
+allow mandb_t self:process { setsched signal };
+allow mandb_t self:fifo_file rw_fifo_file_perms;
+allow mandb_t self:unix_stream_socket create_stream_socket_perms;
+
+kernel_read_kernel_sysctls(mandb_t)
+kernel_read_system_state(mandb_t)
+
+corecmd_exec_bin(mandb_t)
+corecmd_exec_shell(mandb_t)
+
+domain_use_interactive_fds(mandb_t)
+
+files_dontaudit_search_home(mandb_t)
+files_read_etc_files(mandb_t)
+# /usr/local/man
+files_read_usr_symlinks(mandb_t)
+# search /var/run/nscd/socket
+files_search_pids(mandb_t)
+
+fs_getattr_xattr_fs(mandb_t)
+
+miscfiles_manage_man_cache(mandb_t)
+miscfiles_map_man_cache(mandb_t)
+miscfiles_read_man_pages(mandb_t)
+miscfiles_read_localization(mandb_t)
+
+userdom_use_inherited_user_terminals(mandb_t)
+
+ifdef(`init_systemd',`
+	init_search_run(mandb_t)
+')
+
+optional_policy(`
+	cron_system_entry(mandb_t, mandb_exec_t)
+')

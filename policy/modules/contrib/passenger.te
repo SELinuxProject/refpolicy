@@ -1,0 +1,107 @@
+policy_module(passenger, 1.3.0)
+
+########################################
+#
+# Declarations
+#
+
+type passenger_t;
+type passenger_exec_t;
+domain_type(passenger_t)
+domain_entry_file(passenger_t, passenger_exec_t)
+role system_r types passenger_t;
+
+type passenger_log_t;
+logging_log_file(passenger_log_t)
+
+type passenger_var_lib_t;
+files_type(passenger_var_lib_t)
+
+type passenger_var_run_t;
+files_pid_file(passenger_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow passenger_t self:capability { chown dac_override fowner fsetid kill setgid setuid sys_nice sys_ptrace sys_resource };
+allow passenger_t self:process { setpgid setsched sigkill signal };
+allow passenger_t self:fifo_file rw_fifo_file_perms;
+allow passenger_t self:unix_stream_socket { accept connectto listen };
+
+manage_dirs_pattern(passenger_t, passenger_log_t, passenger_log_t)
+append_files_pattern(passenger_t, passenger_log_t, passenger_log_t)
+create_files_pattern(passenger_t, passenger_log_t, passenger_log_t)
+setattr_files_pattern(passenger_t, passenger_log_t, passenger_log_t)
+logging_log_filetrans(passenger_t, passenger_log_t, file)
+
+manage_dirs_pattern(passenger_t, passenger_var_lib_t, passenger_var_lib_t)
+manage_files_pattern(passenger_t, passenger_var_lib_t, passenger_var_lib_t)
+
+manage_dirs_pattern(passenger_t, passenger_var_run_t, passenger_var_run_t)
+manage_files_pattern(passenger_t, passenger_var_run_t, passenger_var_run_t)
+manage_fifo_files_pattern(passenger_t, passenger_var_run_t, passenger_var_run_t)
+manage_sock_files_pattern(passenger_t, passenger_var_run_t, passenger_var_run_t)
+files_pid_filetrans(passenger_t, passenger_var_run_t, { file dir sock_file })
+
+can_exec(passenger_t, passenger_exec_t)
+
+kernel_read_system_state(passenger_t)
+kernel_read_kernel_sysctls(passenger_t)
+kernel_read_network_state(passenger_t)
+kernel_read_net_sysctls(passenger_t)
+
+corenet_all_recvfrom_netlabel(passenger_t)
+corenet_all_recvfrom_unlabeled(passenger_t)
+corenet_tcp_sendrecv_generic_if(passenger_t)
+corenet_tcp_sendrecv_generic_node(passenger_t)
+
+corenet_sendrecv_http_client_packets(passenger_t)
+corenet_tcp_connect_http_port(passenger_t)
+corenet_tcp_sendrecv_http_port(passenger_t)
+
+corecmd_exec_bin(passenger_t)
+corecmd_exec_shell(passenger_t)
+
+dev_read_urand(passenger_t)
+
+domain_read_all_domains_state(passenger_t)
+
+files_read_etc_files(passenger_t)
+
+auth_use_nsswitch(passenger_t)
+
+logging_send_syslog_msg(passenger_t)
+
+miscfiles_read_localization(passenger_t)
+
+sysnet_exec_ifconfig(passenger_t)
+
+userdom_dontaudit_use_user_terminals(passenger_t)
+
+optional_policy(`
+	apache_append_log(passenger_t)
+	apache_read_sys_content(passenger_t)
+')
+
+optional_policy(`
+	hostname_exec(passenger_t)
+')
+
+optional_policy(`
+	mta_send_mail(passenger_t)
+')
+
+optional_policy(`
+	puppet_manage_lib_files(passenger_t)
+	puppet_read_config(passenger_t)
+	puppet_append_log_files(passenger_t)
+	puppet_create_log_files(passenger_t)
+	puppet_read_log_files(passenger_t)
+')
+
+optional_policy(`
+	rpm_exec(passenger_t)
+	rpm_read_db(passenger_t)
+')

@@ -1,0 +1,256 @@
+policy_module(condor, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether Condor can connect
+##	to the network using TCP.
+##	</p>
+## </desc>
+gen_tunable(condor_tcp_network_connect, false)
+
+attribute condor_domain;
+
+type condor_master_t, condor_domain;
+type condor_master_exec_t;
+init_daemon_domain(condor_master_t, condor_master_exec_t)
+
+type condor_master_tmp_t;
+files_tmp_file(condor_master_tmp_t)
+
+type condor_initrc_exec_t;
+init_script_file(condor_initrc_exec_t)
+
+type condor_schedd_tmp_t;
+files_tmp_file(condor_schedd_tmp_t)
+
+type condor_startd_tmp_t;
+files_tmp_file(condor_startd_tmp_t)
+
+type condor_startd_tmpfs_t;
+files_tmpfs_file(condor_startd_tmpfs_t)
+
+type condor_conf_t;
+files_config_file(condor_conf_t)
+
+type condor_log_t;
+logging_log_file(condor_log_t)
+
+type condor_var_lib_t;
+files_type(condor_var_lib_t)
+
+type condor_var_lock_t;
+files_lock_file(condor_var_lock_t)
+
+type condor_var_run_t;
+files_pid_file(condor_var_run_t)
+
+condor_domain_template(collector)
+condor_domain_template(negotiator)
+condor_domain_template(procd)
+condor_domain_template(schedd)
+condor_domain_template(startd)
+
+#####################################
+#
+# Global local policy
+#
+
+allow condor_domain self:process signal_perms;
+allow condor_domain self:fifo_file rw_fifo_file_perms;
+allow condor_domain self:tcp_socket { accept listen };
+allow condor_domain self:unix_stream_socket { accept listen };
+
+rw_files_pattern(condor_domain, condor_conf_t, condor_conf_t)
+
+manage_dirs_pattern(condor_domain, condor_log_t, condor_log_t)
+manage_files_pattern(condor_domain, condor_log_t, condor_log_t)
+logging_log_filetrans(condor_domain, condor_log_t, { dir file })
+
+manage_dirs_pattern(condor_domain, condor_var_lib_t, condor_var_lib_t)
+manage_files_pattern(condor_domain, condor_var_lib_t, condor_var_lib_t)
+files_var_lib_filetrans(condor_domain, condor_var_lib_t, { dir file })
+
+manage_dirs_pattern(condor_domain, condor_var_lock_t, condor_var_lock_t)
+manage_files_pattern(condor_domain, condor_var_lock_t, condor_var_lock_t)
+files_lock_filetrans(condor_domain, condor_var_lock_t, { dir file })
+
+manage_dirs_pattern(condor_domain, condor_var_run_t, condor_var_run_t)
+manage_files_pattern(condor_domain, condor_var_run_t, condor_var_run_t)
+manage_fifo_files_pattern(condor_domain, condor_var_run_t, condor_var_run_t)
+files_pid_filetrans(condor_domain, condor_var_run_t, { dir file fifo_file })
+
+allow condor_domain condor_master_t:process signull;
+allow condor_domain condor_master_t:tcp_socket getattr;
+
+kernel_read_kernel_sysctls(condor_domain)
+kernel_read_network_state(condor_domain)
+kernel_read_system_state(condor_domain)
+
+corecmd_exec_bin(condor_domain)
+corecmd_exec_shell(condor_domain)
+
+corenet_all_recvfrom_netlabel(condor_domain)
+corenet_all_recvfrom_unlabeled(condor_domain)
+corenet_tcp_sendrecv_generic_if(condor_domain)
+corenet_tcp_sendrecv_generic_node(condor_domain)
+
+corenet_sendrecv_condor_client_packets(condor_domain)
+corenet_tcp_connect_condor_port(condor_domain)
+corenet_tcp_sendrecv_condor_port(condor_domain)
+
+domain_use_interactive_fds(condor_domain)
+
+dev_read_rand(condor_domain)
+dev_read_sysfs(condor_domain)
+dev_read_urand(condor_domain)
+
+logging_send_syslog_msg(condor_domain)
+
+miscfiles_read_localization(condor_domain)
+
+sysnet_dns_name_resolve(condor_domain)
+
+tunable_policy(`condor_tcp_network_connect',`
+	corenet_sendrecv_all_client_packets(condor_domain)
+	corenet_tcp_connect_all_ports(condor_domain)
+	corenet_tcp_sendrecv_all_ports(condor_domain)
+')
+
+optional_policy(`
+	rhcs_stream_connect_cluster(condor_domain)
+')
+
+#####################################
+#
+# Master local policy
+#
+
+allow condor_master_t self:capability { dac_override setgid setuid sys_ptrace };
+
+allow condor_master_t condor_domain:process { sigkill signal };
+
+manage_dirs_pattern(condor_master_t, condor_master_tmp_t, condor_master_tmp_t)
+manage_files_pattern(condor_master_t, condor_master_tmp_t, condor_master_tmp_t)
+files_tmp_filetrans(condor_master_t, condor_master_tmp_t, { file dir })
+
+corenet_udp_sendrecv_generic_if(condor_master_t)
+corenet_udp_sendrecv_generic_node(condor_master_t)
+corenet_tcp_bind_generic_node(condor_master_t)
+corenet_udp_bind_generic_node(condor_master_t)
+
+corenet_sendrecv_condor_server_packets(condor_master_t)
+corenet_tcp_bind_condor_port(condor_master_t)
+corenet_tcp_sendrecv_condor_port(condor_master_t)
+corenet_udp_bind_condor_port(condor_master_t)
+corenet_udp_sendrecv_condor_port(condor_master_t)
+
+corenet_sendrecv_amqp_client_packets(condor_master_t)
+corenet_tcp_connect_amqp_port(condor_master_t)
+corenet_tcp_sendrecv_amqp_port(condor_master_t)
+
+domain_read_all_domains_state(condor_master_t)
+
+auth_use_nsswitch(condor_master_t)
+
+optional_policy(`
+	mta_send_mail(condor_master_t)
+	mta_read_config(condor_master_t)
+')
+
+######################################
+#
+# Collector local policy
+#
+
+allow condor_collector_t self:capability { setgid setuid };
+
+allow condor_collector_t condor_master_t:tcp_socket rw_stream_socket_perms;
+allow condor_collector_t condor_master_t:udp_socket rw_socket_perms;
+
+kernel_read_network_state(condor_collector_t)
+
+#####################################
+#
+# Negotiator local policy
+#
+
+allow condor_negotiator_t self:capability { setgid setuid };
+allow condor_negotiator_t condor_master_t:tcp_socket rw_stream_socket_perms;
+allow condor_negotiator_t condor_master_t:udp_socket getattr;
+
+######################################
+#
+# Procd local policy
+#
+
+allow condor_procd_t self:capability { chown dac_override fowner kill sys_ptrace };
+
+allow condor_procd_t condor_domain:process sigkill;
+
+domain_read_all_domains_state(condor_procd_t)
+
+#######################################
+#
+# Schedd local policy
+#
+
+allow condor_schedd_t self:capability { chown dac_override setgid setuid };
+
+allow condor_schedd_t condor_master_t:tcp_socket rw_stream_socket_perms;
+allow condor_schedd_t condor_master_t:udp_socket getattr;
+
+allow condor_schedd_t condor_var_lock_t:dir manage_file_perms;
+
+domtrans_pattern(condor_schedd_t, condor_procd_exec_t, condor_procd_t)
+domtrans_pattern(condor_schedd_t, condor_startd_exec_t, condor_startd_t)
+
+manage_dirs_pattern(condor_schedd_t, condor_schedd_tmp_t, condor_schedd_tmp_t)
+manage_files_pattern(condor_schedd_t, condor_schedd_tmp_t, condor_schedd_tmp_t)
+relabel_files_pattern(condor_schedd_t, condor_schedd_tmp_t, condor_schedd_tmp_t)
+files_tmp_filetrans(condor_schedd_t, condor_schedd_tmp_t, { file dir })
+
+#####################################
+#
+# Startd local policy
+#
+
+allow condor_startd_t self:capability { dac_override net_admin setgid setuid };
+allow condor_startd_t self:process execmem;
+
+manage_dirs_pattern(condor_startd_t, condor_startd_tmp_t, condor_startd_tmp_t)
+manage_files_pattern(condor_startd_t, condor_startd_tmp_t, condor_startd_tmp_t)
+relabel_files_pattern(condor_startd_t, condor_startd_tmp_t, condor_startd_tmp_t)
+files_tmp_filetrans(condor_startd_t, condor_startd_tmp_t, { file dir })
+
+manage_dirs_pattern(condor_startd_t, condor_startd_tmpfs_t, condor_startd_tmpfs_t)
+manage_files_pattern(condor_startd_t, condor_startd_tmpfs_t, condor_startd_tmpfs_t)
+fs_tmpfs_filetrans(condor_startd_t, condor_startd_tmpfs_t, { dir file })
+
+can_exec(condor_startd_t, condor_startd_exec_t)
+
+domain_read_all_domains_state(condor_startd_t)
+
+mcs_process_set_categories(condor_startd_t)
+
+init_domtrans_script(condor_startd_t)
+
+libs_exec_lib_files(condor_startd_t)
+
+files_read_usr_files(condor_startd_t)
+
+optional_policy(`
+	ssh_basic_client_template(condor_startd, condor_startd_t, system_r)
+	ssh_domtrans(condor_startd_t)
+
+	manage_files_pattern(condor_startd_ssh_t, condor_var_lib_t, condor_var_lib_t)
+	manage_dirs_pattern(condor_startd_ssh_t, condor_var_lib_t, condor_var_lib_t)
+
+	optional_policy(`
+		kerberos_use(condor_startd_ssh_t)
+	')
+')

@@ -1,0 +1,472 @@
+## <summary>Software for reliable, scalable, distributed computing.</summary>
+
+#######################################
+## <summary>
+##	The template to define a hadoop domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`hadoop_domain_template',`
+	gen_require(`
+		attribute hadoop_domain, hadoop_initrc_domain, hadoop_init_script_file;
+		attribute hadoop_pid_file, hadoop_lock_file, hadoop_log_file;
+		attribute hadoop_tmp_file, hadoop_var_lib_file;
+		type hadoop_log_t, hadoop_var_lib_t, hadoop_var_run_t;
+		type hadoop_exec_t, hadoop_hsperfdata_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type hadoop_$1_t, hadoop_domain;
+	domain_type(hadoop_$1_t)
+	domain_entry_file(hadoop_$1_t, hadoop_exec_t)
+	role system_r types hadoop_$1_t;
+
+	type hadoop_$1_initrc_t, hadoop_initrc_domain;
+	type hadoop_$1_initrc_exec_t, hadoop_init_script_file;
+	init_script_domain(hadoop_$1_initrc_t, hadoop_$1_initrc_exec_t)
+	role system_r types hadoop_$1_initrc_t;
+
+	type hadoop_$1_initrc_var_run_t, hadoop_pid_file;
+	files_pid_file(hadoop_$1_initrc_var_run_t)
+
+	type hadoop_$1_lock_t, hadoop_lock_file;
+	files_lock_file(hadoop_$1_lock_t)
+
+	type hadoop_$1_log_t, hadoop_log_file;
+	logging_log_file(hadoop_$1_log_t)
+
+	type hadoop_$1_tmp_t, hadoop_tmp_file;
+	files_tmp_file(hadoop_$1_tmp_t)
+
+	type hadoop_$1_var_lib_t, hadoop_var_lib_file;
+	files_type(hadoop_$1_var_lib_t)
+
+	####################################
+	#
+	# hadoop_domain policy
+	#
+
+	manage_files_pattern(hadoop_$1_t, hadoop_$1_log_t, hadoop_$1_log_t)
+	filetrans_pattern(hadoop_$1_t, hadoop_log_t, hadoop_$1_log_t, { dir file })
+
+	manage_dirs_pattern(hadoop_$1_t, hadoop_$1_var_lib_t, hadoop_$1_var_lib_t)
+	manage_files_pattern(hadoop_$1_t, hadoop_$1_var_lib_t, hadoop_$1_var_lib_t)
+	filetrans_pattern(hadoop_$1_t, hadoop_var_lib_t, hadoop_$1_var_lib_t, file)
+
+	manage_files_pattern(hadoop_$1_t, hadoop_$1_initrc_var_run_t, hadoop_$1_initrc_var_run_t)
+	filetrans_pattern(hadoop_$1_t, hadoop_var_run_t, hadoop_$1_initrc_var_run_t, file)
+
+	manage_files_pattern(hadoop_$1_t, hadoop_$1_tmp_t, hadoop_$1_tmp_t)
+	filetrans_pattern(hadoop_$1_t, hadoop_hsperfdata_t, hadoop_$1_tmp_t, file)
+
+	auth_use_nsswitch(hadoop_$1_t)
+
+	####################################
+	#
+	# hadoop_initrc_domain policy
+	#
+
+	allow hadoop_$1_initrc_t hadoop_$1_t:process { signal signull };
+
+	domtrans_pattern(hadoop_$1_initrc_t, hadoop_exec_t, hadoop_$1_t)
+
+	manage_files_pattern(hadoop_$1_initrc_t, hadoop_$1_lock_t, hadoop_$1_lock_t)
+	files_lock_filetrans(hadoop_$1_initrc_t, hadoop_$1_lock_t, file)
+
+	manage_files_pattern(hadoop_$1_initrc_t, hadoop_$1_initrc_var_run_t, hadoop_$1_initrc_var_run_t)
+	filetrans_pattern(hadoop_$1_initrc_t, hadoop_var_run_t, hadoop_$1_initrc_var_run_t, file)
+
+	manage_files_pattern(hadoop_$1_initrc_t, hadoop_$1_log_t, hadoop_$1_log_t)
+	filetrans_pattern(hadoop_$1_initrc_t, hadoop_log_t, hadoop_$1_log_t, { dir file })
+')
+
+########################################
+## <summary>
+##	Role access for hadoop.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`hadoop_role',`
+	gen_require(`
+		attribute_role hadoop_roles, zookeeper_roles;
+		type hadoop_t, zookeeper_t, hadoop_home_t;
+		type hadoop_tmp_t, hadoop_hsperfdata_t, zookeeper_tmp_t;
+	')
+
+	hadoop_domtrans($2)
+	roleattribute $1 hadoop_roles;
+
+	hadoop_domtrans_zookeeper_client($2)
+	roleattribute $1 zookeeper_roles;
+
+	allow $2 { hadoop_t zookeeper_t }:process { ptrace signal_perms };
+	ps_process_pattern($2, { hadoop_t zookeeper_t })
+
+	allow $2 { hadoop_home_t hadoop_tmp_t hadoop_hsperfdata_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { hadoop_home_t hadoop_tmp_t zookeeper_tmp_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 hadoop_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+')
+
+########################################
+## <summary>
+##	Execute hadoop in the
+##	hadoop domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`hadoop_domtrans',`
+	gen_require(`
+		type hadoop_t, hadoop_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, hadoop_exec_t, hadoop_t)
+')
+
+########################################
+## <summary>
+##	Receive from hadoop peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom',`
+	gen_require(`
+		type hadoop_t;
+	')
+
+	allow $1 hadoop_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Execute zookeeper client in the
+##	zookeeper client domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`hadoop_domtrans_zookeeper_client',`
+	gen_require(`
+		type zookeeper_t, zookeeper_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, zookeeper_exec_t, zookeeper_t)
+')
+
+########################################
+## <summary>
+##	Receive from zookeeper peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_zookeeper_client',`
+	gen_require(`
+		type zookeeper_t;
+	')
+
+	allow $1 zookeeper_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Execute zookeeper server in the
+##	zookeeper server domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`hadoop_domtrans_zookeeper_server',`
+	gen_require(`
+		type zookeeper_server_t, zookeeper_server_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, zookeeper_server_exec_t, zookeeper_server_t)
+')
+
+########################################
+## <summary>
+##	Receive from zookeeper server peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_zookeeper_server',`
+	gen_require(`
+		type zookeeper_server_t;
+	')
+
+	allow $1 zookeeper_server_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Execute zookeeper server in the
+##	zookeeper domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`hadoop_initrc_domtrans_zookeeper_server',`
+	gen_require(`
+		type zookeeper_server_initrc_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, zookeeper_server_initrc_exec_t)
+')
+
+########################################
+## <summary>
+##	Receive from datanode peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_datanode',`
+	gen_require(`
+		type hadoop_datanode_t;
+	')
+
+	allow $1 hadoop_datanode_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Read hadoop configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_read_config',`
+	gen_require(`
+		type hadoop_etc_t;
+	')
+
+	read_files_pattern($1, hadoop_etc_t, hadoop_etc_t)
+	read_lnk_files_pattern($1, hadoop_etc_t, hadoop_etc_t)
+')
+
+########################################
+## <summary>
+##	Execute hadoop configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_exec_config',`
+	gen_require(`
+		type hadoop_etc_t;
+	')
+
+	hadoop_read_config($1)
+	allow $1 hadoop_etc_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Receive from jobtracker peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_jobtracker',`
+	gen_require(`
+		type hadoop_jobtracker_t;
+	')
+
+	allow $1 hadoop_jobtracker_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Match hadoop lan association.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_match_lan_spd',`
+	gen_require(`
+		type hadoop_lan_t;
+	')
+
+	allow $1 hadoop_lan_t:association polmatch;
+')
+
+########################################
+## <summary>
+##	Receive from namenode peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_namenode',`
+	gen_require(`
+		type hadoop_namenode_t;
+	')
+
+	allow $1 hadoop_namenode_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Receive from secondary namenode peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_secondarynamenode',`
+	gen_require(`
+		type hadoop_secondarynamenode_t;
+	')
+
+	allow $1 hadoop_secondarynamenode_t:peer recv;
+')
+
+########################################
+## <summary>
+##	Receive from tasktracker peer.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`hadoop_recvfrom_tasktracker',`
+	gen_require(`
+		type hadoop_tasktracker_t;
+	')
+
+	allow $1 hadoop_tasktracker_t:peer recv;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an hadoop environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`hadoop_admin',`
+	gen_require(`
+		attribute hadoop_domain;
+		attribute hadoop_initrc_domain;
+
+		attribute hadoop_pid_file;
+		attribute hadoop_lock_file;
+		attribute hadoop_log_file;
+		attribute hadoop_tmp_file;
+		attribute hadoop_var_lib_file;
+
+		type hadoop_t, hadoop_etc_t, hadoop_hsperfdata_t;
+		type zookeeper_t, zookeeper_etc_t, zookeeper_server_t;
+		type zookeeper_server_var_t;
+
+		type hadoop_datanode_initrc_t, hadoop_datanode_initrc_exec_t;
+		type hadoop_jobtracker_initrc_t, hadoop_jobtracker_initrc_exec_t;
+		type hadoop_namenode_initrc_t, hadoop_namenode_initrc_exec_t;
+		type hadoop_secondarynamenode_initrc_t, hadoop_secondarynamenode_initrc_exec_t;
+		type hadoop_tasktracker_initrc_t, hadoop_tasktracker_initrc_exec_t;
+	')
+
+	allow $1 { hadoop_domain hadoop_initrc_domain hadoop_t zookeeper_t zookeeper_server_t }:process { ptrace signal_perms };
+	ps_process_pattern($1, { hadoop_domain hadoop_initrc_domain hadoop_t zookeeper_t zookeeper_server_t })
+
+	init_startstop_service($1, $2, hadoop_datanode_initrc_t, hadoop_datanode_initrc_exec_t)
+	init_startstop_service($1, $2, hadoop_jobtracker_initrc_t, hadoop_jobtracker_initrc_exec_t)
+	init_startstop_service($1, $2, hadoop_namenode_initrc_t, hadoop_namenode_initrc_exec_t)
+	init_startstop_service($1, $2, hadoop_secondarynamenode_initrc_t, hadoop_secondarynamenode_initrc_exec_t)
+	init_startstop_service($1, $2, hadoop_tasktracker_initrc_t, hadoop_tasktracker_initrc_exec_t)
+
+	files_search_etc($1)
+	admin_pattern($1, { hadoop_etc_t zookeeper_etc_t })
+
+	logging_search_logs($1)
+	admin_pattern($1, hadoop_log_file)
+
+	files_search_locks($1)
+	admin_pattern($1, hadoop_lock_file)
+
+	files_search_pids($1)
+	admin_pattern($1, hadoop_pid_file)
+
+	files_search_tmp($1)
+	admin_pattern($1, { hadoop_tmp_file hadoop_hsperfdata_t })
+
+	files_search_var_lib($1)
+	admin_pattern($1, { hadoop_var_lib_file zookeeper_server_var_t })
+')

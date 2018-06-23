@@ -1,0 +1,330 @@
+policy_module(rhcs, 1.7.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether fenced can
+##	connect to the TCP network.
+##	</p>
+## </desc>
+gen_tunable(fenced_can_network_connect, false)
+
+## <desc>
+##	<p>
+##	Determine whether fenced can use ssh.
+##	</p>
+## </desc>
+gen_tunable(fenced_can_ssh, false)
+
+attribute cluster_domain;
+attribute cluster_log;
+attribute cluster_pid;
+attribute cluster_tmpfs;
+
+rhcs_domain_template(dlm_controld)
+
+type dlm_controld_initrc_exec_t;
+init_script_file(dlm_controld_initrc_exec_t)
+
+rhcs_domain_template(fenced)
+
+type fenced_lock_t;
+files_lock_file(fenced_lock_t)
+
+type fenced_tmp_t;
+files_tmp_file(fenced_tmp_t)
+
+rhcs_domain_template(foghorn)
+
+type foghorn_initrc_exec_t;
+init_script_file(foghorn_initrc_exec_t)
+
+rhcs_domain_template(gfs_controld)
+rhcs_domain_template(groupd)
+rhcs_domain_template(qdiskd)
+
+type qdiskd_var_lib_t;
+files_type(qdiskd_var_lib_t)
+
+#####################################
+#
+# Common cluster domains local policy
+#
+
+allow cluster_domain self:capability sys_nice;
+allow cluster_domain self:process setsched;
+allow cluster_domain self:sem create_sem_perms;
+allow cluster_domain self:fifo_file rw_fifo_file_perms;
+allow cluster_domain self:unix_stream_socket create_stream_socket_perms;
+allow cluster_domain self:unix_dgram_socket create_socket_perms;
+
+logging_send_syslog_msg(cluster_domain)
+
+miscfiles_read_localization(cluster_domain)
+
+optional_policy(`
+	ccs_stream_connect(cluster_domain)
+')
+
+optional_policy(`
+	corosync_stream_connect(cluster_domain)
+')
+
+#####################################
+#
+# dlm_controld local policy
+#
+
+allow dlm_controld_t self:capability { net_admin sys_admin sys_resource };
+allow dlm_controld_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+stream_connect_pattern(dlm_controld_t, fenced_var_run_t, fenced_var_run_t, fenced_t)
+stream_connect_pattern(dlm_controld_t, groupd_var_run_t, groupd_var_run_t, groupd_t)
+
+kernel_read_system_state(dlm_controld_t)
+kernel_rw_net_sysctls(dlm_controld_t)
+
+corecmd_exec_bin(dlm_controld_t)
+
+dev_rw_dlm_control(dlm_controld_t)
+dev_rw_sysfs(dlm_controld_t)
+
+fs_manage_configfs_files(dlm_controld_t)
+fs_manage_configfs_dirs(dlm_controld_t)
+
+init_rw_script_tmp_files(dlm_controld_t)
+
+#######################################
+#
+# fenced local policy
+#
+
+allow fenced_t self:capability { sys_rawio sys_resource };
+allow fenced_t self:process { getsched signal_perms };
+allow fenced_t self:tcp_socket { accept listen };
+allow fenced_t self:unix_stream_socket connectto;
+
+manage_files_pattern(fenced_t, fenced_lock_t, fenced_lock_t)
+files_lock_filetrans(fenced_t, fenced_lock_t, file)
+
+manage_dirs_pattern(fenced_t, fenced_tmp_t, fenced_tmp_t)
+manage_files_pattern(fenced_t, fenced_tmp_t, fenced_tmp_t)
+manage_fifo_files_pattern(fenced_t, fenced_tmp_t, fenced_tmp_t)
+files_tmp_filetrans(fenced_t, fenced_tmp_t, { file fifo_file dir })
+
+stream_connect_pattern(fenced_t, groupd_var_run_t, groupd_var_run_t, groupd_t)
+
+can_exec(fenced_t, fenced_exec_t)
+
+kernel_read_system_state(fenced_t)
+
+corecmd_exec_bin(fenced_t)
+corecmd_exec_shell(fenced_t)
+
+corenet_all_recvfrom_unlabeled(fenced_t)
+corenet_all_recvfrom_netlabel(fenced_t)
+corenet_tcp_sendrecv_generic_if(fenced_t)
+corenet_udp_sendrecv_generic_if(fenced_t)
+corenet_tcp_sendrecv_generic_node(fenced_t)
+corenet_udp_sendrecv_generic_node(fenced_t)
+corenet_tcp_bind_generic_node(fenced_t)
+corenet_udp_bind_generic_node(fenced_t)
+
+corenet_sendrecv_ionixnetmon_server_packets(fenced_t)
+corenet_udp_bind_ionixnetmon_port(fenced_t)
+corenet_udp_sendrecv_ionixnetmon_port(fenced_t)
+
+corenet_sendrecv_zented_server_packets(fenced_t)
+corenet_tcp_bind_zented_port(fenced_t)
+corenet_tcp_sendrecv_zented_port(fenced_t)
+
+corenet_sendrecv_http_client_packets(fenced_t)
+corenet_tcp_connect_http_port(fenced_t)
+corenet_tcp_sendrecv_http_port(fenced_t)
+
+dev_read_sysfs(fenced_t)
+dev_read_urand(fenced_t)
+
+files_read_usr_files(fenced_t)
+files_read_usr_symlinks(fenced_t)
+
+storage_raw_read_fixed_disk(fenced_t)
+storage_raw_write_fixed_disk(fenced_t)
+storage_raw_read_removable_device(fenced_t)
+
+term_getattr_pty_fs(fenced_t)
+term_use_generic_ptys(fenced_t)
+term_use_ptmx(fenced_t)
+
+auth_use_nsswitch(fenced_t)
+
+tunable_policy(`fenced_can_network_connect',`
+	corenet_sendrecv_all_client_packets(fenced_t)
+	corenet_tcp_connect_all_ports(fenced_t)
+	corenet_tcp_sendrecv_all_ports(fenced_t)
+')
+
+optional_policy(`
+	tunable_policy(`fenced_can_ssh',`
+		allow fenced_t self:capability { setgid setuid };
+
+		corenet_sendrecv_ssh_client_packets(fenced_t)
+		corenet_tcp_connect_ssh_port(fenced_t)
+		corenet_tcp_sendrecv_ssh_port(fenced_t)
+
+		ssh_exec(fenced_t)
+		ssh_read_user_home_files(fenced_t)
+	')
+')
+
+optional_policy(`
+	corosync_exec(fenced_t)
+')
+
+optional_policy(`
+	ccs_read_config(fenced_t)
+')
+
+optional_policy(`
+	gnome_read_generic_home_content(fenced_t)
+')
+
+optional_policy(`
+	lvm_domtrans(fenced_t)
+	lvm_read_config(fenced_t)
+')
+
+optional_policy(`
+	snmp_manage_var_lib_files(fenced_t)
+	snmp_manage_var_lib_dirs(fenced_t)
+')
+
+#######################################
+#
+# foghorn local policy
+#
+
+allow foghorn_t self:process signal;
+allow foghorn_t self:tcp_socket create_stream_socket_perms;
+allow foghorn_t self:udp_socket create_socket_perms;
+
+corenet_all_recvfrom_unlabeled(foghorn_t)
+corenet_all_recvfrom_netlabel(foghorn_t)
+corenet_tcp_sendrecv_generic_if(foghorn_t)
+corenet_tcp_sendrecv_generic_node(foghorn_t)
+
+corenet_sendrecv_agentx_client_packets(foghorn_t)
+corenet_tcp_connect_agentx_port(foghorn_t)
+corenet_tcp_sendrecv_agentx_port(foghorn_t)
+
+dev_read_urand(foghorn_t)
+
+files_read_usr_files(foghorn_t)
+
+optional_policy(`
+	dbus_connect_system_bus(foghorn_t)
+')
+
+optional_policy(`
+	snmp_read_snmp_var_lib_files(foghorn_t)
+	snmp_stream_connect(foghorn_t)
+')
+
+######################################
+#
+# gfs_controld local policy
+#
+
+allow gfs_controld_t self:capability { net_admin sys_resource };
+allow gfs_controld_t self:shm create_shm_perms;
+allow gfs_controld_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+stream_connect_pattern(gfs_controld_t, dlm_controld_var_run_t, dlm_controld_var_run_t, dlm_controld_t)
+stream_connect_pattern(gfs_controld_t, fenced_var_run_t, fenced_var_run_t, fenced_t)
+stream_connect_pattern(gfs_controld_t, groupd_var_run_t, groupd_var_run_t, groupd_t)
+
+kernel_read_system_state(gfs_controld_t)
+
+dev_rw_dlm_control(gfs_controld_t)
+dev_setattr_dlm_control(gfs_controld_t)
+dev_rw_sysfs(gfs_controld_t)
+
+storage_getattr_removable_dev(gfs_controld_t)
+
+init_rw_script_tmp_files(gfs_controld_t)
+
+optional_policy(`
+	lvm_exec(gfs_controld_t)
+	dev_rw_lvm_control(gfs_controld_t)
+')
+
+#######################################
+#
+# groupd local policy
+#
+
+allow groupd_t self:capability { sys_nice sys_resource };
+allow groupd_t self:process setsched;
+allow groupd_t self:shm create_shm_perms;
+
+domtrans_pattern(groupd_t, fenced_exec_t, fenced_t)
+
+dev_list_sysfs(groupd_t)
+
+files_read_etc_files(groupd_t)
+
+init_rw_script_tmp_files(groupd_t)
+
+######################################
+#
+# qdiskd local policy
+#
+
+allow qdiskd_t self:capability { ipc_lock sys_boot };
+allow qdiskd_t self:tcp_socket { accept listen };
+
+manage_files_pattern(qdiskd_t, qdiskd_var_lib_t, qdiskd_var_lib_t)
+manage_dirs_pattern(qdiskd_t, qdiskd_var_lib_t, qdiskd_var_lib_t)
+manage_sock_files_pattern(qdiskd_t, qdiskd_var_lib_t, qdiskd_var_lib_t)
+files_var_lib_filetrans(qdiskd_t, qdiskd_var_lib_t, { file dir sock_file })
+
+kernel_read_system_state(qdiskd_t)
+kernel_read_software_raid_state(qdiskd_t)
+kernel_getattr_core_if(qdiskd_t)
+
+corecmd_exec_bin(qdiskd_t)
+corecmd_exec_shell(qdiskd_t)
+
+dev_read_sysfs(qdiskd_t)
+dev_list_all_dev_nodes(qdiskd_t)
+dev_getattr_all_blk_files(qdiskd_t)
+dev_getattr_all_chr_files(qdiskd_t)
+dev_manage_generic_blk_files(qdiskd_t)
+dev_manage_generic_chr_files(qdiskd_t)
+
+domain_dontaudit_getattr_all_pipes(qdiskd_t)
+domain_dontaudit_getattr_all_sockets(qdiskd_t)
+
+files_dontaudit_getattr_all_sockets(qdiskd_t)
+files_dontaudit_getattr_all_pipes(qdiskd_t)
+
+fs_list_hugetlbfs(qdiskd_t)
+
+storage_raw_read_removable_device(qdiskd_t)
+storage_raw_write_removable_device(qdiskd_t)
+storage_raw_read_fixed_disk(qdiskd_t)
+storage_raw_write_fixed_disk(qdiskd_t)
+
+auth_use_nsswitch(qdiskd_t)
+
+optional_policy(`
+	netutils_domtrans_ping(qdiskd_t)
+')
+
+optional_policy(`
+	udev_read_db(qdiskd_t)
+')

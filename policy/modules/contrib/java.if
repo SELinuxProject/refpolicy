@@ -1,0 +1,308 @@
+## <summary>Java virtual machine</summary>
+
+########################################
+## <summary>
+##	Role access for java.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`java_role',`
+	gen_require(`
+		attribute_role java_roles;
+		type java_t, java_exec_t, java_tmp_t;
+		type java_tmpfs_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	roleattribute $1 java_roles;
+
+	########################################
+	#
+	# Policy
+	#
+
+	domtrans_pattern($2, java_exec_t, java_t)
+
+	allow $2 java_t:process { noatsecure siginh rlimitinh ptrace signal_perms };
+	ps_process_pattern($2, java_t)
+
+	allow $2 java_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { java_tmp_t java_tmpfs_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 java_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 java_tmpfs_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 java_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	allow java_t $2:process signull;
+	allow java_t $2:unix_stream_socket connectto;
+	allow java_t $2:unix_stream_socket { read write };
+	allow java_t $2:tcp_socket { read write };
+')
+
+#######################################
+## <summary>
+##	The role template for the java module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for java applications.
+##	</p>
+## </desc>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`java_role_template',`
+	gen_require(`
+		attribute java_domain;
+		type java_exec_t, java_tmp_t, java_tmpfs_t;
+		type java_home_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_java_t, java_domain;
+	userdom_user_application_domain($1_java_t, java_exec_t)
+
+	role $2 types $1_java_t;
+
+	########################################
+	#
+	# Policy
+	#
+
+	domtrans_pattern($3, java_exec_t, $1_java_t)
+
+	allow $3 $1_java_t:process { ptrace noatsecure siginh rlimitinh signal_perms };
+	ps_process_pattern($3, $1_java_t)
+
+	allow $3 { java_home_t java_tmp_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $3 { java_tmp_t java_tmpfs_t java_home_t }:file { manage_file_perms relabel_file_perms };
+	allow $3 java_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $3 java_tmpfs_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $3 java_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	userdom_user_home_dir_filetrans($3, java_home_t, dir, ".java")
+
+	allow $1_java_t $3:process signull;
+	allow $1_java_t $3:unix_stream_socket connectto;
+	allow $1_java_t $3:unix_stream_socket { read write };
+	allow $1_java_t $3:tcp_socket { read write };
+
+	corecmd_bin_domtrans($1_java_t, $3)
+
+	auth_use_nsswitch($1_java_t)
+
+	optional_policy(`
+		xserver_role($2, $1_java_t)
+	')
+')
+
+########################################
+## <summary>
+##	Execute the java program in the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+template(`java_domtrans',`
+	gen_require(`
+		type java_t, java_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, java_exec_t, java_t)
+')
+
+########################################
+## <summary>
+##	Execute java in the java domain, and
+##	allow the specified role the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_run',`
+	gen_require(`
+		attribute_role java_roles;
+	')
+
+	java_domtrans($1)
+	roleattribute $2 java_roles;
+')
+
+########################################
+## <summary>
+##	Execute the java program in the
+##	unconfined java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`java_domtrans_unconfined',`
+	gen_require(`
+		type unconfined_java_t, java_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, java_exec_t, unconfined_java_t)
+')
+
+########################################
+## <summary>
+##	Execute the java program in the
+##	unconfined java domain and allow the
+##	specified role the java domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_run_unconfined',`
+	gen_require(`
+		attribute_role unconfined_java_roles;
+	')
+
+	java_domtrans_unconfined($1)
+	roleattribute $2 unconfined_java_roles;
+')
+
+########################################
+## <summary>
+##	Execute the java program in
+##	the callers domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_exec',`
+	gen_require(`
+		type java_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, java_exec_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	generic java home content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`java_manage_generic_home_content',`
+	gen_require(`
+		type java_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 java_home_t:dir manage_dir_perms;
+	allow $1 java_home_t:file manage_file_perms;
+')
+
+######################################
+## <summary>
+##      Create, read, write, and delete
+##      temporary java content.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`java_manage_java_tmp',`
+	gen_require(`
+		type java_tmp_t;
+	')
+
+	allow $1 java_tmp_t:dir manage_dir_perms;
+	allow $1 java_tmp_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Create specified objects in user home
+##	directories with the generic java
+##	home type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`java_home_filetrans_java_home',`
+	gen_require(`
+		type java_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, java_home_t, $2, $3)
+')

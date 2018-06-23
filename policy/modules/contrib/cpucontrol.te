@@ -1,0 +1,104 @@
+policy_module(cpucontrol, 1.7.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute cpucontrol_domain;
+
+type cpucontrol_t, cpucontrol_domain;
+type cpucontrol_exec_t;
+init_system_domain(cpucontrol_t, cpucontrol_exec_t)
+
+type cpucontrol_conf_t;
+files_config_file(cpucontrol_conf_t)
+
+type cpuspeed_t, cpucontrol_domain;
+type cpuspeed_exec_t;
+init_system_domain(cpuspeed_t, cpuspeed_exec_t)
+
+type cpuspeed_var_run_t;
+files_pid_file(cpuspeed_var_run_t)
+
+########################################
+#
+# Common local policy
+#
+
+dontaudit cpucontrol_domain self:capability sys_tty_config;
+allow cpucontrol_domain self:process signal_perms;
+
+kernel_read_kernel_sysctls(cpucontrol_domain)
+
+domain_use_interactive_fds(cpucontrol_domain)
+
+files_list_usr(cpucontrol_domain)
+
+fs_search_auto_mountpoints(cpucontrol_domain)
+
+term_dontaudit_use_console(cpucontrol_domain)
+
+init_use_fds(cpucontrol_domain)
+init_use_script_ptys(cpucontrol_domain)
+
+logging_send_syslog_msg(cpucontrol_domain)
+
+userdom_dontaudit_use_unpriv_user_fds(cpucontrol_domain)
+
+optional_policy(`
+	nscd_use(cpucontrol_domain)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(cpucontrol_domain)
+')
+
+optional_policy(`
+	udev_read_db(cpucontrol_domain)
+')
+
+########################################
+#
+# Loader local policy
+#
+
+allow cpucontrol_t self:capability { ipc_lock sys_rawio };
+
+allow cpucontrol_t cpucontrol_conf_t:dir list_dir_perms;
+read_files_pattern(cpucontrol_t, cpucontrol_conf_t, cpucontrol_conf_t)
+read_lnk_files_pattern(cpucontrol_t, cpucontrol_conf_t, cpucontrol_conf_t)
+
+kernel_list_proc(cpucontrol_t)
+kernel_read_proc_symlinks(cpucontrol_t)
+
+dev_read_sysfs(cpucontrol_t)
+dev_rw_cpu_microcode(cpucontrol_t)
+
+optional_policy(`
+	rhgb_use_ptys(cpucontrol_t)
+')
+
+########################################
+#
+# Scaling local policy
+#
+
+allow cpuspeed_t self:process setsched;
+allow cpuspeed_t self:unix_dgram_socket create_socket_perms;
+
+allow cpuspeed_t cpuspeed_var_run_t:file manage_file_perms;
+files_pid_filetrans(cpuspeed_t, cpuspeed_var_run_t, file)
+
+kernel_read_system_state(cpuspeed_t)
+
+# This doesnt make sense
+dev_write_sysfs_dirs(cpuspeed_t)
+dev_rw_sysfs(cpuspeed_t)
+
+domain_read_all_domains_state(cpuspeed_t)
+
+files_read_etc_files(cpuspeed_t)
+files_read_etc_runtime_files(cpuspeed_t)
+
+miscfiles_read_localization(cpuspeed_t)

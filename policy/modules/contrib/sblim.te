@@ -1,0 +1,122 @@
+policy_module(sblim, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute sblim_domain;
+
+type sblim_gatherd_t, sblim_domain;
+type sblim_gatherd_exec_t;
+init_daemon_domain(sblim_gatherd_t, sblim_gatherd_exec_t)
+
+type sblim_reposd_t, sblim_domain;
+type sblim_reposd_exec_t;
+init_daemon_domain(sblim_reposd_t, sblim_reposd_exec_t)
+
+type sblim_initrc_exec_t;
+init_script_file(sblim_initrc_exec_t)
+
+type sblim_var_run_t;
+files_pid_file(sblim_var_run_t)
+
+######################################
+#
+# Common sblim domain local policy
+#
+
+allow sblim_domain self:tcp_socket create_stream_socket_perms;
+
+manage_dirs_pattern(sblim_domain, sblim_var_run_t, sblim_var_run_t)
+manage_files_pattern(sblim_domain, sblim_var_run_t, sblim_var_run_t)
+manage_sock_files_pattern(sblim_domain, sblim_var_run_t, sblim_var_run_t)
+
+kernel_read_network_state(sblim_domain)
+kernel_read_system_state(sblim_domain)
+
+corenet_all_recvfrom_unlabeled(sblim_domain)
+corenet_all_recvfrom_netlabel(sblim_domain)
+corenet_tcp_sendrecv_generic_if(sblim_domain)
+corenet_tcp_sendrecv_generic_node(sblim_domain)
+
+corenet_tcp_sendrecv_repository_port(sblim_domain)
+
+dev_read_sysfs(sblim_domain)
+
+logging_send_syslog_msg(sblim_domain)
+
+files_read_etc_files(sblim_domain)
+
+miscfiles_read_localization(sblim_domain)
+
+########################################
+#
+# Gatherd local policy
+#
+
+allow sblim_gatherd_t self:capability dac_override;
+allow sblim_gatherd_t self:process signal;
+allow sblim_gatherd_t self:fifo_file rw_fifo_file_perms;
+allow sblim_gatherd_t self:unix_stream_socket { accept listen };
+
+domtrans_pattern(sblim_gatherd_t, sblim_reposd_exec_t, sblim_reposd_t)
+
+kernel_read_fs_sysctls(sblim_gatherd_t)
+kernel_read_kernel_sysctls(sblim_gatherd_t)
+
+corecmd_exec_bin(sblim_gatherd_t)
+corecmd_exec_shell(sblim_gatherd_t)
+
+corenet_sendrecv_repository_client_packets(sblim_gatherd_t)
+corenet_tcp_connect_repository_port(sblim_gatherd_t)
+
+dev_read_rand(sblim_gatherd_t)
+dev_read_urand(sblim_gatherd_t)
+
+domain_read_all_domains_state(sblim_gatherd_t)
+
+fs_getattr_all_fs(sblim_gatherd_t)
+fs_search_cgroup_dirs(sblim_gatherd_t)
+
+storage_raw_read_fixed_disk(sblim_gatherd_t)
+storage_raw_read_removable_device(sblim_gatherd_t)
+
+init_read_utmp(sblim_gatherd_t)
+
+sysnet_dns_name_resolve(sblim_gatherd_t)
+
+term_getattr_pty_fs(sblim_gatherd_t)
+
+userdom_signull_unpriv_users(sblim_gatherd_t)
+
+optional_policy(`
+	locallogin_signull(sblim_gatherd_t)
+')
+
+optional_policy(`
+	rpc_search_nfs_state_data(sblim_gatherd_t)
+')
+
+optional_policy(`
+	ssh_signull(sblim_gatherd_t)
+')
+
+optional_policy(`
+	virt_getattr_virtd_exec_files(sblim_gatherd_t)
+	virt_stream_connect(sblim_gatherd_t)
+')
+
+optional_policy(`
+	xen_stream_connect(sblim_gatherd_t)
+	xen_stream_connect_xenstore(sblim_gatherd_t)
+')
+
+#######################################
+#
+# Reposd local policy
+#
+
+corenet_sendrecv_repository_server_packets(sblim_reposd_t)
+corenet_tcp_bind_repository_port(sblim_reposd_t)
+corenet_tcp_bind_generic_node(sblim_domain)

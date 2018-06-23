@@ -1,0 +1,62 @@
+policy_module(dbadm, 1.1.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether dbadm can manage
+##	generic user files.
+##	</p>
+## </desc>
+gen_tunable(dbadm_manage_user_files, false)
+
+## <desc>
+##	<p>
+##	Determine whether dbadm can read
+##	generic user files.
+##	</p>
+## </desc>
+gen_tunable(dbadm_read_user_files, false)
+
+role dbadm_r;
+
+userdom_base_user_template(dbadm)
+
+########################################
+#
+# Local policy
+#
+
+allow dbadm_t self:capability { dac_override dac_read_search sys_ptrace };
+
+files_dontaudit_search_all_dirs(dbadm_t)
+files_delete_generic_locks(dbadm_t)
+files_list_var(dbadm_t)
+
+selinux_get_enforce_mode(dbadm_t)
+
+logging_send_syslog_msg(dbadm_t)
+
+userdom_dontaudit_search_user_home_dirs(dbadm_t)
+
+tunable_policy(`dbadm_manage_user_files',`
+	userdom_manage_user_home_content_files(dbadm_t)
+	userdom_read_user_tmp_files(dbadm_t)
+	userdom_write_user_tmp_files(dbadm_t)
+')
+
+tunable_policy(`dbadm_read_user_files',`
+	userdom_read_user_home_content_files(dbadm_t)
+	userdom_read_user_tmp_files(dbadm_t)
+')
+
+optional_policy(`
+	mysql_admin(dbadm_t, dbadm_r)
+')
+
+optional_policy(`
+	postgresql_admin(dbadm_t, dbadm_r)
+')

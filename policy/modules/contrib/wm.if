@@ -1,0 +1,252 @@
+## <summary>X Window Managers.</summary>
+
+#######################################
+## <summary>
+##	The role template for the wm module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domains which are used
+##	for window manager applications.
+##	</p>
+## </desc>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`wm_role_template',`
+	gen_require(`
+		attribute wm_domain;
+		type wm_exec_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_wm_t, wm_domain;
+	userdom_user_application_domain($1_wm_t, wm_exec_t)
+	role $2 types $1_wm_t;
+
+	########################################
+	#
+	# Policy
+	#
+
+	allow $3 $1_wm_t:fd use;
+
+	allow $1_wm_t $3:unix_stream_socket connectto;
+	allow $3 $1_wm_t:unix_stream_socket connectto;
+
+	allow $3 $1_wm_t:process { ptrace signal_perms };
+	ps_process_pattern($3, $1_wm_t)
+
+	allow $1_wm_t $3:process { signull sigkill };
+
+	domtrans_pattern($3, wm_exec_t, $1_wm_t)
+
+	corecmd_bin_domtrans($1_wm_t, $3)
+	corecmd_shell_domtrans($1_wm_t, $3)
+
+	mls_file_read_all_levels($1_wm_t)
+	mls_file_write_all_levels($1_wm_t)
+	mls_xwin_read_all_levels($1_wm_t)
+	mls_xwin_write_all_levels($1_wm_t)
+	mls_fd_use_all_levels($1_wm_t)
+
+	auth_use_nsswitch($1_wm_t)
+
+	xserver_role($2, $1_wm_t)
+	xserver_manage_core_devices($1_wm_t)
+
+	wm_write_pipes($1, $3)
+
+	optional_policy(`
+		dbus_connect_spec_session_bus($1, $1_wm_t)
+		dbus_spec_session_bus_client($1, $1_wm_t)
+		dbus_system_bus_client($1_wm_t)
+
+		optional_policy(`
+			wm_dbus_chat($1, $3)
+		')
+	')
+
+	optional_policy(`
+		gnome_stream_connect_all_gkeyringd($1_wm_t)
+	')
+
+	optional_policy(`
+		policykit_run_auth($1_wm_t, $2)
+		policykit_signal_auth($1_wm_t)
+	')
+
+	optional_policy(`
+		pulseaudio_run($1_wm_t, $2)
+	')
+')
+
+########################################
+## <summary>
+##	Execute wm in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`wm_exec',`
+	gen_require(`
+		type wm_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, wm_exec_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	specified wm over dbus.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`wm_dbus_chat',`
+	gen_require(`
+		type $1_wm_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_wm_t:dbus send_msg;
+	allow $1_wm_t $2:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to execute
+##	files in temporary directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`wm_dontaudit_exec_tmp_files',`
+	gen_require(`
+		type wm_tmp_t;
+	')
+
+	dontaudit $1 wm_tmp_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to execute
+##	files in temporary filesystems.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`wm_dontaudit_exec_tmpfs_files',`
+	gen_require(`
+		type wm_tmpfs_t;
+	')
+
+	dontaudit $1 wm_tmpfs_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Create a domain for applications
+##	that are launched by the window
+##	manager.
+## </summary>
+## <desc>
+##	<p>
+##	Create a domain for applications that are launched by the
+##	window manager (implying a domain transition).  Typically
+##	these are graphical applications that are run interactively.
+##	</p>
+##	<p>
+##	The types will be made usable as a domain and file, making
+##	calls to domain_type() and files_type() redundant.
+##	</p>
+## </desc>
+## <param name="target_domain">
+##	<summary>
+##	Type to be used in the domain transition as the application
+##	domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+## <param name="source_domain">
+##	<summary>
+##	Type to be used as the source window manager domain.
+##	</summary>
+## </param>
+## <infoflow type="none"/>
+#
+interface(`wm_application_domain',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	userdom_user_application_domain($1, $2)
+	domtrans_pattern(wm_domain, $2, $1)
+')
+
+########################################
+## <summary>
+##	Write wm unnamed pipes.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user domain (e.g., user
+##	is the prefix for user_t).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`wm_write_pipes',`
+	gen_require(`
+		type $1_wm_t;
+	')
+
+	allow $2 $1_wm_t:fifo_file write;
+')

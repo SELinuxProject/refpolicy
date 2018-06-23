@@ -1,0 +1,99 @@
+## <summary>Various games.</summary>
+
+########################################
+## <summary>
+##	Role access for games.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`games_role',`
+	gen_require(`
+		attribute_role games_roles;
+		type games_t, games_exec_t, games_tmp_t;
+		type games_tmpfs_t;
+	')
+
+	roleattribute $1 games_roles;
+
+	domtrans_pattern($2, games_exec_t, games_t)
+
+	allow $2 games_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { games_tmp_t games_tmpfs_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 games_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 games_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	allow $2 games_t:process { ptrace signal_perms };
+	ps_process_pattern($2, games_t)
+
+	stream_connect_pattern($2, games_tmpfs_t, games_tmpfs_t, games_t)
+
+	allow games_t $2:unix_stream_socket connectto;
+')
+
+########################################
+## <summary>
+##	Read and write games data files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`games_rw_data',`
+	gen_require(`
+		type games_data_t;
+	')
+
+	files_search_var_lib($1)
+	rw_files_pattern($1, games_data_t, games_data_t)
+')
+
+########################################
+## <summary>
+##	Run a game in the game domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`games_domtrans',`
+	gen_require(`
+		type games_t, games_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, games_exec_t, games_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	games over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`games_dbus_chat',`
+	gen_require(`
+		type games_t;
+		class dbus send_msg;
+	')
+
+	allow $1 games_t:dbus send_msg;
+	allow games_t $1:dbus send_msg;
+')

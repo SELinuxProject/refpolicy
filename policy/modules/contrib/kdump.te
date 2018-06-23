@@ -1,0 +1,119 @@
+policy_module(kdump, 1.6.0)
+
+#######################################
+#
+# Declarations
+#
+
+type kdump_t;
+type kdump_exec_t;
+init_system_domain(kdump_t, kdump_exec_t)
+
+type kdump_etc_t;
+files_config_file(kdump_etc_t)
+
+type kdump_initrc_exec_t;
+init_script_file(kdump_initrc_exec_t)
+
+type kdump_unit_t;
+init_unit_file(kdump_unit_t)
+
+type kdumpctl_t;
+type kdumpctl_exec_t;
+init_daemon_domain(kdumpctl_t, kdumpctl_exec_t)
+application_executable_file(kdumpctl_exec_t)
+
+type kdumpctl_tmp_t;
+files_tmp_file(kdumpctl_tmp_t)
+
+#####################################
+#
+# Local policy
+#
+
+allow kdump_t self:capability { dac_override sys_boot };
+
+allow kdump_t kdump_etc_t:file read_file_perms;
+
+files_read_etc_files(kdump_t)
+files_read_etc_runtime_files(kdump_t)
+files_read_kernel_img(kdump_t)
+
+kernel_read_core_if(kdump_t)
+kernel_read_debugfs(kdump_t)
+kernel_read_system_state(kdump_t)
+kernel_request_load_module(kdump_t)
+
+dev_read_framebuffer(kdump_t)
+dev_read_sysfs(kdump_t)
+
+term_use_console(kdump_t)
+
+#######################################
+#
+# Ctl local policy
+#
+
+allow kdumpctl_t self:capability { dac_override sys_chroot };
+allow kdumpctl_t self:process setfscreate;
+allow kdumpctl_t self:fifo_file rw_fifo_file_perms;
+allow kdumpctl_t self:unix_stream_socket { accept listen };
+
+allow kdumpctl_t kdump_etc_t:file read_file_perms;
+
+manage_dirs_pattern(kdumpctl_t, kdumpctl_tmp_t, kdumpctl_tmp_t)
+manage_files_pattern(kdumpctl_t, kdumpctl_tmp_t, kdumpctl_tmp_t)
+manage_lnk_files_pattern(kdumpctl_t, kdumpctl_tmp_t, kdumpctl_tmp_t)
+files_tmp_filetrans(kdumpctl_t, kdumpctl_tmp_t, { file dir lnk_file })
+
+domtrans_pattern(kdumpctl_t, kdump_exec_t, kdump_t)
+
+kernel_read_system_state(kdumpctl_t)
+
+corecmd_exec_bin(kdumpctl_t)
+corecmd_exec_shell(kdumpctl_t)
+
+dev_read_sysfs(kdumpctl_t)
+dev_manage_all_dev_nodes(kdumpctl_t)
+
+domain_use_interactive_fds(kdumpctl_t)
+
+files_create_kernel_img(kdumpctl_t)
+files_read_etc_files(kdumpctl_t)
+files_read_etc_runtime_files(kdumpctl_t)
+files_read_usr_files(kdumpctl_t)
+files_read_kernel_modules(kdumpctl_t)
+files_getattr_all_dirs(kdumpctl_t)
+
+fs_getattr_all_fs(kdumpctl_t)
+fs_search_all(kdumpctl_t)
+
+init_domtrans_script(kdumpctl_t)
+init_exec(kdumpctl_t)
+
+libs_exec_ld_so(kdumpctl_t)
+
+logging_send_syslog_msg(kdumpctl_t)
+
+miscfiles_read_localization(kdumpctl_t)
+
+optional_policy(`
+	gpg_exec(kdumpctl_t)
+')
+
+optional_policy(`
+	lvm_read_config(kdumpctl_t)
+')
+
+optional_policy(`
+	modutils_domtrans(kdumpctl_t)
+	modutils_read_module_config(kdumpctl_t)
+')
+
+optional_policy(`
+	plymouthd_domtrans_plymouth(kdumpctl_t)
+')
+
+optional_policy(`
+	ssh_exec(kdumpctl_t)
+')

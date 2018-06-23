@@ -1,0 +1,124 @@
+policy_module(tor, 1.14.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether tor can bind
+##	tcp sockets to all unreserved ports.
+##	</p>
+## </desc>
+gen_tunable(tor_bind_all_unreserved_ports, false)
+
+type tor_t;
+type tor_exec_t;
+init_daemon_domain(tor_t, tor_exec_t)
+
+type tor_etc_t;
+files_config_file(tor_etc_t)
+
+type tor_initrc_exec_t;
+init_script_file(tor_initrc_exec_t)
+
+type tor_unit_t;
+init_unit_file(tor_unit_t)
+
+type tor_var_lib_t;
+files_type(tor_var_lib_t)
+
+type tor_var_log_t;
+logging_log_file(tor_var_log_t)
+
+type tor_var_run_t;
+files_pid_file(tor_var_run_t)
+init_daemon_pid_file(tor_var_run_t, dir, "tor")
+
+########################################
+#
+# Local policy
+#
+
+allow tor_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid sys_tty_config };
+# net_admin is for SO_SNDBUFFORCE
+dontaudit tor_t self:capability net_admin;
+allow tor_t self:process signal;
+allow tor_t self:fifo_file rw_fifo_file_perms;
+allow tor_t self:unix_stream_socket { accept listen };
+allow tor_t self:tcp_socket { accept listen };
+
+allow tor_t tor_etc_t:dir list_dir_perms;
+allow tor_t tor_etc_t:file read_file_perms;
+allow tor_t tor_etc_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(tor_t, tor_var_lib_t, tor_var_lib_t)
+manage_files_pattern(tor_t, tor_var_lib_t, tor_var_lib_t)
+allow tor_t tor_var_lib_t:file map;
+manage_sock_files_pattern(tor_t, tor_var_lib_t, tor_var_lib_t)
+files_var_lib_filetrans(tor_t, tor_var_lib_t, dir)
+
+allow tor_t tor_var_log_t:dir setattr_dir_perms;
+append_files_pattern(tor_t, tor_var_log_t, tor_var_log_t)
+create_files_pattern(tor_t, tor_var_log_t, tor_var_log_t)
+setattr_files_pattern(tor_t, tor_var_log_t, tor_var_log_t)
+manage_sock_files_pattern(tor_t, tor_var_log_t, tor_var_log_t)
+logging_log_filetrans(tor_t, tor_var_log_t, { sock_file file dir })
+
+manage_dirs_pattern(tor_t, tor_var_run_t, tor_var_run_t)
+manage_files_pattern(tor_t, tor_var_run_t, tor_var_run_t)
+manage_sock_files_pattern(tor_t, tor_var_run_t, tor_var_run_t)
+files_pid_filetrans(tor_t, tor_var_run_t, { dir file sock_file })
+
+kernel_read_kernel_sysctls(tor_t)
+kernel_read_net_sysctls(tor_t)
+kernel_read_system_state(tor_t)
+
+corenet_all_recvfrom_unlabeled(tor_t)
+corenet_all_recvfrom_netlabel(tor_t)
+corenet_tcp_sendrecv_generic_if(tor_t)
+corenet_udp_sendrecv_generic_if(tor_t)
+corenet_tcp_sendrecv_generic_node(tor_t)
+corenet_udp_sendrecv_generic_node(tor_t)
+corenet_tcp_bind_generic_node(tor_t)
+corenet_udp_bind_generic_node(tor_t)
+
+corenet_sendrecv_dns_server_packets(tor_t)
+corenet_udp_bind_dns_port(tor_t)
+corenet_udp_sendrecv_dns_port(tor_t)
+
+corenet_sendrecv_tor_server_packets(tor_t)
+corenet_tcp_bind_tor_port(tor_t)
+corenet_tcp_sendrecv_tor_port(tor_t)
+
+corenet_sendrecv_all_client_packets(tor_t)
+corenet_tcp_connect_all_ports(tor_t)
+corenet_tcp_connect_all_reserved_ports(tor_t)
+corenet_tcp_sendrecv_all_ports(tor_t)
+corenet_tcp_sendrecv_all_reserved_ports(tor_t)
+
+dev_read_sysfs(tor_t)
+dev_read_urand(tor_t)
+
+domain_use_interactive_fds(tor_t)
+
+files_read_etc_runtime_files(tor_t)
+files_read_usr_files(tor_t)
+
+fs_search_tmpfs(tor_t)
+
+auth_use_nsswitch(tor_t)
+
+logging_send_syslog_msg(tor_t)
+
+miscfiles_read_localization(tor_t)
+
+tunable_policy(`tor_bind_all_unreserved_ports',`
+	corenet_sendrecv_all_server_packets(tor_t)
+	corenet_tcp_bind_all_unreserved_ports(tor_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(tor_t)
+')

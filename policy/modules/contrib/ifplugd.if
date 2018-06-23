@@ -1,0 +1,132 @@
+## <summary>Bring up/down ethernet interfaces based on cable detection.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run ifplugd.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`ifplugd_domtrans',`
+	gen_require(`
+		type ifplugd_t, ifplugd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, ifplugd_exec_t, ifplugd_t)
+')
+
+########################################
+## <summary>
+##	Send generic signals to ifplugd.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ifplugd_signal',`
+	gen_require(`
+		type ifplugd_t;
+	')
+
+	allow $1 ifplugd_t:process signal;
+')
+
+########################################
+## <summary>
+##	Read ifplugd configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ifplugd_read_config',`
+	gen_require(`
+		type ifplugd_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, ifplugd_etc_t, ifplugd_etc_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	ifplugd configuration content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ifplugd_manage_config',`
+	gen_require(`
+		type ifplugd_etc_t;
+	')
+
+	files_search_etc($1)
+	manage_dirs_pattern($1, ifplugd_etc_t, ifplugd_etc_t)
+	manage_files_pattern($1, ifplugd_etc_t, ifplugd_etc_t)
+')
+
+########################################
+## <summary>
+##	Read ifplugd pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ifplugd_read_pid_files',`
+	gen_require(`
+		type ifplugd_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 ifplugd_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an ifplugd environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ifplugd_admin',`
+	gen_require(`
+		type ifplugd_t, ifplugd_etc_t, ifplugd_var_run_t;
+		type ifplugd_initrc_exec_t;
+	')
+
+	allow $1 ifplugd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ifplugd_t)
+
+	init_startstop_service($1, $2, ifplugd_t, ifplugd_initrc_exec_t)
+
+	files_list_etc($1)
+	admin_pattern($1, ifplugd_etc_t)
+
+	files_list_pids($1)
+	admin_pattern($1, ifplugd_var_run_t)
+')

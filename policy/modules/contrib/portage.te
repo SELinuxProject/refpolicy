@@ -1,0 +1,364 @@
+policy_module(portage, 1.16.2)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether portage can
+##	use nfs filesystems.
+##	</p>
+## </desc>
+gen_tunable(portage_use_nfs, false)
+
+attribute_role gcc_config_roles;
+attribute_role portage_roles;
+attribute_role portage_fetch_roles;
+
+type gcc_config_t;
+type gcc_config_exec_t;
+application_domain(gcc_config_t, gcc_config_exec_t)
+role gcc_config_roles types gcc_config_t;
+
+# constraining type
+type portage_t;
+type portage_exec_t;
+application_domain(portage_t, portage_exec_t)
+domain_obj_id_change_exemption(portage_t)
+rsync_entry_type(portage_t)
+corecmd_shell_entry_type(portage_t)
+role portage_roles types portage_t;
+
+# portage compile sandbox domain
+type portage_sandbox_t;
+application_domain(portage_sandbox_t, portage_exec_t)
+# the shell is the entrypoint if regular sandbox is disabled
+# portage_exec_t is the entrypoint if regular sandbox is enabled
+corecmd_shell_entry_type(portage_sandbox_t)
+role portage_roles types portage_sandbox_t;
+
+# portage package fetching domain
+type portage_fetch_t;
+type portage_fetch_exec_t;
+application_domain(portage_fetch_t, portage_fetch_exec_t)
+corecmd_shell_entry_type(portage_fetch_t)
+rsync_entry_type(portage_fetch_t)
+role portage_fetch_roles types portage_fetch_t;
+
+type portage_devpts_t;
+term_pty(portage_devpts_t)
+
+type portage_ebuild_t;
+files_mountpoint(portage_ebuild_t)
+
+type portage_fetch_tmp_t;
+files_tmp_file(portage_fetch_tmp_t)
+
+type portage_db_t;
+files_type(portage_db_t)
+
+type portage_conf_t;
+files_type(portage_conf_t)
+
+type portage_cache_t;
+files_type(portage_cache_t)
+
+type portage_gpg_t;
+files_type(portage_gpg_t)
+
+type portage_log_t;
+logging_log_file(portage_log_t)
+
+type portage_srcrepo_t;
+files_type(portage_srcrepo_t)
+
+type portage_tmp_t;
+files_tmp_file(portage_tmp_t)
+
+type portage_tmpfs_t;
+files_tmpfs_file(portage_tmpfs_t)
+
+########################################
+#
+# gcc-config policy
+#
+
+allow gcc_config_t self:capability { chown fsetid };
+allow gcc_config_t self:fifo_file rw_fifo_file_perms;
+
+manage_files_pattern(gcc_config_t, portage_cache_t, portage_cache_t)
+
+read_files_pattern(gcc_config_t, portage_conf_t, portage_conf_t)
+
+allow gcc_config_t portage_ebuild_t:dir list_dir_perms;
+read_files_pattern(gcc_config_t, portage_ebuild_t, portage_ebuild_t)
+
+allow gcc_config_t portage_exec_t:file mmap_exec_file_perms;
+
+kernel_read_system_state(gcc_config_t)
+kernel_read_kernel_sysctls(gcc_config_t)
+
+corecmd_exec_shell(gcc_config_t)
+corecmd_exec_bin(gcc_config_t)
+corecmd_manage_bin_files(gcc_config_t)
+
+domain_use_interactive_fds(gcc_config_t)
+
+files_manage_etc_files(gcc_config_t)
+files_rw_etc_runtime_files(gcc_config_t)
+files_read_usr_files(gcc_config_t)
+files_search_var_lib(gcc_config_t)
+files_search_pids(gcc_config_t)
+# complains loudly about not being able to list
+# the directory it is being run from
+files_list_all(gcc_config_t)
+
+# seems to be ok without this
+init_dontaudit_read_script_status_files(gcc_config_t)
+
+libs_read_lib_files(gcc_config_t)
+libs_run_ldconfig(gcc_config_t, portage_roles)
+libs_manage_shared_libs(gcc_config_t)
+# gcc-config creates a temp dir for the libs
+libs_manage_lib_dirs(gcc_config_t)
+
+logging_send_syslog_msg(gcc_config_t)
+
+miscfiles_read_localization(gcc_config_t)
+
+userdom_use_user_terminals(gcc_config_t)
+
+consoletype_exec(gcc_config_t)
+
+ifdef(`distro_gentoo',`
+	init_exec_rc(gcc_config_t)
+')
+
+tunable_policy(`portage_use_nfs',`
+	fs_read_nfs_files(gcc_config_t)
+')
+
+optional_policy(`
+	seutil_use_newrole_fds(gcc_config_t)
+')
+
+########################################
+#
+# Portage Merging Rules
+#
+
+# - setfscreate for merging to live fs
+allow portage_t self:process { setfscreate };
+# - kill for mysql merging, at least
+allow portage_t self:capability { kill setfcap sys_nice };
+dontaudit portage_t self:capability { dac_read_search };
+dontaudit portage_t self:netlink_route_socket rw_netlink_socket_perms;
+
+# user post-sync scripts
+can_exec(portage_t, portage_conf_t)
+
+allow portage_t portage_log_t:file manage_file_perms;
+logging_log_filetrans(portage_t, portage_log_t, file)
+
+allow portage_t { portage_fetch_t portage_sandbox_t }:process signal;
+
+# transition for rsync and wget
+corecmd_shell_spec_domtrans(portage_t, portage_fetch_t)
+rsync_entry_domtrans(portage_t, portage_fetch_t)
+allow portage_fetch_t portage_t:fd use;
+allow portage_fetch_t portage_t:fifo_file rw_fifo_file_perms;
+allow portage_fetch_t portage_t:process sigchld;
+
+# transition to sandbox for compiling
+spec_domtrans_pattern(portage_t, portage_exec_t, portage_sandbox_t)
+corecmd_shell_spec_domtrans(portage_t, portage_sandbox_t)
+
+# run scripts out of the build directory
+can_exec(portage_t, portage_tmp_t)
+
+kernel_dontaudit_request_load_module(portage_t)
+# merging baselayout will need this:
+kernel_write_proc_files(portage_t)
+
+domain_dontaudit_read_all_domains_state(portage_t)
+
+# modify any files in the system
+files_manage_all_files(portage_t)
+# eselect uses file, which mmap()s its db
+files_map_usr_files(portage_t)
+
+selinux_get_fs_mount(portage_t)
+
+auth_manage_shadow(portage_t)
+
+# merging baselayout will need this:
+init_exec(portage_t)
+
+libs_run_ldconfig(portage_t, portage_roles)
+
+miscfiles_read_localization(portage_t)
+
+# run setfiles -r
+seutil_run_setfiles(portage_t, portage_roles)
+# run semodule
+seutil_run_semanage(portage_t, portage_roles)
+
+portage_run_gcc_config(portage_t, portage_roles)
+# if sesandbox is disabled, compiling is performed in this domain
+portage_compile_domain(portage_t)
+
+optional_policy(`
+	bootloader_run(portage_t, portage_roles)
+')
+
+optional_policy(`
+	cron_system_entry(portage_t, portage_exec_t)
+	cron_system_entry(portage_fetch_t, portage_fetch_exec_t)
+')
+
+optional_policy(`
+	gpg_spec_domtrans(portage_t, portage_fetch_t)
+')
+
+optional_policy(`
+	modutils_run(portage_t, portage_roles)
+	#dontaudit update_modules_t portage_tmp_t:dir search_dir_perms;
+')
+
+optional_policy(`
+	usermanage_run_groupadd(portage_t, portage_roles)
+	usermanage_run_useradd(portage_t, portage_roles)
+')
+
+ifdef(`TODO',`
+# seems to work ok without these
+dontaudit portage_t device_t:{ blk_file chr_file } getattr;
+dontaudit portage_t proc_t:dir setattr_dir_perms;
+')
+
+##########################################
+#
+# Portage fetch domain
+# - for rsync and distfile fetching
+#
+
+allow portage_fetch_t self:process signal;
+allow portage_fetch_t self:capability { chown dac_override fowner fsetid };
+allow portage_fetch_t self:fifo_file rw_fifo_file_perms;
+allow portage_fetch_t self:tcp_socket { accept listen };
+allow portage_fetch_t self:unix_stream_socket { connectto create_stream_socket_perms };
+
+allow portage_fetch_t portage_conf_t:dir list_dir_perms;
+
+allow portage_fetch_t portage_devpts_t:chr_file { rw_chr_file_perms setattr_chr_file_perms };
+
+allow portage_fetch_t portage_gpg_t:dir rw_dir_perms;
+allow portage_fetch_t portage_gpg_t:file manage_file_perms;
+
+allow portage_fetch_t portage_tmp_t:dir manage_dir_perms;
+allow portage_fetch_t portage_tmp_t:file manage_file_perms;
+allow portage_fetch_t portage_tmp_t:sock_file manage_sock_file_perms;
+
+read_files_pattern(portage_fetch_t, portage_conf_t, portage_conf_t)
+
+manage_dirs_pattern(portage_fetch_t, portage_ebuild_t, portage_ebuild_t)
+manage_files_pattern(portage_fetch_t, portage_ebuild_t, portage_ebuild_t)
+
+manage_dirs_pattern(portage_fetch_t, portage_fetch_tmp_t, portage_fetch_tmp_t)
+manage_files_pattern(portage_fetch_t, portage_fetch_tmp_t, portage_fetch_tmp_t)
+files_tmp_filetrans(portage_fetch_t, portage_fetch_tmp_t, { file dir })
+
+kernel_read_system_state(portage_fetch_t)
+kernel_read_kernel_sysctls(portage_fetch_t)
+
+corecmd_exec_bin(portage_fetch_t)
+corecmd_exec_shell(portage_fetch_t)
+
+corenet_all_recvfrom_unlabeled(portage_fetch_t)
+corenet_all_recvfrom_netlabel(portage_fetch_t)
+corenet_tcp_sendrecv_generic_if(portage_fetch_t)
+corenet_tcp_sendrecv_generic_node(portage_fetch_t)
+corenet_tcp_sendrecv_all_ports(portage_fetch_t)
+corenet_tcp_connect_http_cache_port(portage_fetch_t)
+corenet_tcp_connect_git_port(portage_fetch_t)
+corenet_tcp_connect_rsync_port(portage_fetch_t)
+corenet_sendrecv_http_client_packets(portage_fetch_t)
+corenet_sendrecv_http_cache_client_packets(portage_fetch_t)
+corenet_sendrecv_git_client_packets(portage_fetch_t)
+corenet_sendrecv_rsync_client_packets(portage_fetch_t)
+# would rather not connect to unspecified ports, but
+# it occasionally comes up
+corenet_tcp_connect_all_reserved_ports(portage_fetch_t)
+corenet_tcp_connect_generic_port(portage_fetch_t)
+corenet_udp_bind_generic_node(portage_fetch_t)
+corenet_udp_bind_all_unreserved_ports(portage_fetch_t)
+
+dev_read_rand(portage_fetch_t)
+
+domain_use_interactive_fds(portage_fetch_t)
+
+files_read_etc_runtime_files(portage_fetch_t)
+files_read_usr_files(portage_fetch_t)
+files_dontaudit_search_pids(portage_fetch_t)
+
+fs_search_auto_mountpoints(portage_fetch_t)
+
+logging_list_logs(portage_fetch_t)
+logging_dontaudit_search_logs(portage_fetch_t)
+
+term_search_ptys(portage_fetch_t)
+
+auth_use_nsswitch(portage_fetch_t)
+
+miscfiles_read_generic_certs(portage_fetch_t)
+miscfiles_read_localization(portage_fetch_t)
+
+userdom_use_user_terminals(portage_fetch_t)
+userdom_dontaudit_read_user_home_content_files(portage_fetch_t)
+
+rsync_exec(portage_fetch_t)
+
+ifdef(`hide_broken_symptoms',`
+	dontaudit portage_fetch_t portage_cache_t:file read;
+')
+
+tunable_policy(`portage_use_nfs',`
+	fs_getattr_nfs(portage_fetch_t)
+	fs_manage_nfs_dirs(portage_fetch_t)
+	fs_manage_nfs_files(portage_fetch_t)
+	fs_manage_nfs_symlinks(portage_fetch_t)
+')
+
+optional_policy(`
+	dirmngr_exec(portage_fetch_t)
+')
+
+optional_policy(`
+	gpg_entry_type(portage_fetch_t)
+	gpg_exec(portage_fetch_t)
+	gpg_exec_agent(portage_fetch_t)
+')
+
+##########################################
+#
+# Portage sandbox domain
+# - SELinux-enforced sandbox
+#
+
+allow portage_sandbox_t self:process ptrace;
+dontaudit portage_sandbox_t self:netlink_route_socket rw_netlink_socket_perms;
+
+allow portage_sandbox_t portage_log_t:file { create_file_perms delete_file_perms setattr_file_perms append_file_perms };
+logging_log_filetrans(portage_sandbox_t, portage_log_t, file)
+
+portage_compile_domain(portage_sandbox_t)
+
+auth_use_nsswitch(portage_sandbox_t)
+
+ifdef(`hide_broken_symptoms',`
+	# leaked descriptors
+	dontaudit portage_sandbox_t portage_cache_t:dir { setattr_dir_perms };
+	dontaudit portage_sandbox_t portage_cache_t:file { setattr_file_perms write };
+')

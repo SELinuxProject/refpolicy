@@ -1,0 +1,107 @@
+policy_module(uwimap, 1.11.0)
+
+########################################
+#
+# Declarations
+#
+
+type imapd_t;
+type imapd_exec_t;
+init_daemon_domain(imapd_t, imapd_exec_t)
+
+type imapd_tmp_t;
+files_tmp_file(imapd_tmp_t)
+
+type imapd_var_run_t;
+files_pid_file(imapd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow imapd_t self:capability { dac_override setgid setuid sys_resource };
+dontaudit imapd_t self:capability sys_tty_config;
+allow imapd_t self:process signal_perms;
+allow imapd_t self:fifo_file rw_fifo_file_perms;
+allow imapd_t self:tcp_socket { accept listen };
+
+manage_dirs_pattern(imapd_t, imapd_tmp_t, imapd_tmp_t)
+manage_files_pattern(imapd_t, imapd_tmp_t, imapd_tmp_t)
+files_tmp_filetrans(imapd_t, imapd_tmp_t, { file dir })
+
+manage_files_pattern(imapd_t, imapd_var_run_t, imapd_var_run_t)
+files_pid_filetrans(imapd_t, imapd_var_run_t, file)
+
+kernel_read_kernel_sysctls(imapd_t)
+kernel_list_proc(imapd_t)
+kernel_read_proc_symlinks(imapd_t)
+
+corenet_all_recvfrom_unlabeled(imapd_t)
+corenet_all_recvfrom_netlabel(imapd_t)
+corenet_tcp_sendrecv_generic_if(imapd_t)
+corenet_tcp_sendrecv_generic_node(imapd_t)
+corenet_tcp_sendrecv_all_ports(imapd_t)
+corenet_tcp_bind_generic_node(imapd_t)
+
+corenet_sendrecv_pop_server_packets(imapd_t)
+corenet_tcp_bind_pop_port(imapd_t)
+
+corenet_sendrecv_all_client_packets(imapd_t)
+corenet_tcp_connect_all_ports(imapd_t)
+
+dev_read_rand(imapd_t)
+dev_read_sysfs(imapd_t)
+dev_read_urand(imapd_t)
+
+domain_use_interactive_fds(imapd_t)
+
+files_read_etc_files(imapd_t)
+
+fs_getattr_all_fs(imapd_t)
+fs_search_auto_mountpoints(imapd_t)
+
+auth_domtrans_chk_passwd(imapd_t)
+
+logging_send_syslog_msg(imapd_t)
+
+miscfiles_read_localization(imapd_t)
+
+sysnet_dns_name_resolve(imapd_t)
+
+userdom_dontaudit_use_unpriv_user_fds(imapd_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(imapd_t)
+	fs_manage_nfs_files(imapd_t)
+	fs_manage_nfs_symlinks(imapd_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(imapd_t)
+	fs_manage_cifs_files(imapd_t)
+	fs_manage_cifs_symlinks(imapd_t)
+')
+
+optional_policy(`
+	inetd_tcp_service_domain(imapd_t, imapd_exec_t)
+')
+
+optional_policy(`
+	mta_manage_spool(imapd_t)
+	mta_manage_mail_home_rw_content(imapd_t)
+	mta_home_filetrans_mail_home_rw(imapd_t, dir, "Maildir")
+	mta_home_filetrans_mail_home_rw(imapd_t, dir, ".maildir")
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(imapd_t)
+')
+
+optional_policy(`
+	tcpd_wrapped_domain(imapd_t, imapd_exec_t)
+')
+
+optional_policy(`
+	udev_read_db(imapd_t)
+')

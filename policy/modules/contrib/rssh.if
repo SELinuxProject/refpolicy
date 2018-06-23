@@ -1,0 +1,112 @@
+## <summary>Restricted (scp/sftp) only shell.</summary>
+
+########################################
+## <summary>
+##	Role access for rssh.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`rssh_role',`
+	gen_require(`
+		attribute_role rssh_roles;
+		type rssh_t, rssh_exec_t, rssh_ro_t;
+		type rssh_rw_t;
+	')
+
+	roleattribute $1 rssh_roles;
+
+	domtrans_pattern($2, rssh_exec_t, rssh_t)
+
+	allow $2 rssh_t:process { ptrace signal_perms };
+	ps_process_pattern($2, rssh_t)
+
+	allow $2 { rssh_ro_t rssh_rw_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { rssh_ro_t rssh_rw_t }:file { manage_file_perms relabel_file_perms };
+')
+
+########################################
+## <summary>
+##	Execute rssh in the rssh domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`rssh_spec_domtrans',`
+	gen_require(`
+		type rssh_t, rssh_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	spec_domtrans_pattern($1, rssh_exec_t, rssh_t)
+')
+
+########################################
+## <summary>
+##	Execute the rssh program
+##	in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rssh_exec',`
+	gen_require(`
+		type rssh_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, rssh_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to
+##	run rssh chroot helper.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`rssh_domtrans_chroot_helper',`
+	gen_require(`
+		type rssh_chroot_helper_t, rssh_chroot_helper_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, rssh_chroot_helper_exec_t, rssh_chroot_helper_t)
+')
+
+########################################
+## <summary>
+##	Read users rssh read-only content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rssh_read_ro_content',`
+	gen_require(`
+		type rssh_ro_t;
+	')
+
+	allow $1 rssh_ro_t:dir list_dir_perms;
+	allow $1 rssh_ro_t:file read_file_perms;
+')

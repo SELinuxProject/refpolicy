@@ -1,0 +1,226 @@
+## <summary>Network monitoring server.</summary>
+
+#######################################
+## <summary>
+##	The template to define a nagios plugin domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`nagios_plugin_template',`
+	gen_require(`
+		attribute nagios_plugin_domain;
+		type nagios_t, nrpe_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type nagios_$1_plugin_t, nagios_plugin_domain;
+	type nagios_$1_plugin_exec_t;
+	application_domain(nagios_$1_plugin_t, nagios_$1_plugin_exec_t)
+	role system_r types nagios_$1_plugin_t;
+
+	########################################
+	#
+	# Policy
+	#
+
+	domtrans_pattern(nrpe_t, nagios_$1_plugin_exec_t, nagios_$1_plugin_t)
+	allow nagios_t nagios_$1_plugin_exec_t:file ioctl;
+
+	domtrans_pattern(nagios_t, nagios_$1_plugin_exec_t, nagios_$1_plugin_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read or
+##	write nagios unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nagios_dontaudit_rw_pipes',`
+	gen_require(`
+		type nagios_t;
+	')
+
+	dontaudit $1 nagios_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
+##	Read nagios configuration content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nagios_read_config',`
+	gen_require(`
+		type nagios_etc_t;
+	')
+
+	files_search_etc($1)
+	allow $1 nagios_etc_t:dir list_dir_perms;
+	allow $1 nagios_etc_t:file read_file_perms;
+	allow $1 nagios_etc_t:lnk_file read_lnk_file_perms;
+')
+
+######################################
+## <summary>
+##	Read nagios log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`nagios_read_log',`
+	gen_require(`
+		type nagios_log_t;
+	')
+
+	logging_search_logs($1)
+	read_files_pattern($1, nagios_log_t, nagios_log_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read or
+##	write nagios log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`nagios_dontaudit_rw_log',`
+	gen_require(`
+		type nagios_log_t;
+	')
+
+	dontaudit $1 nagios_log_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Search nagios spool directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`nagios_search_spool',`
+	gen_require(`
+		type nagios_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 nagios_spool_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Read nagios temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`nagios_read_tmp_files',`
+	gen_require(`
+		type nagios_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 nagios_tmp_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Execute nrpe with a domain transition.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`nagios_domtrans_nrpe',`
+	gen_require(`
+		type nrpe_t, nrpe_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, nrpe_exec_t, nrpe_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an nagios environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`nagios_admin',`
+	gen_require(`
+		attribute nagios_plugin_domain;
+		type nagios_t, nrpe_t, nagios_initrc_exec_t;
+		type nagios_tmp_t, nagios_log_t, nagios_var_lib_t;
+		type nagios_etc_t, nrpe_etc_t, nrpe_var_run_t;
+		type nagios_spool_t, nagios_var_run_t, nagios_system_plugin_tmp_t;
+		type nagios_eventhandler_plugin_tmp_t;
+	')
+
+	allow $1 { nagios_t nrpe_t nagios_plugin_domain }:process { ptrace signal_perms };
+	ps_process_pattern($1, { nagios_t nrpe_t nagios_plugin_domain })
+
+	init_startstop_service($1, $2, nagios_t, nagios_initrc_exec_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, { nagios_eventhandler_plugin_tmp_t nagios_tmp_t nagios_system_plugin_tmp_t })
+
+	logging_search_logs($1)
+	admin_pattern($1, nagios_log_t)
+
+	files_search_etc($1)
+	admin_pattern($1, { nrpe_etc_t nagios_etc_t })
+
+	files_search_spool($1)
+	admin_pattern($1, nagios_spool_t)
+
+	files_search_pids($1)
+	admin_pattern($1, { nrpe_var_run_t nagios_var_run_t })
+
+	files_search_var_lib($1)
+	admin_pattern($1, nagios_var_lib_t)
+')

@@ -1,0 +1,204 @@
+policy_module(cobbler, 1.3.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether Cobbler can modify
+##	public files used for public file
+##	transfer services.
+##	</p>
+## </desc>
+gen_tunable(cobbler_anon_write, false)
+
+## <desc>
+##	<p>
+##	Determine whether Cobbler can connect
+##	to the network using TCP.
+##	</p>
+## </desc>
+gen_tunable(cobbler_can_network_connect, false)
+
+## <desc>
+##	<p>
+##	Determine whether Cobbler can access
+##	cifs file systems.
+##	</p>
+## </desc>
+gen_tunable(cobbler_use_cifs, false)
+
+## <desc>
+##	<p>
+##	Determine whether Cobbler can access
+##	nfs file systems.
+##	</p>
+## </desc>
+gen_tunable(cobbler_use_nfs, false)
+
+type cobblerd_t;
+type cobblerd_exec_t;
+init_daemon_domain(cobblerd_t, cobblerd_exec_t)
+
+type cobblerd_initrc_exec_t;
+init_script_file(cobblerd_initrc_exec_t)
+
+type cobbler_etc_t;
+files_config_file(cobbler_etc_t)
+
+type cobbler_var_log_t;
+logging_log_file(cobbler_var_log_t)
+
+type cobbler_var_lib_t alias cobbler_content_t;
+files_type(cobbler_var_lib_t)
+
+type cobbler_tmp_t;
+files_tmp_file(cobbler_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow cobblerd_t self:capability { chown dac_override fowner fsetid sys_nice };
+dontaudit cobblerd_t self:capability sys_tty_config;
+allow cobblerd_t self:process { getsched setsched signal };
+allow cobblerd_t self:fifo_file rw_fifo_file_perms;
+allow cobblerd_t self:tcp_socket { accept listen };
+
+allow cobblerd_t cobbler_etc_t:dir list_dir_perms;
+allow cobblerd_t cobbler_etc_t:file read_file_perms;
+allow cobblerd_t cobbler_etc_t:lnk_file read_lnk_file_perms;
+
+allow cobblerd_t cobbler_tmp_t:file mmap_exec_file_perms;
+manage_dirs_pattern(cobblerd_t, cobbler_tmp_t, cobbler_tmp_t)
+manage_files_pattern(cobblerd_t, cobbler_tmp_t, cobbler_tmp_t)
+files_tmp_filetrans(cobblerd_t, cobbler_tmp_t, { dir file })
+
+manage_dirs_pattern(cobblerd_t, cobbler_var_lib_t, cobbler_var_lib_t)
+manage_files_pattern(cobblerd_t, cobbler_var_lib_t, cobbler_var_lib_t)
+manage_lnk_files_pattern(cobblerd_t, cobbler_var_lib_t, cobbler_var_lib_t)
+files_var_lib_filetrans(cobblerd_t, cobbler_var_lib_t, dir)
+
+append_files_pattern(cobblerd_t, cobbler_var_log_t, cobbler_var_log_t)
+create_files_pattern(cobblerd_t, cobbler_var_log_t, cobbler_var_log_t)
+read_files_pattern(cobblerd_t, cobbler_var_log_t, cobbler_var_log_t)
+setattr_files_pattern(cobblerd_t, cobbler_var_log_t, cobbler_var_log_t)
+logging_log_filetrans(cobblerd_t, cobbler_var_log_t, file)
+
+kernel_read_system_state(cobblerd_t)
+kernel_dontaudit_search_network_state(cobblerd_t)
+
+corecmd_exec_bin(cobblerd_t)
+corecmd_exec_shell(cobblerd_t)
+
+corenet_all_recvfrom_netlabel(cobblerd_t)
+corenet_all_recvfrom_unlabeled(cobblerd_t)
+corenet_tcp_sendrecv_generic_if(cobblerd_t)
+corenet_tcp_sendrecv_generic_node(cobblerd_t)
+corenet_tcp_bind_generic_node(cobblerd_t)
+
+corenet_sendrecv_cobbler_server_packets(cobblerd_t)
+corenet_tcp_bind_cobbler_port(cobblerd_t)
+corenet_tcp_sendrecv_cobbler_port(cobblerd_t)
+
+corenet_sendrecv_ftp_client_packets(cobblerd_t)
+corenet_tcp_connect_ftp_port(cobblerd_t)
+corenet_tcp_sendrecv_ftp_port(cobblerd_t)
+
+corenet_tcp_sendrecv_http_port(cobblerd_t)
+corenet_tcp_connect_http_port(cobblerd_t)
+corenet_sendrecv_http_client_packets(cobblerd_t)
+
+dev_read_urand(cobblerd_t)
+
+files_list_boot(cobblerd_t)
+files_list_tmp(cobblerd_t)
+files_read_boot_files(cobblerd_t)
+files_read_etc_files(cobblerd_t)
+files_read_etc_runtime_files(cobblerd_t)
+files_read_usr_files(cobblerd_t)
+
+fs_getattr_all_fs(cobblerd_t)
+fs_read_iso9660_files(cobblerd_t)
+
+selinux_get_enforce_mode(cobblerd_t)
+
+term_use_console(cobblerd_t)
+
+logging_send_syslog_msg(cobblerd_t)
+
+miscfiles_read_localization(cobblerd_t)
+miscfiles_read_public_files(cobblerd_t)
+
+sysnet_dns_name_resolve(cobblerd_t)
+sysnet_rw_dhcp_config(cobblerd_t)
+sysnet_write_config(cobblerd_t)
+
+tunable_policy(`cobbler_anon_write',`
+	miscfiles_manage_public_files(cobblerd_t)
+')
+
+tunable_policy(`cobbler_can_network_connect',`
+	corenet_sendrecv_all_client_packets(cobblerd_t)
+	corenet_tcp_connect_all_ports(cobblerd_t)
+	corenet_tcp_sendrecv_all_ports(cobblerd_t)
+')
+
+tunable_policy(`cobbler_use_cifs',`
+	fs_manage_cifs_dirs(cobblerd_t)
+	fs_manage_cifs_files(cobblerd_t)
+	fs_manage_cifs_symlinks(cobblerd_t)
+')
+
+tunable_policy(`cobbler_use_nfs',`
+	fs_manage_nfs_dirs(cobblerd_t)
+	fs_manage_nfs_files(cobblerd_t)
+	fs_manage_nfs_symlinks(cobblerd_t)
+')
+
+optional_policy(`
+	apache_search_sys_content(cobblerd_t)
+')
+
+optional_policy(`
+	bind_read_config(cobblerd_t)
+	bind_write_config(cobblerd_t)
+	bind_domtrans_ndc(cobblerd_t)
+	bind_domtrans(cobblerd_t)
+	bind_initrc_domtrans(cobblerd_t)
+	bind_manage_zone(cobblerd_t)
+')
+
+optional_policy(`
+	certmaster_exec(cobblerd_t)
+')
+
+optional_policy(`
+	dhcpd_domtrans(cobblerd_t)
+	dhcpd_initrc_domtrans(cobblerd_t)
+')
+
+optional_policy(`
+	dnsmasq_domtrans(cobblerd_t)
+	dnsmasq_initrc_domtrans(cobblerd_t)
+	dnsmasq_write_config(cobblerd_t)
+')
+
+optional_policy(`
+	rpm_exec(cobblerd_t)
+')
+
+optional_policy(`
+	rsync_read_config(cobblerd_t)
+	rsync_manage_config_files(cobblerd_t)
+	rsync_etc_filetrans_config(cobblerd_t, file, "rsync.conf")
+')
+
+optional_policy(`
+	tftp_manage_config_files(cobblerd_t)
+	tftp_etc_filetrans_config(cobblerd_t, file, "tftp")
+	tftp_filetrans_tftpdir(cobblerd_t, cobbler_var_lib_t, { dir file })
+')

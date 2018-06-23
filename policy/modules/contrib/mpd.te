@@ -1,0 +1,208 @@
+policy_module(mpd, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether mpd can traverse
+##	user home directories.
+##	</p>
+## </desc>
+gen_tunable(mpd_enable_homedirs, false)
+
+## <desc>
+##	<p>
+##	Determine whether mpd can use
+##	cifs file systems.
+##	</p>
+## </desc>
+gen_tunable(mpd_use_cifs, false)
+
+## <desc>
+##	<p>
+##	Determine whether mpd can use
+##	nfs file systems.
+##	</p>
+## </desc>
+gen_tunable(mpd_use_nfs, false)
+
+type mpd_t;
+type mpd_exec_t;
+init_daemon_domain(mpd_t, mpd_exec_t)
+application_executable_file(mpd_exec_t)
+
+type mpd_data_t;
+files_type(mpd_data_t)
+
+type mpd_etc_t;
+files_config_file(mpd_etc_t)
+
+type mpd_initrc_exec_t;
+init_script_file(mpd_initrc_exec_t)
+
+type mpd_log_t;
+logging_log_file(mpd_log_t)
+
+type mpd_tmp_t;
+files_tmp_file(mpd_tmp_t)
+
+type mpd_tmpfs_t;
+files_tmpfs_file(mpd_tmpfs_t)
+
+optional_policy(`
+	pulseaudio_tmpfs_content(mpd_tmpfs_t)
+')
+
+type mpd_var_lib_t;
+files_type(mpd_var_lib_t)
+
+type mpd_user_data_t;
+userdom_user_home_content(mpd_user_data_t) # customizable
+
+########################################
+#
+# Local policy
+#
+
+allow mpd_t self:capability { dac_override kill setgid setuid };
+allow mpd_t self:process { getsched setsched setrlimit signal signull setcap };
+allow mpd_t self:fifo_file rw_fifo_file_perms;
+allow mpd_t self:unix_stream_socket { accept connectto listen };
+allow mpd_t self:unix_dgram_socket sendto;
+allow mpd_t self:tcp_socket { accept listen };
+allow mpd_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+allow mpd_t mpd_data_t:dir manage_dir_perms;
+allow mpd_t mpd_data_t:file manage_file_perms;
+allow mpd_t mpd_data_t:lnk_file read_lnk_file_perms;
+
+read_files_pattern(mpd_t, mpd_etc_t, mpd_etc_t)
+
+allow mpd_t mpd_log_t:dir setattr_dir_perms;
+append_files_pattern(mpd_t, mpd_log_t, mpd_log_t)
+create_files_pattern(mpd_t, mpd_log_t, mpd_log_t)
+setattr_files_pattern(mpd_t, mpd_log_t, mpd_log_t)
+logging_log_filetrans(mpd_t, mpd_log_t, { dir file })
+
+manage_dirs_pattern(mpd_t, mpd_tmp_t, mpd_tmp_t)
+manage_files_pattern(mpd_t, mpd_tmp_t, mpd_tmp_t)
+manage_sock_files_pattern(mpd_t, mpd_tmp_t, mpd_tmp_t)
+files_tmp_filetrans(mpd_t, mpd_tmp_t, { dir file sock_file })
+
+allow mpd_t mpd_tmpfs_t:file manage_file_perms;
+fs_tmpfs_filetrans(mpd_t, mpd_tmpfs_t, file)
+
+allow mpd_t mpd_user_data_t:dir list_dir_perms;
+allow mpd_t mpd_user_data_t:file read_file_perms;
+allow mpd_t mpd_user_data_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(mpd_t, mpd_var_lib_t, mpd_var_lib_t)
+manage_files_pattern(mpd_t, mpd_var_lib_t, mpd_var_lib_t)
+manage_lnk_files_pattern(mpd_t, mpd_var_lib_t, mpd_var_lib_t)
+files_var_lib_filetrans(mpd_t, mpd_var_lib_t, dir)
+
+kernel_getattr_proc(mpd_t)
+kernel_read_system_state(mpd_t)
+kernel_read_kernel_sysctls(mpd_t)
+
+corecmd_exec_bin(mpd_t)
+
+corenet_all_recvfrom_unlabeled(mpd_t)
+corenet_all_recvfrom_netlabel(mpd_t)
+corenet_tcp_sendrecv_generic_if(mpd_t)
+corenet_tcp_sendrecv_generic_node(mpd_t)
+corenet_tcp_bind_generic_node(mpd_t)
+
+corenet_sendrecv_mpd_server_packets(mpd_t)
+corenet_tcp_bind_mpd_port(mpd_t)
+corenet_tcp_sendrecv_mpd_port(mpd_t)
+
+corenet_sendrecv_soundd_server_packets(mpd_t)
+corenet_tcp_bind_soundd_port(mpd_t)
+corenet_sendrecv_soundd_client_packets(mpd_t)
+corenet_tcp_connect_soundd_port(mpd_t)
+corenet_tcp_sendrecv_soundd_port(mpd_t)
+
+corenet_sendrecv_http_client_packets(mpd_t)
+corenet_tcp_connect_http_port(mpd_t)
+corenet_tcp_sendrecv_http_port(mpd_t)
+
+corenet_sendrecv_http_cache_client_packets(mpd_t)
+corenet_tcp_connect_http_cache_port(mpd_t)
+corenet_tcp_sendrecv_http_cache_port(mpd_t)
+
+dev_read_urand(mpd_t)
+dev_read_sound(mpd_t)
+dev_write_sound(mpd_t)
+dev_read_sysfs(mpd_t)
+
+files_read_usr_files(mpd_t)
+
+fs_getattr_all_fs(mpd_t)
+fs_list_inotifyfs(mpd_t)
+fs_rw_anon_inodefs_files(mpd_t)
+fs_search_auto_mountpoints(mpd_t)
+
+auth_use_nsswitch(mpd_t)
+
+logging_send_syslog_msg(mpd_t)
+
+miscfiles_read_localization(mpd_t)
+
+tunable_policy(`mpd_enable_homedirs',`
+	userdom_search_user_home_dirs(mpd_t)
+')
+
+tunable_policy(`mpd_enable_homedirs && use_nfs_home_dirs',`
+	fs_read_nfs_files(mpd_t)
+	fs_read_nfs_symlinks(mpd_t)
+')
+
+tunable_policy(`mpd_enable_homedirs && use_samba_home_dirs',`
+	fs_read_cifs_files(mpd_t)
+	fs_read_cifs_symlinks(mpd_t)
+')
+
+tunable_policy(`mpd_use_cifs',`
+	fs_manage_cifs_dirs(mpd_t)
+	fs_manage_cifs_files(mpd_t)
+	fs_manage_cifs_symlinks(mpd_t)
+')
+
+tunable_policy(`mpd_use_nfs',`
+	fs_manage_nfs_dirs(mpd_t)
+	fs_manage_nfs_files(mpd_t)
+	fs_manage_nfs_symlinks(mpd_t)
+')
+
+optional_policy(`
+	alsa_read_config(mpd_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(mpd_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(mpd_t)
+	')
+')
+
+optional_policy(`
+	pulseaudio_domtrans(mpd_t)
+')
+
+optional_policy(`
+	rpc_search_nfs_state_data(mpd_t)
+')
+
+optional_policy(`
+	udev_read_db(mpd_t)
+')
+
+optional_policy(`
+	xserver_stream_connect(mpd_t)
+	xserver_read_xdm_pid(mpd_t)
+')

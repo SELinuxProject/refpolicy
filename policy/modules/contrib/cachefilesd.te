@@ -1,0 +1,76 @@
+policy_module(cachefilesd, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+type cachefilesd_t;
+type cachefilesd_exec_t;
+init_daemon_domain(cachefilesd_t, cachefilesd_exec_t)
+
+type cachefilesd_initrc_exec_t;
+init_script_file(cachefilesd_initrc_exec_t)
+
+type cachefilesd_cache_t;
+files_mountpoint(cachefilesd_cache_t)
+
+type cachefilesd_var_run_t;
+files_pid_file(cachefilesd_var_run_t)
+
+type cachefiles_kernel_t;
+domain_type(cachefiles_kernel_t)
+role system_r types cachefiles_kernel_t;
+
+########################################
+#
+# Cachefilesd local policy
+#
+
+allow cachefilesd_t self:capability { dac_override setgid setuid sys_admin };
+
+allow cachefilesd_t cachefiles_kernel_t:kernel_service use_as_override;
+
+manage_files_pattern(cachefilesd_t, cachefilesd_var_run_t, cachefilesd_var_run_t)
+files_pid_filetrans(cachefilesd_t, cachefilesd_var_run_t, file)
+
+allow cachefilesd_t cachefilesd_cache_t:kernel_service create_files_as;
+manage_dirs_pattern(cachefilesd_t, cachefilesd_cache_t, cachefilesd_cache_t)
+manage_files_pattern(cachefilesd_t, cachefilesd_cache_t, cachefilesd_cache_t)
+
+dev_rw_cachefiles(cachefilesd_t)
+
+files_read_etc_files(cachefilesd_t)
+
+fs_getattr_xattr_fs(cachefilesd_t)
+
+term_dontaudit_use_generic_ptys(cachefilesd_t)
+term_dontaudit_getattr_unallocated_ttys(cachefilesd_t)
+
+logging_send_syslog_msg(cachefilesd_t)
+
+miscfiles_read_localization(cachefilesd_t)
+
+init_dontaudit_use_script_ptys(cachefilesd_t)
+
+optional_policy(`
+	rpm_use_script_fds(cachefilesd_t)
+')
+
+########################################
+#
+# Cachefiles_kernel local policy
+#
+
+allow cachefiles_kernel_t self:capability { dac_override dac_read_search };
+
+manage_dirs_pattern(cachefiles_kernel_t, cachefilesd_cache_t, cachefilesd_cache_t)
+manage_files_pattern(cachefiles_kernel_t, cachefilesd_cache_t, cachefilesd_cache_t)
+
+dev_search_sysfs(cachefiles_kernel_t)
+
+domain_obj_id_change_exemption(cachefiles_kernel_t)
+
+fs_getattr_xattr_fs(cachefiles_kernel_t)
+
+init_sigchld_script(cachefiles_kernel_t)

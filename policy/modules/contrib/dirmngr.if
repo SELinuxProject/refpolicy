@@ -1,0 +1,136 @@
+## <summary>Server for managing and downloading certificate revocation lists.</summary>
+
+############################################################
+## <summary>
+##	Role access for dirmngr.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`dirmngr_role',`
+	gen_require(`
+		type dirmngr_t, dirmngr_exec_t;
+		type dirmngr_tmp_t;
+	')
+
+	role $1 types dirmngr_t;
+
+	domtrans_pattern($2, dirmngr_exec_t, dirmngr_t)
+
+	allow $2 dirmngr_t:process { ptrace signal_perms };
+	ps_process_pattern($2, dirmngr_t)
+
+	allow dirmngr_t $2:fd use;
+	allow dirmngr_t $2:fifo_file { read write };
+
+	allow $2 dirmngr_tmp_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+')
+
+########################################
+## <summary>
+##	Execute dirmngr in the dirmngr domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`dirmngr_domtrans',`
+	gen_require(`
+		type dirmngr_t, dirmngr_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, dirmngr_exec_t, dirmngr_t)
+')
+
+########################################
+## <summary>
+##	Execute the dirmngr in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dirmngr_exec',`
+	gen_require(`
+		type dirmngr_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, dirmngr_exec_t)
+')
+
+########################################
+## <summary>
+##	Connect to dirmngr socket
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dirmngr_stream_connect',`
+	gen_require(`
+		type dirmngr_t, dirmngr_tmp_t;
+	')
+
+	gpg_search_agent_tmp_dirs($1)
+	allow $1 dirmngr_tmp_t:sock_file rw_sock_file_perms;
+	allow $1 dirmngr_t:unix_stream_socket connectto;
+	userdom_search_user_runtime($1)
+	userdom_search_user_home_dirs($1)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an dirmngr environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`dirmngr_admin',`
+	gen_require(`
+		type dirmngr_t, dirmngr_initrc_exec_t, dirmngr_var_run_t;
+		type dirmngr_conf_t, dirmngr_var_lib_t, dirmngr_log_t;
+	')
+
+	allow $1 dirmngr_t:process { ptrace signal_perms };
+	ps_process_pattern($1, dirmngr_t)
+
+	init_startstop_service($1, $2, dirmngr_t, dirmngr_initrc_exec_t)
+
+	files_search_etc($1)
+	admin_pattern($1, dirmngr_conf_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, dirmngr_log_t)
+
+	files_search_pids($1)
+	admin_pattern($1, dirmngr_var_run_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, dirmngr_var_lib_t)
+')

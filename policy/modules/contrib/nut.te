@@ -1,0 +1,162 @@
+policy_module(nut, 1.7.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute nut_domain;
+
+type nut_conf_t;
+files_config_file(nut_conf_t)
+
+type nut_upsd_t, nut_domain;
+type nut_upsd_exec_t;
+init_daemon_domain(nut_upsd_t, nut_upsd_exec_t)
+
+type nut_upsmon_t, nut_domain;
+type nut_upsmon_exec_t;
+init_daemon_domain(nut_upsmon_t, nut_upsmon_exec_t)
+
+type nut_upsdrvctl_t, nut_domain;
+type nut_upsdrvctl_exec_t;
+init_daemon_domain(nut_upsdrvctl_t, nut_upsdrvctl_exec_t)
+
+type nut_initrc_exec_t;
+init_script_file(nut_initrc_exec_t)
+
+type nut_var_run_t;
+files_pid_file(nut_var_run_t)
+init_daemon_pid_file(nut_var_run_t, dir, "nut")
+
+########################################
+#
+# Common nut domain local policy
+#
+
+allow nut_domain self:capability { dac_override kill setgid setuid };
+allow nut_domain self:process signal_perms;
+allow nut_domain self:fifo_file rw_fifo_file_perms;
+allow nut_domain self:unix_dgram_socket sendto;
+
+allow nut_domain nut_conf_t:dir list_dir_perms;
+allow nut_domain nut_conf_t:file read_file_perms;
+allow nut_domain nut_conf_t:lnk_file read_lnk_file_perms;
+
+manage_files_pattern(nut_domain, nut_var_run_t, nut_var_run_t)
+manage_dirs_pattern(nut_domain, nut_var_run_t, nut_var_run_t)
+files_pid_filetrans(nut_domain, nut_var_run_t, { dir file })
+
+kernel_read_kernel_sysctls(nut_domain)
+
+logging_send_syslog_msg(nut_domain)
+
+miscfiles_read_localization(nut_domain)
+
+########################################
+#
+# Upsd local policy
+#
+
+allow nut_upsd_t self:tcp_socket { accept listen };
+
+manage_sock_files_pattern(nut_upsd_t, nut_var_run_t, nut_var_run_t)
+files_pid_filetrans(nut_upsd_t, nut_var_run_t, sock_file)
+
+stream_connect_pattern(nut_upsd_t, nut_var_run_t, nut_var_run_t, nut_upsdrvctl_t)
+
+corenet_all_recvfrom_unlabeled(nut_upsd_t)
+corenet_all_recvfrom_netlabel(nut_upsd_t)
+corenet_tcp_sendrecv_generic_if(nut_upsd_t)
+corenet_tcp_sendrecv_generic_node(nut_upsd_t)
+corenet_tcp_sendrecv_all_ports(nut_upsd_t)
+corenet_tcp_bind_generic_node(nut_upsd_t)
+
+corenet_sendrecv_ups_server_packets(nut_upsd_t)
+corenet_tcp_bind_ups_port(nut_upsd_t)
+
+corenet_sendrecv_generic_server_packets(nut_upsd_t)
+corenet_tcp_bind_generic_port(nut_upsd_t)
+
+files_read_usr_files(nut_upsd_t)
+
+auth_use_nsswitch(nut_upsd_t)
+
+########################################
+#
+# Upsmon local policy
+#
+
+allow nut_upsmon_t self:capability dac_read_search;
+allow nut_upsmon_t self:unix_stream_socket connectto;
+
+kernel_read_system_state(nut_upsmon_t)
+
+corecmd_exec_bin(nut_upsmon_t)
+corecmd_exec_shell(nut_upsmon_t)
+
+corenet_all_recvfrom_unlabeled(nut_upsmon_t)
+corenet_all_recvfrom_netlabel(nut_upsmon_t)
+corenet_tcp_sendrecv_generic_if(nut_upsmon_t)
+corenet_tcp_sendrecv_generic_node(nut_upsmon_t)
+corenet_tcp_sendrecv_all_ports(nut_upsmon_t)
+corenet_tcp_bind_generic_node(nut_upsmon_t)
+
+corenet_sendrecv_ups_client_packets(nut_upsmon_t)
+corenet_tcp_connect_ups_port(nut_upsmon_t)
+
+corenet_sendrecv_generic_client_packets(nut_upsmon_t)
+corenet_tcp_connect_generic_port(nut_upsmon_t)
+
+files_manage_etc_runtime_files(nut_upsmon_t)
+files_etc_filetrans_etc_runtime(nut_upsmon_t, file)
+files_search_usr(nut_upsmon_t)
+
+term_write_all_terms(nut_upsmon_t)
+
+auth_use_nsswitch(nut_upsmon_t)
+
+optional_policy(`
+	mta_send_mail(nut_upsmon_t)
+')
+
+optional_policy(`
+	shutdown_domtrans(nut_upsmon_t)
+')
+
+########################################
+#
+# Upsdrvctl local policy
+#
+
+allow nut_upsdrvctl_t self:fd use;
+
+manage_sock_files_pattern(nut_upsdrvctl_t, nut_var_run_t, nut_var_run_t)
+files_pid_filetrans(nut_upsdrvctl_t, nut_var_run_t, sock_file)
+
+corecmd_exec_bin(nut_upsdrvctl_t)
+
+dev_read_sysfs(nut_upsdrvctl_t)
+dev_read_urand(nut_upsdrvctl_t)
+dev_rw_generic_usb_dev(nut_upsdrvctl_t)
+
+term_use_unallocated_ttys(nut_upsdrvctl_t)
+
+auth_use_nsswitch(nut_upsdrvctl_t)
+
+init_sigchld(nut_upsdrvctl_t)
+
+#######################################
+#
+# Cgi local policy
+#
+
+optional_policy(`
+	apache_content_template(nutups_cgi)
+
+	allow httpd_nutups_cgi_script_t nut_conf_t:dir list_dir_perms;
+	allow httpd_nutups_cgi_script_t nut_conf_t:file read_file_perms;
+	allow httpd_nutups_cgi_script_t nut_conf_t:lnk_file read_lnk_file_perms;
+
+	sysnet_dns_name_resolve(httpd_nutups_cgi_script_t)
+')

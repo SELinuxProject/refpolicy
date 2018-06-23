@@ -1,0 +1,197 @@
+policy_module(logwatch, 1.15.0)
+
+#################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether logwatch can connect
+##	to mail over the network.
+##	</p>
+## </desc>
+gen_tunable(logwatch_can_network_connect_mail, false)
+
+type logwatch_t;
+type logwatch_exec_t;
+init_system_domain(logwatch_t, logwatch_exec_t)
+
+type logwatch_cache_t;
+files_type(logwatch_cache_t)
+
+type logwatch_lock_t;
+files_lock_file(logwatch_lock_t)
+
+type logwatch_tmp_t;
+files_tmp_file(logwatch_tmp_t)
+
+type logwatch_var_run_t;
+files_pid_file(logwatch_var_run_t)
+
+mta_base_mail_template(logwatch)
+role system_r types logwatch_mail_t;
+
+########################################
+#
+# Local policy
+#
+
+allow logwatch_t self:capability { dac_override dac_read_search setgid };
+allow logwatch_t self:process signal;
+allow logwatch_t self:fifo_file rw_fifo_file_perms;
+allow logwatch_t self:unix_stream_socket { accept listen };
+
+manage_dirs_pattern(logwatch_t, logwatch_cache_t, logwatch_cache_t)
+manage_files_pattern(logwatch_t, logwatch_cache_t, logwatch_cache_t)
+
+allow logwatch_t logwatch_lock_t:file manage_file_perms;
+files_lock_filetrans(logwatch_t, logwatch_lock_t, file)
+
+manage_dirs_pattern(logwatch_t, logwatch_tmp_t, logwatch_tmp_t)
+manage_files_pattern(logwatch_t, logwatch_tmp_t, logwatch_tmp_t)
+files_tmp_filetrans(logwatch_t, logwatch_tmp_t, { file dir })
+
+allow logwatch_t logwatch_var_run_t:file manage_file_perms;
+files_pid_filetrans(logwatch_t, logwatch_var_run_t, file)
+
+kernel_read_fs_sysctls(logwatch_t)
+kernel_read_kernel_sysctls(logwatch_t)
+kernel_read_system_state(logwatch_t)
+kernel_read_net_sysctls(logwatch_t)
+kernel_read_network_state(logwatch_t)
+
+corecmd_exec_bin(logwatch_t)
+corecmd_exec_shell(logwatch_t)
+
+dev_read_urand(logwatch_t)
+dev_read_sysfs(logwatch_t)
+
+domain_read_all_domains_state(logwatch_t)
+
+files_getattr_all_files(logwatch_t)
+files_getattr_all_file_type_fs(logwatch_t)
+files_list_var(logwatch_t)
+files_search_all(logwatch_t)
+files_read_var_symlinks(logwatch_t)
+files_read_etc_runtime_files(logwatch_t)
+files_read_usr_files(logwatch_t)
+
+fs_getattr_all_dirs(logwatch_t)
+fs_getattr_all_fs(logwatch_t)
+fs_dontaudit_list_auto_mountpoints(logwatch_t)
+fs_list_inotifyfs(logwatch_t)
+
+storage_dontaudit_getattr_fixed_disk_dev(logwatch_t)
+
+mls_file_read_to_clearance(logwatch_t)
+
+term_dontaudit_getattr_pty_dirs(logwatch_t)
+term_dontaudit_list_ptys(logwatch_t)
+
+auth_use_nsswitch(logwatch_t)
+auth_dontaudit_read_shadow(logwatch_t)
+
+init_read_utmp(logwatch_t)
+init_dontaudit_write_utmp(logwatch_t)
+
+libs_read_lib_files(logwatch_t)
+
+logging_read_all_logs(logwatch_t)
+logging_send_syslog_msg(logwatch_t)
+
+miscfiles_read_localization(logwatch_t)
+
+selinux_dontaudit_getattr_dir(logwatch_t)
+
+sysnet_exec_ifconfig(logwatch_t)
+
+userdom_dontaudit_search_user_home_dirs(logwatch_t)
+
+mta_sendmail_domtrans(logwatch_t, logwatch_mail_t)
+mta_getattr_spool(logwatch_t)
+
+tunable_policy(`logwatch_can_network_connect_mail',`
+	corenet_all_recvfrom_unlabeled(logwatch_t)
+	corenet_all_recvfrom_netlabel(logwatch_t)
+	corenet_tcp_sendrecv_generic_if(logwatch_t)
+	corenet_tcp_sendrecv_generic_node(logwatch_t)
+
+	corenet_sendrecv_smtp_client_packets(logwatch_t)
+	corenet_tcp_connect_smtp_port(logwatch_t)
+	corenet_tcp_sendrecv_smtp_port(logwatch_t)
+
+	corenet_sendrecv_pop_client_packets(logwatch_t)
+	corenet_tcp_connect_pop_port(logwatch_t)
+	corenet_tcp_sendrecv_pop_port(logwatch_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_list_nfs(logwatch_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_list_cifs(logwatch_t)
+')
+
+optional_policy(`
+	apache_read_log(logwatch_t)
+')
+
+optional_policy(`
+	avahi_dontaudit_search_pid(logwatch_t)
+')
+
+optional_policy(`
+	bind_read_config(logwatch_t)
+	bind_read_zone(logwatch_t)
+')
+
+optional_policy(`
+	cron_system_entry(logwatch_t, logwatch_exec_t)
+')
+
+optional_policy(`
+	hostname_exec(logwatch_t)
+')
+
+optional_policy(`
+	ntp_domtrans(logwatch_t)
+')
+
+optional_policy(`
+	raid_domtrans_mdadm(logwatch_t)
+')
+
+optional_policy(`
+	rpc_search_nfs_state_data(logwatch_t)
+')
+
+optional_policy(`
+	samba_read_log(logwatch_t)
+	samba_read_share_files(logwatch_t)
+')
+
+########################################
+#
+# Mail local policy
+#
+
+allow logwatch_mail_t self:capability { dac_override dac_read_search };
+
+allow logwatch_mail_t logwatch_t:fd use;
+allow logwatch_mail_t logwatch_t:fifo_file rw_fifo_file_perms;
+allow logwatch_mail_t logwatch_t:process sigchld;
+
+manage_files_pattern(logwatch_mail_t, logwatch_tmp_t, logwatch_tmp_t)
+
+dev_read_rand(logwatch_mail_t)
+dev_read_urand(logwatch_mail_t)
+dev_read_sysfs(logwatch_mail_t)
+
+logging_read_all_logs(logwatch_mail_t)
+
+optional_policy(`
+	cron_use_system_job_fds(logwatch_mail_t)
+	cron_rw_system_job_pipes(logwatch_mail_t)
+')

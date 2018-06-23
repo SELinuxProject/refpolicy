@@ -1,0 +1,121 @@
+policy_module(milter, 1.8.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute milter_domains;
+attribute milter_data_type;
+
+milter_template(greylist)
+milter_template(regex)
+milter_template(spamass)
+
+type spamass_milter_initrc_exec_t;
+init_script_file(spamass_milter_initrc_exec_t)
+
+type spamass_milter_state_t;
+files_type(spamass_milter_state_t)
+
+#######################################
+#
+# Common local policy
+#
+
+allow milter_domains self:fifo_file rw_fifo_file_perms;
+allow milter_domains self:tcp_socket { accept listen };
+
+corenet_all_recvfrom_unlabeled(milter_domains)
+corenet_all_recvfrom_netlabel(milter_domains)
+corenet_tcp_sendrecv_generic_if(milter_domains)
+corenet_tcp_sendrecv_generic_node(milter_domains)
+corenet_tcp_bind_generic_node(milter_domains)
+
+corenet_tcp_bind_milter_port(milter_domains)
+corenet_tcp_sendrecv_all_ports(milter_domains)
+
+miscfiles_read_localization(milter_domains)
+
+logging_send_syslog_msg(milter_domains)
+
+########################################
+#
+# greylist local policy
+#
+
+allow greylist_milter_t self:capability { chown dac_override setgid setuid sys_nice };
+allow greylist_milter_t self:process { getsched setsched };
+
+files_pid_filetrans(greylist_milter_t, greylist_milter_data_t, file)
+
+kernel_read_kernel_sysctls(greylist_milter_t)
+
+corenet_sendrecv_movaz_ssc_server_packets(greylist_milter_t)
+corenet_tcp_bind_movaz_ssc_port(greylist_milter_t)
+corenet_sendrecv_movaz_ssc_client_packets(greylist_milter_t)
+corenet_tcp_connect_movaz_ssc_port(greylist_milter_t)
+corenet_tcp_sendrecv_movaz_ssc_port(greylist_milter_t)
+
+corenet_sendrecv_kismet_server_packets(greylist_milter_t)
+corenet_tcp_bind_kismet_port(greylist_milter_t)
+corenet_tcp_sendrecv_kismet_port(greylist_milter_t)
+
+corecmd_exec_bin(greylist_milter_t)
+corecmd_exec_shell(greylist_milter_t)
+
+dev_read_rand(greylist_milter_t)
+dev_read_urand(greylist_milter_t)
+
+files_read_usr_files(greylist_milter_t)
+files_search_var_lib(greylist_milter_t)
+
+mta_read_config(greylist_milter_t)
+
+miscfiles_read_localization(greylist_milter_t)
+
+optional_policy(`
+	mysql_stream_connect(greylist_milter_t)
+')
+
+########################################
+#
+# regex local policy
+#
+
+allow regex_milter_t self:capability { dac_override setgid setuid };
+
+files_search_spool(regex_milter_t)
+
+mta_read_config(regex_milter_t)
+
+########################################
+#
+# spamass local policy
+#
+
+allow spamass_milter_t self:process sigkill;
+allow spamass_milter_t self:unix_stream_socket { accept listen };
+
+allow spamass_milter_t spamass_milter_state_t:dir search_dir_perms;
+
+kernel_read_system_state(spamass_milter_t)
+kernel_read_vm_overcommit_sysctl(spamass_milter_t)
+
+corecmd_exec_shell(spamass_milter_t)
+
+dev_read_sysfs(spamass_milter_t)
+
+files_search_var_lib(spamass_milter_t)
+
+optional_policy(`
+	mta_send_mail(spamass_milter_t)
+')
+
+optional_policy(`
+	postfix_search_spool(spamass_milter_t)
+')
+
+optional_policy(`
+	spamassassin_domtrans_client(spamass_milter_t)
+')

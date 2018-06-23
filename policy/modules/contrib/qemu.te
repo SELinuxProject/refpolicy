@@ -1,0 +1,80 @@
+policy_module(qemu, 1.10.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether qemu has full
+##	access to the network.
+##	</p>
+## </desc>
+gen_tunable(qemu_full_network, false)
+
+attribute_role qemu_roles;
+roleattribute system_r qemu_roles;
+
+type qemu_exec_t;
+application_executable_file(qemu_exec_t)
+
+virt_domain_template(qemu)
+role qemu_roles types qemu_t;
+
+type qemu_unit_t;
+init_unit_file(qemu_unit_t)
+
+type qemu_var_run_t;
+files_pid_file(qemu_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+kernel_read_crypto_sysctls(qemu_t)
+
+dev_read_sysfs(qemu_t)
+
+allow qemu_t qemu_var_run_t:sock_file create_sock_file_perms;
+files_pid_filetrans(qemu_t, qemu_var_run_t, sock_file)
+
+tunable_policy(`qemu_full_network',`
+	corenet_udp_sendrecv_generic_if(qemu_t)
+	corenet_udp_sendrecv_generic_node(qemu_t)
+	corenet_udp_sendrecv_all_ports(qemu_t)
+	corenet_udp_bind_generic_node(qemu_t)
+	corenet_udp_bind_all_ports(qemu_t)
+	corenet_tcp_bind_all_ports(qemu_t)
+	corenet_tcp_connect_all_ports(qemu_t)
+')
+
+optional_policy(`
+	fs_manage_xenfs_files(qemu_t)
+
+	dev_rw_xen(qemu_t)
+
+	xen_stream_connect_xenstore(qemu_t)
+	xen_append_log(qemu_t)
+	xen_pid_filetrans(qemu_t, qemu_var_run_t, sock_file)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(qemu, qemu_t, qemu_tmpfs_t)
+')
+
+########################################
+#
+# Unconfined local policy
+#
+
+optional_policy(`
+	type unconfined_qemu_t;
+	typealias unconfined_qemu_t alias qemu_unconfined_t;
+	application_type(unconfined_qemu_t)
+	unconfined_domain(unconfined_qemu_t)
+
+	allow unconfined_qemu_t self:process { execstack execmem };
+	allow unconfined_qemu_t qemu_exec_t:file execmod;
+')

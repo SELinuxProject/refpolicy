@@ -1,0 +1,98 @@
+policy_module(vnstatd, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role vnstat_roles;
+
+type vnstat_t;
+type vnstat_exec_t;
+application_domain(vnstat_t, vnstat_exec_t)
+role vnstat_roles types vnstat_t;
+
+type vnstatd_t;
+type vnstatd_exec_t;
+init_daemon_domain(vnstatd_t, vnstatd_exec_t)
+
+type vnstatd_initrc_exec_t;
+init_script_file(vnstatd_initrc_exec_t)
+
+type vnstatd_pid_t;
+typealias vnstatd_pid_t alias vnstatd_var_run_t;
+files_pid_file(vnstatd_pid_t)
+
+type vnstatd_unit_t;
+init_unit_file(vnstatd_unit_t)
+
+type vnstatd_var_lib_t;
+files_type(vnstatd_var_lib_t)
+
+########################################
+#
+# Daemon local policy
+#
+
+allow vnstatd_t self:process signal;
+allow vnstatd_t self:fifo_file rw_fifo_file_perms;
+allow vnstatd_t self:unix_stream_socket { accept listen };
+
+manage_files_pattern(vnstatd_t, vnstatd_pid_t, vnstatd_pid_t)
+files_pid_filetrans(vnstatd_t, vnstatd_pid_t, file)
+
+manage_dirs_pattern(vnstatd_t, vnstatd_var_lib_t, vnstatd_var_lib_t)
+manage_files_pattern(vnstatd_t, vnstatd_var_lib_t, vnstatd_var_lib_t)
+
+kernel_read_network_state(vnstatd_t)
+kernel_read_system_state(vnstatd_t)
+
+# read /sys/class/net/eth0
+dev_read_sysfs(vnstatd_t)
+
+files_read_etc_files(vnstatd_t)
+files_search_var_lib(vnstatd_t)
+
+fs_getattr_xattr_fs(vnstatd_t)
+
+logging_send_syslog_msg(vnstatd_t)
+
+miscfiles_read_localization(vnstatd_t)
+
+########################################
+#
+# Client local policy
+#
+
+# dac_override : write /var/lib/vnstat/*
+allow vnstat_t self:capability dac_override;
+allow vnstat_t self:process signal;
+allow vnstat_t self:fifo_file rw_fifo_file_perms;
+allow vnstat_t self:unix_stream_socket { accept listen };
+
+manage_dirs_pattern(vnstat_t, vnstatd_var_lib_t, vnstatd_var_lib_t)
+manage_files_pattern(vnstat_t, vnstatd_var_lib_t, vnstatd_var_lib_t)
+
+kernel_read_network_state(vnstat_t)
+kernel_read_system_state(vnstat_t)
+
+# read /sys/class/net/eth0
+dev_read_sysfs(vnstat_t)
+
+domain_use_interactive_fds(vnstat_t)
+
+files_dontaudit_search_home(vnstat_t)
+files_read_etc_files(vnstat_t)
+files_search_var_lib(vnstat_t)
+
+fs_getattr_xattr_fs(vnstat_t)
+
+miscfiles_read_localization(vnstat_t)
+
+userdom_dontaudit_search_user_home_dirs(vnstat_t)
+
+userdom_use_inherited_user_terminals(vnstat_t)
+
+optional_policy(`
+	cron_system_entry(vnstat_t, vnstat_exec_t)
+')

@@ -1,0 +1,54 @@
+policy_module(dkim, 1.7.0)
+
+########################################
+#
+# Declarations
+#
+
+milter_template(dkim)
+
+type dkim_milter_initrc_exec_t;
+init_script_file(dkim_milter_initrc_exec_t)
+
+type dkim_milter_private_key_t;
+files_security_file(dkim_milter_private_key_t)
+
+type dkim_milter_unit_t;
+init_unit_file(dkim_milter_unit_t)
+
+init_daemon_pid_file(dkim_milter_data_t, dir, "opendkim")
+
+########################################
+#
+# Local policy
+#
+
+allow dkim_milter_t self:capability { dac_read_search dac_override setgid setuid };
+allow dkim_milter_t self:process { signal signull };
+allow dkim_milter_t self:unix_stream_socket create_stream_socket_perms;
+
+read_files_pattern(dkim_milter_t, dkim_milter_private_key_t, dkim_milter_private_key_t)
+
+# /proc/sys/kernel/ngroups_max
+kernel_read_kernel_sysctls(dkim_milter_t)
+kernel_read_vm_overcommit_sysctl(dkim_milter_t)
+
+corenet_udp_bind_generic_node(dkim_milter_t)
+corenet_udp_bind_all_unreserved_ports(dkim_milter_t)
+
+dev_read_urand(dkim_milter_t)
+# for cpu/online
+dev_read_sysfs(dkim_milter_t)
+
+files_pid_filetrans(dkim_milter_t, dkim_milter_data_t, { dir file })
+files_read_usr_files(dkim_milter_t)
+files_search_spool(dkim_milter_t)
+
+optional_policy(`
+	mta_read_config(dkim_milter_t)
+')
+
+optional_policy(`
+	# set up unix socket
+	postfix_search_spool(dkim_milter_t)
+')

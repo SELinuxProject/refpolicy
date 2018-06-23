@@ -1,0 +1,302 @@
+policy_module(lpd, 1.16.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether to support lpd server.
+##	</p>
+## </desc>
+gen_tunable(use_lpd_server, false)
+
+attribute_role checkpc_roles;
+attribute_role lpr_roles;
+
+type checkpc_t;
+type checkpc_exec_t;
+init_system_domain(checkpc_t, checkpc_exec_t)
+role checkpc_roles types checkpc_t;
+
+type checkpc_log_t;
+logging_log_file(checkpc_log_t)
+
+type lpd_t;
+type lpd_exec_t;
+init_daemon_domain(lpd_t, lpd_exec_t)
+
+type lpd_tmp_t;
+files_tmp_file(lpd_tmp_t)
+
+type lpd_var_run_t;
+files_pid_file(lpd_var_run_t)
+
+type lpr_t;
+type lpr_exec_t;
+typealias lpr_t alias { user_lpr_t staff_lpr_t sysadm_lpr_t };
+typealias lpr_t alias { auditadm_lpr_t secadm_lpr_t };
+userdom_user_application_domain(lpr_t, lpr_exec_t)
+role lpr_roles types lpr_t;
+
+type lpr_tmp_t;
+typealias lpr_tmp_t alias { user_lpr_tmp_t staff_lpr_tmp_t sysadm_lpr_tmp_t };
+typealias lpr_tmp_t alias { auditadm_lpr_tmp_t secadm_lpr_tmp_t };
+userdom_user_tmp_file(lpr_tmp_t)
+
+type print_spool_t;
+typealias print_spool_t alias { user_print_spool_t staff_print_spool_t sysadm_print_spool_t };
+typealias print_spool_t alias { auditadm_print_spool_t secadm_print_spool_t };
+files_type(print_spool_t)
+ubac_constrained(print_spool_t)
+
+type printer_t;
+files_type(printer_t)
+
+type printconf_t;
+files_config_file(printconf_t)
+
+########################################
+#
+# Checkpc local policy
+#
+
+allow checkpc_t self:capability { dac_override setgid setuid };
+allow checkpc_t self:process signal_perms;
+allow checkpc_t self:unix_stream_socket create_socket_perms;
+allow checkpc_t self:tcp_socket create_socket_perms;
+allow checkpc_t self:udp_socket create_socket_perms;
+
+allow checkpc_t checkpc_log_t:file { append_file_perms create_file_perms setattr_file_perms };
+logging_log_filetrans(checkpc_t, checkpc_log_t, file)
+
+allow checkpc_t lpd_var_run_t:dir search_dir_perms;
+
+rw_files_pattern(checkpc_t, print_spool_t, print_spool_t)
+delete_files_pattern(checkpc_t, print_spool_t, print_spool_t)
+
+allow checkpc_t printconf_t:file getattr_file_perms;
+allow checkpc_t printconf_t:dir list_dir_perms;
+
+kernel_read_system_state(checkpc_t)
+
+corenet_all_recvfrom_unlabeled(checkpc_t)
+corenet_all_recvfrom_netlabel(checkpc_t)
+corenet_tcp_sendrecv_generic_if(checkpc_t)
+corenet_tcp_sendrecv_generic_node(checkpc_t)
+corenet_tcp_sendrecv_all_ports(checkpc_t)
+
+corenet_sendrecv_all_client_packets(checkpc_t)
+corenet_tcp_connect_all_ports(checkpc_t)
+
+corecmd_exec_shell(checkpc_t)
+corecmd_exec_bin(checkpc_t)
+
+dev_append_printer(checkpc_t)
+
+domain_use_interactive_fds(checkpc_t)
+
+files_read_etc_files(checkpc_t)
+files_read_etc_runtime_files(checkpc_t)
+files_search_pids(checkpc_t)
+files_search_spool(checkpc_t)
+
+init_use_script_ptys(checkpc_t)
+init_use_fds(checkpc_t)
+
+sysnet_read_config(checkpc_t)
+
+userdom_use_user_terminals(checkpc_t)
+
+optional_policy(`
+	cron_system_entry(checkpc_t, checkpc_exec_t)
+')
+
+optional_policy(`
+	logging_send_syslog_msg(checkpc_t)
+')
+
+optional_policy(`
+	nis_use_ypbind(checkpc_t)
+')
+
+########################################
+#
+# Lpd local policy
+#
+
+allow lpd_t self:capability { chown dac_override dac_read_search fowner setgid setuid };
+dontaudit lpd_t self:capability sys_tty_config;
+allow lpd_t self:process signal_perms;
+allow lpd_t self:fifo_file rw_fifo_file_perms;
+allow lpd_t self:unix_stream_socket { accept listen };
+allow lpd_t self:tcp_socket create_stream_socket_perms;
+allow lpd_t self:udp_socket create_stream_socket_perms;
+
+manage_dirs_pattern(lpd_t, lpd_tmp_t, lpd_tmp_t)
+manage_files_pattern(lpd_t, lpd_tmp_t, lpd_tmp_t)
+files_tmp_filetrans(lpd_t, lpd_tmp_t, { file dir })
+
+manage_dirs_pattern(lpd_t, lpd_var_run_t, lpd_var_run_t)
+manage_files_pattern(lpd_t, lpd_var_run_t, lpd_var_run_t)
+manage_sock_files_pattern(lpd_t, lpd_var_run_t, lpd_var_run_t)
+files_pid_filetrans(lpd_t, lpd_var_run_t, { dir file })
+
+manage_files_pattern(lpd_t, print_spool_t, print_spool_t)
+
+allow lpd_t printconf_t:dir list_dir_perms;
+
+allow lpd_t printer_t:sock_file manage_sock_file_perms;
+dev_filetrans(lpd_t, printer_t, sock_file)
+
+can_exec(lpd_t, printconf_t)
+
+kernel_read_kernel_sysctls(lpd_t)
+kernel_read_system_state(lpd_t)
+
+corenet_all_recvfrom_unlabeled(lpd_t)
+corenet_all_recvfrom_netlabel(lpd_t)
+corenet_tcp_sendrecv_generic_if(lpd_t)
+corenet_tcp_sendrecv_generic_node(lpd_t)
+corenet_tcp_bind_generic_node(lpd_t)
+
+corenet_sendrecv_printer_server_packets(lpd_t)
+corenet_tcp_bind_printer_port(lpd_t)
+corenet_tcp_sendrecv_printer_port(lpd_t)
+
+corecmd_exec_bin(lpd_t)
+corecmd_exec_shell(lpd_t)
+
+dev_read_sysfs(lpd_t)
+dev_rw_printer(lpd_t)
+
+domain_use_interactive_fds(lpd_t)
+
+files_read_etc_runtime_files(lpd_t)
+files_read_usr_files(lpd_t)
+files_list_world_readable(lpd_t)
+files_read_world_readable_files(lpd_t)
+files_read_world_readable_symlinks(lpd_t)
+files_list_var_lib(lpd_t)
+files_read_var_lib_files(lpd_t)
+files_read_var_lib_symlinks(lpd_t)
+files_read_etc_files(lpd_t)
+files_search_spool(lpd_t)
+
+fs_getattr_all_fs(lpd_t)
+fs_search_auto_mountpoints(lpd_t)
+
+logging_send_syslog_msg(lpd_t)
+
+miscfiles_read_fonts(lpd_t)
+miscfiles_read_localization(lpd_t)
+
+sysnet_read_config(lpd_t)
+
+userdom_dontaudit_use_unpriv_user_fds(lpd_t)
+userdom_dontaudit_search_user_home_dirs(lpd_t)
+
+optional_policy(`
+	nis_use_ypbind(lpd_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(lpd_t)
+')
+
+optional_policy(`
+	udev_read_db(lpd_t)
+')
+
+##############################
+#
+# Lpr local policy
+#
+
+allow lpr_t self:capability { chown dac_override net_bind_service setuid };
+allow lpr_t self:unix_stream_socket { accept listen };
+
+allow lpd_t print_spool_t:file { read_file_perms rename_file_perms delete_file_perms };
+
+can_exec(lpr_t, lpr_exec_t)
+
+kernel_read_crypto_sysctls(lpr_t)
+kernel_read_kernel_sysctls(lpr_t)
+
+corenet_all_recvfrom_unlabeled(lpr_t)
+corenet_all_recvfrom_netlabel(lpr_t)
+corenet_tcp_sendrecv_generic_if(lpr_t)
+corenet_tcp_sendrecv_generic_node(lpr_t)
+corenet_tcp_sendrecv_all_ports(lpr_t)
+
+corenet_sendrecv_all_client_packets(lpr_t)
+corenet_tcp_connect_all_ports(lpr_t)
+
+dev_read_rand(lpr_t)
+dev_read_urand(lpr_t)
+
+domain_use_interactive_fds(lpr_t)
+
+files_search_spool(lpr_t)
+files_read_usr_files(lpr_t)
+files_list_home(lpr_t)
+
+fs_getattr_all_fs(lpr_t)
+
+term_use_controlling_term(lpr_t)
+term_use_generic_ptys(lpr_t)
+
+auth_use_nsswitch(lpr_t)
+
+logging_send_syslog_msg(lpr_t)
+
+miscfiles_read_fonts(lpr_t)
+miscfiles_read_localization(lpr_t)
+
+userdom_read_user_tmp_symlinks(lpr_t)
+userdom_use_user_terminals(lpr_t)
+userdom_read_user_home_content_files(lpr_t)
+userdom_read_user_tmp_files(lpr_t)
+
+tunable_policy(`use_lpd_server',`
+	allow lpr_t lpd_t:process signal;
+
+	write_sock_files_pattern(lpr_t, lpd_var_run_t, lpd_var_run_t)
+	files_read_var_files(lpr_t)
+
+	stream_connect_pattern(lpr_t, printer_t, printer_t, lpd_t)
+
+	manage_dirs_pattern(lpr_t, lpr_tmp_t, lpr_tmp_t)
+	manage_files_pattern(lpr_t, lpr_tmp_t, lpr_tmp_t)
+	files_tmp_filetrans(lpr_t, lpr_tmp_t, { file dir })
+
+	manage_files_pattern(lpr_t, print_spool_t, print_spool_t)
+	filetrans_pattern(lpr_t, print_spool_t, print_spool_t, file)
+
+	allow lpr_t printconf_t:dir list_dir_perms;
+	allow lpr_t printconf_t:file read_file_perms;
+	allow lpr_t printconf_t:lnk_file read_lnk_file_perms;
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_list_auto_mountpoints(lpr_t)
+	fs_read_nfs_files(lpr_t)
+	fs_read_nfs_symlinks(lpr_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_list_auto_mountpoints(lpr_t)
+	fs_read_cifs_files(lpr_t)
+	fs_read_cifs_symlinks(lpr_t)
+')
+
+optional_policy(`
+	cups_read_config(lpr_t)
+	cups_stream_connect(lpr_t)
+	cups_read_pid_files(lpr_t)
+')
+
+optional_policy(`
+	gnome_stream_connect_all_gkeyringd(lpr_t)
+')

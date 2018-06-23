@@ -1,0 +1,264 @@
+policy_module(mysql, 1.20.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether mysqld can
+##	connect to all TCP ports.
+##	</p>
+## </desc>
+gen_tunable(mysql_connect_any, false)
+
+attribute_role mysqld_roles;
+
+type mysqld_t;
+type mysqld_exec_t;
+init_daemon_domain(mysqld_t, mysqld_exec_t)
+application_domain(mysqld_t, mysqld_exec_t)
+role mysqld_roles types mysqld_t;
+
+type mysqld_safe_t;
+type mysqld_safe_exec_t;
+init_daemon_domain(mysqld_safe_t, mysqld_safe_exec_t)
+
+type mysqld_var_run_t;
+files_pid_file(mysqld_var_run_t)
+init_daemon_pid_file(mysqld_var_run_t, dir, "mysqld")
+
+type mysqld_db_t;
+files_type(mysqld_db_t)
+
+type mysqld_etc_t alias etc_mysqld_t;
+files_config_file(mysqld_etc_t)
+
+type mysqld_home_t;
+userdom_user_home_content(mysqld_home_t)
+
+type mysqld_initrc_exec_t;
+init_script_file(mysqld_initrc_exec_t)
+
+type mysqld_log_t;
+logging_log_file(mysqld_log_t)
+
+type mysqld_tmp_t;
+files_tmp_file(mysqld_tmp_t)
+
+type mysqld_unit_t;
+init_unit_file(mysqld_unit_t)
+
+type mysqlmanagerd_t;
+type mysqlmanagerd_exec_t;
+init_daemon_domain(mysqlmanagerd_t, mysqlmanagerd_exec_t)
+
+type mysqlmanagerd_initrc_exec_t;
+init_script_file(mysqlmanagerd_initrc_exec_t)
+
+type mysqlmanagerd_var_run_t;
+files_pid_file(mysqlmanagerd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mysqld_t self:capability { dac_override ipc_lock setgid setuid sys_resource };
+dontaudit mysqld_t self:capability sys_tty_config;
+allow mysqld_t self:process { setsched getsched setrlimit signal_perms rlimitinh };
+allow mysqld_t self:fifo_file rw_fifo_file_perms;
+allow mysqld_t self:shm create_shm_perms;
+allow mysqld_t self:unix_stream_socket { connectto accept listen };
+allow mysqld_t self:tcp_socket { accept listen };
+
+manage_dirs_pattern(mysqld_t, mysqld_db_t, mysqld_db_t)
+manage_files_pattern(mysqld_t, mysqld_db_t, mysqld_db_t)
+manage_lnk_files_pattern(mysqld_t, mysqld_db_t, mysqld_db_t)
+files_var_lib_filetrans(mysqld_t, mysqld_db_t, { dir file lnk_file })
+
+filetrans_pattern(mysqld_t, mysqld_db_t, mysqld_var_run_t, sock_file)
+
+allow mysqld_t mysqld_etc_t:dir list_dir_perms;
+allow mysqld_t { mysqld_etc_t mysqld_home_t }:file read_file_perms;
+allow mysqld_t mysqld_etc_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(mysqld_t, mysqld_log_t, mysqld_log_t)
+manage_files_pattern(mysqld_t, mysqld_log_t, mysqld_log_t)
+manage_lnk_files_pattern(mysqld_t, mysqld_log_t, mysqld_log_t)
+logging_log_filetrans(mysqld_t, mysqld_log_t, { dir file })
+
+manage_dirs_pattern(mysqld_t, mysqld_tmp_t, mysqld_tmp_t)
+manage_files_pattern(mysqld_t, mysqld_tmp_t, mysqld_tmp_t)
+files_tmp_filetrans(mysqld_t, mysqld_tmp_t, { file dir })
+
+manage_dirs_pattern(mysqld_t, mysqld_var_run_t, mysqld_var_run_t)
+manage_files_pattern(mysqld_t, mysqld_var_run_t, mysqld_var_run_t)
+manage_sock_files_pattern(mysqld_t, mysqld_var_run_t, mysqld_var_run_t)
+files_pid_filetrans(mysqld_t, mysqld_var_run_t, { dir file sock_file })
+
+kernel_read_kernel_sysctls(mysqld_t)
+kernel_read_network_state(mysqld_t)
+kernel_read_system_state(mysqld_t)
+kernel_read_vm_sysctls(mysqld_t)
+
+corenet_all_recvfrom_unlabeled(mysqld_t)
+corenet_all_recvfrom_netlabel(mysqld_t)
+corenet_tcp_sendrecv_generic_if(mysqld_t)
+corenet_tcp_sendrecv_generic_node(mysqld_t)
+corenet_tcp_bind_generic_node(mysqld_t)
+
+corenet_sendrecv_mysqld_server_packets(mysqld_t)
+corenet_tcp_bind_mysqld_port(mysqld_t)
+corenet_sendrecv_mysqld_client_packets(mysqld_t)
+corenet_tcp_connect_mysqld_port(mysqld_t)
+corenet_tcp_sendrecv_mysqld_port(mysqld_t)
+
+corecmd_exec_bin(mysqld_t)
+corecmd_exec_shell(mysqld_t)
+
+dev_read_sysfs(mysqld_t)
+dev_read_urand(mysqld_t)
+
+domain_use_interactive_fds(mysqld_t)
+
+fs_getattr_all_fs(mysqld_t)
+fs_search_auto_mountpoints(mysqld_t)
+fs_rw_hugetlbfs_files(mysqld_t)
+
+files_read_etc_runtime_files(mysqld_t)
+files_read_usr_files(mysqld_t)
+
+auth_use_nsswitch(mysqld_t)
+
+logging_send_syslog_msg(mysqld_t)
+
+miscfiles_read_localization(mysqld_t)
+
+userdom_search_user_home_dirs(mysqld_t)
+userdom_dontaudit_use_unpriv_user_fds(mysqld_t)
+
+tunable_policy(`mysql_connect_any',`
+	corenet_sendrecv_all_client_packets(mysqld_t)
+	corenet_tcp_connect_all_ports(mysqld_t)
+	corenet_tcp_sendrecv_all_ports(mysqld_t)
+')
+
+optional_policy(`
+	daemontools_service_domain(mysqld_t, mysqld_exec_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(mysqld_t)
+')
+
+optional_policy(`
+	udev_read_db(mysqld_t)
+')
+
+#######################################
+#
+# Safe local policy
+#
+
+allow mysqld_safe_t self:capability { chown dac_override fowner kill };
+allow mysqld_safe_t self:process { setsched getsched setrlimit };
+allow mysqld_safe_t self:fifo_file rw_fifo_file_perms;
+
+allow mysqld_safe_t mysqld_t:process { signull sigkill };
+
+read_lnk_files_pattern(mysqld_safe_t, mysqld_db_t, mysqld_db_t)
+manage_files_pattern(mysqld_safe_t, mysqld_db_t, mysqld_db_t)
+
+allow mysqld_safe_t mysqld_etc_t:dir list_dir_perms;
+allow mysqld_safe_t { mysqld_etc_t mysqld_home_t }:file read_file_perms;
+allow mysqld_safe_t mysqld_etc_t:lnk_file read_lnk_file_perms;
+
+list_dirs_pattern(mysqld_safe_t, mysqld_log_t, mysqld_log_t)
+manage_files_pattern(mysqld_safe_t, mysqld_log_t, mysqld_log_t)
+manage_lnk_files_pattern(mysqld_safe_t, mysqld_log_t, mysqld_log_t)
+logging_log_filetrans(mysqld_safe_t, mysqld_log_t, file)
+
+manage_files_pattern(mysqld_safe_t, mysqld_var_run_t, mysqld_var_run_t)
+delete_sock_files_pattern(mysqld_safe_t, { mysqld_db_t mysqld_var_run_t }, mysqld_var_run_t)
+
+domtrans_pattern(mysqld_safe_t, mysqld_exec_t, mysqld_t)
+
+kernel_read_system_state(mysqld_safe_t)
+kernel_read_kernel_sysctls(mysqld_safe_t)
+
+corecmd_exec_bin(mysqld_safe_t)
+corecmd_exec_shell(mysqld_safe_t)
+
+dev_read_sysfs(mysqld_safe_t)
+
+domain_read_all_domains_state(mysqld_safe_t)
+
+files_read_etc_files(mysqld_safe_t)
+files_read_usr_files(mysqld_safe_t)
+files_search_pids(mysqld_safe_t)
+files_dontaudit_getattr_all_dirs(mysqld_safe_t)
+files_dontaudit_search_all_mountpoints(mysqld_safe_t)
+
+logging_send_syslog_msg(mysqld_safe_t)
+
+miscfiles_read_localization(mysqld_safe_t)
+
+userdom_search_user_home_dirs(mysqld_safe_t)
+
+optional_policy(`
+	hostname_exec(mysqld_safe_t)
+')
+
+########################################
+#
+# Manager local policy
+#
+
+allow mysqlmanagerd_t self:capability { dac_override kill };
+allow mysqlmanagerd_t self:process signal;
+allow mysqlmanagerd_t self:fifo_file rw_fifo_file_perms;
+allow mysqlmanagerd_t self:tcp_socket create_stream_socket_perms;
+allow mysqlmanagerd_t self:unix_stream_socket create_stream_socket_perms;
+
+allow mysqlmanagerd_t mysqld_t:process signal;
+
+allow mysqlmanagerd_t mysqld_etc_t:dir list_dir_perms;
+allow mysqlmanagerd_t { mysqld_etc_t mysqld_home_t }:file read_file_perms;
+allow mysqlmanagerd_t mysqld_etc_t:lnk_file read_lnk_file_perms;
+
+domtrans_pattern(mysqlmanagerd_t, mysqld_exec_t, mysqld_t)
+
+manage_files_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t)
+manage_sock_files_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t)
+filetrans_pattern(mysqlmanagerd_t, mysqld_var_run_t, mysqlmanagerd_var_run_t, { file sock_file })
+
+stream_connect_pattern(mysqlmanagerd_t, { mysqld_db_t mysqld_var_run_t }, mysqld_var_run_t, mysqld_t)
+
+kernel_read_system_state(mysqlmanagerd_t)
+
+corecmd_exec_shell(mysqlmanagerd_t)
+
+corenet_all_recvfrom_unlabeled(mysqlmanagerd_t)
+corenet_all_recvfrom_netlabel(mysqlmanagerd_t)
+corenet_tcp_sendrecv_generic_if(mysqlmanagerd_t)
+corenet_tcp_sendrecv_generic_node(mysqlmanagerd_t)
+corenet_tcp_bind_generic_node(mysqlmanagerd_t)
+
+corenet_sendrecv_mysqlmanagerd_server_packets(mysqlmanagerd_t)
+corenet_tcp_bind_mysqlmanagerd_port(mysqlmanagerd_t)
+corenet_sendrecv_mysqlmanagerd_client_packets(mysqlmanagerd_t)
+corenet_tcp_connect_mysqlmanagerd_port(mysqlmanagerd_t)
+corenet_tcp_sendrecv_mysqlmanagerd_port(mysqlmanagerd_t)
+
+dev_read_urand(mysqlmanagerd_t)
+
+files_read_etc_files(mysqlmanagerd_t)
+files_read_usr_files(mysqlmanagerd_t)
+files_search_pids(mysqlmanagerd_t)
+files_search_var_lib(mysqlmanagerd_t)
+
+miscfiles_read_localization(mysqlmanagerd_t)
+
+userdom_search_user_home_dirs(mysqlmanagerd_t)

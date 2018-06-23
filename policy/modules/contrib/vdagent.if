@@ -1,0 +1,131 @@
+## <summary>Spice agent for Linux.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run vdagent.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vdagent_domtrans',`
+	gen_require(`
+		type vdagent_t, vdagent_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, vdagent_exec_t, vdagent_t)
+')
+
+#####################################
+## <summary>
+##	Get attributes of vdagent executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vdagent_getattr_exec_files',`
+	gen_require(`
+		type vdagent_exec_t;
+	')
+
+	allow $1 vdagent_exec_t:file getattr_file_perms;
+')
+
+#######################################
+## <summary>
+##	Get attributes of vdagent log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vdagent_getattr_log',`
+	gen_require(`
+		type vdagent_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 vdagent_log_t:file getattr_file_perms;
+')
+
+########################################
+## <summary>
+##	Read vdagent pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vdagent_read_pid_files',`
+	gen_require(`
+		type vdagent_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 vdagent_var_run_t:file read_file_perms;
+')
+
+#####################################
+## <summary>
+##	Connect to vdagent with a unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`vdagent_stream_connect',`
+	gen_require(`
+		type vdagent_var_run_t, vdagent_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, vdagent_var_run_t, vdagent_var_run_t, vdagent_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an vdagent environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`vdagent_admin',`
+	gen_require(`
+		type vdagent_t, vdagent_var_run_t, vdagentd_initrc_exec_t;
+		type vdagent_log_t;
+	')
+
+	allow $1 vdagent_t:process signal_perms;
+	ps_process_pattern($1, vdagent_t)
+
+	init_startstop_service($1, $2, vdagentd_t, vdagentd_initrc_exec_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, vdagent_log_t)
+
+	files_search_pids($1)
+	admin_pattern($1, vdagent_var_run_t)
+')

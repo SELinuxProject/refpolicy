@@ -1,0 +1,200 @@
+policy_module(rsync, 1.16.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether rsync can use
+##	cifs file systems.
+##	</p>
+## </desc>
+gen_tunable(rsync_use_cifs, false)
+
+## <desc>
+##	<p>
+##	Determine whether rsync can
+##	use fuse file systems.
+##	</p>
+## </desc>
+gen_tunable(rsync_use_fusefs, false)
+
+## <desc>
+##	<p>
+##	Determine whether rsync can use
+##	nfs file systems.
+##	</p>
+## </desc>
+gen_tunable(rsync_use_nfs, false)
+
+## <desc>
+##	<p>
+##	Determine whether rsync can
+##	run as a client
+##	</p>
+## </desc>
+gen_tunable(rsync_client, false)
+
+## <desc>
+##	<p>
+##	Determine whether rsync can
+##	export all content read only.
+##	</p>
+## </desc>
+gen_tunable(rsync_export_all_ro, false)
+
+## <desc>
+##	<p>
+##	Determine whether rsync can modify
+##	public files used for public file
+##	transfer services. Directories/Files must
+##	be labeled public_content_rw_t.
+##	</p>
+## </desc>
+gen_tunable(allow_rsync_anon_write, false)
+
+attribute_role rsync_roles;
+
+type rsync_t;
+type rsync_exec_t;
+init_daemon_domain(rsync_t, rsync_exec_t)
+application_domain(rsync_t, rsync_exec_t)
+role rsync_roles types rsync_t;
+
+type rsync_etc_t;
+files_config_file(rsync_etc_t)
+
+type rsync_data_t; # customizable
+files_type(rsync_data_t)
+
+type rsync_log_t;
+logging_log_file(rsync_log_t)
+
+type rsync_tmp_t;
+files_tmp_file(rsync_tmp_t)
+
+type rsync_var_run_t;
+files_pid_file(rsync_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rsync_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid sys_chroot };
+allow rsync_t self:process signal_perms;
+allow rsync_t self:fifo_file rw_fifo_file_perms;
+allow rsync_t self:tcp_socket { accept listen };
+
+allow rsync_t rsync_etc_t:file read_file_perms;
+
+allow rsync_t rsync_data_t:dir list_dir_perms;
+allow rsync_t rsync_data_t:file read_file_perms;
+allow rsync_t rsync_data_t:lnk_file read_lnk_file_perms;
+
+allow rsync_t rsync_log_t:file { append_file_perms create_file_perms setattr_file_perms };
+logging_log_filetrans(rsync_t, rsync_log_t, file)
+
+manage_dirs_pattern(rsync_t, rsync_tmp_t, rsync_tmp_t)
+manage_files_pattern(rsync_t, rsync_tmp_t, rsync_tmp_t)
+files_tmp_filetrans(rsync_t, rsync_tmp_t, { file dir })
+
+manage_files_pattern(rsync_t, rsync_var_run_t, rsync_var_run_t)
+files_pid_filetrans(rsync_t, rsync_var_run_t, file)
+
+kernel_read_kernel_sysctls(rsync_t)
+kernel_read_system_state(rsync_t)
+kernel_read_network_state(rsync_t)
+
+corenet_all_recvfrom_unlabeled(rsync_t)
+corenet_all_recvfrom_netlabel(rsync_t)
+corenet_tcp_sendrecv_generic_if(rsync_t)
+corenet_tcp_sendrecv_generic_node(rsync_t)
+corenet_tcp_bind_generic_node(rsync_t)
+
+corenet_sendrecv_rsync_server_packets(rsync_t)
+corenet_tcp_bind_rsync_port(rsync_t)
+corenet_tcp_sendrecv_rsync_port(rsync_t)
+
+dev_read_urand(rsync_t)
+
+fs_getattr_all_fs(rsync_t)
+fs_search_auto_mountpoints(rsync_t)
+
+files_getattr_all_pipes(rsync_t)
+files_getattr_all_sockets(rsync_t)
+files_search_home(rsync_t)
+
+auth_can_read_shadow_passwords(rsync_t)
+auth_use_nsswitch(rsync_t)
+
+logging_send_syslog_msg(rsync_t)
+
+miscfiles_read_localization(rsync_t)
+miscfiles_read_public_files(rsync_t)
+
+tunable_policy(`allow_rsync_anon_write',`
+	miscfiles_manage_public_files(rsync_t)
+')
+
+tunable_policy(`rsync_client',`
+	corenet_sendrecv_rsync_client_packets(rsync_t)
+	corenet_tcp_connect_rsync_port(rsync_t)
+
+	corenet_sendrecv_ssh_client_packets(rsync_t)
+	corenet_tcp_connect_ssh_port(rsync_t)
+	corenet_tcp_sendrecv_ssh_port(rsync_t)
+
+	manage_dirs_pattern(rsync_t, rsync_data_t, rsync_data_t)
+	manage_files_pattern(rsync_t, rsync_data_t, rsync_data_t)
+	manage_lnk_files_pattern(rsync_t, rsync_data_t, rsync_data_t)
+')
+
+tunable_policy(`rsync_export_all_ro',`
+	fs_read_noxattr_fs_files(rsync_t)
+	fs_read_nfs_files(rsync_t)
+	fs_read_fusefs_files(rsync_t)
+	fs_read_cifs_files(rsync_t)
+	files_list_non_auth_dirs(rsync_t)
+	files_read_non_auth_files(rsync_t)
+	files_read_non_auth_symlinks(rsync_t)
+	auth_tunable_read_shadow(rsync_t)
+')
+
+tunable_policy(`rsync_use_cifs',`
+	fs_list_cifs(rsync_t)
+	fs_read_cifs_files(rsync_t)
+	fs_read_cifs_symlinks(rsync_t)
+')
+
+tunable_policy(`rsync_use_fusefs',`
+	fs_search_fusefs(rsync_t)
+	fs_read_fusefs_files(rsync_t)
+	fs_read_fusefs_symlinks(rsync_t)
+')
+
+tunable_policy(`rsync_use_nfs',`
+	fs_list_nfs(rsync_t)
+	fs_read_nfs_files(rsync_t)
+	fs_read_nfs_symlinks(rsync_t)
+')
+
+optional_policy(`
+	tunable_policy(`rsync_client',`
+		ssh_exec(rsync_t)
+	')
+')
+
+optional_policy(`
+	daemontools_service_domain(rsync_t, rsync_exec_t)
+')
+
+optional_policy(`
+	kerberos_use(rsync_t)
+')
+
+optional_policy(`
+	inetd_service_domain(rsync_t, rsync_exec_t)
+')

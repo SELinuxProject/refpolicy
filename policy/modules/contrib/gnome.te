@@ -1,0 +1,209 @@
+policy_module(gnome, 2.9.2)
+
+##############################
+#
+# Declarations
+#
+
+attribute gkeyringd_domain;
+attribute gnomedomain;
+attribute_role gconfd_roles;
+
+type gconf_etc_t;
+files_config_file(gconf_etc_t)
+
+type gconf_home_t;
+typealias gconf_home_t alias { user_gconf_home_t staff_gconf_home_t sysadm_gconf_home_t };
+typealias gconf_home_t alias { auditadm_gconf_home_t secadm_gconf_home_t };
+typealias gconf_home_t alias unconfined_gconf_home_t;
+userdom_user_home_content(gconf_home_t)
+
+type gconf_tmp_t;
+typealias gconf_tmp_t alias { user_gconf_tmp_t staff_gconf_tmp_t sysadm_gconf_tmp_t };
+typealias gconf_tmp_t alias { auditadm_gconf_tmp_t secadm_gconf_tmp_t };
+typealias gconf_tmp_t alias unconfined_gconf_tmp_t;
+userdom_user_tmp_file(gconf_tmp_t)
+
+type gconfd_t, gnomedomain;
+type gconfd_exec_t;
+typealias gconfd_t alias { user_gconfd_t staff_gconfd_t sysadm_gconfd_t };
+typealias gconfd_t alias { auditadm_gconfd_t secadm_gconfd_t };
+userdom_user_application_domain(gconfd_t, gconfd_exec_t)
+role gconfd_roles types gconfd_t;
+
+type gnome_home_t;
+typealias gnome_home_t alias { user_gnome_home_t staff_gnome_home_t sysadm_gnome_home_t };
+typealias gnome_home_t alias { auditadm_gnome_home_t secadm_gnome_home_t };
+typealias gnome_home_t alias unconfined_gnome_home_t;
+userdom_user_home_content(gnome_home_t)
+
+type gkeyringd_exec_t;
+application_executable_file(gkeyringd_exec_t)
+
+type gnome_keyring_home_t;
+userdom_user_home_content(gnome_keyring_home_t)
+
+type gnome_keyring_tmp_t;
+userdom_user_tmp_file(gnome_keyring_tmp_t)
+userdom_user_runtime_content(gnome_keyring_tmp_t)
+
+type gnome_xdg_cache_t;
+xdg_cache_content(gnome_xdg_cache_t)
+
+type gnome_xdg_config_t;
+xdg_config_content(gnome_xdg_config_t)
+
+type gnome_xdg_data_t;
+xdg_data_content(gnome_xdg_data_t)
+
+type gstreamer_orcexec_t;
+application_executable_file(gstreamer_orcexec_t)
+userdom_user_runtime_content(gstreamer_orcexec_t)
+
+##############################
+#
+# Common local Policy
+#
+
+allow gnomedomain self:process { getsched signal };
+allow gnomedomain self:fifo_file rw_fifo_file_perms;
+
+dev_read_urand(gnomedomain)
+
+domain_use_interactive_fds(gnomedomain)
+
+files_read_etc_files(gnomedomain)
+
+miscfiles_read_localization(gnomedomain)
+
+logging_send_syslog_msg(gnomedomain)
+
+userdom_use_user_terminals(gnomedomain)
+
+optional_policy(`
+	xserver_rw_xsession_log(gnomedomain)
+	xserver_rw_xdm_pipes(gnomedomain)
+	xserver_use_xdm_fds(gnomedomain)
+')
+
+##############################
+#
+# Conf daemon local Policy
+#
+
+allow gconfd_t gconf_etc_t:dir list_dir_perms;
+read_files_pattern(gconfd_t, gconf_etc_t, gconf_etc_t)
+
+manage_dirs_pattern(gconfd_t, gconf_home_t, gconf_home_t)
+manage_files_pattern(gconfd_t, gconf_home_t, gconf_home_t)
+userdom_user_home_dir_filetrans(gconfd_t, gconf_home_t, dir)
+
+manage_dirs_pattern(gconfd_t, gconf_tmp_t, gconf_tmp_t)
+manage_files_pattern(gconfd_t, gconf_tmp_t, gconf_tmp_t)
+userdom_user_tmp_filetrans(gconfd_t, gconf_tmp_t, { dir file })
+
+manage_dirs_pattern(gconfd_t, gnome_xdg_cache_t, gnome_xdg_cache_t)
+manage_files_pattern(gconfd_t, gnome_xdg_cache_t, gnome_xdg_cache_t)
+xdg_cache_filetrans(gconfd_t, gnome_xdg_cache_t, dir)
+
+manage_dirs_pattern(gconfd_t, gnome_xdg_config_t, gnome_xdg_config_t)
+manage_files_pattern(gconfd_t, gnome_xdg_config_t, gnome_xdg_config_t)
+xdg_config_filetrans(gconfd_t, gnome_xdg_config_t, dir)
+
+manage_dirs_pattern(gconfd_t, gnome_xdg_data_t, gnome_xdg_data_t)
+manage_files_pattern(gconfd_t, gnome_xdg_data_t, gnome_xdg_data_t)
+xdg_data_filetrans(gconfd_t, gnome_xdg_data_t, dir)
+
+# for /proc/filesystems
+kernel_read_system_state(gconfd_t)
+
+# for /var/lib/gconf/defaults
+files_read_var_lib_files(gconfd_t)
+
+userdom_manage_user_tmp_dirs(gconfd_t)
+userdom_manage_user_tmp_sockets(gconfd_t)
+userdom_tmp_filetrans_user_tmp(gconfd_t, { dir sock_file })
+userdom_user_runtime_filetrans_user_tmp(gconfd_t, dir)
+
+optional_policy(`
+	dbus_all_session_domain(gconfd_t, gconfd_exec_t)
+
+	dbus_system_bus_client(gconfd_t)
+
+	optional_policy(`
+		pulseaudio_dbus_chat(gconfd_t)
+	')
+')
+
+optional_policy(`
+	nscd_dontaudit_search_pid(gconfd_t)
+')
+
+optional_policy(`
+	ooffice_stream_connect(gconfd_t)
+')
+
+optional_policy(`
+	pulseaudio_stream_connect(gconfd_t)
+')
+
+##############################
+#
+# Keyring-daemon local policy
+#
+
+allow gkeyringd_domain self:capability ipc_lock;
+allow gkeyringd_domain self:process { getcap setcap };
+allow gkeyringd_domain self:unix_stream_socket { connectto accept listen };
+
+allow gkeyringd_domain gnome_home_t:dir create_dir_perms;
+gnome_home_filetrans_gnome_home(gkeyringd_domain, dir, ".gnome2")
+
+manage_dirs_pattern(gkeyringd_domain, gnome_keyring_home_t, gnome_keyring_home_t)
+manage_files_pattern(gkeyringd_domain, gnome_keyring_home_t, gnome_keyring_home_t)
+gnome_home_filetrans(gkeyringd_domain, gnome_keyring_home_t, dir, "keyrings")
+
+manage_dirs_pattern(gkeyringd_domain, gnome_keyring_tmp_t, gnome_keyring_tmp_t)
+manage_sock_files_pattern(gkeyringd_domain, gnome_keyring_tmp_t, gnome_keyring_tmp_t)
+files_tmp_filetrans(gkeyringd_domain, gnome_keyring_tmp_t, dir)
+userdom_user_runtime_filetrans(gkeyringd_domain, gnome_keyring_tmp_t, dir)
+
+manage_dirs_pattern(gkeyringd_domain, gnome_xdg_cache_t, gnome_xdg_cache_t)
+manage_files_pattern(gkeyringd_domain, gnome_xdg_cache_t, gnome_xdg_cache_t)
+manage_sock_files_pattern(gkeyringd_domain, gnome_xdg_cache_t, gnome_xdg_cache_t)
+xdg_cache_filetrans(gkeyringd_domain, gnome_xdg_cache_t, dir)
+
+manage_dirs_pattern(gkeyringd_domain, gnome_xdg_config_t, gnome_xdg_config_t)
+manage_files_pattern(gkeyringd_domain, gnome_xdg_config_t, gnome_xdg_config_t)
+xdg_config_filetrans(gkeyringd_domain, gnome_xdg_config_t, dir)
+
+manage_dirs_pattern(gkeyringd_domain, gnome_xdg_data_t, gnome_xdg_data_t)
+manage_files_pattern(gkeyringd_domain, gnome_xdg_data_t, gnome_xdg_data_t)
+xdg_data_filetrans(gkeyringd_domain, gnome_xdg_data_t, dir)
+
+kernel_read_crypto_sysctls(gkeyringd_domain)
+kernel_read_kernel_sysctls(gkeyringd_domain)
+kernel_read_system_state(gkeyringd_domain)
+
+dev_read_rand(gkeyringd_domain)
+dev_read_sysfs(gkeyringd_domain)
+
+files_read_usr_files(gkeyringd_domain)
+
+fs_getattr_all_fs(gkeyringd_domain)
+
+selinux_getattr_fs(gkeyringd_domain)
+
+seutil_read_config(gkeyringd_domain)
+
+optional_policy(`
+	ssh_read_user_home_files(gkeyringd_domain)
+')
+
+optional_policy(`
+	telepathy_mission_control_read_state(gkeyringd_domain)
+')
+
+optional_policy(`
+	xserver_rw_xsession_log(gkeyringd_domain)
+')

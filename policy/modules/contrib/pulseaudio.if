@@ -1,0 +1,396 @@
+## <summary>Pulseaudio network sound server.</summary>
+
+########################################
+## <summary>
+##	Role access for pulseaudio.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_role',`
+	gen_require(`
+		attribute pulseaudio_tmpfsfile;
+		type pulseaudio_t, pulseaudio_home_t, pulseaudio_tmpfs_t;
+		type pulseaudio_tmp_t;
+	')
+
+	pulseaudio_run($2, $1)
+
+	allow $2 pulseaudio_t:process { ptrace signal_perms };
+	allow $2 pulseaudio_t:fd use;
+	ps_process_pattern($2, pulseaudio_t)
+
+	allow $2 pulseaudio_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 pulseaudio_home_t:file { manage_file_perms relabel_file_perms };
+	allow $2 pulseaudio_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+
+	allow $2 { pulseaudio_tmpfs_t pulseaudio_tmpfsfile }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { pulseaudio_tmpfs_t pulseaudio_tmpfsfile }:file { manage_file_perms relabel_file_perms map };
+
+	allow $2 pulseaudio_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 pulseaudio_tmp_t:file { manage_file_perms relabel_file_perms };
+	allow $2 pulseaudio_tmp_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	allow pulseaudio_t $2:unix_stream_socket connectto;
+	allow pulseaudio_t $2:process signull;
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run pulseaudio.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`pulseaudio_domtrans',`
+	gen_require(`
+		attribute pulseaudio_client;
+		type pulseaudio_t, pulseaudio_exec_t;
+	')
+
+	typeattribute $1 pulseaudio_client;
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, pulseaudio_exec_t, pulseaudio_t)
+')
+
+########################################
+## <summary>
+##	Execute pulseaudio in the pulseaudio
+##	domain, and allow the specified role
+##	the pulseaudio domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_run',`
+	gen_require(`
+		attribute_role pulseaudio_roles;
+	')
+
+	pulseaudio_domtrans($1)
+	roleattribute $2 pulseaudio_roles;
+')
+
+########################################
+## <summary>
+##	Execute pulseaudio in the caller domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed access.
+## </summary>
+## </param>
+#
+interface(`pulseaudio_exec',`
+	gen_require(`
+		type pulseaudio_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, pulseaudio_exec_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to execute pulseaudio.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain to not audit.
+## </summary>
+## </param>
+#
+interface(`pulseaudio_dontaudit_exec',`
+	gen_require(`
+		type pulseaudio_exec_t;
+	')
+
+	dontaudit $1 pulseaudio_exec_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Send null signals to pulseaudio.
+##	processes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_signull',`
+	gen_require(`
+		type pulseaudio_t;
+	')
+
+	allow $1 pulseaudio_t:process signull;
+')
+
+########################################
+## <summary>
+##	Use file descriptors for
+##	pulseaudio.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_use_fds',`
+	gen_require(`
+		type pulseaudio_t;
+	')
+
+	allow $1 pulseaudio_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to use the
+##	file descriptors for pulseaudio.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`pulseaudio_dontaudit_use_fds',`
+	gen_require(`
+		type pulseaudio_t;
+	')
+
+	dontaudit $1 pulseaudio_t:fd use;
+')
+
+#####################################
+## <summary>
+##	Connect to pulseaudio with a unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_stream_connect',`
+	gen_require(`
+		type pulseaudio_t, pulseaudio_var_run_t, pulseaudio_tmp_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, { pulseaudio_tmp_t pulseaudio_var_run_t }, { pulseaudio_tmp_t pulseaudio_var_run_t }, pulseaudio_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	pulseaudio over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_dbus_chat',`
+	gen_require(`
+		type pulseaudio_t;
+		class dbus send_msg;
+	')
+
+	allow $1 pulseaudio_t:dbus send_msg;
+	allow pulseaudio_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Set attributes of pulseaudio home directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_setattr_home_dir',`
+	gen_require(`
+		type pulseaudio_home_t;
+	')
+
+	allow $1 pulseaudio_home_t:dir setattr_dir_perms;
+')
+
+########################################
+## <summary>
+##	Read pulseaudio home content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_read_home',`
+	gen_require(`
+		type pulseaudio_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 pulseaudio_home_t:dir list_dir_perms;
+	allow $1 pulseaudio_home_t:file read_file_perms;
+	allow $1 pulseaudio_home_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Read and write Pulse Audio files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_rw_home_files',`
+	gen_require(`
+		type pulseaudio_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	rw_files_pattern($1, pulseaudio_home_t, pulseaudio_home_t)
+	read_lnk_files_pattern($1, pulseaudio_home_t, pulseaudio_home_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	pulseaudio home content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_manage_home',`
+	gen_require(`
+		type pulseaudio_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 pulseaudio_home_t:dir manage_dir_perms;
+	allow $1 pulseaudio_home_t:file manage_file_perms;
+	allow $1 pulseaudio_home_t:lnk_file manage_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Create objects in user home
+##	directories with the pulseaudio
+##	home type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_home_filetrans_pulseaudio_home',`
+	gen_require(`
+		type pulseaudio_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, pulseaudio_home_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Make the specified tmpfs file type
+##	pulseaudio tmpfs content.
+## </summary>
+## <param name="file_type">
+##	<summary>
+##	File type to make pulseaudio tmpfs content.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_tmpfs_content',`
+	gen_require(`
+		attribute pulseaudio_tmpfsfile;
+	')
+
+	typeattribute $1 pulseaudio_tmpfsfile;
+')
+
+#######################################
+## <summary>
+##	Read pulseaudio tmpfs files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_read_tmpfs_files',`
+	gen_require(`
+		type pulseaudio_tmpfs_t;
+	')
+
+	fs_search_tmpfs($1)
+	read_files_pattern($1, pulseaudio_tmpfs_t, pulseaudio_tmpfs_t)
+')
+
+#######################################
+## <summary>
+##	Read and write pulseaudio tmpfs
+##	files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pulseaudio_rw_tmpfs_files',`
+	gen_require(`
+		type pulseaudio_tmpfs_t;
+	')
+
+	fs_search_tmpfs($1)
+	rw_files_pattern($1, pulseaudio_tmpfs_t, pulseaudio_tmpfs_t)
+')

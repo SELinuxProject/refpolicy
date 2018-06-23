@@ -1,0 +1,1124 @@
+## <summary>Common e-mail transfer agent policy.</summary>
+
+########################################
+## <summary>
+##	MTA stub interface.  No access allowed.
+## </summary>
+## <param name="domain" unused="true">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_stub',`
+	gen_require(`
+		type sendmail_exec_t;
+	')
+')
+
+#######################################
+## <summary>
+##	The template to define a mail domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`mta_base_mail_template',`
+	gen_require(`
+		attribute user_mail_domain;
+		type sendmail_exec_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_mail_t, user_mail_domain;
+	application_domain($1_mail_t, sendmail_exec_t)
+
+	type $1_mail_tmp_t;
+	files_tmp_file($1_mail_tmp_t)
+
+	########################################
+	#
+	# Declarations
+	#
+
+	manage_dirs_pattern($1_mail_t, $1_mail_tmp_t, $1_mail_tmp_t)
+	manage_files_pattern($1_mail_t, $1_mail_tmp_t, $1_mail_tmp_t)
+	files_tmp_filetrans($1_mail_t, $1_mail_tmp_t, { file dir })
+
+	auth_use_nsswitch($1_mail_t)
+
+	optional_policy(`
+		postfix_domtrans_user_mail_handler($1_mail_t)
+	')
+')
+
+########################################
+## <summary>
+##	Role access for mta.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`mta_role',`
+	gen_require(`
+		attribute mta_user_agent;
+		attribute_role user_mail_roles;
+		type user_mail_t, sendmail_exec_t, mail_home_t;
+		type user_mail_tmp_t, mail_home_rw_t;
+	')
+
+	roleattribute $1 user_mail_roles;
+
+	# this is something i need to fix
+	# i dont know if and why it is needed
+	# will role attribute work?
+	role $1 types mta_user_agent;
+
+	domtrans_pattern($2, sendmail_exec_t, user_mail_t)
+	allow $2 sendmail_exec_t:lnk_file read_lnk_file_perms;
+
+	allow $2 { user_mail_t mta_user_agent }:process { ptrace signal_perms };
+	ps_process_pattern($2, { user_mail_t mta_user_agent })
+
+	allow $2 mail_home_t:file { manage_file_perms relabel_file_perms };
+	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".esmtp_queue")
+	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".forward")
+	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".mailrc")
+	userdom_user_home_dir_filetrans($2, mail_home_t, file, "dead.letter")
+
+	allow $2 mail_home_rw_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 mail_home_rw_t:file { manage_file_perms relabel_file_perms };
+	allow $2 mail_home_rw_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	userdom_user_home_dir_filetrans($2, mail_home_rw_t, dir, "Maildir")
+	userdom_user_home_dir_filetrans($2, mail_home_rw_t, dir, ".maildir")
+
+	allow $2 user_mail_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 user_mail_tmp_t:file { manage_file_perms relabel_file_perms };
+
+	optional_policy(`
+		exim_run($2, $1)
+	')
+
+	optional_policy(`
+		mailman_run($2, $1)
+	')
+')
+
+########################################
+## <summary>
+##	Make the specified domain usable for a mail server.
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used as a mail server domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`mta_mailserver',`
+	gen_require(`
+		attribute mailserver_domain;
+	')
+
+	init_daemon_domain($1, $2)
+	typeattribute $1 mailserver_domain;
+')
+
+########################################
+## <summary>
+##	Make the specified type a MTA executable file.
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used as a mail client.
+##	</summary>
+## </param>
+#
+interface(`mta_agent_executable',`
+	gen_require(`
+		attribute mta_exec_type;
+	')
+
+	typeattribute $1 mta_exec_type;
+
+	application_executable_file($1)
+')
+
+#######################################
+## <summary>
+##	Read mta mail home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_read_mail_home_files',`
+	gen_require(`
+		type mail_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 mail_home_t:file read_file_perms;
+')
+
+#######################################
+## <summary>
+##	Create, read, write, and delete
+##	mta mail home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_manage_mail_home_files',`
+	gen_require(`
+		type mail_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 mail_home_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Create specified objects in user home
+##	directories with the generic mail
+##	home type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_home_filetrans_mail_home',`
+	gen_require(`
+		type mail_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, mail_home_t, $2, $3)
+')
+
+#######################################
+## <summary>
+##	Create, read, write, and delete
+##	mta mail home rw content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_manage_mail_home_rw_content',`
+	gen_require(`
+		type mail_home_rw_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	manage_dirs_pattern($1, mail_home_rw_t, mail_home_rw_t)
+	manage_files_pattern($1, mail_home_rw_t, mail_home_rw_t)
+	manage_lnk_files_pattern($1, mail_home_rw_t, mail_home_rw_t)
+')
+
+########################################
+## <summary>
+##	Create specified objects in user home
+##	directories with the generic mail
+##	home rw type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_home_filetrans_mail_home_rw',`
+	gen_require(`
+		type mail_home_rw_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, mail_home_rw_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Make the specified type by a system MTA.
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used as a mail client.
+##	</summary>
+## </param>
+#
+interface(`mta_system_content',`
+	gen_require(`
+		attribute mailcontent_type;
+	')
+
+	typeattribute $1 mailcontent_type;
+')
+
+########################################
+## <summary>
+##	Modified mailserver interface for
+##	sendmail daemon use.
+## </summary>
+## <desc>
+##	<p>
+##	A modified MTA mail server interface for
+##	the sendmail program.  It's design does
+##	not fit well with policy, and using the
+##	regular interface causes a type_transition
+##	conflict if direct running of init scripts
+##	is enabled.
+##	</p>
+##	<p>
+##	This interface should most likely only be used
+##	by the sendmail policy.
+##	</p>
+## </desc>
+## <param name="domain">
+##	<summary>
+##	The type to be used for the mail server.
+##	</summary>
+## </param>
+#
+interface(`mta_sendmail_mailserver',`
+	gen_require(`
+		attribute mailserver_domain;
+		type sendmail_exec_t;
+	')
+
+	init_system_domain($1, sendmail_exec_t)
+
+	typeattribute $1 mailserver_domain;
+')
+
+########################################
+## <summary>
+##	Inherit FDs from mailserver_domain domains
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type for a list server or delivery agent that inherits fds
+##	</summary>
+## </param>
+#
+interface(`mta_use_mailserver_fds',`
+	gen_require(`
+		attribute mailserver_domain;
+	')
+
+	allow $1 mailserver_domain:fd use;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for sending mail.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Mail server domain type used for sending mail.
+##	</summary>
+## </param>
+#
+interface(`mta_mailserver_sender',`
+	gen_require(`
+		attribute mailserver_sender;
+	')
+
+	typeattribute $1 mailserver_sender;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for delivering mail to local users.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Mail server domain type used for delivering mail.
+##	</summary>
+## </param>
+#
+interface(`mta_mailserver_delivery',`
+	gen_require(`
+		attribute mailserver_delivery;
+	')
+
+	typeattribute $1 mailserver_delivery;
+')
+
+#######################################
+## <summary>
+##	Make a type a mailserver type used
+##	for sending mail on behalf of local
+##	users to the local mail spool.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Mail server domain type used for sending local mail.
+##	</summary>
+## </param>
+#
+interface(`mta_mailserver_user_agent',`
+	gen_require(`
+		attribute mta_user_agent;
+	')
+
+	typeattribute $1 mta_user_agent;
+')
+
+########################################
+## <summary>
+##	Send mail from the system.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`mta_send_mail',`
+	gen_require(`
+		type system_mail_t;
+		attribute mta_exec_type;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, mta_exec_type, system_mail_t)
+
+	allow $1 mta_exec_type:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Execute send mail in a specified domain.
+## </summary>
+## <desc>
+##	<p>
+##	Execute send mail in a specified domain.
+##	</p>
+##	<p>
+##	No interprocess communication (signals, pipes,
+##	etc.) is provided by this interface since
+##	the domains are not owned by this module.
+##	</p>
+## </desc>
+## <param name="source_domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="target_domain">
+##	<summary>
+##	Domain to transition to.
+##	</summary>
+## </param>
+#
+interface(`mta_sendmail_domtrans',`
+	gen_require(`
+		type sendmail_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domain_auto_transition_pattern($1, sendmail_exec_t, $2)
+
+	allow $1 sendmail_exec_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Send signals to system mail.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+#
+interface(`mta_signal_system_mail',`
+	gen_require(`
+		type system_mail_t;
+	')
+
+	allow $1 system_mail_t:process signal;
+')
+
+########################################
+## <summary>
+##	Send kill signals to system mail.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_kill_system_mail',`
+	gen_require(`
+		type system_mail_t;
+	')
+
+	allow $1 system_mail_t:process sigkill;
+')
+
+########################################
+## <summary>
+##	Execute sendmail in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_sendmail_exec',`
+	gen_require(`
+		type sendmail_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, sendmail_exec_t)
+')
+
+########################################
+## <summary>
+##	Make sendmail usable as an entry
+##      point for the domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to be entered.
+##	</summary>
+## </param>
+#
+interface(`mta_sendmail_entry_point',`
+	gen_require(`
+		type sendmail_exec_t;
+	')
+
+	domain_entry_file($1, sendmail_exec_t)
+')
+
+########################################
+## <summary>
+##	Read mail server configuration content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mta_read_config',`
+	gen_require(`
+		type etc_mail_t;
+	')
+
+	files_search_etc($1)
+	allow $1 etc_mail_t:dir list_dir_perms;
+	allow $1 etc_mail_t:file read_file_perms;
+	allow $1 etc_mail_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Write mail server configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mta_write_config',`
+	gen_require(`
+		type etc_mail_t;
+	')
+
+	files_search_etc($1)
+	write_files_pattern($1, etc_mail_t, etc_mail_t)
+')
+
+########################################
+## <summary>
+##	Read mail address alias files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_read_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	files_search_etc($1)
+	allow $1 etc_aliases_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Read mail address alias files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_map_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	allow $1 etc_aliases_t:file map;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	mail address alias content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_manage_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	files_search_etc($1)
+	manage_files_pattern($1, etc_aliases_t, etc_aliases_t)
+	manage_lnk_files_pattern($1, etc_aliases_t, etc_aliases_t)
+')
+
+########################################
+## <summary>
+##	Create specified object in generic
+##	etc directories with the mail address
+##	alias type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_etc_filetrans_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	files_etc_filetrans($1, etc_aliases_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Create specified objects in specified
+##	directories with a type transition to
+##	the mail address alias type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="file_type">
+##	<summary>
+##	Directory to transition on.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_spec_filetrans_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	filetrans_pattern($1, $2, etc_aliases_t, $3, $4)
+')
+
+########################################
+## <summary>
+##	Read and write mail alias files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`mta_rw_aliases',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	files_search_etc($1)
+	allow $1 etc_aliases_t:file rw_file_perms;
+')
+
+#######################################
+## <summary>
+##	Do not audit attempts to read
+##	and write TCP sockets of mail
+##	delivery domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`mta_dontaudit_rw_delivery_tcp_sockets',`
+	gen_require(`
+		attribute mailserver_delivery;
+	')
+
+	dontaudit $1 mailserver_delivery:tcp_socket { read write };
+')
+
+#######################################
+## <summary>
+##	Do not audit attempts to read
+##	mail spool symlinks.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`mta_dontaudit_read_spool_symlinks',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	dontaudit $1 mail_spool_t:lnk_file read;
+')
+
+########################################
+## <summary>
+##	Get attributes of mail spool content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_getattr_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mail_spool_t:dir list_dir_perms;
+	getattr_files_pattern($1, mail_spool_t, mail_spool_t)
+	read_lnk_files_pattern($1, mail_spool_t, mail_spool_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get
+##	attributes of mail spool files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`mta_dontaudit_getattr_spool_files',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_dontaudit_search_spool($1)
+	dontaudit $1 mail_spool_t:dir search_dir_perms;
+	dontaudit $1 mail_spool_t:lnk_file read_lnk_file_perms;
+	dontaudit $1 mail_spool_t:file getattr_file_perms;
+')
+
+#######################################
+## <summary>
+##	Create specified objects in the
+##	mail spool directory with a
+##	private type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="private type">
+##	<summary>
+##	The type of the object to be created.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_spool_filetrans',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	filetrans_pattern($1, mail_spool_t, $2, $3, $4)
+')
+
+#######################################
+## <summary>
+##  Read mail spool files.
+## </summary>
+## <param name="domain">
+##  <summary>
+##  Domain allowed access.
+##  </summary>
+## </param>
+#
+interface(`mta_read_spool_files',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	read_files_pattern($1, mail_spool_t, mail_spool_t)
+')
+
+########################################
+## <summary>
+##	Read and write mail spool files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_rw_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mail_spool_t:dir list_dir_perms;
+	allow $1 mail_spool_t:file rw_file_perms;
+	allow $1 mail_spool_t:lnk_file read_lnk_file_perms;
+')
+
+#######################################
+## <summary>
+##	Create, read, and write mail spool files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_append_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mail_spool_t:dir list_dir_perms;
+	manage_files_pattern($1, mail_spool_t, mail_spool_t)
+	allow $1 mail_spool_t:lnk_file read_lnk_file_perms;
+')
+
+#######################################
+## <summary>
+##	Delete mail spool files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_delete_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	delete_files_pattern($1, mail_spool_t, mail_spool_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	mail spool content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_manage_spool',`
+	gen_require(`
+		type mail_spool_t;
+	')
+
+	files_search_spool($1)
+	manage_dirs_pattern($1, mail_spool_t, mail_spool_t)
+	manage_files_pattern($1, mail_spool_t, mail_spool_t)
+	manage_lnk_files_pattern($1, mail_spool_t, mail_spool_t)
+')
+
+#######################################
+## <summary>
+##	Create specified objects in the
+##	mail queue spool directory with a
+##	private type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="private type">
+##	<summary>
+##	The type of the object to be created.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`mta_queue_filetrans',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	files_search_spool($1)
+	filetrans_pattern($1, mqueue_spool_t, $2, $3, $4)
+')
+
+########################################
+## <summary>
+##	Search mail queue directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_search_queue',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mqueue_spool_t:dir search_dir_perms;
+')
+
+#######################################
+## <summary>
+##	List mail queue directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_list_queue',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	files_search_spool($1)
+	allow $1 mqueue_spool_t:dir list_dir_perms;
+')
+
+#######################################
+## <summary>
+##	Read mail queue files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_read_queue',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	files_search_spool($1)
+	read_files_pattern($1, mqueue_spool_t, mqueue_spool_t)
+')
+
+#######################################
+## <summary>
+##	Do not audit attempts to read and
+##	write mail queue content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`mta_dontaudit_rw_queue',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	dontaudit $1 mqueue_spool_t:dir search_dir_perms;
+	dontaudit $1 mqueue_spool_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	mail queue content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_manage_queue',`
+	gen_require(`
+		type mqueue_spool_t;
+	')
+
+	files_search_spool($1)
+	manage_dirs_pattern($1, mqueue_spool_t, mqueue_spool_t)
+	manage_files_pattern($1, mqueue_spool_t, mqueue_spool_t)
+')
+
+#######################################
+## <summary>
+##	Read sendmail binary.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_read_sendmail_bin',`
+	gen_require(`
+		type sendmail_exec_t;
+	')
+
+	allow $1 sendmail_exec_t:file read_file_perms;
+')
+
+#######################################
+## <summary>
+##	Read and write unix domain stream
+##	sockets of all base mail domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`mta_rw_user_mail_stream_sockets',`
+	gen_require(`
+		attribute user_mail_domain;
+	')
+
+	allow $1 user_mail_domain:unix_stream_socket rw_socket_perms;
+')

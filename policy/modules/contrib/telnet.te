@@ -1,0 +1,103 @@
+policy_module(telnet, 1.13.0)
+
+########################################
+#
+# Declarations
+#
+
+type telnetd_t;
+type telnetd_exec_t;
+inetd_service_domain(telnetd_t, telnetd_exec_t)
+init_daemon_domain(telnetd_t, telnetd_exec_t)
+
+type telnetd_devpts_t;
+term_login_pty(telnetd_devpts_t)
+
+type telnetd_keytab_t;
+files_type(telnetd_keytab_t)
+
+type telnetd_tmp_t;
+files_tmp_file(telnetd_tmp_t)
+
+type telnetd_var_run_t;
+files_pid_file(telnetd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow telnetd_t self:capability { chown dac_override fowner fsetid setgid setuid sys_tty_config };
+allow telnetd_t self:process signal_perms;
+allow telnetd_t self:fifo_file rw_fifo_file_perms;
+allow telnetd_t self:tcp_socket { accept listen };
+
+allow telnetd_t telnetd_devpts_t:chr_file { rw_chr_file_perms setattr_chr_file_perms };
+term_create_pty(telnetd_t, telnetd_devpts_t)
+
+allow telnetd_t telnetd_keytab_t:file read_file_perms;
+
+manage_dirs_pattern(telnetd_t, telnetd_tmp_t, telnetd_tmp_t)
+manage_files_pattern(telnetd_t, telnetd_tmp_t, telnetd_tmp_t)
+files_tmp_filetrans(telnetd_t, telnetd_tmp_t, { file dir })
+
+manage_files_pattern(telnetd_t, telnetd_var_run_t, telnetd_var_run_t)
+files_pid_filetrans(telnetd_t, telnetd_var_run_t, file)
+
+kernel_read_kernel_sysctls(telnetd_t)
+kernel_read_system_state(telnetd_t)
+kernel_read_network_state(telnetd_t)
+
+corenet_all_recvfrom_unlabeled(telnetd_t)
+corenet_all_recvfrom_netlabel(telnetd_t)
+corenet_tcp_sendrecv_generic_if(telnetd_t)
+corenet_tcp_sendrecv_generic_node(telnetd_t)
+
+corenet_sendrecv_telnetd_server_packets(telnetd_t)
+corenet_tcp_bind_telnetd_port(telnetd_t)
+corenet_tcp_sendrecv_telnetd_port(telnetd_t)
+
+corecmd_search_bin(telnetd_t)
+
+dev_read_urand(telnetd_t)
+
+domain_interactive_fd(telnetd_t)
+
+files_read_usr_files(telnetd_t)
+files_read_etc_runtime_files(telnetd_t)
+files_search_home(telnetd_t)
+
+fs_getattr_xattr_fs(telnetd_t)
+
+auth_rw_login_records(telnetd_t)
+auth_use_nsswitch(telnetd_t)
+
+init_rw_utmp(telnetd_t)
+
+logging_send_syslog_msg(telnetd_t)
+
+miscfiles_read_localization(telnetd_t)
+
+seutil_read_config(telnetd_t)
+
+userdom_search_user_home_dirs(telnetd_t)
+userdom_setattr_user_ptys(telnetd_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_search_nfs(telnetd_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_search_cifs(telnetd_t)
+')
+
+optional_policy(`
+	kerberos_read_keytab(telnetd_t)
+	kerberos_tmp_filetrans_host_rcache(telnetd_t, file, "host_0")
+	kerberos_manage_host_rcache(telnetd_t)
+	kerberos_use(telnetd_t)
+')
+
+optional_policy(`
+	remotelogin_domtrans(telnetd_t)
+')

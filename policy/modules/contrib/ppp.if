@@ -1,0 +1,487 @@
+## <summary>Point to Point Protocol daemon creates links in ppp networks.</summary>
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	ppp home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_manage_home_files',`
+	gen_require(`
+		type ppp_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 ppp_home_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Read ppp user home content files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_read_home_files',`
+	gen_require(`
+		type ppp_home_t;
+
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 ppp_home_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Relabel ppp home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_relabel_home_files',`
+	gen_require(`
+		type ppp_home_t;
+	')
+
+	userdom_search_user_home_dirs($1)
+	allow $1 ppp_home_t:file relabel_file_perms;
+')
+
+########################################
+## <summary>
+##	Create objects in user home
+##	directories with the ppp home type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`ppp_home_filetrans_ppp_home',`
+	gen_require(`
+		type ppp_home_t;
+	')
+
+	userdom_user_home_dir_filetrans($1, ppp_home_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Inherit and use ppp file discriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_use_fds',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to inherit
+##	and use ppp file discriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`ppp_dontaudit_use_fds',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	dontaudit $1 pppd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Send child terminated signals to ppp.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_sigchld',`
+	gen_require(`
+		type pppd_t;
+
+	')
+
+	allow $1 pppd_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Send kill signals to ppp.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+#
+interface(`ppp_kill',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:process sigkill;
+')
+
+########################################
+## <summary>
+##	Send generic signals to ppp.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_signal',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:process signal;
+')
+
+########################################
+## <summary>
+##	Send null signals to ppp.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_signull',`
+	gen_require(`
+		type pppd_t;
+	')
+
+	allow $1 pppd_t:process signull;
+')
+
+########################################
+## <summary>
+##	 Execute pppd in the pppd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	 Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`ppp_domtrans',`
+	gen_require(`
+		type pppd_t, pppd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, pppd_exec_t, pppd_t)
+')
+
+########################################
+## <summary>
+##	Conditionally execute pppd on
+##	behalf of a user or staff type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	 Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ppp_run_cond',`
+	gen_require(`
+		attribute_role pppd_roles;
+	')
+
+	roleattribute $2 pppd_roles;
+
+	tunable_policy(`pppd_for_user',`
+		ppp_domtrans($1)
+	')
+')
+
+########################################
+## <summary>
+##	Unconditionally execute ppp daemon
+##	on behalf of a user or staff type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	 Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ppp_run',`
+	gen_require(`
+		attribute_role pppd_roles;
+	')
+
+	ppp_domtrans($1)
+	roleattribute $2 pppd_roles;
+')
+
+########################################
+## <summary>
+##	 Execute domain in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	 Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_exec',`
+	gen_require(`
+		type pppd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, pppd_exec_t)
+')
+
+########################################
+## <summary>
+##	Read ppp configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_read_config',`
+	gen_require(`
+		type pppd_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, pppd_etc_t, pppd_etc_t)
+')
+
+########################################
+## <summary>
+##	Read ppp writable configuration content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_read_rw_config',`
+	gen_require(`
+		type pppd_etc_t, pppd_etc_rw_t;
+	')
+
+	files_search_etc($1)
+	allow $1 { pppd_etc_t pppd_etc_rw_t }:dir list_dir_perms;
+	allow $1 pppd_etc_rw_t:file read_file_perms;
+	allow $1 { pppd_etc_t pppd_etc_rw_t }:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Read ppp secret files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_read_secrets',`
+	gen_require(`
+		type pppd_etc_t, pppd_secret_t;
+	')
+
+	files_search_etc($1)
+	allow $1 pppd_etc_t:dir list_dir_perms;
+	allow $1 pppd_secret_t:file read_file_perms;
+	allow $1 pppd_etc_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Read ppp pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_read_pid_files',`
+	gen_require(`
+		type pppd_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 pppd_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	ppp pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ppp_manage_pid_files',`
+	gen_require(`
+		type pppd_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 pppd_var_run_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Create specified pppd pid objects
+##	with a type transition.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`ppp_pid_filetrans',`
+	gen_require(`
+		type pppd_var_run_t;
+	')
+
+	files_pid_filetrans($1, pppd_var_run_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Execute pppd init script in
+##	the initrc domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`ppp_initrc_domtrans',`
+	gen_require(`
+		type pppd_initrc_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, pppd_initrc_exec_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an ppp environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ppp_admin',`
+	gen_require(`
+		type pppd_t, pppd_tmp_t, pppd_log_t, pppd_lock_t;
+		type pppd_etc_t, pppd_secret_t, pppd_etc_rw_t;
+		type pppd_var_run_t, pppd_initrc_exec_t;
+		type pptp_t, pptp_log_t, pptp_var_run_t;
+	')
+
+	allow $1 { pptp_t pppd_t }:process { ptrace signal_perms };
+	ps_process_pattern($1, { pptp_t pppd_t })
+
+	init_startstop_service($1, $2, pppd_t, pppd_initrc_exec_t)
+
+	files_list_tmp($1)
+	admin_pattern($1, pppd_tmp_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, { pptp_log_t pppd_log_t })
+
+	files_list_locks($1)
+	admin_pattern($1, pppd_lock_t)
+
+	files_list_etc($1)
+	admin_pattern($1, { pppd_etc_rw_t pppd_secret_t pppd_etc_t })
+
+	files_list_pids($1)
+	admin_pattern($1, { pptp_var_run_t pppd_var_run_t })
+')

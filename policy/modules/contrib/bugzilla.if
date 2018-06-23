@@ -1,0 +1,80 @@
+## <summary>Bugtracker.</summary>
+
+########################################
+## <summary>
+##	Search bugzilla directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`bugzilla_search_content',`
+	gen_require(`
+		type httpd_bugzilla_content_t;
+	')
+
+	allow $1 httpd_bugzilla_content_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and
+##	write bugzilla script unix domain
+##	stream sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`bugzilla_dontaudit_rw_stream_sockets',`
+	gen_require(`
+		type httpd_bugzilla_script_t;
+	')
+
+	dontaudit $1 httpd_bugzilla_script_t:unix_stream_socket { read write };
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an bugzilla environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role" unused="true">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`bugzilla_admin',`
+	gen_require(`
+		type httpd_bugzilla_script_t, httpd_bugzilla_content_t, httpd_bugzilla_ra_content_t;
+		type httpd_bugzilla_rw_content_t, httpd_bugzilla_script_exec_t;
+		type httpd_bugzilla_htaccess_t;
+	')
+
+	allow $1 httpd_bugzilla_script_t:process { ptrace signal_perms };
+	ps_process_pattern($1, httpd_bugzilla_script_t)
+
+	files_search_usr($1)
+	admin_pattern($1, httpd_bugzilla_script_exec_t)
+	admin_pattern($1, httpd_bugzilla_script_t)
+	admin_pattern($1, httpd_bugzilla_content_t)
+	admin_pattern($1, httpd_bugzilla_htaccess_t)
+	admin_pattern($1, httpd_bugzilla_ra_content_t)
+
+	files_search_tmp($1)
+	files_search_var_lib($1)
+	admin_pattern($1, httpd_bugzilla_rw_content_t)
+
+	apache_list_sys_content($1)
+')

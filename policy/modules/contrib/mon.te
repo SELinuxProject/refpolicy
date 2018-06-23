@@ -1,0 +1,230 @@
+policy_module(mon, 1.2.0)
+
+########################################
+#
+# Declarations
+#
+
+type mon_t;
+type mon_exec_t;
+init_daemon_domain(mon_t, mon_exec_t)
+
+type mon_net_test_t;
+typealias mon_net_test_t alias mon_test_t;
+type mon_net_test_exec_t;
+typealias mon_net_test_exec_t alias mon_test_exec_t;
+
+domain_type(mon_net_test_t)
+domain_entry_file(mon_net_test_t, mon_net_test_exec_t)
+role system_r types mon_net_test_t;
+domtrans_pattern(mon_t, mon_net_test_exec_t, mon_net_test_t)
+
+type mon_local_test_t;
+type mon_local_test_exec_t;
+domain_type(mon_local_test_t)
+domain_entry_file(mon_local_test_t, mon_local_test_exec_t)
+role system_r types mon_local_test_t;
+
+type mon_var_run_t;
+files_pid_file(mon_var_run_t)
+
+type mon_var_lib_t;
+files_type(mon_var_lib_t)
+
+type mon_var_log_t;
+logging_log_file(mon_var_log_t)
+
+type mon_tmp_t;
+files_tmp_file(mon_tmp_t)
+
+########################################
+#
+# Local policy
+# mon_t is for the main mon process and for sending alerts
+#
+
+allow mon_t self:fifo_file rw_fifo_file_perms;
+allow mon_t self:tcp_socket create_stream_socket_perms;
+# for mailxmpp.alert to set ulimit
+allow mon_t self:process setrlimit;
+
+domtrans_pattern(mon_t, mon_local_test_exec_t, mon_local_test_t)
+
+manage_dirs_pattern(mon_t, mon_tmp_t, mon_tmp_t)
+manage_files_pattern(mon_t, mon_tmp_t, mon_tmp_t)
+files_tmp_filetrans(mon_t, mon_tmp_t, { file dir })
+
+manage_files_pattern(mon_t, mon_var_lib_t, mon_var_lib_t)
+
+manage_files_pattern(mon_t, mon_var_log_t, mon_var_log_t)
+
+manage_files_pattern(mon_t, mon_var_run_t, mon_var_run_t)
+files_pid_filetrans(mon_t, mon_var_run_t, file)
+
+kernel_read_kernel_sysctls(mon_t)
+kernel_read_network_state(mon_t)
+kernel_read_system_state(mon_t)
+
+corecmd_exec_bin(mon_t)
+corecmd_exec_shell(mon_t)
+
+corenet_tcp_bind_mon_port(mon_t)
+corenet_udp_bind_mon_port(mon_t)
+corenet_tcp_bind_generic_node(mon_t)
+corenet_udp_bind_generic_node(mon_t)
+corenet_tcp_connect_jabber_client_port(mon_t)
+
+dev_read_urand(mon_t)
+dev_read_sysfs(mon_t)
+
+domain_use_interactive_fds(mon_t)
+
+files_read_etc_files(mon_t)
+files_read_etc_runtime_files(mon_t)
+files_read_usr_files(mon_t)
+files_search_var_lib(mon_t)
+
+fs_getattr_all_fs(mon_t)
+fs_search_auto_mountpoints(mon_t)
+
+term_dontaudit_search_ptys(mon_t)
+
+application_signull(mon_t)
+
+init_read_utmp(mon_t)
+
+logging_send_syslog_msg(mon_t)
+logging_search_logs(mon_t)
+
+miscfiles_read_localization(mon_t)
+
+sysnet_dns_name_resolve(mon_t)
+
+userdom_dontaudit_use_unpriv_user_fds(mon_t)
+userdom_dontaudit_search_user_home_dirs(mon_t)
+
+optional_policy(`
+	mta_send_mail(mon_t)
+')
+
+########################################
+#
+# Local policy
+# mon_net_test_t is for running tests that need network access
+#
+
+allow mon_net_test_t self:fifo_file rw_file_perms;
+
+can_exec(mon_net_test_t, mon_net_test_exec_t)
+manage_files_pattern(mon_net_test_t, mon_var_lib_t, mon_var_lib_t)
+
+kernel_dontaudit_getattr_core_if(mon_net_test_t)
+kernel_getattr_proc(mon_net_test_t)
+kernel_read_system_state(mon_net_test_t)
+
+corecmd_exec_bin(mon_net_test_t)
+corecmd_exec_shell(mon_net_test_t)
+
+corenet_tcp_connect_all_ports(mon_net_test_t)
+corenet_udp_bind_generic_node(mon_net_test_t)
+
+dev_dontaudit_getattr_all_chr_files(mon_net_test_t)
+dev_getattr_sysfs(mon_net_test_t)
+dev_read_sysfs(mon_net_test_t)
+dev_read_urand(mon_net_test_t)
+
+files_read_usr_files(mon_net_test_t)
+
+fs_getattr_xattr_fs(mon_net_test_t)
+
+auth_use_nsswitch(mon_net_test_t)
+
+miscfiles_read_generic_certs(mon_net_test_t)
+miscfiles_read_localization(mon_net_test_t)
+
+netutils_domtrans_ping(mon_net_test_t)
+
+sysnet_read_config(mon_net_test_t)
+
+optional_policy(`
+	bind_read_zone(mon_net_test_t)
+')
+
+########################################
+#
+# Local policy
+# mon_local_test_t is for running tests that don't need network access
+# this domain has much more access to the local system!
+#
+# try not to use dontaudit rules for this
+#
+
+allow mon_local_test_t self:capability sys_admin;
+allow mon_local_test_t self:fifo_file rw_file_perms;
+
+can_exec(mon_local_test_t, mon_local_test_exec_t)
+
+manage_files_pattern(mon_local_test_t, mon_var_lib_t, mon_var_lib_t)
+
+kernel_dontaudit_getattr_core_if(mon_local_test_t)
+kernel_getattr_proc(mon_local_test_t)
+kernel_read_software_raid_state(mon_local_test_t)
+kernel_read_system_state(mon_local_test_t)
+
+corecmd_exec_bin(mon_local_test_t)
+corecmd_exec_shell(mon_local_test_t)
+
+dev_dontaudit_getattr_all_chr_files(mon_local_test_t)
+dev_getattr_sysfs(mon_local_test_t)
+dev_read_urand(mon_local_test_t)
+dev_read_sysfs(mon_local_test_t)
+
+domain_read_all_domains_state(mon_local_test_t)
+
+files_read_usr_files(mon_local_test_t)
+files_search_mnt(mon_local_test_t)
+files_search_spool(mon_local_test_t)
+files_list_boot(mon_local_test_t)
+
+fs_search_auto_mountpoints(mon_local_test_t)
+fs_getattr_nfs(mon_local_test_t)
+fs_getattr_xattr_fs(mon_local_test_t)
+fs_list_hugetlbfs(mon_local_test_t)
+fs_list_tmpfs(mon_local_test_t)
+fs_search_nfs(mon_local_test_t)
+
+storage_getattr_fixed_disk_dev(mon_local_test_t)
+storage_getattr_removable_dev(mon_local_test_t)
+
+term_getattr_generic_ptys(mon_local_test_t)
+term_list_ptys(mon_local_test_t)
+
+application_exec_all(mon_local_test_t)
+
+auth_use_nsswitch(mon_local_test_t)
+
+init_getattr_initctl(mon_local_test_t)
+
+logging_send_syslog_msg(mon_local_test_t)
+
+miscfiles_read_localization(mon_local_test_t)
+
+sysnet_read_config(mon_local_test_t)
+
+userdom_dontaudit_read_user_tmpfs_files(mon_local_test_t)
+
+optional_policy(`
+	gpm_getattr_gpmctl(mon_local_test_t)
+')
+
+optional_policy(`
+	postfix_search_spool(mon_local_test_t)
+')
+
+optional_policy(`
+	rpc_read_nfs_content(mon_local_test_t)
+')
+
+optional_policy(`
+	xserver_rw_console(mon_local_test_t)
+')

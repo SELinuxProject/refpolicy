@@ -1,0 +1,254 @@
+policy_module(exim, 1.12.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether exim can connect to
+##	databases.
+##	</p>
+## </desc>
+gen_tunable(exim_can_connect_db, false)
+
+## <desc>
+##	<p>
+##	Determine whether exim can read generic
+##	user content files.
+##	</p>
+## </desc>
+gen_tunable(exim_read_user_files, false)
+
+## <desc>
+##	<p>
+##	Determine whether exim can create,
+##	read, write, and delete generic user
+##	content files.
+## </p>
+## </desc>
+gen_tunable(exim_manage_user_files, false)
+
+attribute_role exim_roles;
+
+type exim_t;
+type exim_exec_t;
+init_daemon_domain(exim_t, exim_exec_t)
+role exim_roles types exim_t;
+
+mta_mailserver(exim_t, exim_exec_t)
+mta_mailserver_delivery(exim_t)
+mta_mailserver_user_agent(exim_t)
+mta_agent_executable(exim_exec_t)
+
+type exim_initrc_exec_t;
+init_script_file(exim_initrc_exec_t)
+
+type exim_keytab_t;
+files_type(exim_keytab_t)
+
+type exim_var_lib_t;
+files_type(exim_var_lib_t)
+
+type exim_log_t;
+logging_log_file(exim_log_t)
+
+type exim_pid_t;
+typealias exim_pid_t alias exim_var_run_t;
+files_pid_file(exim_pid_t)
+
+type exim_spool_t;
+files_type(exim_spool_t)
+
+type exim_tmp_t;
+files_tmp_file(exim_tmp_t)
+
+ifdef(`distro_debian',`
+	init_daemon_pid_file(exim_pid_t, dir, "exim4")
+')
+
+########################################
+#
+# Local policy
+#
+
+allow exim_t self:capability { chown dac_override fowner setgid setuid sys_resource };
+allow exim_t self:process { setrlimit setpgid };
+allow exim_t self:fifo_file rw_fifo_file_perms;
+allow exim_t self:unix_stream_socket { accept listen };
+allow exim_t self:tcp_socket { accept listen };
+
+can_exec(exim_t, exim_exec_t)
+
+allow exim_t exim_keytab_t:file read_file_perms;
+
+append_files_pattern(exim_t, exim_log_t, exim_log_t)
+create_files_pattern(exim_t, exim_log_t, exim_log_t)
+setattr_files_pattern(exim_t, exim_log_t, exim_log_t)
+logging_log_filetrans(exim_t, exim_log_t, file)
+
+manage_dirs_pattern(exim_t, exim_pid_t, exim_pid_t)
+manage_files_pattern(exim_t, exim_pid_t, exim_pid_t)
+files_pid_filetrans(exim_t, exim_pid_t, { dir file })
+
+manage_dirs_pattern(exim_t, exim_spool_t, exim_spool_t)
+manage_files_pattern(exim_t, exim_spool_t, exim_spool_t)
+manage_sock_files_pattern(exim_t, exim_spool_t, exim_spool_t)
+files_spool_filetrans(exim_t, exim_spool_t, { dir file sock_file })
+
+manage_dirs_pattern(exim_t, exim_tmp_t, exim_tmp_t)
+manage_files_pattern(exim_t, exim_tmp_t, exim_tmp_t)
+files_tmp_filetrans(exim_t, exim_tmp_t, { dir file })
+
+manage_files_pattern(exim_t, exim_var_lib_t, exim_var_lib_t)
+
+kernel_read_crypto_sysctls(exim_t)
+kernel_read_kernel_sysctls(exim_t)
+kernel_read_network_state(exim_t)
+kernel_dontaudit_read_system_state(exim_t)
+
+corecmd_search_bin(exim_t)
+
+corenet_all_recvfrom_unlabeled(exim_t)
+corenet_all_recvfrom_netlabel(exim_t)
+corenet_tcp_sendrecv_generic_if(exim_t)
+corenet_udp_sendrecv_generic_if(exim_t)
+corenet_tcp_sendrecv_generic_node(exim_t)
+corenet_udp_sendrecv_generic_node(exim_t)
+corenet_tcp_sendrecv_all_ports(exim_t)
+corenet_tcp_bind_generic_node(exim_t)
+
+corenet_sendrecv_smtp_server_packets(exim_t)
+corenet_tcp_bind_smtp_port(exim_t)
+
+corenet_sendrecv_amavisd_send_server_packets(exim_t)
+corenet_tcp_bind_amavisd_send_port(exim_t)
+
+corenet_sendrecv_auth_client_packets(exim_t)
+corenet_tcp_connect_auth_port(exim_t)
+
+corenet_sendrecv_smtp_client_packets(exim_t)
+corenet_tcp_connect_smtp_port(exim_t)
+
+corenet_sendrecv_inetd_child_client_packets(exim_t)
+corenet_tcp_connect_inetd_child_port(exim_t)
+
+corenet_sendrecv_spamd_client_packets(exim_t)
+corenet_tcp_connect_spamd_port(exim_t)
+
+dev_read_rand(exim_t)
+dev_read_urand(exim_t)
+dev_read_sysfs(exim_t)
+
+domain_use_interactive_fds(exim_t)
+
+files_search_usr(exim_t)
+files_search_var(exim_t)
+files_read_etc_runtime_files(exim_t)
+files_getattr_all_mountpoints(exim_t)
+
+fs_getattr_xattr_fs(exim_t)
+fs_list_inotifyfs(exim_t)
+
+auth_use_nsswitch(exim_t)
+
+logging_send_syslog_msg(exim_t)
+
+miscfiles_read_localization(exim_t)
+miscfiles_read_generic_certs(exim_t)
+miscfiles_read_generic_tls_privkey(exim_t)
+
+userdom_dontaudit_search_user_home_dirs(exim_t)
+
+mta_read_aliases(exim_t)
+mta_read_config(exim_t)
+mta_manage_spool(exim_t)
+
+tunable_policy(`exim_can_connect_db',`
+	corenet_sendrecv_gds_db_client_packets(exim_t)
+	corenet_tcp_connect_gds_db_port(exim_t)
+	corenet_tcp_sendrecv_gds_db_port(exim_t)
+	corenet_sendrecv_mssql_client_packets(exim_t)
+	corenet_tcp_connect_mssql_port(exim_t)
+	corenet_tcp_sendrecv_mssql_port(exim_t)
+	corenet_sendrecv_oracledb_client_packets(exim_t)
+	corenet_tcp_connect_oracledb_port(exim_t)
+	corenet_tcp_sendrecv_oracledb_port(exim_t)
+')
+
+tunable_policy(`exim_read_user_files',`
+	userdom_read_user_home_content_files(exim_t)
+	userdom_read_user_tmp_files(exim_t)
+')
+
+tunable_policy(`exim_manage_user_files',`
+	userdom_manage_user_home_content_dirs(exim_t)
+	userdom_manage_user_tmp_files(exim_t)
+')
+
+optional_policy(`
+	clamav_domtrans_clamscan(exim_t)
+	clamav_stream_connect(exim_t)
+')
+
+optional_policy(`
+	cron_read_pipes(exim_t)
+	cron_rw_system_job_pipes(exim_t)
+	cron_use_system_job_fds(exim_t)
+')
+
+optional_policy(`
+	cyrus_stream_connect(exim_t)
+')
+
+optional_policy(`
+	dovecot_stream_connect(exim_t)
+')
+
+optional_policy(`
+	kerberos_read_keytab(exim_t)
+	kerberos_use(exim_t)
+')
+
+optional_policy(`
+	mailman_read_data_files(exim_t)
+	mailman_domtrans(exim_t)
+')
+
+optional_policy(`
+	nagios_search_spool(exim_t)
+')
+
+optional_policy(`
+	tunable_policy(`exim_can_connect_db',`
+		mysql_stream_connect(exim_t)
+		mysql_tcp_connect(exim_t)
+	')
+')
+
+optional_policy(`
+	postgresql_unpriv_client(exim_t)
+
+	tunable_policy(`exim_can_connect_db',`
+		postgresql_stream_connect(exim_t)
+		postgresql_tcp_connect(exim_t)
+	')
+')
+
+optional_policy(`
+	procmail_domtrans(exim_t)
+')
+
+optional_policy(`
+	sasl_connect(exim_t)
+')
+
+optional_policy(`
+	sendmail_manage_tmp_files(exim_t)
+')
+
+optional_policy(`
+	spamassassin_exec(exim_t)
+	spamassassin_exec_client(exim_t)
+')

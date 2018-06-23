@@ -1,0 +1,152 @@
+policy_module(procmail, 1.15.0)
+
+########################################
+#
+# Declarations
+#
+
+type procmail_t;
+type procmail_exec_t;
+application_domain(procmail_t, procmail_exec_t)
+role system_r types procmail_t;
+
+type procmail_home_t;
+userdom_user_home_content(procmail_home_t)
+
+type procmail_log_t;
+logging_log_file(procmail_log_t)
+
+type procmail_tmp_t;
+files_tmp_file(procmail_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow procmail_t self:capability { chown dac_override fsetid setgid setuid sys_nice };
+allow procmail_t self:process { setsched signal signull };
+allow procmail_t self:fifo_file rw_fifo_file_perms;
+allow procmail_t self:tcp_socket { accept listen };
+
+allow procmail_t procmail_home_t:file read_file_perms;
+
+allow procmail_t procmail_log_t:dir setattr_dir_perms;
+create_files_pattern(procmail_t, procmail_log_t, procmail_log_t)
+append_files_pattern(procmail_t, procmail_log_t, procmail_log_t)
+read_lnk_files_pattern(procmail_t, procmail_log_t, procmail_log_t)
+logging_log_filetrans(procmail_t, procmail_log_t, { file dir })
+
+allow procmail_t procmail_tmp_t:file manage_file_perms;
+files_tmp_filetrans(procmail_t, procmail_tmp_t, file)
+
+can_exec(procmail_t, procmail_exec_t)
+
+kernel_read_system_state(procmail_t)
+kernel_read_kernel_sysctls(procmail_t)
+
+corenet_all_recvfrom_unlabeled(procmail_t)
+corenet_all_recvfrom_netlabel(procmail_t)
+corenet_tcp_sendrecv_generic_if(procmail_t)
+corenet_tcp_sendrecv_generic_node(procmail_t)
+
+corenet_sendrecv_spamd_client_packets(procmail_t)
+corenet_tcp_connect_spamd_port(procmail_t)
+corenet_tcp_sendrecv_spamd_port(procmail_t)
+
+corenet_sendrecv_comsat_client_packets(procmail_t)
+corenet_tcp_connect_comsat_port(procmail_t)
+corenet_tcp_sendrecv_comsat_port(procmail_t)
+
+corecmd_exec_bin(procmail_t)
+corecmd_exec_shell(procmail_t)
+
+dev_read_urand(procmail_t)
+
+fs_getattr_all_fs(procmail_t)
+fs_search_auto_mountpoints(procmail_t)
+fs_rw_anon_inodefs_files(procmail_t)
+
+auth_use_nsswitch(procmail_t)
+
+files_read_etc_runtime_files(procmail_t)
+files_read_usr_files(procmail_t)
+
+logging_send_syslog_msg(procmail_t)
+
+miscfiles_read_localization(procmail_t)
+
+userdom_search_user_home_dirs(procmail_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(procmail_t)
+	fs_manage_nfs_files(procmail_t)
+	fs_manage_nfs_symlinks(procmail_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(procmail_t)
+	fs_manage_cifs_files(procmail_t)
+	fs_manage_cifs_symlinks(procmail_t)
+')
+
+optional_policy(`
+	clamav_domtrans_clamscan(procmail_t)
+	clamav_search_lib(procmail_t)
+')
+
+optional_policy(`
+	courier_read_config(procmail_t)
+	courier_stream_connect_authdaemon(procmail_t)
+')
+
+optional_policy(`
+	cyrus_stream_connect(procmail_t)
+')
+
+optional_policy(`
+	mta_manage_spool(procmail_t)
+	mta_read_config(procmail_t)
+	mta_read_queue(procmail_t)
+	mta_manage_mail_home_rw_content(procmail_t)
+	mta_home_filetrans_mail_home_rw(procmail_t, dir, "Maildir")
+	mta_home_filetrans_mail_home_rw(procmail_t, dir, ".maildir")
+')
+
+optional_policy(`
+	munin_dontaudit_search_lib(procmail_t)
+')
+
+optional_policy(`
+	nagios_search_spool(procmail_t)
+')
+
+optional_policy(`
+	postfix_dontaudit_rw_local_tcp_sockets(procmail_t)
+	postfix_dontaudit_use_fds(procmail_t)
+	postfix_read_spool_files(procmail_t)
+	postfix_read_local_state(procmail_t)
+	postfix_read_master_state(procmail_t)
+	postfix_rw_inherited_master_pipes(procmail_t)
+')
+
+optional_policy(`
+	pyzor_domtrans(procmail_t)
+	pyzor_signal(procmail_t)
+')
+
+optional_policy(`
+	sendmail_domtrans(procmail_t)
+	sendmail_signal(procmail_t)
+	sendmail_dontaudit_rw_tcp_sockets(procmail_t)
+	sendmail_dontaudit_rw_unix_stream_sockets(procmail_t)
+')
+
+optional_policy(`
+	corenet_udp_bind_generic_port(procmail_t)
+	corenet_dontaudit_udp_bind_all_ports(procmail_t)
+
+	spamassassin_domtrans_local_client(procmail_t)
+	spamassassin_domtrans_client(procmail_t)
+	spamassassin_read_lib_files(procmail_t)
+')

@@ -1,0 +1,93 @@
+## <summary>PCSC smart card service.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run pcscd.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`pcscd_domtrans',`
+	gen_require(`
+		type pcscd_t, pcscd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, pcscd_exec_t, pcscd_t)
+')
+
+########################################
+## <summary>
+##	Read pcscd pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pcscd_read_pid_files',`
+	gen_require(`
+		type pcscd_var_run_t;
+	')
+
+	files_search_pids($1)
+	read_files_pattern($1, pcscd_var_run_t, pcscd_var_run_t)
+')
+
+########################################
+## <summary>
+##	Connect to pcscd over an unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pcscd_stream_connect',`
+	gen_require(`
+		type pcscd_t, pcscd_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, pcscd_var_run_t, pcscd_var_run_t, pcscd_t)
+
+	allow pcscd_t $1:dir list_dir_perms;
+	allow pcscd_t $1:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an pcscd environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`pcscd_admin',`
+	gen_require(`
+		type pcscd_t, pcscd_initrc_exec_t, pcscd_var_run_t;
+	')
+
+	allow $1 pcscd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, pcscd_t)
+
+	init_startstop_service($1, $2, pcscd_t, pcscd_initrc_exec_t)
+
+	files_search_pids($1)
+	admin_pattern($1, pcscd_var_run_t)
+')

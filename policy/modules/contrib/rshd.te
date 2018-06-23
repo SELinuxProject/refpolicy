@@ -1,0 +1,79 @@
+policy_module(rshd, 1.10.0)
+
+########################################
+#
+# Declarations
+#
+
+type rshd_t;
+type rshd_exec_t;
+auth_login_pgm_domain(rshd_t)
+inetd_tcp_service_domain(rshd_t, rshd_exec_t)
+
+type rshd_keytab_t;
+files_type(rshd_keytab_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rshd_t self:capability { chown dac_override fowner fsetid kill setgid setuid };
+allow rshd_t self:process { signal_perms setsched setpgid setexec };
+allow rshd_t self:fifo_file rw_fifo_file_perms;
+allow rshd_t self:tcp_socket create_stream_socket_perms;
+
+allow rshd_t rshd_keytab_t:file read_file_perms;
+
+kernel_read_kernel_sysctls(rshd_t)
+
+corecmd_search_bin(rshd_t)
+
+corenet_all_recvfrom_unlabeled(rshd_t)
+corenet_all_recvfrom_netlabel(rshd_t)
+corenet_tcp_sendrecv_generic_if(rshd_t)
+corenet_tcp_sendrecv_generic_node(rshd_t)
+corenet_tcp_sendrecv_all_ports(rshd_t)
+corenet_tcp_bind_generic_node(rshd_t)
+
+corenet_sendrecv_all_server_packets(rshd_t)
+corenet_tcp_bind_rsh_port(rshd_t)
+corenet_tcp_bind_all_rpc_ports(rshd_t)
+corenet_tcp_connect_all_ports(rshd_t)
+corenet_tcp_connect_all_rpc_ports(rshd_t)
+
+files_list_home(rshd_t)
+
+logging_search_logs(rshd_t)
+
+miscfiles_read_localization(rshd_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_read_nfs_files(rshd_t)
+	fs_read_nfs_symlinks(rshd_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_read_cifs_files(rshd_t)
+	fs_read_cifs_symlinks(rshd_t)
+')
+
+optional_policy(`
+	kerberos_manage_host_rcache(rshd_t)
+	kerberos_read_keytab(rshd_t)
+	kerberos_tmp_filetrans_host_rcache(rshd_t, file, "host_0")
+	kerberos_use(rshd_t)
+')
+
+optional_policy(`
+	rlogin_read_home_content(rshd_t)
+')
+
+optional_policy(`
+	tcpd_wrapped_domain(rshd_t, rshd_exec_t)
+')
+
+optional_policy(`
+	unconfined_shell_domtrans(rshd_t)
+	unconfined_signal(rshd_t)
+')

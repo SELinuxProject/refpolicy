@@ -1,0 +1,160 @@
+## <summary>Filesystem automounter service.</summary>
+
+########################################
+## <summary>
+##	Execute automount in the automount domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`automount_domtrans',`
+	gen_require(`
+		type automount_t, automount_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, automount_exec_t, automount_t)
+')
+
+########################################
+## <summary>
+##	Send generic signals to automount.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+#
+interface(`automount_signal',`
+	gen_require(`
+		type automount_t;
+	')
+
+	allow $1 automount_t:process signal;
+')
+
+########################################
+## <summary>
+##	Read automount process state.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow access.
+##	</summary>
+## </param>
+#
+interface(`automount_read_state',`
+	gen_require(`
+		type automount_t;
+	')
+
+	kernel_search_proc($1)
+	allow $1 automount_t:dir list_dir_perms;
+	read_files_pattern($1, automount_t, automount_t)
+	read_lnk_files_pattern($1, automount_t, automount_t)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to use
+##	automount file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`automount_dontaudit_use_fds',`
+	gen_require(`
+		type automount_t;
+	')
+
+	dontaudit $1 automount_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to write
+##	automount unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`automount_dontaudit_write_pipes',`
+	gen_require(`
+		type automount_t;
+	')
+
+	dontaudit $1 automount_t:fifo_file write;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to get
+##	attributes of automount temporary
+##	directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`automount_dontaudit_getattr_tmp_dirs',`
+	gen_require(`
+		type automount_tmp_t;
+	')
+
+	dontaudit $1 automount_tmp_t:dir getattr_dir_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an automount environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`automount_admin',`
+	gen_require(`
+		type automount_t, automount_lock_t, automount_tmp_t;
+		type automount_var_run_t, automount_initrc_exec_t;
+		type automount_keytab_t;
+	')
+
+	allow $1 automount_t:process { ptrace signal_perms };
+	ps_process_pattern($1, automount_t)
+
+	init_startstop_service($1, $2, automount_t, automount_initrc_exec_t)
+
+	files_list_etc($1)
+	admin_pattern($1, automount_keytab_t)
+
+	files_list_var($1)
+	admin_pattern($1, automount_lock_t)
+
+	files_list_tmp($1)
+	admin_pattern($1, automount_tmp_t)
+
+	files_list_pids($1)
+	admin_pattern($1, automount_var_run_t)
+')

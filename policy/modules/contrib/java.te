@@ -1,0 +1,169 @@
+policy_module(java, 2.11.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether java can make
+##	its stack executable.
+##	</p>
+## </desc>
+gen_tunable(allow_java_execstack, false)
+
+attribute java_domain;
+
+attribute_role java_roles;
+roleattribute system_r java_roles;
+
+attribute_role unconfined_java_roles;
+
+type java_t, java_domain;
+type java_exec_t;
+userdom_user_application_domain(java_t, java_exec_t)
+typealias java_t alias { staff_javaplugin_t user_javaplugin_t sysadm_javaplugin_t };
+typealias java_t alias { auditadm_javaplugin_t secadm_javaplugin_t };
+role java_roles types java_t;
+
+optional_policy(`
+	wm_application_domain(java_t, java_exec_t)
+')
+
+type java_home_t;
+userdom_user_home_content(java_home_t)
+
+type java_tmp_t;
+userdom_user_tmp_file(java_tmp_t)
+typealias java_tmp_t alias { staff_javaplugin_tmp_t user_javaplugin_tmp_t sysadm_javaplugin_tmp_t };
+typealias java_tmp_t alias { auditadm_tmp_javaplugin_t secadm_javaplugin_tmp_t };
+
+type java_tmpfs_t;
+userdom_user_tmpfs_file(java_tmpfs_t)
+typealias java_tmpfs_t alias { staff_javaplugin_tmpfs_t user_javaplugin_tmpfs_t sysadm_javaplugin_tmpfs_t };
+typealias java_tmpfs_t alias { auditadm_tmpfs_javaplugin_t secadm_tmpfs_javaplugin_t };
+
+type unconfined_java_t;
+init_system_domain(unconfined_java_t, java_exec_t)
+role unconfined_java_roles types unconfined_java_t;
+
+########################################
+#
+# Common local policy
+#
+
+allow java_domain self:process { signal_perms getsched setsched };
+allow java_domain self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(java_domain, java_home_t, java_home_t)
+manage_files_pattern(java_domain, java_home_t, java_home_t)
+userdom_user_home_dir_filetrans(java_domain, java_home_t, dir, ".java")
+
+manage_dirs_pattern(java_domain, java_tmp_t, java_tmp_t)
+manage_files_pattern(java_domain, java_tmp_t, java_tmp_t)
+files_tmp_filetrans(java_domain, java_tmp_t, { file dir })
+
+manage_files_pattern(java_domain, java_tmpfs_t, java_tmpfs_t)
+manage_lnk_files_pattern(java_domain, java_tmpfs_t, java_tmpfs_t)
+manage_fifo_files_pattern(java_domain, java_tmpfs_t, java_tmpfs_t)
+manage_sock_files_pattern(java_domain, java_tmpfs_t, java_tmpfs_t)
+fs_tmpfs_filetrans(java_domain, java_tmpfs_t, { file lnk_file sock_file fifo_file })
+
+can_exec(java_domain, { java_exec_t java_tmp_t })
+
+kernel_read_all_sysctls(java_domain)
+kernel_search_vm_sysctl(java_domain)
+kernel_read_network_state(java_domain)
+kernel_read_system_state(java_domain)
+
+corecmd_search_bin(java_domain)
+
+corenet_all_recvfrom_unlabeled(java_domain)
+corenet_all_recvfrom_netlabel(java_domain)
+corenet_tcp_sendrecv_generic_if(java_domain)
+corenet_tcp_sendrecv_generic_node(java_domain)
+
+corenet_sendrecv_all_client_packets(java_domain)
+corenet_tcp_connect_all_ports(java_domain)
+corenet_tcp_sendrecv_all_ports(java_domain)
+
+dev_read_sound(java_domain)
+dev_write_sound(java_domain)
+dev_read_urand(java_domain)
+dev_read_rand(java_domain)
+dev_dontaudit_append_rand(java_domain)
+
+files_read_usr_files(java_domain)
+files_read_etc_files(java_domain)
+files_read_etc_runtime_files(java_domain)
+
+fs_getattr_all_fs(java_domain)
+fs_dontaudit_rw_tmpfs_files(java_domain)
+
+logging_send_syslog_msg(java_domain)
+
+miscfiles_read_generic_certs(java_domain)
+miscfiles_read_localization(java_domain)
+miscfiles_read_fonts(java_domain)
+
+userdom_dontaudit_use_user_terminals(java_domain)
+userdom_dontaudit_exec_user_home_content_files(java_domain)
+
+userdom_user_content_access_template(java, java_domain)
+userdom_write_user_tmp_sockets(java_domain)
+
+tunable_policy(`java_manage_generic_user_content',`
+	userdom_manage_user_home_content_pipes(java_domain)
+	userdom_manage_user_home_content_sockets(java_domain)
+	userdom_user_home_dir_filetrans_user_home_content(java_domain, { file lnk_file sock_file fifo_file })
+')
+
+tunable_policy(`allow_java_execstack',`
+	allow java_domain self:process { execmem execstack };
+
+	libs_legacy_use_shared_libs(java_domain)
+	libs_legacy_use_ld_so(java_domain)
+
+	miscfiles_legacy_read_localization(java_domain)
+')
+
+########################################
+#
+# Local policy
+#
+
+auth_use_nsswitch(java_t)
+
+corecmd_search_bin(java_t)
+
+dev_read_sysfs(java_t)
+
+locallogin_use_fds(java_t)
+
+userdom_read_user_tmp_files(java_t)
+userdom_use_user_terminals(java_t)
+
+optional_policy(`
+	xserver_user_x_domain_template(java, java_t, java_tmpfs_t)
+')
+
+########################################
+#
+# Unconfined local policy
+#
+
+optional_policy(`
+	allow unconfined_java_t self:process { execstack execmem execheap };
+
+	files_execmod_all_files(unconfined_java_t)
+
+	init_dbus_chat_script(unconfined_java_t)
+
+	unconfined_domain_noaudit(unconfined_java_t)
+	unconfined_dbus_chat(unconfined_java_t)
+
+	optional_policy(`
+		rpm_domtrans(unconfined_java_t)
+	')
+')

@@ -1,0 +1,384 @@
+## <summary>Common UNIX printing system.</summary>
+
+########################################
+## <summary>
+##	Create a domain which can be
+##	started by cupsd.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`cups_backend',`
+	gen_require(`
+		type cupsd_t;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, $2)
+	role system_r types $1;
+
+	domtrans_pattern(cupsd_t, $2, $1)
+	allow cupsd_t $1:process signal;
+	allow $1 cupsd_t:unix_stream_socket connected_stream_socket_perms;
+
+	cups_read_config($1)
+	cups_append_log($1)
+')
+
+########################################
+## <summary>
+##	Execute cups in the cups domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`cups_domtrans',`
+	gen_require(`
+		type cupsd_t, cupsd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, cupsd_exec_t, cupsd_t)
+')
+
+########################################
+## <summary>
+##	Connect to cupsd over an unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_stream_connect',`
+	gen_require(`
+		type cupsd_t, cupsd_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 cupsd_var_run_t:sock_file read_sock_file_perms;
+	stream_connect_pattern($1, cupsd_var_run_t, cupsd_var_run_t, cupsd_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	cups over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_dbus_chat',`
+	gen_require(`
+		type cupsd_t;
+		class dbus send_msg;
+	')
+
+	allow $1 cupsd_t:dbus send_msg;
+	allow cupsd_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Read cups PID files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_read_pid_files',`
+	gen_require(`
+		type cupsd_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 cupsd_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Execute cups_config in the
+##	cups config domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`cups_domtrans_config',`
+	gen_require(`
+		type cupsd_config_t, cupsd_config_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, cupsd_config_exec_t, cupsd_config_t)
+')
+
+########################################
+## <summary>
+##	Send generic signals to the cups
+##	configuration daemon.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_signal_config',`
+	gen_require(`
+		type cupsd_config_t;
+	')
+
+	allow $1 cupsd_config_t:process signal;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	cupsd_config over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_dbus_chat_config',`
+	gen_require(`
+		type cupsd_config_t;
+		class dbus send_msg;
+	')
+
+	allow $1 cupsd_config_t:dbus send_msg;
+	allow cupsd_config_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Read cups configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`cups_read_config',`
+	gen_require(`
+		type cupsd_etc_t, cupsd_rw_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, { cupsd_etc_t cupsd_rw_etc_t }, { cupsd_etc_t cupsd_rw_etc_t })
+')
+
+########################################
+## <summary>
+##	Read cups-writable configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`cups_read_rw_config',`
+	gen_require(`
+		type cupsd_etc_t, cupsd_rw_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, { cupsd_etc_t cupsd_rw_etc_t }, cupsd_rw_etc_t)
+')
+
+########################################
+## <summary>
+##	Read cups log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`cups_read_log',`
+	gen_require(`
+		type cupsd_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 cupsd_log_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Append cups log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_append_log',`
+	gen_require(`
+		type cupsd_log_t;
+	')
+
+	logging_search_logs($1)
+	append_files_pattern($1, cupsd_log_t, cupsd_log_t)
+')
+
+########################################
+## <summary>
+##	Write cups log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_write_log',`
+	gen_require(`
+		type cupsd_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 cupsd_log_t:file write_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to ptal over an unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_stream_connect_ptal',`
+	gen_require(`
+		type ptal_t, ptal_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, ptal_var_run_t, ptal_var_run_t, ptal_t)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid) of cupsd.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cups_read_state',`
+	gen_require(`
+		type cupsd_t;
+	')
+
+	allow $1 cupsd_t:dir search_dir_perms;
+	allow $1 cupsd_t:file read_file_perms;
+	allow $1 cupsd_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Execute HP Linux Imaging and
+##	Printing applications in their
+##	own domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`cups_domtrans_hplip',`
+	gen_require(`
+		type hplip_t, hplip_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, hplip_exec_t, hplip_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an cups environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`cups_admin',`
+	gen_require(`
+		type cupsd_t, cupsd_tmp_t, cupsd_lpd_tmp_t;
+		type cupsd_etc_t, cupsd_log_t;
+		type cupsd_config_var_run_t, cupsd_lpd_var_run_t;
+		type cupsd_var_run_t, ptal_etc_t, cupsd_rw_etc_t;
+		type ptal_var_run_t, hplip_var_run_t, cupsd_initrc_exec_t;
+		type cupsd_config_t, cupsd_lpd_t, cups_pdf_t;
+		type hplip_t, ptal_t;
+	')
+
+	allow $1 { cupsd_t cupsd_config_t cupsd_lpd_t }:process { ptrace signal_perms };
+	allow $1 { cups_pdf_t hplip_t ptal_t }:process { ptrace signal_perms };
+	ps_process_pattern($1, { cupsd_t cupsd_config_t cupsd_lpd_t })
+	ps_process_pattern($1, { cups_pdf_t hplip_t ptal_t })
+
+	init_startstop_service($1, $2, cupsd_t, cupsd_initrc_exec_t)
+
+	files_list_etc($1)
+	admin_pattern($1, { cupsd_etc_t cupsd_rw_etc_t ptal_etc_t })
+
+	logging_list_logs($1)
+	admin_pattern($1, cupsd_log_t)
+
+	files_list_spool($1)
+
+	files_list_tmp($1)
+	admin_pattern($1, { cupsd_tmp_t  cupsd_lpd_tmp_t })
+
+	files_list_pids($1)
+	admin_pattern($1, { cupsd_config_var_run_t cupsd_var_run_t hplip_var_run_t })
+	admin_pattern($1, { ptal_var_run_t cupsd_lpd_var_run_t })
+')

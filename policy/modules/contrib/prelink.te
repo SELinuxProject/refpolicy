@@ -1,0 +1,205 @@
+policy_module(prelink, 1.12.0)
+
+########################################
+#
+# Declarations
+
+attribute prelink_object;
+
+attribute_role prelink_roles;
+
+type prelink_t;
+type prelink_exec_t;
+init_system_domain(prelink_t, prelink_exec_t)
+domain_obj_id_change_exemption(prelink_t)
+role prelink_roles types prelink_t;
+
+type prelink_cache_t;
+files_type(prelink_cache_t)
+
+type prelink_cron_system_t;
+type prelink_cron_system_exec_t;
+domain_type(prelink_cron_system_t)
+domain_entry_file(prelink_cron_system_t, prelink_cron_system_exec_t)
+domain_obj_id_change_exemption(prelink_cron_system_t)
+
+type prelink_log_t;
+logging_log_file(prelink_log_t)
+
+type prelink_tmp_t;
+files_tmp_file(prelink_tmp_t)
+
+type prelink_tmpfs_t;
+files_tmpfs_file(prelink_tmpfs_t)
+
+type prelink_var_lib_t;
+files_type(prelink_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+allow prelink_t self:capability { chown dac_override fowner fsetid setfcap sys_resource };
+allow prelink_t self:process { execheap execmem execstack signal };
+allow prelink_t self:fifo_file rw_fifo_file_perms;
+
+allow prelink_t prelink_cache_t:file manage_file_perms;
+files_etc_filetrans(prelink_t, prelink_cache_t, file)
+
+allow prelink_t prelink_log_t:dir setattr_dir_perms;
+create_files_pattern(prelink_t, prelink_log_t, prelink_log_t)
+append_files_pattern(prelink_t, prelink_log_t, prelink_log_t)
+read_lnk_files_pattern(prelink_t, prelink_log_t, prelink_log_t)
+logging_log_filetrans(prelink_t, prelink_log_t, file)
+
+allow prelink_t prelink_tmp_t:file { manage_file_perms mmap_exec_file_perms relabel_file_perms execmod };
+files_tmp_filetrans(prelink_t, prelink_tmp_t, file)
+
+allow prelink_t prelink_tmpfs_t:file { manage_file_perms mmap_exec_file_perms relabel_file_perms execmod };
+fs_tmpfs_filetrans(prelink_t, prelink_tmpfs_t, file)
+
+manage_dirs_pattern(prelink_t, prelink_var_lib_t, prelink_var_lib_t)
+manage_files_pattern(prelink_t, prelink_var_lib_t, prelink_var_lib_t)
+relabel_files_pattern(prelink_t, prelink_var_lib_t, prelink_var_lib_t)
+files_var_lib_filetrans(prelink_t, prelink_var_lib_t, { dir file })
+
+allow prelink_t prelink_object:file { manage_file_perms mmap_exec_file_perms relabel_file_perms };
+
+kernel_read_system_state(prelink_t)
+kernel_read_kernel_sysctls(prelink_t)
+
+corecmd_manage_all_executables(prelink_t)
+corecmd_relabel_all_executables(prelink_t)
+corecmd_mmap_all_executables(prelink_t)
+
+dev_read_urand(prelink_t)
+
+files_getattr_all_files(prelink_t)
+files_list_all(prelink_t)
+files_manage_usr_files(prelink_t)
+files_manage_var_files(prelink_t)
+files_read_etc_files(prelink_t)
+files_read_etc_runtime_files(prelink_t)
+files_relabelfrom_usr_files(prelink_t)
+files_search_var_lib(prelink_t)
+files_write_non_security_dirs(prelink_t)
+files_dontaudit_read_all_symlinks(prelink_t)
+
+fs_getattr_all_fs(prelink_t)
+fs_search_auto_mountpoints(prelink_t)
+
+selinux_get_enforce_mode(prelink_t)
+
+storage_getattr_fixed_disk_dev(prelink_t)
+
+libs_exec_ld_so(prelink_t)
+libs_legacy_use_shared_libs(prelink_t)
+libs_manage_ld_so(prelink_t)
+libs_relabel_ld_so(prelink_t)
+libs_manage_shared_libs(prelink_t)
+libs_relabel_shared_libs(prelink_t)
+libs_delete_lib_symlinks(prelink_t)
+
+miscfiles_read_localization(prelink_t)
+
+userdom_use_user_terminals(prelink_t)
+userdom_manage_user_home_content_files(prelink_t)
+# pending
+# userdom_relabel_user_home_content_files(prelink_t)
+# userdom_execmod_user_home_content_files(prelink_t)
+userdom_exec_user_home_content_files(prelink_t)
+
+ifdef(`hide_broken_symptoms',`
+	miscfiles_read_man_pages(prelink_t)
+
+	optional_policy(`
+		dbus_read_config(prelink_t)
+	')
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_exec_nfs_files(prelink_t)
+	fs_manage_nfs_files(prelink_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_exec_cifs_files(prelink_t)
+	fs_manage_cifs_files(prelink_t)
+')
+
+optional_policy(`
+	amanda_manage_lib(prelink_t)
+')
+
+optional_policy(`
+	cron_system_entry(prelink_t, prelink_exec_t)
+')
+
+optional_policy(`
+	gnome_dontaudit_read_inherited_gconf_config_files(prelink_t)
+')
+
+optional_policy(`
+	mozilla_manage_plugin_rw_files(prelink_t)
+')
+
+optional_policy(`
+	rpm_manage_tmp_files(prelink_t)
+')
+
+optional_policy(`
+	unconfined_domain(prelink_t)
+')
+
+########################################
+#
+# Cron system local policy
+#
+
+optional_policy(`
+	allow prelink_cron_system_t self:capability setuid;
+	allow prelink_cron_system_t self:process { setsched setfscreate signal };
+	allow prelink_cron_system_t self:fifo_file rw_fifo_file_perms;
+	allow prelink_cron_system_t self:unix_dgram_socket create_socket_perms;
+
+	read_files_pattern(prelink_cron_system_t, prelink_cache_t, prelink_cache_t)
+	allow prelink_cron_system_t prelink_cache_t:file delete_file_perms;
+
+	domtrans_pattern(prelink_cron_system_t, prelink_exec_t, prelink_t)
+	allow prelink_cron_system_t prelink_t:process noatsecure;
+
+	manage_files_pattern(prelink_cron_system_t, prelink_log_t, prelink_log_t)
+
+	manage_files_pattern(prelink_cron_system_t, prelink_var_lib_t, prelink_var_lib_t)
+	files_var_lib_filetrans(prelink_cron_system_t, prelink_var_lib_t, file)
+	allow prelink_cron_system_t prelink_var_lib_t:file relabel_file_perms;
+
+	kernel_read_system_state(prelink_cron_system_t)
+
+	corecmd_exec_bin(prelink_cron_system_t)
+	corecmd_exec_shell(prelink_cron_system_t)
+
+	dev_list_sysfs(prelink_cron_system_t)
+	dev_read_sysfs(prelink_cron_system_t)
+
+	files_rw_etc_dirs(prelink_cron_system_t)
+	files_dontaudit_search_all_mountpoints(prelink_cron_system_t)
+
+	auth_use_nsswitch(prelink_cron_system_t)
+
+	init_telinit(prelink_cron_system_t)
+	init_exec(prelink_cron_system_t)
+
+	libs_exec_ld_so(prelink_cron_system_t)
+
+	logging_search_logs(prelink_cron_system_t)
+
+	miscfiles_read_localization(prelink_cron_system_t)
+
+	cron_system_entry(prelink_cron_system_t, prelink_cron_system_exec_t)
+
+	optional_policy(`
+		rpm_read_db(prelink_cron_system_t)
+	')
+')

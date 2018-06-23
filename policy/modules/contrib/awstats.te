@@ -1,0 +1,98 @@
+policy_module(awstats, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether awstats can
+##	purge httpd log files.
+##	</p>
+## </desc>
+gen_tunable(awstats_purge_apache_log_files, false)
+
+type awstats_t;
+type awstats_exec_t;
+domain_type(awstats_t)
+domain_entry_file(awstats_t, awstats_exec_t)
+role system_r types awstats_t;
+
+type awstats_tmp_t;
+files_tmp_file(awstats_tmp_t)
+
+type awstats_var_lib_t;
+files_type(awstats_var_lib_t)
+
+apache_content_template(awstats)
+
+########################################
+#
+# Local policy
+#
+
+allow awstats_t self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(awstats_t, awstats_tmp_t, awstats_tmp_t)
+manage_files_pattern(awstats_t, awstats_tmp_t, awstats_tmp_t)
+files_tmp_filetrans(awstats_t, awstats_tmp_t, { dir file })
+
+manage_files_pattern(awstats_t, awstats_var_lib_t, awstats_var_lib_t)
+
+allow awstats_t { httpd_awstats_content_t  httpd_awstats_script_exec_t }:dir search_dir_perms;
+
+can_exec(awstats_t, { awstats_exec_t httpd_awstats_script_exec_t })
+
+kernel_dontaudit_read_system_state(awstats_t)
+
+corecmd_exec_bin(awstats_t)
+corecmd_exec_shell(awstats_t)
+
+dev_read_urand(awstats_t)
+
+files_dontaudit_search_all_mountpoints(awstats_t)
+files_read_etc_files(awstats_t)
+files_read_usr_files(awstats_t)
+
+fs_list_inotifyfs(awstats_t)
+
+libs_read_lib_files(awstats_t)
+
+logging_read_generic_logs(awstats_t)
+
+miscfiles_read_localization(awstats_t)
+
+sysnet_dns_name_resolve(awstats_t)
+
+tunable_policy(`awstats_purge_apache_log_files',`
+	apache_write_log(awstats_t)
+')
+
+optional_policy(`
+	apache_read_log(awstats_t)
+')
+
+optional_policy(`
+	cron_system_entry(awstats_t, awstats_exec_t)
+')
+
+optional_policy(`
+	nscd_dontaudit_search_pid(awstats_t)
+')
+
+optional_policy(`
+	squid_read_log(awstats_t)
+')
+
+########################################
+#
+# CGI local policy
+#
+
+allow httpd_awstats_script_t awstats_var_lib_t:dir list_dir_perms;
+
+read_files_pattern(httpd_awstats_script_t, awstats_var_lib_t, awstats_var_lib_t)
+files_search_var_lib(httpd_awstats_script_t)
+
+apache_read_log(httpd_awstats_script_t)

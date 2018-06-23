@@ -1,0 +1,94 @@
+policy_module(tvtime, 2.4.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role tvtime_roles;
+
+type tvtime_t;
+type tvtime_exec_t;
+typealias tvtime_t alias { user_tvtime_t staff_tvtime_t sysadm_tvtime_t };
+typealias tvtime_t alias { auditadm_tvtime_t secadm_tvtime_t };
+userdom_user_application_domain(tvtime_t, tvtime_exec_t)
+role tvtime_roles types tvtime_t;
+
+type tvtime_home_t alias tvtime_rw_t;
+typealias tvtime_home_t alias { user_tvtime_home_t staff_tvtime_home_t sysadm_tvtime_home_t };
+typealias tvtime_home_t alias { auditadm_tvtime_home_t secadm_tvtime_home_t };
+userdom_user_home_content(tvtime_home_t)
+
+type tvtime_tmp_t;
+typealias tvtime_tmp_t alias { user_tvtime_tmp_t staff_tvtime_tmp_t sysadm_tvtime_tmp_t };
+typealias tvtime_tmp_t alias { auditadm_tvtime_tmp_t secadm_tvtime_tmp_t };
+userdom_user_tmp_file(tvtime_tmp_t)
+
+type tvtime_tmpfs_t;
+typealias tvtime_tmpfs_t alias { user_tvtime_tmpfs_t staff_tvtime_tmpfs_t sysadm_tvtime_tmpfs_t };
+typealias tvtime_tmpfs_t alias { auditadm_tvtime_tmpfs_t secadm_tvtime_tmpfs_t };
+userdom_user_tmpfs_file(tvtime_tmpfs_t)
+
+optional_policy(`
+	wm_application_domain(tvtime_t, tvtime_exec_t)
+')
+
+########################################
+#
+# Local policy
+#
+
+allow tvtime_t self:capability { setuid sys_nice sys_resource };
+allow tvtime_t self:process setsched;
+allow tvtime_t self:unix_dgram_socket rw_socket_perms;
+allow tvtime_t self:unix_stream_socket rw_stream_socket_perms;
+
+manage_dirs_pattern(tvtime_t, tvtime_home_t, tvtime_home_t)
+manage_files_pattern(tvtime_t, tvtime_home_t, tvtime_home_t)
+manage_lnk_files_pattern(tvtime_t, tvtime_home_t, tvtime_home_t)
+userdom_user_home_dir_filetrans(tvtime_t, tvtime_home_t, dir)
+
+manage_dirs_pattern(tvtime_t, tvtime_tmp_t, tvtime_tmp_t)
+manage_files_pattern(tvtime_t, tvtime_tmp_t, tvtime_tmp_t)
+files_tmp_filetrans(tvtime_t, tvtime_tmp_t,{ file dir })
+
+manage_files_pattern(tvtime_t, tvtime_tmpfs_t, tvtime_tmpfs_t)
+manage_lnk_files_pattern(tvtime_t, tvtime_tmpfs_t, tvtime_tmpfs_t)
+manage_fifo_files_pattern(tvtime_t, tvtime_tmpfs_t, tvtime_tmpfs_t)
+manage_sock_files_pattern(tvtime_t, tvtime_tmpfs_t, tvtime_tmpfs_t)
+fs_tmpfs_filetrans(tvtime_t, tvtime_tmpfs_t,{ file lnk_file sock_file fifo_file })
+
+kernel_read_all_sysctls(tvtime_t)
+kernel_get_sysvipc_info(tvtime_t)
+
+dev_read_realtime_clock(tvtime_t)
+dev_read_sound(tvtime_t)
+dev_read_urand(tvtime_t)
+
+files_read_usr_files(tvtime_t)
+
+fs_getattr_all_fs(tvtime_t)
+fs_search_auto_mountpoints(tvtime_t)
+
+auth_use_nsswitch(tvtime_t)
+
+miscfiles_read_fonts(tvtime_t)
+miscfiles_read_localization(tvtime_t)
+
+userdom_use_user_terminals(tvtime_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(tvtime_t)
+	fs_manage_nfs_files(tvtime_t)
+	fs_manage_nfs_symlinks(tvtime_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(tvtime_t)
+	fs_manage_cifs_files(tvtime_t)
+	fs_manage_cifs_symlinks(tvtime_t)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(tvtime, tvtime_t, tvtime_tmpfs_t)
+')

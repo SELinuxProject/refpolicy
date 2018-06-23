@@ -1,0 +1,124 @@
+policy_module(mcelog, 1.6.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether mcelog supports
+##	client mode.
+##	</p>
+## </desc>
+gen_tunable(mcelog_client, false)
+
+## <desc>
+##	<p>
+##	Determine whether mcelog can execute scripts.
+##	</p>
+## </desc>
+gen_tunable(mcelog_exec_scripts, true)
+
+## <desc>
+##	<p>
+##	Determine whether mcelog can use all
+##	the user ttys.
+##	</p>
+## </desc>
+gen_tunable(mcelog_foreground, false)
+
+## <desc>
+##	<p>
+##	Determine whether mcelog supports
+##	server mode.
+##	</p>
+## </desc>
+gen_tunable(mcelog_server, false)
+
+## <desc>
+##	<p>
+##	Determine whether mcelog can use syslog.
+##	</p>
+## </desc>
+gen_tunable(mcelog_syslog, false)
+
+type mcelog_t;
+type mcelog_exec_t;
+init_daemon_domain(mcelog_t, mcelog_exec_t)
+application_executable_file(mcelog_exec_t)
+
+type mcelog_initrc_exec_t;
+init_script_file(mcelog_initrc_exec_t)
+
+type mcelog_etc_t;
+files_config_file(mcelog_etc_t)
+
+type mcelog_log_t;
+logging_log_file(mcelog_log_t)
+
+type mcelog_var_run_t;
+files_pid_file(mcelog_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mcelog_t self:capability sys_admin;
+allow mcelog_t self:unix_stream_socket connected_socket_perms;
+
+allow mcelog_t mcelog_etc_t:dir list_dir_perms;
+read_files_pattern(mcelog_t, mcelog_etc_t, mcelog_etc_t)
+
+manage_dirs_pattern(mcelog_t, mcelog_log_t, mcelog_log_t)
+append_files_pattern(mcelog_t, mcelog_log_t, mcelog_log_t)
+create_files_pattern(mcelog_t, mcelog_log_t, mcelog_log_t)
+setattr_files_pattern(mcelog_t, mcelog_log_t, mcelog_log_t)
+logging_log_filetrans(mcelog_t, mcelog_log_t, { dir file })
+
+manage_dirs_pattern(mcelog_t, mcelog_var_run_t, mcelog_var_run_t)
+manage_files_pattern(mcelog_t, mcelog_var_run_t, mcelog_var_run_t)
+manage_sock_files_pattern(mcelog_t, mcelog_var_run_t, mcelog_var_run_t)
+files_pid_filetrans(mcelog_t, mcelog_var_run_t, { dir file sock_file })
+
+kernel_read_system_state(mcelog_t)
+
+dev_read_raw_memory(mcelog_t)
+dev_read_kmsg(mcelog_t)
+dev_rw_cpu_microcode(mcelog_t)
+dev_rw_sysfs(mcelog_t)
+
+files_read_etc_files(mcelog_t)
+
+mls_file_read_all_levels(mcelog_t)
+
+locallogin_use_fds(mcelog_t)
+
+miscfiles_read_localization(mcelog_t)
+
+tunable_policy(`mcelog_client',`
+	allow mcelog_t self:unix_stream_socket connectto;
+')
+
+tunable_policy(`mcelog_exec_scripts',`
+	allow mcelog_t self:fifo_file rw_fifo_file_perms;
+	corecmd_exec_bin(mcelog_t)
+	corecmd_exec_shell(mcelog_t)
+')
+
+tunable_policy(`mcelog_foreground',`
+	userdom_use_user_terminals(mcelog_t)
+')
+
+tunable_policy(`mcelog_server',`
+	allow mcelog_t self:unix_stream_socket { listen accept };
+')
+
+tunable_policy(`mcelog_syslog',`
+	logging_send_syslog_msg(mcelog_t)
+')
+
+optional_policy(`
+	cron_system_entry(mcelog_t, mcelog_exec_t)
+')

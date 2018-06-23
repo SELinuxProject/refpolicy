@@ -1,0 +1,113 @@
+policy_module(couchdb, 1.5.0)
+
+########################################
+#
+# Declarations
+#
+
+type couchdb_t;
+type couchdb_exec_t;
+init_daemon_domain(couchdb_t, couchdb_exec_t)
+
+type couchdb_js_t;
+type couchdb_js_exec_t;
+init_daemon_domain(couchdb_js_t, couchdb_js_exec_t)
+
+type couchdb_initrc_exec_t;
+init_script_file(couchdb_initrc_exec_t)
+
+type couchdb_conf_t;
+files_config_file(couchdb_conf_t)
+
+type couchdb_log_t;
+logging_log_file(couchdb_log_t)
+
+type couchdb_tmp_t;
+files_tmp_file(couchdb_tmp_t)
+
+type couchdb_var_lib_t;
+files_type(couchdb_var_lib_t)
+
+type couchdb_var_run_t;
+files_pid_file(couchdb_var_run_t)
+init_daemon_pid_file(couchdb_var_run_t, dir, "couchdb")
+
+########################################
+#
+# couchdb policy
+#
+
+allow couchdb_t self:process { getsched setsched signal signull sigkill };
+allow couchdb_t self:fifo_file rw_fifo_file_perms;
+allow couchdb_t self:unix_stream_socket create_stream_socket_perms;
+allow couchdb_t self:tcp_socket { accept listen };
+
+allow couchdb_t couchdb_conf_t:dir list_dir_perms;
+allow couchdb_t couchdb_conf_t:file read_file_perms;
+
+can_exec(couchdb_t, couchdb_exec_t)
+
+domtrans_pattern(couchdb_t, couchdb_js_exec_t, couchdb_js_t)
+
+manage_dirs_pattern(couchdb_t, couchdb_log_t, couchdb_log_t)
+append_files_pattern(couchdb_t, couchdb_log_t, couchdb_log_t)
+create_files_pattern(couchdb_t, couchdb_log_t, couchdb_log_t)
+setattr_files_pattern(couchdb_t, couchdb_log_t, couchdb_log_t)
+logging_log_filetrans(couchdb_t, couchdb_log_t, dir)
+
+manage_dirs_pattern(couchdb_t, couchdb_tmp_t, couchdb_tmp_t)
+manage_files_pattern(couchdb_t, couchdb_tmp_t, couchdb_tmp_t)
+files_tmp_filetrans(couchdb_t, couchdb_tmp_t, { dir file })
+
+manage_dirs_pattern(couchdb_t, couchdb_var_lib_t, couchdb_var_lib_t)
+manage_files_pattern(couchdb_t, couchdb_var_lib_t, couchdb_var_lib_t)
+files_var_lib_filetrans(couchdb_t, couchdb_var_lib_t, dir)
+
+manage_dirs_pattern(couchdb_t, couchdb_var_run_t, couchdb_var_run_t)
+manage_files_pattern(couchdb_t, couchdb_var_run_t, couchdb_var_run_t)
+files_pid_filetrans(couchdb_t, couchdb_var_run_t, dir)
+
+kernel_read_system_state(couchdb_t)
+
+corecmd_exec_bin(couchdb_t)
+corecmd_exec_shell(couchdb_t)
+
+corenet_all_recvfrom_unlabeled(couchdb_t)
+corenet_all_recvfrom_netlabel(couchdb_t)
+corenet_tcp_sendrecv_generic_if(couchdb_t)
+corenet_tcp_sendrecv_generic_node(couchdb_t)
+corenet_tcp_bind_generic_node(couchdb_t)
+corenet_udp_bind_generic_node(couchdb_t)
+
+corenet_sendrecv_couchdb_server_packets(couchdb_t)
+corenet_tcp_bind_couchdb_port(couchdb_t)
+corenet_tcp_sendrecv_couchdb_port(couchdb_t)
+
+dev_list_sysfs(couchdb_t)
+dev_read_sysfs(couchdb_t)
+dev_read_urand(couchdb_t)
+
+files_read_usr_files(couchdb_t)
+
+# disksup tries to monitor the local disks
+fs_getattr_xattr_fs(couchdb_t)
+fs_dontaudit_getattr_all_fs(couchdb_t)
+files_dontaudit_getattr_lost_found_dirs(couchdb_t)
+files_dontaudit_list_var(couchdb_t)
+files_dontaudit_search_all_mountpoints(couchdb_t)
+
+auth_use_nsswitch(couchdb_t)
+
+miscfiles_read_localization(couchdb_t)
+
+########################################
+#
+# couchdb_js policy
+#
+
+# this is a complete policy. It processes the javascript
+# ouside the main process, passing data via FIFO.
+allow couchdb_js_t self:process { execmem getsched setsched };
+
+files_read_usr_files(couchdb_js_t)
+miscfiles_read_localization(couchdb_js_t)

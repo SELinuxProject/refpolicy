@@ -1,0 +1,97 @@
+policy_module(podsleuth, 1.7.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role podsleuth_roles;
+roleattribute system_r podsleuth_roles;
+
+type podsleuth_t;
+type podsleuth_exec_t;
+application_domain(podsleuth_t, podsleuth_exec_t)
+role podsleuth_roles types podsleuth_t;
+
+type podsleuth_cache_t;
+files_type(podsleuth_cache_t)
+ubac_constrained(podsleuth_cache_t)
+
+type podsleuth_tmp_t;
+userdom_user_tmp_file(podsleuth_tmp_t)
+
+type podsleuth_tmpfs_t;
+userdom_user_tmpfs_file(podsleuth_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow podsleuth_t self:capability { dac_override kill sys_admin sys_rawio };
+allow podsleuth_t self:process { ptrace signal signull getsched execheap execmem execstack };
+allow podsleuth_t self:fifo_file rw_fifo_file_perms;
+allow podsleuth_t self:unix_stream_socket create_stream_socket_perms;
+allow podsleuth_t self:sem create_sem_perms;
+allow podsleuth_t self:tcp_socket { accept listen };
+
+manage_dirs_pattern(podsleuth_t, podsleuth_cache_t, podsleuth_cache_t)
+manage_files_pattern(podsleuth_t, podsleuth_cache_t, podsleuth_cache_t)
+files_var_filetrans(podsleuth_t, podsleuth_cache_t, { file dir })
+
+allow podsleuth_t podsleuth_tmp_t:dir mounton;
+manage_dirs_pattern(podsleuth_t, podsleuth_tmp_t, podsleuth_tmp_t)
+manage_files_pattern(podsleuth_t, podsleuth_tmp_t, podsleuth_tmp_t)
+files_tmp_filetrans(podsleuth_t, podsleuth_tmp_t, { file dir })
+
+manage_dirs_pattern(podsleuth_t, podsleuth_tmpfs_t, podsleuth_tmpfs_t)
+manage_files_pattern(podsleuth_t, podsleuth_tmpfs_t, podsleuth_tmpfs_t)
+manage_lnk_files_pattern(podsleuth_t, podsleuth_tmpfs_t, podsleuth_tmpfs_t)
+fs_tmpfs_filetrans(podsleuth_t, podsleuth_tmpfs_t, { dir file lnk_file })
+
+kernel_read_system_state(podsleuth_t)
+kernel_request_load_module(podsleuth_t)
+
+corecmd_exec_bin(podsleuth_t)
+
+corenet_all_recvfrom_unlabeled(podsleuth_t)
+corenet_all_recvfrom_netlabel(podsleuth_t)
+corenet_tcp_sendrecv_generic_if(podsleuth_t)
+corenet_tcp_sendrecv_generic_node(podsleuth_t)
+
+corenet_sendrecv_http_client_packets(podsleuth_t)
+corenet_tcp_connect_http_port(podsleuth_t)
+corenet_tcp_sendrecv_http_port(podsleuth_t)
+
+dev_read_urand(podsleuth_t)
+
+files_read_etc_files(podsleuth_t)
+
+fs_mount_dos_fs(podsleuth_t)
+fs_unmount_dos_fs(podsleuth_t)
+fs_getattr_dos_fs(podsleuth_t)
+fs_read_dos_files(podsleuth_t)
+fs_search_dos(podsleuth_t)
+fs_getattr_tmpfs(podsleuth_t)
+fs_list_tmpfs(podsleuth_t)
+fs_rw_removable_blk_files(podsleuth_t)
+
+miscfiles_read_localization(podsleuth_t)
+
+sysnet_dns_name_resolve(podsleuth_t)
+
+userdom_signal_unpriv_users(podsleuth_t)
+userdom_signull_unpriv_users(podsleuth_t)
+userdom_read_user_tmpfs_files(podsleuth_t)
+
+optional_policy(`
+	dbus_system_bus_client(podsleuth_t)
+
+	optional_policy(`
+		hal_dbus_chat(podsleuth_t)
+	')
+')
+
+optional_policy(`
+	mono_exec(podsleuth_t)
+')

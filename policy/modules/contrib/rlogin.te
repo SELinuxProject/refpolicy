@@ -1,0 +1,120 @@
+policy_module(rlogin, 1.13.0)
+
+########################################
+#
+# Declarations
+#
+
+type rlogind_t;
+type rlogind_exec_t;
+auth_login_pgm_domain(rlogind_t)
+inetd_service_domain(rlogind_t, rlogind_exec_t)
+init_daemon_domain(rlogind_t, rlogind_exec_t)
+
+type rlogind_devpts_t;
+term_login_pty(rlogind_devpts_t)
+
+type rlogind_home_t;
+userdom_user_home_content(rlogind_home_t)
+
+type rlogind_keytab_t;
+files_type(rlogind_keytab_t)
+
+type rlogind_tmp_t;
+files_tmp_file(rlogind_tmp_t)
+
+type rlogind_var_run_t;
+files_pid_file(rlogind_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rlogind_t self:capability { chown dac_override fowner fsetid setgid setuid sys_tty_config };
+allow rlogind_t self:process signal_perms;
+allow rlogind_t self:fifo_file rw_fifo_file_perms;
+allow rlogind_t self:tcp_socket { accept listen };
+
+allow rlogind_t rlogind_devpts_t:chr_file { rw_chr_file_perms setattr_chr_file_perms };
+term_create_pty(rlogind_t, rlogind_devpts_t)
+
+allow rlogind_t rlogind_home_t:file read_file_perms;
+
+allow rlogind_t rlogind_keytab_t:file read_file_perms;
+
+manage_dirs_pattern(rlogind_t, rlogind_tmp_t, rlogind_tmp_t)
+manage_files_pattern(rlogind_t, rlogind_tmp_t, rlogind_tmp_t)
+files_tmp_filetrans(rlogind_t, rlogind_tmp_t, { dir file })
+
+manage_files_pattern(rlogind_t, rlogind_var_run_t, rlogind_var_run_t)
+files_pid_filetrans(rlogind_t, rlogind_var_run_t, file)
+
+can_exec(rlogind_t, rlogind_exec_t)
+
+kernel_read_kernel_sysctls(rlogind_t)
+kernel_read_system_state(rlogind_t)
+kernel_read_network_state(rlogind_t)
+
+corenet_all_recvfrom_unlabeled(rlogind_t)
+corenet_all_recvfrom_netlabel(rlogind_t)
+corenet_tcp_sendrecv_generic_if(rlogind_t)
+corenet_tcp_sendrecv_generic_node(rlogind_t)
+
+corenet_sendrecv_rlogind_server_packets(rlogind_t)
+corenet_tcp_bind_rlogind_port(rlogind_t)
+corenet_tcp_sendrecv_rlogind_port(rlogind_t)
+
+dev_read_urand(rlogind_t)
+
+domain_interactive_fd(rlogind_t)
+
+fs_getattr_all_fs(rlogind_t)
+fs_search_auto_mountpoints(rlogind_t)
+
+auth_domtrans_chk_passwd(rlogind_t)
+auth_rw_login_records(rlogind_t)
+auth_use_nsswitch(rlogind_t)
+
+files_read_etc_runtime_files(rlogind_t)
+files_search_default(rlogind_t)
+
+init_rw_utmp(rlogind_t)
+
+logging_send_syslog_msg(rlogind_t)
+
+miscfiles_read_localization(rlogind_t)
+
+seutil_read_config(rlogind_t)
+
+userdom_search_user_home_dirs(rlogind_t)
+userdom_setattr_user_ptys(rlogind_t)
+userdom_use_user_terminals(rlogind_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_list_nfs(rlogind_t)
+	fs_read_nfs_files(rlogind_t)
+	fs_read_nfs_symlinks(rlogind_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_list_cifs(rlogind_t)
+	fs_read_cifs_files(rlogind_t)
+	fs_read_cifs_symlinks(rlogind_t)
+')
+
+optional_policy(`
+	kerberos_read_keytab(rlogind_t)
+	kerberos_tmp_filetrans_host_rcache(rlogind_t, file, "host_0")
+	kerberos_manage_host_rcache(rlogind_t)
+	kerberos_use(rlogind_t)
+')
+
+optional_policy(`
+	remotelogin_domtrans(rlogind_t)
+	remotelogin_signal(rlogind_t)
+')
+
+optional_policy(`
+	tcpd_wrapped_domain(rlogind_t, rlogind_exec_t)
+')

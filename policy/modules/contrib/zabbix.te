@@ -1,0 +1,197 @@
+policy_module(zabbix, 1.11.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether zabbix can
+##	connect to all TCP ports
+##	</p>
+## </desc>
+gen_tunable(zabbix_can_network, false)
+
+type zabbix_t;
+type zabbix_exec_t;
+init_daemon_domain(zabbix_t, zabbix_exec_t)
+
+type zabbix_initrc_exec_t;
+init_script_file(zabbix_initrc_exec_t)
+
+type zabbix_agent_t;
+type zabbix_agent_exec_t;
+init_daemon_domain(zabbix_agent_t, zabbix_agent_exec_t)
+
+type zabbix_agent_initrc_exec_t;
+init_script_file(zabbix_agent_initrc_exec_t)
+
+type zabbix_log_t;
+logging_log_file(zabbix_log_t)
+
+type zabbix_tmp_t;
+files_tmp_file(zabbix_tmp_t)
+
+type zabbix_tmpfs_t;
+files_tmpfs_file(zabbix_tmpfs_t)
+
+type zabbix_var_run_t;
+files_pid_file(zabbix_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow zabbix_t self:capability { dac_override dac_read_search setgid setuid };
+allow zabbix_t self:process { setsched signal_perms };
+allow zabbix_t self:fifo_file rw_fifo_file_perms;
+allow zabbix_t self:unix_stream_socket create_stream_socket_perms;
+allow zabbix_t self:sem create_sem_perms;
+allow zabbix_t self:shm create_shm_perms;
+allow zabbix_t self:tcp_socket create_stream_socket_perms;
+
+allow zabbix_t zabbix_log_t:dir setattr_dir_perms;
+append_files_pattern(zabbix_t, zabbix_log_t, zabbix_log_t)
+create_files_pattern(zabbix_t, zabbix_log_t, zabbix_log_t)
+setattr_files_pattern(zabbix_t, zabbix_log_t, zabbix_log_t)
+logging_log_filetrans(zabbix_t, zabbix_log_t, file)
+
+manage_dirs_pattern(zabbix_t, zabbix_tmp_t, zabbix_tmp_t)
+manage_files_pattern(zabbix_t, zabbix_tmp_t, zabbix_tmp_t)
+files_tmp_filetrans(zabbix_t, zabbix_tmp_t, { dir file })
+
+rw_files_pattern(zabbix_t, zabbix_tmpfs_t, zabbix_tmpfs_t)
+fs_tmpfs_filetrans(zabbix_t, zabbix_tmpfs_t, file)
+
+manage_dirs_pattern(zabbix_t, zabbix_var_run_t, zabbix_var_run_t)
+manage_files_pattern(zabbix_t, zabbix_var_run_t, zabbix_var_run_t)
+files_pid_filetrans(zabbix_t, zabbix_var_run_t, { dir file })
+
+kernel_read_system_state(zabbix_t)
+kernel_read_kernel_sysctls(zabbix_t)
+
+corenet_all_recvfrom_unlabeled(zabbix_t)
+corenet_all_recvfrom_netlabel(zabbix_t)
+corenet_tcp_sendrecv_generic_if(zabbix_t)
+corenet_tcp_sendrecv_generic_node(zabbix_t)
+corenet_tcp_bind_generic_node(zabbix_t)
+
+corenet_sendrecv_ftp_client_packets(zabbix_t)
+corenet_tcp_connect_ftp_port(zabbix_t)
+corenet_tcp_sendrecv_ftp_port(zabbix_t)
+
+corenet_sendrecv_http_client_packets(zabbix_t)
+corenet_tcp_connect_http_port(zabbix_t)
+corenet_tcp_sendrecv_http_port(zabbix_t)
+
+corenet_sendrecv_zabbix_server_packets(zabbix_t)
+corenet_tcp_bind_zabbix_port(zabbix_t)
+corenet_tcp_sendrecv_zabbix_port(zabbix_t)
+
+corecmd_exec_bin(zabbix_t)
+corecmd_exec_shell(zabbix_t)
+
+dev_read_urand(zabbix_t)
+
+files_read_usr_files(zabbix_t)
+
+auth_use_nsswitch(zabbix_t)
+
+miscfiles_read_localization(zabbix_t)
+
+zabbix_agent_tcp_connect(zabbix_t)
+
+tunable_policy(`zabbix_can_network',`
+	corenet_sendrecv_all_client_packets(zabbix_t)
+	corenet_tcp_connect_all_ports(zabbix_t)
+	corenet_tcp_sendrecv_all_ports(zabbix_t)
+')
+
+optional_policy(`
+	netutils_domtrans_ping(zabbix_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(zabbix_t)
+	mysql_tcp_connect(zabbix_t)
+')
+
+optional_policy(`
+	postgresql_stream_connect(zabbix_t)
+	postgresql_tcp_connect(zabbix_t)
+')
+
+optional_policy(`
+	snmp_read_snmp_var_lib_files(zabbix_t)
+')
+
+########################################
+#
+# Agent local policy
+#
+
+allow zabbix_agent_t self:capability { setgid setuid };
+allow zabbix_agent_t self:process { setsched getsched signal setrlimit };
+allow zabbix_agent_t self:fifo_file rw_fifo_file_perms;
+allow zabbix_agent_t self:sem create_sem_perms;
+allow zabbix_agent_t self:shm create_shm_perms;
+allow zabbix_agent_t self:tcp_socket { accept listen };
+allow zabbix_agent_t self:unix_stream_socket create_stream_socket_perms;
+
+append_files_pattern(zabbix_agent_t, zabbix_log_t, zabbix_log_t)
+create_files_pattern(zabbix_agent_t, zabbix_log_t, zabbix_log_t)
+setattr_files_pattern(zabbix_agent_t, zabbix_log_t, zabbix_log_t)
+filetrans_pattern(zabbix_agent_t, zabbix_log_t, zabbix_log_t, file)
+
+rw_files_pattern(zabbix_agent_t, zabbix_tmpfs_t, zabbix_tmpfs_t)
+fs_tmpfs_filetrans(zabbix_agent_t, zabbix_tmpfs_t, file)
+
+manage_files_pattern(zabbix_agent_t, zabbix_var_run_t, zabbix_var_run_t)
+files_pid_filetrans(zabbix_agent_t, zabbix_var_run_t, file)
+
+kernel_read_all_sysctls(zabbix_agent_t)
+kernel_read_system_state(zabbix_agent_t)
+
+corecmd_read_all_executables(zabbix_agent_t)
+
+corenet_all_recvfrom_unlabeled(zabbix_agent_t)
+corenet_all_recvfrom_netlabel(zabbix_agent_t)
+corenet_tcp_sendrecv_generic_if(zabbix_agent_t)
+corenet_tcp_sendrecv_generic_node(zabbix_agent_t)
+corenet_tcp_bind_generic_node(zabbix_agent_t)
+
+corenet_sendrecv_zabbix_agent_server_packets(zabbix_agent_t)
+corenet_tcp_bind_zabbix_agent_port(zabbix_agent_t)
+corenet_tcp_sendrecv_zabbix_agent_port(zabbix_agent_t)
+
+corenet_sendrecv_ssh_client_packets(zabbix_agent_t)
+corenet_tcp_connect_ssh_port(zabbix_agent_t)
+corenet_tcp_sendrecv_ssh_port(zabbix_agent_t)
+
+corenet_sendrecv_zabbix_client_packets(zabbix_agent_t)
+corenet_tcp_connect_zabbix_port(zabbix_agent_t)
+corenet_tcp_sendrecv_zabbix_port(zabbix_agent_t)
+
+dev_getattr_all_blk_files(zabbix_agent_t)
+dev_getattr_all_chr_files(zabbix_agent_t)
+
+domain_read_all_domains_state(zabbix_agent_t)
+
+files_getattr_all_dirs(zabbix_agent_t)
+files_getattr_all_files(zabbix_agent_t)
+files_read_all_symlinks(zabbix_agent_t)
+files_read_etc_files(zabbix_agent_t)
+
+fs_getattr_all_fs(zabbix_agent_t)
+
+init_read_utmp(zabbix_agent_t)
+
+logging_search_logs(zabbix_agent_t)
+
+miscfiles_read_localization(zabbix_agent_t)
+
+sysnet_dns_name_resolve(zabbix_agent_t)
+
+zabbix_tcp_connect(zabbix_agent_t)

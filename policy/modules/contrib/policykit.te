@@ -1,0 +1,303 @@
+policy_module(policykit, 1.8.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute policykit_domain;
+
+attribute_role policykit_auth_roles;
+attribute_role policykit_grant_roles;
+
+type policykit_t, policykit_domain;
+type policykit_exec_t;
+init_daemon_domain(policykit_t, policykit_exec_t)
+
+type policykit_auth_t, policykit_domain;
+type policykit_auth_exec_t;
+init_daemon_domain(policykit_auth_t, policykit_auth_exec_t)
+role policykit_auth_roles types policykit_auth_t;
+
+type policykit_grant_t, policykit_domain;
+type policykit_grant_exec_t;
+init_system_domain(policykit_grant_t, policykit_grant_exec_t)
+role policykit_grant_roles types policykit_grant_t;
+
+type policykit_resolve_t, policykit_domain;
+type policykit_resolve_exec_t;
+init_system_domain(policykit_resolve_t, policykit_resolve_exec_t)
+
+type policykit_reload_t alias polkit_reload_t;
+files_type(policykit_reload_t)
+
+type policykit_tmp_t;
+files_tmp_file(policykit_tmp_t)
+
+type policykit_unit_t;
+init_unit_file(policykit_unit_t)
+
+type policykit_var_lib_t alias polkit_var_lib_t;
+files_type(policykit_var_lib_t)
+
+type policykit_var_run_t alias polkit_var_run_t;
+files_pid_file(policykit_var_run_t)
+
+#######################################
+#
+# Common policykit domain local policy
+#
+
+allow policykit_domain self:process { execmem getattr };
+allow policykit_domain self:fifo_file rw_fifo_file_perms;
+
+kernel_search_proc(policykit_domain)
+
+corecmd_exec_bin(policykit_domain)
+
+dev_read_sysfs(policykit_domain)
+
+files_read_usr_files(policykit_domain)
+
+logging_send_syslog_msg(policykit_domain)
+
+miscfiles_read_localization(policykit_domain)
+
+########################################
+#
+# Local policy
+#
+
+allow policykit_t self:capability { dac_override dac_read_search setgid setuid sys_nice sys_ptrace };
+allow policykit_t self:process { getsched setsched signal };
+allow policykit_t self:unix_stream_socket { accept connectto listen };
+
+rw_files_pattern(policykit_t, policykit_reload_t, policykit_reload_t)
+
+manage_files_pattern(policykit_t, policykit_var_lib_t, policykit_var_lib_t)
+
+manage_dirs_pattern(policykit_t, policykit_var_run_t, policykit_var_run_t)
+manage_files_pattern(policykit_t, policykit_var_run_t, policykit_var_run_t)
+files_pid_filetrans(policykit_t, policykit_var_run_t, { file dir })
+
+can_exec(policykit_t, policykit_exec_t)
+
+domtrans_pattern(policykit_t, policykit_auth_exec_t, policykit_auth_t)
+domtrans_pattern(policykit_t, policykit_resolve_exec_t, policykit_resolve_t)
+
+kernel_read_crypto_sysctls(policykit_t)
+kernel_read_kernel_sysctls(policykit_t)
+kernel_read_system_state(policykit_t)
+
+dev_read_urand(policykit_t)
+dev_read_urand(policykit_t)
+
+domain_read_all_domains_state(policykit_t)
+
+files_dontaudit_search_all_mountpoints(policykit_t)
+
+fs_getattr_xattr_fs(policykit_t)
+fs_list_inotifyfs(policykit_t)
+fs_getattr_tmpfs(policykit_t)
+fs_getattr_cgroup(policykit_t)
+
+auth_use_nsswitch(policykit_t)
+
+userdom_getattr_all_users(policykit_t)
+userdom_read_all_users_state(policykit_t)
+
+optional_policy(`
+	dbus_system_domain(policykit_t, policykit_exec_t)
+
+	userdom_dbus_send_all_users(policykit_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(policykit_t)
+	')
+
+	optional_policy(`
+		rpm_dbus_chat(policykit_t)
+	')
+
+	optional_policy(`
+		xserver_dbus_chat_xdm(policykit_t)
+	')
+')
+
+optional_policy(`
+	consolekit_read_pid_files(policykit_t)
+')
+
+optional_policy(`
+	gnome_read_generic_home_content(policykit_t)
+')
+
+optional_policy(`
+	kerberos_manage_host_rcache(policykit_t)
+	kerberos_tmp_filetrans_host_rcache(policykit_t, file, "host_0")
+')
+
+optional_policy(`
+	# for /run/systemd/machines
+	systemd_read_machines(policykit_t)
+
+	# for /run/systemd/seats/seat*
+	systemd_read_logind_sessions_files(policykit_t)
+
+	# for /run/systemd/users/*
+	systemd_read_logind_pids(policykit_t)
+')
+
+########################################
+#
+# Auth local policy
+#
+
+allow policykit_auth_t self:capability { dac_override ipc_lock setgid setuid sys_nice };
+dontaudit policykit_auth_t self:capability { dac_read_search sys_tty_config };
+allow policykit_auth_t self:process { getsched setsched signal };
+allow policykit_auth_t self:unix_stream_socket { accept listen };
+
+ps_process_pattern(policykit_auth_t, policykit_domain)
+
+rw_files_pattern(policykit_auth_t, policykit_reload_t, policykit_reload_t)
+
+manage_dirs_pattern(policykit_auth_t, policykit_tmp_t, policykit_tmp_t)
+manage_files_pattern(policykit_auth_t, policykit_tmp_t, policykit_tmp_t)
+files_tmp_filetrans(policykit_auth_t, policykit_tmp_t, { file dir })
+
+manage_files_pattern(policykit_auth_t, policykit_var_lib_t, policykit_var_lib_t)
+
+manage_dirs_pattern(policykit_auth_t, policykit_var_run_t, policykit_var_run_t)
+manage_files_pattern(policykit_auth_t, policykit_var_run_t, policykit_var_run_t)
+files_pid_filetrans(policykit_auth_t, policykit_var_run_t, { file dir })
+
+can_exec(policykit_auth_t, policykit_auth_exec_t)
+
+kernel_read_system_state(policykit_auth_t)
+kernel_dontaudit_search_kernel_sysctl(policykit_auth_t)
+kernel_dontaudit_search_sysctl(policykit_auth_t)
+
+dev_read_video_dev(policykit_auth_t)
+
+domain_use_interactive_fds(policykit_auth_t)
+
+files_read_etc_runtime_files(policykit_auth_t)
+files_search_home(policykit_auth_t)
+
+fs_getattr_all_fs(policykit_auth_t)
+fs_search_tmpfs(policykit_auth_t)
+
+auth_read_shadow(policykit_auth_t)
+auth_rw_var_auth(policykit_auth_t)
+auth_use_nsswitch(policykit_auth_t)
+auth_domtrans_chk_passwd(policykit_auth_t)
+
+miscfiles_read_fonts(policykit_auth_t)
+miscfiles_setattr_fonts_cache_dirs(policykit_auth_t)
+
+userdom_dontaudit_read_user_home_content_files(policykit_auth_t)
+
+optional_policy(`
+	dbus_system_domain(policykit_auth_t, policykit_auth_exec_t)
+	dbus_all_session_bus_client(policykit_auth_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(policykit_auth_t)
+	')
+
+	optional_policy(`
+		policykit_dbus_chat(policykit_auth_t)
+	')
+')
+
+optional_policy(`
+	hal_read_state(policykit_auth_t)
+')
+
+optional_policy(`
+	kerberos_manage_host_rcache(policykit_auth_t)
+	kerberos_tmp_filetrans_host_rcache(policykit_auth_t, file, "host_0")
+')
+
+optional_policy(`
+	xserver_stream_connect(policykit_auth_t)
+	xserver_read_xdm_pid(policykit_auth_t)
+	xserver_rw_xsession_log(policykit_auth_t)
+')
+
+########################################
+#
+# Grant local policy
+#
+
+allow policykit_grant_t self:capability setuid;
+allow policykit_grant_t self:unix_dgram_socket create_socket_perms;
+allow policykit_grant_t self:unix_stream_socket create_stream_socket_perms;
+
+ps_process_pattern(policykit_grant_t, policykit_domain)
+
+rw_files_pattern(policykit_grant_t, policykit_reload_t, policykit_reload_t)
+
+manage_files_pattern(policykit_grant_t, policykit_var_run_t, policykit_var_run_t)
+
+manage_files_pattern(policykit_grant_t, policykit_var_lib_t, policykit_var_lib_t)
+
+can_exec(policykit_grant_t, policykit_grant_exec_t)
+
+domtrans_pattern(policykit_grant_t, policykit_auth_exec_t, policykit_auth_t)
+domtrans_pattern(policykit_grant_t, policykit_resolve_exec_t, policykit_resolve_t)
+
+auth_domtrans_chk_passwd(policykit_grant_t)
+auth_use_nsswitch(policykit_grant_t)
+
+userdom_read_all_users_state(policykit_grant_t)
+
+optional_policy(`
+	cron_manage_system_job_lib_files(policykit_grant_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(policykit_grant_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(policykit_grant_t)
+	')
+')
+
+########################################
+#
+# Resolve local policy
+#
+
+allow policykit_resolve_t self:capability { setuid sys_nice };
+allow policykit_resolve_t self:unix_stream_socket { accept listen };
+
+ps_process_pattern(policykit_resolve_t, policykit_domain)
+
+read_files_pattern(policykit_resolve_t, policykit_reload_t, policykit_reload_t)
+
+read_files_pattern(policykit_resolve_t, policykit_var_lib_t, policykit_var_lib_t)
+
+can_exec(policykit_resolve_t, policykit_resolve_exec_t)
+
+domtrans_pattern(policykit_resolve_t, policykit_auth_exec_t, policykit_auth_t)
+
+mcs_ptrace_all(policykit_resolve_t)
+
+auth_use_nsswitch(policykit_resolve_t)
+
+userdom_read_all_users_state(policykit_resolve_t)
+
+optional_policy(`
+	dbus_system_bus_client(policykit_resolve_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(policykit_resolve_t)
+	')
+')
+
+optional_policy(`
+	hal_read_state(policykit_resolve_t)
+')
+

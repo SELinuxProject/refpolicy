@@ -1,0 +1,139 @@
+policy_module(razor, 2.4.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute razor_domain;
+
+attribute_role razor_roles;
+
+type razor_exec_t;
+corecmd_executable_file(razor_exec_t)
+
+type razor_etc_t;
+files_config_file(razor_etc_t)
+
+type razor_home_t;
+typealias razor_home_t alias { user_razor_home_t staff_razor_home_t sysadm_razor_home_t };
+typealias razor_home_t alias { auditadm_razor_home_t secadm_razor_home_t };
+userdom_user_home_content(razor_home_t)
+
+type razor_log_t;
+logging_log_file(razor_log_t)
+
+type razor_tmp_t;
+typealias razor_tmp_t alias { user_razor_tmp_t staff_razor_tmp_t sysadm_razor_tmp_t };
+typealias razor_tmp_t alias { auditadm_razor_tmp_t secadm_razor_tmp_t };
+userdom_user_tmp_file(razor_tmp_t)
+
+type razor_var_lib_t;
+files_type(razor_var_lib_t)
+
+razor_common_domain_template(razor)
+typealias razor_t alias { user_razor_t staff_razor_t sysadm_razor_t };
+typealias razor_t alias { auditadm_razor_t secadm_razor_t };
+userdom_user_application_type(razor_t)
+role razor_roles types razor_t;
+
+razor_common_domain_template(system_razor)
+role system_r types system_razor_t;
+
+########################################
+#
+# Common razor domain local policy
+#
+
+allow razor_domain self:process { transition signal_perms getsched setsched getsession getpgid setpgid getcap setcap share getattr noatsecure siginh rlimitinh dyntransition setkeycreate setsockcreate getrlimit };
+allow razor_domain self:fd use;
+allow razor_domain self:fifo_file rw_fifo_file_perms;
+allow razor_domain self:unix_dgram_socket sendto;
+allow razor_domain self:unix_stream_socket { accept connectto listen };
+
+allow razor_domain razor_etc_t:dir list_dir_perms;
+allow razor_domain razor_etc_t:file read_file_perms;
+allow razor_domain razor_etc_t:lnk_file read_lnk_file_perms;
+
+allow razor_domain razor_exec_t:file read_file_perms;
+allow razor_domain razor_exec_t:lnk_file read_lnk_file_perms;
+
+kernel_read_system_state(razor_domain)
+kernel_read_network_state(razor_domain)
+kernel_read_software_raid_state(razor_domain)
+kernel_getattr_core_if(razor_domain)
+kernel_getattr_message_if(razor_domain)
+kernel_read_kernel_sysctls(razor_domain)
+
+corecmd_exec_bin(razor_domain)
+
+corenet_all_recvfrom_unlabeled(razor_domain)
+corenet_all_recvfrom_netlabel(razor_domain)
+corenet_tcp_sendrecv_generic_if(razor_domain)
+corenet_tcp_sendrecv_generic_node(razor_domain)
+
+corenet_tcp_sendrecv_razor_port(razor_domain)
+corenet_tcp_connect_razor_port(razor_domain)
+corenet_sendrecv_razor_client_packets(razor_domain)
+
+dev_read_rand(razor_domain)
+dev_read_urand(razor_domain)
+
+files_read_etc_runtime_files(razor_domain)
+
+libs_read_lib_files(razor_domain)
+
+miscfiles_read_localization(razor_domain)
+
+########################################
+#
+# System local policy
+#
+
+manage_dirs_pattern(system_razor_t, razor_etc_t, razor_etc_t)
+manage_files_pattern(system_razor_t, razor_etc_t, razor_etc_t)
+manage_lnk_files_pattern(system_razor_t, razor_etc_t, razor_etc_t)
+
+manage_dirs_pattern(system_razor_t, razor_log_t, razor_log_t)
+append_files_pattern(system_razor_t, razor_log_t, razor_log_t)
+create_files_pattern(system_razor_t, razor_log_t, razor_log_t)
+setattr_files_pattern(system_razor_t, razor_log_t, razor_log_t)
+manage_lnk_files_pattern(system_razor_t, razor_log_t, razor_log_t)
+logging_log_filetrans(system_razor_t, razor_log_t, file)
+
+manage_dirs_pattern(system_razor_t, razor_var_lib_t, razor_var_lib_t)
+manage_files_pattern(system_razor_t, razor_var_lib_t, razor_var_lib_t)
+manage_lnk_files_pattern(system_razor_t, razor_var_lib_t, razor_var_lib_t)
+files_var_lib_filetrans(system_razor_t, razor_var_lib_t, file)
+
+########################################
+#
+# Session local policy
+#
+
+manage_dirs_pattern(razor_t, razor_home_t, razor_home_t)
+manage_files_pattern(razor_t, razor_home_t, razor_home_t)
+manage_lnk_files_pattern(razor_t, razor_home_t, razor_home_t)
+userdom_user_home_dir_filetrans(razor_t, razor_home_t, dir, ".razor")
+
+manage_dirs_pattern(razor_t, razor_tmp_t, razor_tmp_t)
+manage_files_pattern(razor_t, razor_tmp_t, razor_tmp_t)
+files_tmp_filetrans(razor_t, razor_tmp_t, { file dir })
+
+fs_getattr_all_fs(razor_t)
+fs_search_auto_mountpoints(razor_t)
+
+userdom_use_unpriv_users_fds(razor_t)
+userdom_use_user_terminals(razor_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(razor_t)
+	fs_manage_nfs_files(razor_t)
+	fs_manage_nfs_symlinks(razor_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(razor_t)
+	fs_manage_cifs_files(razor_t)
+	fs_manage_cifs_symlinks(razor_t)
+')

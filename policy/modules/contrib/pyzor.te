@@ -1,0 +1,160 @@
+policy_module(pyzor, 2.5.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role pyzor_roles;
+roleattribute system_r pyzor_roles;
+
+type pyzor_t;
+type pyzor_exec_t;
+typealias pyzor_t alias { user_pyzor_t staff_pyzor_t sysadm_pyzor_t };
+typealias pyzor_t alias { auditadm_pyzor_t secadm_pyzor_t };
+userdom_user_application_domain(pyzor_t, pyzor_exec_t)
+role pyzor_roles types pyzor_t;
+
+type pyzor_etc_t;
+files_type(pyzor_etc_t)
+
+type pyzor_home_t;
+typealias pyzor_home_t alias { user_pyzor_home_t staff_pyzor_home_t sysadm_pyzor_home_t };
+typealias pyzor_home_t alias { auditadm_pyzor_home_t secadm_pyzor_home_t };
+userdom_user_home_content(pyzor_home_t)
+
+type pyzor_tmp_t;
+typealias pyzor_tmp_t alias { user_pyzor_tmp_t staff_pyzor_tmp_t sysadm_pyzor_tmp_t };
+typealias pyzor_tmp_t alias { auditadm_pyzor_tmp_t secadm_pyzor_tmp_t };
+userdom_user_tmp_file(pyzor_tmp_t)
+
+type pyzor_var_lib_t;
+typealias pyzor_var_lib_t alias { user_pyzor_var_lib_t staff_pyzor_var_lib_t sysadm_pyzor_var_lib_t };
+typealias pyzor_var_lib_t alias { auditadm_pyzor_var_lib_t secadm_pyzor_var_lib_t };
+files_type(pyzor_var_lib_t)
+ubac_constrained(pyzor_var_lib_t)
+
+type pyzord_t;
+type pyzord_exec_t;
+init_daemon_domain(pyzord_t, pyzord_exec_t)
+
+type pyzord_initrc_exec_t;
+init_script_file(pyzord_initrc_exec_t)
+
+type pyzord_log_t;
+logging_log_file(pyzord_log_t)
+
+########################################
+#
+# Local policy
+#
+
+manage_dirs_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+manage_files_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+manage_lnk_files_pattern(pyzor_t, pyzor_home_t, pyzor_home_t)
+userdom_user_home_dir_filetrans(pyzor_t, pyzor_home_t, dir, ".pyzor")
+
+allow pyzor_t pyzor_var_lib_t:dir list_dir_perms;
+read_files_pattern(pyzor_t, pyzor_var_lib_t, pyzor_var_lib_t)
+
+manage_files_pattern(pyzor_t, pyzor_tmp_t, pyzor_tmp_t)
+manage_dirs_pattern(pyzor_t, pyzor_tmp_t, pyzor_tmp_t)
+files_tmp_filetrans(pyzor_t, pyzor_tmp_t, { file dir })
+
+kernel_read_kernel_sysctls(pyzor_t)
+kernel_read_system_state(pyzor_t)
+
+corecmd_list_bin(pyzor_t)
+corecmd_getattr_bin_files(pyzor_t)
+
+corenet_all_recvfrom_unlabeled(pyzor_t)
+corenet_all_recvfrom_netlabel(pyzor_t)
+corenet_tcp_sendrecv_generic_if(pyzor_t)
+corenet_tcp_sendrecv_generic_node(pyzor_t)
+
+corenet_sendrecv_http_client_packets(pyzor_t)
+corenet_tcp_connect_http_port(pyzor_t)
+corenet_tcp_sendrecv_http_port(pyzor_t)
+
+dev_read_urand(pyzor_t)
+
+fs_getattr_all_fs(pyzor_t)
+fs_search_auto_mountpoints(pyzor_t)
+
+auth_use_nsswitch(pyzor_t)
+
+miscfiles_read_localization(pyzor_t)
+
+mta_read_queue(pyzor_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(pyzor_t)
+	fs_manage_nfs_files(pyzor_t)
+	fs_manage_nfs_symlinks(pyzor_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(pyzor_t)
+	fs_manage_cifs_files(pyzor_t)
+	fs_manage_cifs_symlinks(pyzor_t)
+')
+
+optional_policy(`
+	amavis_manage_lib_files(pyzor_t)
+	amavis_manage_spool_files(pyzor_t)
+')
+
+optional_policy(`
+	spamassassin_signal_spamd(pyzor_t)
+	spamassassin_read_spamd_tmp_files(pyzor_t)
+')
+
+########################################
+#
+# Daemon local policy
+#
+
+allow pyzord_t pyzor_var_lib_t:dir setattr_dir_perms;
+manage_files_pattern(pyzord_t, pyzor_var_lib_t, pyzor_var_lib_t)
+files_var_lib_filetrans(pyzord_t, pyzor_var_lib_t, { file dir })
+
+allow pyzord_t pyzor_etc_t:dir list_dir_perms;
+allow pyzord_t pyzor_etc_t:file read_file_perms;
+allow pyzord_t pyzor_etc_t:lnk_file read_lnk_file_perms;
+
+allow pyzord_t pyzord_log_t:dir setattr_dir_perms;
+append_files_pattern(pyzord_t, pyzord_log_t, pyzord_log_t)
+create_files_pattern(pyzord_t, pyzord_log_t, pyzord_log_t)
+setattr_files_pattern(pyzord_t, pyzord_log_t, pyzord_log_t)
+logging_log_filetrans(pyzord_t, pyzord_log_t, { file dir })
+
+can_exec(pyzord_t, pyzor_exec_t)
+
+kernel_read_kernel_sysctls(pyzord_t)
+kernel_read_system_state(pyzord_t)
+
+dev_read_urand(pyzord_t)
+
+corecmd_exec_bin(pyzord_t)
+
+corenet_all_recvfrom_unlabeled(pyzord_t)
+corenet_all_recvfrom_netlabel(pyzord_t)
+corenet_udp_sendrecv_generic_if(pyzord_t)
+corenet_udp_sendrecv_generic_node(pyzord_t)
+corenet_udp_bind_generic_node(pyzord_t)
+
+corenet_sendrecv_pyzor_server_packets(pyzord_t)
+corenet_udp_bind_pyzor_port(pyzord_t)
+corenet_udp_sendrecv_pyzor_port(pyzord_t)
+
+auth_use_nsswitch(pyzord_t)
+
+logging_send_syslog_msg(pyzord_t)
+
+locallogin_dontaudit_use_fds(pyzord_t)
+
+miscfiles_read_localization(pyzord_t)
+
+userdom_dontaudit_search_user_home_dirs(pyzord_t)
+
+mta_manage_spool(pyzord_t)

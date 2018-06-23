@@ -1,0 +1,455 @@
+policy_module(nagios, 1.16.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute nagios_plugin_domain;
+
+type nagios_t;
+type nagios_exec_t;
+init_daemon_domain(nagios_t, nagios_exec_t)
+
+type nagios_etc_t;
+files_config_file(nagios_etc_t)
+
+type nagios_initrc_exec_t;
+init_script_file(nagios_initrc_exec_t)
+
+type nagios_log_t;
+logging_log_file(nagios_log_t)
+
+type nagios_tmp_t;
+files_tmp_file(nagios_tmp_t)
+
+type nagios_var_run_t;
+files_pid_file(nagios_var_run_t)
+
+type nagios_spool_t;
+files_type(nagios_spool_t)
+
+type nagios_var_lib_t;
+files_type(nagios_var_lib_t)
+
+nagios_plugin_template(admin)
+nagios_plugin_template(checkdisk)
+nagios_plugin_template(mail)
+nagios_plugin_template(services)
+nagios_plugin_template(system)
+nagios_plugin_template(unconfined)
+nagios_plugin_template(eventhandler)
+
+type nagios_eventhandler_plugin_tmp_t;
+files_tmp_file(nagios_eventhandler_plugin_tmp_t)
+
+type nagios_system_plugin_tmp_t;
+files_tmp_file(nagios_system_plugin_tmp_t)
+
+type nrpe_t;
+type nrpe_exec_t;
+init_daemon_domain(nrpe_t, nrpe_exec_t)
+
+type nrpe_etc_t;
+files_config_file(nrpe_etc_t)
+
+type nrpe_var_run_t;
+files_pid_file(nrpe_var_run_t)
+
+######################################
+#
+# Common plugin domain local policy
+#
+
+allow nagios_plugin_domain self:fifo_file rw_fifo_file_perms;
+
+dontaudit nagios_plugin_domain nrpe_t:tcp_socket { read write };
+dontaudit nagios_plugin_domain nagios_log_t:file { read write };
+
+kernel_read_system_state(nagios_plugin_domain)
+
+dev_read_urand(nagios_plugin_domain)
+dev_read_rand(nagios_plugin_domain)
+
+files_read_usr_files(nagios_plugin_domain)
+
+miscfiles_read_localization(nagios_plugin_domain)
+
+userdom_use_user_terminals(nagios_plugin_domain)
+
+########################################
+#
+# Nagios local policy
+#
+
+allow nagios_t self:capability { dac_override setgid setuid };
+dontaudit nagios_t self:capability sys_tty_config;
+allow nagios_t self:process { setpgid signal_perms };
+allow nagios_t self:fifo_file rw_fifo_file_perms;
+allow nagios_t self:tcp_socket { accept listen };
+
+allow nagios_t nagios_plugin_domain:process signal_perms;
+
+allow nagios_t nagios_eventhandler_plugin_exec_t:dir list_dir_perms;
+
+allow nagios_t nagios_etc_t:dir list_dir_perms;
+allow nagios_t nagios_etc_t:file read_file_perms;
+allow nagios_t nagios_etc_t:lnk_file read_lnk_file_perms;
+
+allow nagios_t nagios_log_t:dir setattr_dir_perms;
+append_files_pattern(nagios_t, nagios_log_t, nagios_log_t)
+create_files_pattern(nagios_t, nagios_log_t, nagios_log_t)
+setattr_files_pattern(nagios_t, nagios_log_t, nagios_log_t)
+logging_log_filetrans(nagios_t, nagios_log_t, file)
+
+manage_dirs_pattern(nagios_t, nagios_tmp_t, nagios_tmp_t)
+manage_files_pattern(nagios_t, nagios_tmp_t, nagios_tmp_t)
+files_tmp_filetrans(nagios_t, nagios_tmp_t, { dir file })
+
+manage_files_pattern(nagios_t, nagios_var_run_t, nagios_var_run_t)
+files_pid_filetrans(nagios_t, nagios_var_run_t, file)
+
+manage_fifo_files_pattern(nagios_t, nagios_spool_t, nagios_spool_t)
+files_spool_filetrans(nagios_t, nagios_spool_t, fifo_file)
+
+manage_files_pattern(nagios_t, nagios_var_lib_t, nagios_var_lib_t)
+manage_fifo_files_pattern(nagios_t, nagios_var_lib_t, nagios_var_lib_t)
+files_var_lib_filetrans(nagios_t, nagios_var_lib_t, { file fifo_file })
+
+kernel_read_system_state(nagios_t)
+kernel_read_kernel_sysctls(nagios_t)
+kernel_read_software_raid_state(nagios_t)
+
+corecmd_exec_bin(nagios_t)
+corecmd_exec_shell(nagios_t)
+
+corenet_all_recvfrom_unlabeled(nagios_t)
+corenet_all_recvfrom_netlabel(nagios_t)
+corenet_tcp_sendrecv_generic_if(nagios_t)
+corenet_tcp_sendrecv_generic_node(nagios_t)
+
+corenet_sendrecv_all_client_packets(nagios_t)
+corenet_tcp_connect_all_ports(nagios_t)
+corenet_tcp_sendrecv_all_ports(nagios_t)
+
+corenet_dontaudit_tcp_bind_all_reserved_ports(nagios_t)
+corenet_dontaudit_udp_bind_all_reserved_ports(nagios_t)
+
+dev_read_sysfs(nagios_t)
+dev_read_urand(nagios_t)
+
+domain_use_interactive_fds(nagios_t)
+domain_read_all_domains_state(nagios_t)
+
+files_read_etc_runtime_files(nagios_t)
+files_read_kernel_symbol_table(nagios_t)
+files_read_usr_files(nagios_t)
+files_search_spool(nagios_t)
+
+fs_getattr_all_fs(nagios_t)
+fs_search_auto_mountpoints(nagios_t)
+
+auth_use_nsswitch(nagios_t)
+
+logging_send_syslog_msg(nagios_t)
+
+miscfiles_read_localization(nagios_t)
+
+userdom_dontaudit_use_unpriv_user_fds(nagios_t)
+userdom_dontaudit_search_user_home_dirs(nagios_t)
+
+optional_policy(`
+	mta_send_mail(nagios_t)
+	mta_signal_system_mail(nagios_t)
+	mta_kill_system_mail(nagios_t)
+')
+
+optional_policy(`
+	netutils_kill_ping(nagios_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(nagios_t)
+')
+
+optional_policy(`
+	udev_read_db(nagios_t)
+')
+
+########################################
+#
+# CGI local policy
+#
+optional_policy(`
+	apache_content_template(nagios)
+	typealias httpd_nagios_script_t alias nagios_cgi_t;
+	typealias httpd_nagios_script_exec_t alias nagios_cgi_exec_t;
+
+	allow httpd_nagios_script_t self:process signal_perms;
+
+	read_files_pattern(httpd_nagios_script_t, nagios_t, nagios_t)
+	read_lnk_files_pattern(httpd_nagios_script_t, nagios_t, nagios_t)
+
+	allow httpd_nagios_script_t nagios_etc_t:dir list_dir_perms;
+	allow httpd_nagios_script_t nagios_etc_t:file read_file_perms;
+	allow httpd_nagios_script_t nagios_etc_t:lnk_file read_lnk_file_perms;
+
+	files_search_spool(httpd_nagios_script_t)
+	rw_fifo_files_pattern(httpd_nagios_script_t, nagios_spool_t, nagios_spool_t)
+
+	allow httpd_nagios_script_t nagios_log_t:dir list_dir_perms;
+	read_files_pattern(httpd_nagios_script_t, nagios_etc_t, nagios_log_t)
+	read_lnk_files_pattern(httpd_nagios_script_t, nagios_etc_t, nagios_log_t)
+
+	kernel_read_system_state(httpd_nagios_script_t)
+
+	domain_dontaudit_read_all_domains_state(httpd_nagios_script_t)
+
+	files_read_etc_runtime_files(httpd_nagios_script_t)
+	files_read_kernel_symbol_table(httpd_nagios_script_t)
+
+	logging_send_syslog_msg(httpd_nagios_script_t)
+')
+
+########################################
+#
+# Nrpe local policy
+#
+
+allow nrpe_t self:capability { dac_override setgid setuid };
+dontaudit nrpe_t self:capability { sys_resource sys_tty_config };
+allow nrpe_t self:process { setpgid signal_perms setsched setrlimit };
+allow nrpe_t self:fifo_file rw_fifo_file_perms;
+allow nrpe_t self:tcp_socket { accept listen };
+
+allow nrpe_t nagios_etc_t:dir list_dir_perms;
+allow nrpe_t nagios_etc_t:file read_file_perms;
+
+allow nrpe_t nagios_plugin_domain:process { signal sigkill };
+
+read_files_pattern(nrpe_t, nagios_etc_t, nrpe_etc_t)
+
+manage_files_pattern(nrpe_t, nrpe_var_run_t, nrpe_var_run_t)
+files_pid_filetrans(nrpe_t, nrpe_var_run_t, file)
+
+domtrans_pattern(nrpe_t, nagios_checkdisk_plugin_exec_t, nagios_checkdisk_plugin_t)
+
+kernel_read_kernel_sysctls(nrpe_t)
+kernel_read_software_raid_state(nrpe_t)
+kernel_read_system_state(nrpe_t)
+
+corecmd_exec_bin(nrpe_t)
+corecmd_exec_shell(nrpe_t)
+
+corenet_all_recvfrom_unlabeled(nrpe_t)
+corenet_all_recvfrom_netlabel(nrpe_t)
+corenet_tcp_sendrecv_generic_if(nrpe_t)
+corenet_tcp_sendrecv_generic_node(nrpe_t)
+corenet_tcp_bind_generic_node(nrpe_t)
+
+corenet_sendrecv_inetd_child_server_packets(nrpe_t)
+corenet_tcp_bind_inetd_child_port(nrpe_t)
+corenet_tcp_sendrecv_inetd_child_port(nrpe_t)
+
+dev_read_sysfs(nrpe_t)
+dev_read_urand(nrpe_t)
+
+domain_use_interactive_fds(nrpe_t)
+domain_read_all_domains_state(nrpe_t)
+
+files_read_etc_runtime_files(nrpe_t)
+files_read_usr_files(nrpe_t)
+
+fs_getattr_all_fs(nrpe_t)
+fs_search_auto_mountpoints(nrpe_t)
+
+auth_use_nsswitch(nrpe_t)
+
+logging_send_syslog_msg(nrpe_t)
+
+miscfiles_read_localization(nrpe_t)
+
+userdom_dontaudit_use_unpriv_user_fds(nrpe_t)
+
+optional_policy(`
+	inetd_tcp_service_domain(nrpe_t, nrpe_exec_t)
+')
+
+optional_policy(`
+	mta_send_mail(nrpe_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(nrpe_t)
+')
+
+optional_policy(`
+	tcpd_wrapped_domain(nrpe_t, nrpe_exec_t)
+')
+
+optional_policy(`
+	udev_read_db(nrpe_t)
+')
+
+#####################################
+#
+# Admin local policy
+#
+
+corecmd_read_bin_files(nagios_admin_plugin_t)
+
+dev_getattr_all_chr_files(nagios_admin_plugin_t)
+dev_getattr_all_blk_files(nagios_admin_plugin_t)
+
+files_getattr_all_dirs(nagios_admin_plugin_t)
+files_getattr_all_files(nagios_admin_plugin_t)
+files_getattr_all_symlinks(nagios_admin_plugin_t)
+files_getattr_all_pipes(nagios_admin_plugin_t)
+files_getattr_all_sockets(nagios_admin_plugin_t)
+files_getattr_all_file_type_fs(nagios_admin_plugin_t)
+
+######################################
+#
+# Mail local policy
+#
+
+allow nagios_mail_plugin_t self:capability { dac_override setgid setuid };
+allow nagios_mail_plugin_t self:tcp_socket { accept listen };
+
+kernel_read_kernel_sysctls(nagios_mail_plugin_t)
+
+corecmd_read_bin_files(nagios_mail_plugin_t)
+
+files_read_etc_files(nagios_mail_plugin_t)
+
+logging_send_syslog_msg(nagios_mail_plugin_t)
+
+sysnet_dns_name_resolve(nagios_mail_plugin_t)
+
+optional_policy(`
+	mta_send_mail(nagios_mail_plugin_t)
+')
+
+optional_policy(`
+	nscd_dontaudit_search_pid(nagios_mail_plugin_t)
+')
+
+optional_policy(`
+	postfix_stream_connect_master(nagios_mail_plugin_t)
+	postfix_exec_postqueue(nagios_mail_plugin_t)
+')
+
+######################################
+#
+# Disk local policy
+#
+
+allow nagios_checkdisk_plugin_t self:capability { sys_admin sys_rawio };
+
+kernel_read_software_raid_state(nagios_checkdisk_plugin_t)
+
+files_getattr_all_mountpoints(nagios_checkdisk_plugin_t)
+files_read_etc_runtime_files(nagios_checkdisk_plugin_t)
+
+fs_getattr_all_fs(nagios_checkdisk_plugin_t)
+
+storage_raw_read_fixed_disk(nagios_checkdisk_plugin_t)
+
+#######################################
+#
+# Services local policy
+#
+
+allow nagios_services_plugin_t self:capability net_raw;
+allow nagios_services_plugin_t self:process { signal sigkill };
+allow nagios_services_plugin_t self:tcp_socket { accept listen };
+
+corecmd_exec_bin(nagios_services_plugin_t)
+
+corenet_all_recvfrom_unlabeled(nagios_services_plugin_t)
+corenet_all_recvfrom_netlabel(nagios_services_plugin_t)
+corenet_tcp_sendrecv_generic_if(nagios_services_plugin_t)
+corenet_udp_sendrecv_generic_if(nagios_services_plugin_t)
+corenet_tcp_sendrecv_generic_node(nagios_services_plugin_t)
+corenet_udp_sendrecv_generic_node(nagios_services_plugin_t)
+corenet_udp_bind_generic_node(nagios_services_plugin_t)
+
+corenet_sendrecv_all_client_packets(nagios_services_plugin_t)
+corenet_tcp_connect_all_ports(nagios_services_plugin_t)
+corenet_tcp_sendrecv_all_ports(nagios_services_plugin_t)
+
+corenet_sendrecv_dhcpc_server_packets(nagios_services_plugin_t)
+corenet_udp_bind_dhcpc_port(nagios_services_plugin_t)
+corenet_udp_sendrecv_dhcpc_port(nagios_services_plugin_t)
+
+auth_use_nsswitch(nagios_services_plugin_t)
+
+domain_read_all_domains_state(nagios_services_plugin_t)
+
+optional_policy(`
+	netutils_domtrans_ping(nagios_services_plugin_t)
+	netutils_signal_ping(nagios_services_plugin_t)
+	netutils_kill_ping(nagios_services_plugin_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(nagios_services_plugin_t)
+')
+
+optional_policy(`
+	snmp_read_snmp_var_lib_files(nagios_services_plugin_t)
+')
+
+######################################
+#
+# System local policy
+#
+
+allow nagios_system_plugin_t self:capability dac_override;
+dontaudit nagios_system_plugin_t self:capability { setgid setuid };
+
+read_files_pattern(nagios_system_plugin_t, nagios_log_t, nagios_log_t)
+
+manage_files_pattern(nagios_system_plugin_t, nagios_system_plugin_tmp_t, nagios_system_plugin_tmp_t)
+manage_dirs_pattern(nagios_system_plugin_t, nagios_system_plugin_tmp_t, nagios_system_plugin_tmp_t)
+files_tmp_filetrans(nagios_system_plugin_t, nagios_system_plugin_tmp_t, { dir file })
+
+kernel_read_kernel_sysctls(nagios_system_plugin_t)
+
+corecmd_exec_bin(nagios_system_plugin_t)
+corecmd_exec_shell(nagios_system_plugin_t)
+
+dev_read_sysfs(nagios_system_plugin_t)
+
+domain_read_all_domains_state(nagios_system_plugin_t)
+
+files_read_etc_files(nagios_system_plugin_t)
+
+fs_getattr_all_fs(nagios_system_plugin_t)
+
+optional_policy(`
+	init_read_utmp(nagios_system_plugin_t)
+')
+
+#######################################
+#
+# Event local policy
+#
+
+manage_files_pattern(nagios_eventhandler_plugin_t, nagios_eventhandler_plugin_tmp_t, nagios_eventhandler_plugin_tmp_t)
+manage_dirs_pattern(nagios_eventhandler_plugin_t, nagios_eventhandler_plugin_tmp_t, nagios_eventhandler_plugin_tmp_t)
+files_tmp_filetrans(nagios_eventhandler_plugin_t, nagios_eventhandler_plugin_tmp_t, { dir file })
+
+corecmd_exec_bin(nagios_eventhandler_plugin_t)
+corecmd_exec_shell(nagios_eventhandler_plugin_t)
+
+init_domtrans_script(nagios_eventhandler_plugin_t)
+
+########################################
+#
+# Unconfined plugin policy
+#
+
+optional_policy(`
+	unconfined_domain(nagios_unconfined_plugin_t)
+')

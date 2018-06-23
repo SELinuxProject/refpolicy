@@ -1,0 +1,195 @@
+## <summary>Bluetooth tools and system services.</summary>
+
+########################################
+## <summary>
+##	Role access for bluetooth.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+interface(`bluetooth_role',`
+	gen_require(`
+		attribute_role bluetooth_helper_roles;
+		type bluetooth_t, bluetooth_helper_t, bluetooth_helper_exec_t;
+		type bluetooth_helper_tmp_t, bluetooth_helper_tmpfs_t, bluetooth_var_run_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	roleattribute $1 bluetooth_helper_roles;
+
+	########################################
+	#
+	# Policy
+	#
+
+	domtrans_pattern($2, bluetooth_helper_exec_t, bluetooth_helper_t)
+
+	ps_process_pattern($2, bluetooth_helper_t)
+	allow $2 bluetooth_helper_t:process { ptrace signal_perms };
+
+	allow $2 bluetooth_t:socket rw_socket_perms;
+
+	allow $2 { bluetooth_helper_tmp_t bluetooth_helper_tmpfs_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { bluetooth_helper_tmp_t bluetooth_helper_tmpfs_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 bluetooth_helper_tmp_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	stream_connect_pattern($2, bluetooth_var_run_t, bluetooth_var_run_t, bluetooth_t)
+	files_search_pids($2)
+')
+
+#####################################
+## <summary>
+##	Connect to bluetooth over a unix domain
+##	stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`bluetooth_stream_connect',`
+	gen_require(`
+		type bluetooth_t, bluetooth_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 bluetooth_t:socket rw_socket_perms;
+	stream_connect_pattern($1, bluetooth_var_run_t, bluetooth_var_run_t, bluetooth_t)
+')
+
+########################################
+## <summary>
+##	Execute bluetooth in the bluetooth domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`bluetooth_domtrans',`
+	gen_require(`
+		type bluetooth_t, bluetooth_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, bluetooth_exec_t, bluetooth_t)
+')
+
+########################################
+## <summary>
+##	Read bluetooth configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`bluetooth_read_config',`
+	gen_require(`
+		type bluetooth_conf_t;
+	')
+
+	allow $1 bluetooth_conf_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	bluetooth over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`bluetooth_dbus_chat',`
+	gen_require(`
+		type bluetooth_t;
+		class dbus send_msg;
+	')
+
+	allow $1 bluetooth_t:dbus send_msg;
+	allow bluetooth_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read
+##	bluetooth process state files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`bluetooth_dontaudit_read_helper_state',`
+	gen_require(`
+		type bluetooth_helper_t;
+	')
+
+	dontaudit $1 bluetooth_helper_t:dir search_dir_perms;
+	dontaudit $1 bluetooth_helper_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an bluetooth environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`bluetooth_admin',`
+	gen_require(`
+		type bluetooth_t, bluetooth_tmp_t, bluetooth_lock_t;
+		type bluetooth_var_lib_t, bluetooth_var_run_t;
+		type bluetooth_conf_t, bluetooth_conf_rw_t, bluetooth_var_lib_t;
+		type bluetooth_initrc_exec_t;
+	')
+
+	allow $1 bluetooth_t:process { ptrace signal_perms };
+	ps_process_pattern($1, bluetooth_t)
+
+	init_startstop_service($1, $2, bluetooth_t, bluetooth_initrc_exec_t)
+
+	files_list_tmp($1)
+	admin_pattern($1, bluetooth_tmp_t)
+
+	files_list_var($1)
+	admin_pattern($1, bluetooth_lock_t)
+
+	files_list_etc($1)
+	admin_pattern($1, { bluetooth_conf_t bluetooth_conf_rw_t })
+
+	files_list_var_lib($1)
+	admin_pattern($1, bluetooth_var_lib_t)
+
+	files_list_pids($1)
+	admin_pattern($1, bluetooth_var_run_t)
+')

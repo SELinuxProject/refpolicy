@@ -1,0 +1,829 @@
+policy_module(postfix, 1.19.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether postfix local
+##	can manage mail spool content.
+##	</p>
+## </desc>
+gen_tunable(postfix_local_write_mail_spool, true)
+
+attribute postfix_domain;
+attribute postfix_server_domain;
+attribute postfix_server_tmp_content;
+attribute postfix_spool_type;
+attribute postfix_user_domains;
+attribute postfix_user_domtrans;
+
+attribute_role postfix_map_roles;
+roleattribute system_r postfix_map_roles;
+
+postfix_server_domain_template(bounce)
+
+type postfix_spool_bounce_t, postfix_spool_type;
+files_type(postfix_spool_bounce_t)
+
+postfix_server_domain_template(cleanup)
+
+type postfix_etc_t;
+files_config_file(postfix_etc_t)
+
+type postfix_exec_t;
+application_executable_file(postfix_exec_t)
+
+type postfix_keytab_t;
+files_type(postfix_keytab_t)
+
+postfix_server_domain_template(local)
+mta_mailserver_delivery(postfix_local_t)
+
+type postfix_map_t;
+type postfix_map_exec_t;
+application_domain(postfix_map_t, postfix_map_exec_t)
+role postfix_map_roles types postfix_map_t;
+
+type postfix_map_tmp_t;
+files_tmp_file(postfix_map_tmp_t)
+
+postfix_domain_template(master)
+typealias postfix_master_t alias postfix_t;
+mta_mailserver(postfix_t, postfix_master_exec_t)
+
+type postfix_initrc_exec_t;
+init_script_file(postfix_initrc_exec_t)
+
+postfix_server_domain_template(pickup)
+
+postfix_server_domain_template(pipe)
+
+postfix_user_domain_template(postdrop)
+mta_mailserver_user_agent(postfix_postdrop_t)
+
+postfix_user_domain_template(postqueue)
+mta_mailserver_user_agent(postfix_postqueue_t)
+
+type postfix_private_t;
+files_type(postfix_private_t)
+
+type postfix_prng_t;
+files_type(postfix_prng_t)
+
+postfix_server_domain_template(qmgr)
+
+postfix_user_domain_template(showq)
+
+postfix_server_domain_template(smtp)
+mta_mailserver_sender(postfix_smtp_t)
+
+postfix_server_domain_template(smtpd)
+
+type postfix_spool_t, postfix_spool_type;
+files_type(postfix_spool_t)
+
+type postfix_spool_maildrop_t, postfix_spool_type;
+files_type(postfix_spool_maildrop_t)
+
+type postfix_spool_flush_t, postfix_spool_type;
+files_type(postfix_spool_flush_t)
+
+type postfix_public_t;
+files_type(postfix_public_t)
+
+type postfix_var_run_t;
+files_pid_file(postfix_var_run_t)
+
+type postfix_data_t;
+files_type(postfix_data_t)
+
+postfix_server_domain_template(virtual)
+mta_mailserver_delivery(postfix_virtual_t)
+
+########################################
+#
+# Common postfix domain local policy
+#
+
+allow postfix_domain self:capability { sys_chroot sys_nice };
+dontaudit postfix_domain self:capability sys_tty_config;
+allow postfix_domain self:process { signal_perms setpgid setsched };
+allow postfix_domain self:fifo_file rw_fifo_file_perms;
+allow postfix_domain self:unix_stream_socket { accept connectto listen };
+
+allow postfix_domain postfix_etc_t:dir list_dir_perms;
+allow postfix_domain postfix_etc_t:file { read_file_perms map };
+allow postfix_domain postfix_etc_t:lnk_file read_lnk_file_perms;
+
+allow postfix_domain postfix_master_t:file read_file_perms;
+
+allow postfix_domain postfix_exec_t:file { mmap_exec_file_perms lock };
+
+allow postfix_domain postfix_master_t:process sigchld;
+
+allow postfix_domain postfix_spool_t:dir list_dir_perms;
+
+manage_files_pattern(postfix_domain, postfix_var_run_t, postfix_var_run_t)
+files_pid_filetrans(postfix_domain, postfix_var_run_t, file)
+
+kernel_read_system_state(postfix_domain)
+kernel_read_network_state(postfix_domain)
+kernel_read_all_sysctls(postfix_domain)
+
+dev_read_sysfs(postfix_domain)
+dev_read_rand(postfix_domain)
+dev_read_urand(postfix_domain)
+
+fs_search_auto_mountpoints(postfix_domain)
+fs_getattr_all_fs(postfix_domain)
+fs_rw_anon_inodefs_files(postfix_domain)
+
+term_dontaudit_use_console(postfix_domain)
+
+corecmd_exec_shell(postfix_domain)
+corecmd_getattr_all_executables(postfix_domain)
+
+files_read_etc_runtime_files(postfix_domain)
+files_read_usr_files(postfix_domain)
+files_search_spool(postfix_domain)
+files_getattr_tmp_dirs(postfix_domain)
+files_search_all_mountpoints(postfix_domain)
+
+init_dontaudit_use_fds(postfix_domain)
+init_sigchld(postfix_domain)
+
+logging_send_syslog_msg(postfix_domain)
+
+miscfiles_read_localization(postfix_domain)
+miscfiles_read_generic_certs(postfix_domain)
+miscfiles_read_generic_tls_privkey(postfix_domain)
+
+userdom_dontaudit_use_unpriv_user_fds(postfix_domain)
+
+optional_policy(`
+	udev_read_db(postfix_domain)
+')
+
+########################################
+#
+# Common postfix server domain local policy
+#
+
+allow postfix_server_domain self:capability { dac_read_search dac_override setgid setuid };
+allow postfix_master_t self:process getsched;
+
+allow postfix_server_domain postfix_master_t:unix_stream_socket { connectto rw_stream_socket_perms };
+
+corenet_all_recvfrom_unlabeled(postfix_server_domain)
+corenet_all_recvfrom_netlabel(postfix_server_domain)
+corenet_tcp_sendrecv_generic_if(postfix_server_domain)
+corenet_tcp_sendrecv_generic_node(postfix_server_domain)
+
+corenet_sendrecv_all_client_packets(postfix_server_domain)
+corenet_tcp_connect_all_ports(postfix_server_domain)
+corenet_tcp_sendrecv_all_ports(postfix_server_domain)
+
+########################################
+#
+# Common postfix user domain local policy
+#
+
+allow postfix_user_domains self:capability { dac_read_search dac_override };
+
+domain_use_interactive_fds(postfix_user_domains)
+
+########################################
+#
+# Master local policy
+#
+
+allow postfix_master_t self:capability { chown dac_read_search dac_override fowner kill setgid setuid sys_tty_config };
+allow postfix_master_t self:capability2 block_suspend;
+allow postfix_master_t self:process setrlimit;
+allow postfix_master_t self:tcp_socket create_stream_socket_perms;
+allow postfix_master_t self:udp_socket create_socket_perms;
+
+allow postfix_master_t postfix_domain:fifo_file rw_fifo_file_perms;
+allow postfix_master_t postfix_domain:process signal;
+
+allow postfix_master_t postfix_etc_t:dir rw_dir_perms;
+allow postfix_master_t postfix_etc_t:file rw_file_perms;
+
+allow postfix_master_t postfix_data_t:dir manage_dir_perms;
+allow postfix_master_t postfix_data_t:file manage_file_perms;
+
+allow postfix_master_t postfix_keytab_t:file read_file_perms;
+
+allow postfix_master_t postfix_map_exec_t:file { mmap_exec_file_perms ioctl lock };
+
+allow postfix_master_t { postfix_postdrop_exec_t postfix_postqueue_exec_t }:file getattr_file_perms;
+
+allow postfix_master_t postfix_prng_t:file rw_file_perms;
+
+manage_dirs_pattern(postfix_master_t, postfix_spool_t, postfix_spool_t)
+manage_files_pattern(postfix_master_t, postfix_spool_t, postfix_spool_t)
+files_spool_filetrans(postfix_master_t, postfix_spool_t, dir)
+
+allow postfix_master_t postfix_spool_bounce_t:dir manage_dir_perms;
+allow postfix_master_t postfix_spool_bounce_t:file getattr_file_perms;
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_spool_bounce_t, dir, "bounce")
+
+manage_dirs_pattern(postfix_master_t, postfix_spool_flush_t, postfix_spool_flush_t)
+manage_files_pattern(postfix_master_t, postfix_spool_flush_t, postfix_spool_flush_t)
+manage_lnk_files_pattern(postfix_master_t, postfix_spool_flush_t, postfix_spool_flush_t)
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_spool_flush_t, dir, "flush")
+
+create_dirs_pattern(postfix_master_t, postfix_spool_t, postfix_private_t)
+manage_fifo_files_pattern(postfix_master_t, postfix_private_t, postfix_private_t)
+manage_sock_files_pattern(postfix_master_t, postfix_private_t, postfix_private_t)
+setattr_dirs_pattern(postfix_master_t, postfix_private_t, postfix_private_t)
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_private_t, dir, "private")
+
+create_dirs_pattern(postfix_master_t, postfix_spool_t, postfix_public_t)
+manage_fifo_files_pattern(postfix_master_t, postfix_public_t, postfix_public_t)
+manage_sock_files_pattern(postfix_master_t, postfix_public_t, postfix_public_t)
+setattr_dirs_pattern(postfix_master_t, postfix_public_t, postfix_public_t)
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_public_t, dir, "public")
+
+create_dirs_pattern(postfix_master_t, postfix_spool_t, postfix_spool_maildrop_t)
+delete_files_pattern(postfix_master_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+rename_files_pattern(postfix_master_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+setattr_dirs_pattern(postfix_master_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_spool_maildrop_t, dir, "defer")
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_spool_maildrop_t, dir, "deferred")
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_spool_maildrop_t, dir, "maildrop")
+
+create_dirs_pattern(postfix_master_t, postfix_spool_t, postfix_var_run_t)
+setattr_dirs_pattern(postfix_master_t, postfix_var_run_t, postfix_var_run_t)
+filetrans_pattern(postfix_master_t, postfix_spool_t, postfix_var_run_t, dir, "pid")
+
+can_exec(postfix_master_t, postfix_exec_t)
+
+domtrans_pattern(postfix_master_t, postfix_postqueue_exec_t, postfix_postqueue_t)
+domtrans_pattern(postfix_master_t, postfix_showq_exec_t, postfix_showq_t)
+
+corenet_all_recvfrom_unlabeled(postfix_master_t)
+corenet_all_recvfrom_netlabel(postfix_master_t)
+corenet_tcp_sendrecv_generic_if(postfix_master_t)
+corenet_udp_sendrecv_generic_if(postfix_master_t)
+corenet_tcp_sendrecv_generic_node(postfix_master_t)
+corenet_udp_sendrecv_generic_node(postfix_master_t)
+corenet_tcp_sendrecv_all_ports(postfix_master_t)
+corenet_udp_sendrecv_all_ports(postfix_master_t)
+corenet_tcp_bind_generic_node(postfix_master_t)
+corenet_udp_bind_generic_node(postfix_master_t)
+
+corenet_sendrecv_amavisd_send_server_packets(postfix_master_t)
+corenet_tcp_bind_amavisd_send_port(postfix_master_t)
+
+corenet_sendrecv_smtp_server_packets(postfix_master_t)
+corenet_tcp_bind_smtp_port(postfix_master_t)
+
+corenet_sendrecv_spamd_server_packets(postfix_master_t)
+corenet_tcp_bind_spamd_port(postfix_master_t)
+
+corenet_sendrecv_all_client_packets(postfix_master_t)
+corenet_tcp_connect_all_ports(postfix_master_t)
+
+# Can this be conditional?
+corenet_sendrecv_all_server_packets(postfix_master_t)
+corenet_udp_bind_all_unreserved_ports(postfix_master_t)
+corenet_dontaudit_udp_bind_all_ports(postfix_master_t)
+
+selinux_dontaudit_search_fs(postfix_master_t)
+
+corecmd_exec_bin(postfix_master_t)
+
+domain_use_interactive_fds(postfix_master_t)
+
+files_search_tmp(postfix_master_t)
+
+mcs_file_read_all(postfix_master_t)
+
+term_dontaudit_search_ptys(postfix_master_t)
+
+hostname_exec(postfix_master_t)
+
+miscfiles_read_man_pages(postfix_master_t)
+
+seutil_sigchld_newrole(postfix_master_t)
+seutil_dontaudit_search_config(postfix_master_t)
+
+mta_manage_aliases(postfix_master_t)
+mta_etc_filetrans_aliases(postfix_master_t, file, "aliases")
+mta_etc_filetrans_aliases(postfix_master_t, file, "aliases.db")
+mta_etc_filetrans_aliases(postfix_master_t, file, "aliasesdb-stamp")
+mta_spec_filetrans_aliases(postfix_master_t, postfix_etc_t, file)
+mta_read_sendmail_bin(postfix_master_t)
+mta_getattr_spool(postfix_master_t)
+
+optional_policy(`
+	cyrus_stream_connect(postfix_master_t)
+')
+
+optional_policy(`
+	kerberos_read_keytab(postfix_master_t)
+	kerberos_use(postfix_master_t)
+')
+
+optional_policy(`
+	mailman_manage_data_files(postfix_master_t)
+	mailman_search_data(postfix_pipe_t)
+')
+
+optional_policy(`
+	milter_getattr_data_dir(postfix_master_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(postfix_master_t)
+')
+
+optional_policy(`
+	postgrey_search_spool(postfix_master_t)
+')
+
+optional_policy(`
+	sendmail_signal(postfix_master_t)
+')
+
+########################################
+#
+# Bounce local policy
+#
+
+allow postfix_bounce_t self:capability dac_read_search;
+
+write_sock_files_pattern(postfix_bounce_t, postfix_public_t, postfix_public_t)
+
+manage_dirs_pattern(postfix_bounce_t, postfix_spool_t, postfix_spool_t)
+manage_files_pattern(postfix_bounce_t, postfix_spool_t, postfix_spool_t)
+manage_lnk_files_pattern(postfix_bounce_t, postfix_spool_t, postfix_spool_t)
+files_spool_filetrans(postfix_bounce_t, postfix_spool_t, dir)
+
+manage_files_pattern(postfix_bounce_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+manage_dirs_pattern(postfix_bounce_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+allow postfix_bounce_t postfix_spool_maildrop_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(postfix_bounce_t, postfix_spool_bounce_t, postfix_spool_bounce_t)
+manage_files_pattern(postfix_bounce_t, postfix_spool_bounce_t, postfix_spool_bounce_t)
+manage_lnk_files_pattern(postfix_bounce_t, postfix_spool_bounce_t, postfix_spool_bounce_t)
+
+########################################
+#
+# Cleanup local policy
+#
+
+allow postfix_cleanup_t self:process setrlimit;
+
+allow postfix_cleanup_t postfix_smtpd_t:tcp_socket rw_stream_socket_perms;
+allow postfix_cleanup_t postfix_smtpd_t:unix_stream_socket rw_socket_perms;
+allow postfix_cleanup_t postfix_smtpd_t:fd use;
+
+allow postfix_cleanup_t postfix_spool_maildrop_t:dir list_dir_perms;
+allow postfix_cleanup_t postfix_spool_maildrop_t:file read_file_perms;
+allow postfix_cleanup_t postfix_spool_maildrop_t:lnk_file read_lnk_file_perms;
+
+stream_connect_pattern(postfix_cleanup_t, postfix_private_t, postfix_private_t, postfix_master_t)
+
+rw_fifo_files_pattern(postfix_cleanup_t, postfix_public_t, postfix_public_t)
+write_sock_files_pattern(postfix_cleanup_t, postfix_public_t, postfix_public_t)
+
+manage_dirs_pattern(postfix_cleanup_t, postfix_spool_t, postfix_spool_t)
+manage_files_pattern(postfix_cleanup_t, postfix_spool_t, postfix_spool_t)
+manage_lnk_files_pattern(postfix_cleanup_t, postfix_spool_t, postfix_spool_t)
+files_spool_filetrans(postfix_cleanup_t, postfix_spool_t, dir)
+
+allow postfix_cleanup_t postfix_spool_bounce_t:dir list_dir_perms;
+
+corecmd_exec_bin(postfix_cleanup_t)
+
+corenet_sendrecv_kismet_client_packets(postfix_cleanup_t)
+corenet_tcp_connect_kismet_port(postfix_cleanup_t)
+corenet_tcp_sendrecv_kismet_port(postfix_cleanup_t)
+
+mta_read_aliases(postfix_cleanup_t)
+mta_map_aliases(postfix_cleanup_t)
+
+optional_policy(`
+	dkim_stream_connect(postfix_cleanup_t)
+')
+
+optional_policy(`
+	mailman_read_data_files(postfix_cleanup_t)
+')
+
+########################################
+#
+# Local local policy
+#
+
+allow postfix_local_t self:capability chown;
+allow postfix_local_t self:process setrlimit;
+
+stream_connect_pattern(postfix_local_t, postfix_public_t, postfix_public_t, postfix_master_t)
+
+rw_sock_files_pattern(postfix_local_t, postfix_private_t, postfix_private_t)
+
+allow postfix_local_t postfix_spool_t:file rw_file_perms;
+
+domtrans_pattern(postfix_local_t, postfix_postdrop_exec_t, postfix_postdrop_t)
+
+corecmd_exec_bin(postfix_local_t)
+
+logging_dontaudit_search_logs(postfix_local_t)
+
+mta_delete_spool(postfix_local_t)
+mta_read_aliases(postfix_local_t)
+mta_map_aliases(postfix_local_t)
+mta_read_config(postfix_local_t)
+mta_send_mail(postfix_local_t)
+
+tunable_policy(`postfix_local_write_mail_spool',`
+	mta_manage_spool(postfix_local_t)
+')
+
+optional_policy(`
+	clamav_search_lib(postfix_local_t)
+	clamav_exec_clamscan(postfix_local_t)
+	clamav_stream_connect(postfix_smtpd_t)
+')
+
+optional_policy(`
+	dovecot_domtrans_deliver(postfix_local_t)
+')
+
+optional_policy(`
+	dspam_domtrans(postfix_local_t)
+')
+
+optional_policy(`
+	mailman_manage_data_files(postfix_local_t)
+	mailman_append_log(postfix_local_t)
+	mailman_read_log(postfix_local_t)
+')
+
+optional_policy(`
+	nagios_search_spool(postfix_local_t)
+')
+
+optional_policy(`
+	procmail_domtrans(postfix_local_t)
+')
+
+optional_policy(`
+	sendmail_rw_pipes(postfix_local_t)
+')
+
+optional_policy(`
+	zarafa_domtrans_deliver(postfix_local_t)
+	zarafa_stream_connect_server(postfix_local_t)
+')
+
+########################################
+#
+# Map local policy
+#
+
+allow postfix_map_t self:capability { dac_read_search dac_override setgid setuid };
+allow postfix_map_t self:tcp_socket { accept listen };
+
+allow postfix_map_t postfix_etc_t:dir manage_dir_perms;
+allow postfix_map_t postfix_etc_t:file { manage_file_perms map };
+allow postfix_map_t postfix_etc_t:lnk_file manage_lnk_file_perms;
+
+manage_dirs_pattern(postfix_map_t, postfix_map_tmp_t, postfix_map_tmp_t)
+manage_files_pattern(postfix_map_t, postfix_map_tmp_t, postfix_map_tmp_t)
+files_tmp_filetrans(postfix_map_t, postfix_map_tmp_t, { file dir })
+
+kernel_read_kernel_sysctls(postfix_map_t)
+kernel_dontaudit_list_proc(postfix_map_t)
+kernel_dontaudit_read_system_state(postfix_map_t)
+
+corenet_all_recvfrom_unlabeled(postfix_map_t)
+corenet_all_recvfrom_netlabel(postfix_map_t)
+corenet_tcp_sendrecv_generic_if(postfix_map_t)
+corenet_tcp_sendrecv_generic_node(postfix_map_t)
+
+corenet_sendrecv_all_client_packets(postfix_map_t)
+corenet_tcp_connect_all_ports(postfix_map_t)
+corenet_tcp_sendrecv_all_ports(postfix_map_t)
+
+corecmd_list_bin(postfix_map_t)
+corecmd_read_bin_files(postfix_map_t)
+corecmd_read_bin_pipes(postfix_map_t)
+corecmd_read_bin_sockets(postfix_map_t)
+
+files_list_home(postfix_map_t)
+files_read_usr_files(postfix_map_t)
+files_read_etc_runtime_files(postfix_map_t)
+files_dontaudit_search_var(postfix_map_t)
+
+auth_use_nsswitch(postfix_map_t)
+
+logging_send_syslog_msg(postfix_map_t)
+
+miscfiles_read_localization(postfix_map_t)
+
+optional_policy(`
+	locallogin_dontaudit_use_fds(postfix_map_t)
+')
+
+optional_policy(`
+	mailman_manage_data_files(postfix_map_t)
+')
+
+########################################
+#
+# Pickup local policy
+#
+
+stream_connect_pattern(postfix_pickup_t, postfix_private_t, postfix_private_t, postfix_master_t)
+
+rw_fifo_files_pattern(postfix_pickup_t, postfix_public_t, postfix_public_t)
+rw_sock_files_pattern(postfix_pickup_t, postfix_public_t, postfix_public_t)
+
+allow postfix_pickup_t postfix_spool_t:dir list_dir_perms;
+read_files_pattern(postfix_pickup_t, postfix_spool_t, postfix_spool_t)
+delete_files_pattern(postfix_pickup_t, postfix_spool_t, postfix_spool_t)
+
+allow postfix_pickup_t postfix_spool_maildrop_t:dir list_dir_perms;
+read_files_pattern(postfix_pickup_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+delete_files_pattern(postfix_pickup_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+
+mcs_file_read_all(postfix_pickup_t)
+mcs_file_write_all(postfix_pickup_t)
+
+########################################
+#
+# Pipe local policy
+#
+
+allow postfix_pipe_t self:process setrlimit;
+
+write_sock_files_pattern(postfix_pipe_t, postfix_private_t, postfix_private_t)
+
+write_sock_files_pattern(postfix_pipe_t, postfix_public_t, postfix_public_t)
+write_fifo_files_pattern(postfix_pipe_t, postfix_public_t, postfix_public_t)
+
+rw_files_pattern(postfix_pipe_t, postfix_spool_t, postfix_spool_t)
+
+domtrans_pattern(postfix_pipe_t, postfix_postdrop_exec_t, postfix_postdrop_t)
+
+corecmd_exec_bin(postfix_pipe_t)
+
+optional_policy(`
+	dovecot_domtrans_deliver(postfix_pipe_t)
+')
+
+optional_policy(`
+	procmail_domtrans(postfix_pipe_t)
+')
+
+optional_policy(`
+	mailman_domtrans_queue(postfix_pipe_t)
+	mailman_domtrans(postfix_pipe_t)
+')
+
+optional_policy(`
+	mta_manage_spool(postfix_pipe_t)
+	mta_send_mail(postfix_pipe_t)
+')
+
+optional_policy(`
+	spamassassin_domtrans_client(postfix_pipe_t)
+	spamassassin_kill_client(postfix_pipe_t)
+')
+
+optional_policy(`
+	uucp_domtrans_uux(postfix_pipe_t)
+')
+
+########################################
+#
+# Postdrop local policy
+#
+
+allow postfix_postdrop_t self:capability sys_resource;
+
+rw_fifo_files_pattern(postfix_postdrop_t, postfix_public_t, postfix_public_t)
+
+manage_files_pattern(postfix_postdrop_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+
+allow postfix_postdrop_t postfix_local_t:unix_stream_socket { read write };
+
+# for /var/spool/postfix/public/pickup
+stream_connect_pattern(postfix_postdrop_t, postfix_public_t, postfix_public_t, postfix_master_t)
+
+mcs_file_read_all(postfix_postdrop_t)
+mcs_file_write_all(postfix_postdrop_t)
+
+term_dontaudit_use_all_ptys(postfix_postdrop_t)
+term_dontaudit_use_all_ttys(postfix_postdrop_t)
+
+mta_rw_user_mail_stream_sockets(postfix_postdrop_t)
+
+optional_policy(`
+	apache_dontaudit_rw_fifo_file(postfix_postdrop_t)
+')
+
+optional_policy(`
+	cron_system_entry(postfix_postdrop_t, postfix_postdrop_exec_t)
+')
+
+optional_policy(`
+	fail2ban_dontaudit_use_fds(postfix_postdrop_t)
+')
+
+optional_policy(`
+	fstools_read_pipes(postfix_postdrop_t)
+')
+
+optional_policy(`
+	sendmail_rw_unix_stream_sockets(postfix_postdrop_t)
+')
+
+optional_policy(`
+	uucp_manage_spool(postfix_postdrop_t)
+')
+
+#######################################
+#
+# Postqueue local policy
+#
+
+stream_connect_pattern(postfix_postqueue_t, postfix_public_t, postfix_public_t, postfix_master_t)
+
+write_fifo_files_pattern(postfix_postqueue_t, postfix_public_t, postfix_public_t)
+
+domtrans_pattern(postfix_postqueue_t, postfix_showq_exec_t, postfix_showq_t)
+
+term_use_all_ptys(postfix_postqueue_t)
+term_use_all_ttys(postfix_postqueue_t)
+
+init_sigchld_script(postfix_postqueue_t)
+init_use_script_fds(postfix_postqueue_t)
+
+optional_policy(`
+	cron_system_entry(postfix_postqueue_t, postfix_postqueue_exec_t)
+')
+
+optional_policy(`
+	ppp_use_fds(postfix_postqueue_t)
+	ppp_sigchld(postfix_postqueue_t)
+')
+
+optional_policy(`
+	userdom_sigchld_all_users(postfix_postqueue_t)
+')
+
+########################################
+#
+# Qmgr local policy
+#
+
+allow postfix_qmgr_t postfix_spool_bounce_t:dir list_dir_perms;
+allow postfix_qmgr_t postfix_spool_bounce_t:file read_file_perms;
+allow postfix_qmgr_t postfix_spool_bounce_t:lnk_file read_lnk_file_perms;
+
+stream_connect_pattern(postfix_qmgr_t, { postfix_private_t postfix_public_t }, { postfix_private_t postfix_public_t }, postfix_master_t)
+
+rw_fifo_files_pattern(postfix_qmgr_t, postfix_public_t, postfix_public_t)
+
+manage_files_pattern(postfix_qmgr_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+manage_dirs_pattern(postfix_qmgr_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+allow postfix_qmgr_t postfix_spool_maildrop_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(postfix_qmgr_t, postfix_spool_t, postfix_spool_t)
+manage_files_pattern(postfix_qmgr_t, postfix_spool_t, postfix_spool_t)
+manage_lnk_files_pattern(postfix_qmgr_t, postfix_spool_t, postfix_spool_t)
+files_spool_filetrans(postfix_qmgr_t, postfix_spool_t, dir)
+
+corecmd_exec_bin(postfix_qmgr_t)
+
+########################################
+#
+# Showq local policy
+#
+
+allow postfix_showq_t self:capability { setgid setuid };
+
+allow postfix_showq_t postfix_master_t:unix_stream_socket { accept rw_socket_perms };
+
+allow postfix_showq_t postfix_spool_maildrop_t:dir list_dir_perms;
+allow postfix_showq_t postfix_spool_maildrop_t:file read_file_perms;
+allow postfix_showq_t postfix_spool_maildrop_t:lnk_file read_lnk_file_perms;
+
+allow postfix_showq_t postfix_spool_t:file read_file_perms;
+
+mcs_file_read_all(postfix_showq_t)
+
+term_use_all_ptys(postfix_showq_t)
+term_use_all_ttys(postfix_showq_t)
+
+########################################
+#
+# Smtp delivery local policy
+#
+
+allow postfix_smtp_t self:capability sys_chroot;
+
+stream_connect_pattern(postfix_smtp_t, { postfix_private_t postfix_public_t }, { postfix_private_t postfix_public_t }, postfix_master_t)
+
+allow postfix_smtp_t { postfix_prng_t postfix_spool_t }:file rw_file_perms;
+
+rw_files_pattern(postfix_smtp_t, postfix_spool_maildrop_t, postfix_spool_maildrop_t)
+
+corenet_tcp_bind_generic_node(postfix_smtp_t)
+
+optional_policy(`
+	cyrus_stream_connect(postfix_smtp_t)
+')
+
+optional_policy(`
+	dovecot_stream_connect(postfix_smtp_t)
+')
+
+optional_policy(`
+	dspam_stream_connect(postfix_smtp_t)
+')
+
+optional_policy(`
+	milter_stream_connect_all(postfix_smtp_t)
+')
+
+########################################
+#
+# Smtpd local policy
+#
+
+allow postfix_smtpd_t postfix_master_t:tcp_socket rw_stream_socket_perms;
+
+stream_connect_pattern(postfix_smtpd_t, { postfix_private_t postfix_public_t }, { postfix_private_t postfix_public_t }, postfix_master_t)
+
+manage_dirs_pattern(postfix_smtpd_t, postfix_spool_t, postfix_spool_t)
+manage_files_pattern(postfix_smtpd_t, postfix_spool_t, postfix_spool_t)
+manage_lnk_files_pattern(postfix_smtpd_t, postfix_spool_t, postfix_spool_t)
+allow postfix_smtpd_t postfix_prng_t:file rw_file_perms;
+
+corenet_sendrecv_postfix_policyd_client_packets(postfix_smtpd_t)
+corenet_tcp_connect_postfix_policyd_port(postfix_smtpd_t)
+corenet_tcp_sendrecv_postfix_policyd_port(postfix_smtpd_t)
+
+corecmd_exec_bin(postfix_smtpd_t)
+
+fs_getattr_all_dirs(postfix_smtpd_t)
+fs_getattr_all_fs(postfix_smtpd_t)
+
+mta_read_aliases(postfix_smtpd_t)
+mta_map_aliases(postfix_smtpd_t)
+
+optional_policy(`
+	dovecot_stream_connect_auth(postfix_smtpd_t)
+	dovecot_stream_connect(postfix_smtpd_t)
+')
+
+optional_policy(`
+	mailman_read_data_files(postfix_smtpd_t)
+')
+
+optional_policy(`
+	milter_stream_connect_all(postfix_smtpd_t)
+')
+
+optional_policy(`
+	postgrey_stream_connect(postfix_smtpd_t)
+')
+
+optional_policy(`
+	sasl_connect(postfix_smtpd_t)
+')
+
+optional_policy(`
+	spamassassin_read_spamd_pid_files(postfix_smtpd_t)
+	spamassassin_stream_connect_spamd(postfix_smtpd_t)
+')
+
+########################################
+#
+# Virtual local policy
+#
+
+allow postfix_virtual_t self:process setrlimit;
+
+allow postfix_virtual_t postfix_spool_t:file rw_file_perms;
+
+stream_connect_pattern(postfix_virtual_t, { postfix_private_t postfix_public_t }, { postfix_private_t postfix_public_t }, postfix_master_t)
+
+corecmd_exec_bin(postfix_virtual_t)
+
+mta_read_aliases(postfix_virtual_t)
+mta_map_aliases(postfix_virtual_t)
+mta_delete_spool(postfix_virtual_t)
+mta_read_config(postfix_virtual_t)
+mta_manage_spool(postfix_virtual_t)
+
+userdom_user_content_access_template(postfix, postfix_virtual_t)

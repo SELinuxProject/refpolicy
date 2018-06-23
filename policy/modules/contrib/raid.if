@@ -1,0 +1,98 @@
+## <summary>RAID array management tools.</summary>
+
+########################################
+## <summary>
+##	Execute software raid tools in
+##	the mdadm domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`raid_domtrans_mdadm',`
+	gen_require(`
+		type mdadm_t, mdadm_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, mdadm_exec_t, mdadm_t)
+')
+
+######################################
+## <summary>
+##	Execute mdadm in the mdadm
+##	domain, and allow the specified
+##	role the mdadm domain.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`raid_run_mdadm',`
+	gen_require(`
+		attribute_role mdadm_roles;
+	')
+
+	raid_domtrans_mdadm($2)
+	roleattribute $1 mdadm_roles;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	mdadm pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`raid_manage_mdadm_pid',`
+	gen_require(`
+		type mdadm_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 mdadm_var_run_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an mdadm environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`raid_admin_mdadm',`
+	gen_require(`
+		type mdadm_t, mdadm_initrc_exec_t, mdadm_var_run_t;
+	')
+
+	allow $1 mdadm_t:process { ptrace signal_perms };
+	ps_process_pattern($1, mdadm_t)
+
+	init_startstop_service($1, $2, mdadm_t, mdadm_initrc_exec_t)
+
+	files_search_pids($1)
+	admin_pattern($1, mdadm_var_run_t)
+')

@@ -1,0 +1,127 @@
+policy_module(daemontools, 1.3.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role svc_start_roles;
+roleattribute system_r svc_start_roles;
+
+type svc_conf_t;
+files_config_file(svc_conf_t)
+
+type svc_log_t;
+files_type(svc_log_t)
+
+type svc_multilog_t;
+type svc_multilog_exec_t;
+application_domain(svc_multilog_t, svc_multilog_exec_t)
+role system_r types svc_multilog_t;
+
+type svc_run_t;
+type svc_run_exec_t;
+application_domain(svc_run_t, svc_run_exec_t)
+role system_r types svc_run_t;
+
+type svc_start_t;
+type svc_start_exec_t;
+init_domain(svc_start_t, svc_start_exec_t)
+init_system_domain(svc_start_t, svc_start_exec_t)
+role svc_start_roles types svc_start_t;
+
+type svc_svc_t;
+files_type(svc_svc_t)
+
+########################################
+#
+# Multilog local policy
+#
+
+manage_files_pattern(svc_multilog_t, svc_svc_t, svc_svc_t)
+
+allow svc_multilog_t svc_start_t:process sigchld;
+allow svc_multilog_t svc_start_t:fd use;
+allow svc_multilog_t svc_start_t:fifo_file rw_fifo_file_perms;
+
+init_use_fds(svc_multilog_t)
+
+logging_manage_generic_logs(svc_multilog_t)
+
+########################################
+#
+# local policy for binaries that impose
+# a given environment to supervised daemons
+# ie. softlimit, setuidgid, envuidgid, envdir, fghack ..
+#
+
+allow svc_run_t self:capability { chown fsetid setgid setuid sys_resource };
+allow svc_run_t self:process setrlimit;
+allow svc_run_t self:fifo_file rw_fifo_file_perms;
+allow svc_run_t self:unix_stream_socket create_stream_socket_perms;
+
+allow svc_run_t svc_conf_t:dir list_dir_perms;
+allow svc_run_t svc_conf_t:file read_file_perms;
+
+allow svc_run_t svc_svc_t:dir list_dir_perms;
+allow svc_run_t svc_svc_t:file read_file_perms;
+
+can_exec(svc_run_t, svc_run_exec_t)
+
+domtrans_pattern(svc_run_t, svc_multilog_exec_t, svc_multilog_t)
+
+kernel_read_system_state(svc_run_t)
+
+dev_read_urand(svc_run_t)
+
+corecmd_exec_bin(svc_run_t)
+corecmd_exec_shell(svc_run_t)
+
+files_read_etc_files(svc_run_t)
+files_read_etc_runtime_files(svc_run_t)
+files_search_pids(svc_run_t)
+files_search_var_lib(svc_run_t)
+
+init_use_script_fds(svc_run_t)
+init_use_fds(svc_run_t)
+
+optional_policy(`
+	qmail_read_config(svc_run_t)
+')
+
+########################################
+#
+# local policy for service monitoring programs
+# ie svc, svscan, supervise ...
+#
+
+allow svc_start_t self:capability kill;
+allow svc_start_t self:fifo_file rw_fifo_file_perms;
+allow svc_start_t self:tcp_socket create_stream_socket_perms;
+
+allow svc_start_t svc_svc_t:dir manage_dir_perms;
+allow svc_start_t svc_svc_t:fifo_file manage_fifo_file_perms;
+allow svc_start_t svc_svc_t:file manage_file_perms;
+allow svc_start_t svc_svc_t:lnk_file manage_lnk_file_perms;
+
+allow svc_start_t svc_multilog_t:process signal;
+allow svc_start_t svc_run_t:process { signal setrlimit };
+
+can_exec(svc_start_t, svc_start_exec_t)
+
+domtrans_pattern(svc_start_t, svc_run_exec_t, svc_run_t)
+
+kernel_read_kernel_sysctls(svc_start_t)
+kernel_read_system_state(svc_start_t)
+
+corecmd_exec_bin(svc_start_t)
+corecmd_exec_shell(svc_start_t)
+
+files_read_etc_files(svc_start_t)
+files_read_etc_runtime_files(svc_start_t)
+files_search_var(svc_start_t)
+files_search_pids(svc_start_t)
+
+logging_send_syslog_msg(svc_start_t)
+
+miscfiles_read_localization(svc_start_t)

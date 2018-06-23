@@ -1,0 +1,131 @@
+policy_module(quota, 1.10.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role quota_roles;
+
+type quota_t;
+type quota_exec_t;
+init_system_domain(quota_t, quota_exec_t)
+role quota_roles types quota_t;
+
+type quota_db_t;
+files_type(quota_db_t)
+
+type quota_flag_t;
+files_type(quota_flag_t)
+
+type quota_nld_t;
+type quota_nld_exec_t;
+init_daemon_domain(quota_nld_t, quota_nld_exec_t)
+
+type quota_nld_initrc_exec_t;
+init_script_file(quota_nld_initrc_exec_t)
+
+type quota_nld_var_run_t;
+files_pid_file(quota_nld_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow quota_t self:capability { dac_override sys_admin };
+dontaudit quota_t self:capability sys_tty_config;
+allow quota_t self:process signal_perms;
+
+allow quota_t quota_db_t:file { manage_file_perms quotaon };
+files_root_filetrans(quota_t, quota_db_t, file)
+files_boot_filetrans(quota_t, quota_db_t, file)
+files_etc_filetrans(quota_t, quota_db_t, file)
+files_tmp_filetrans(quota_t, quota_db_t, file)
+files_home_filetrans(quota_t, quota_db_t, file)
+files_usr_filetrans(quota_t, quota_db_t, file)
+files_var_filetrans(quota_t, quota_db_t, file)
+files_spool_filetrans(quota_t, quota_db_t, file)
+userdom_user_home_dir_filetrans(quota_t, quota_db_t, file)
+
+kernel_request_load_module(quota_t)
+kernel_list_proc(quota_t)
+kernel_read_proc_symlinks(quota_t)
+kernel_read_kernel_sysctls(quota_t)
+kernel_setsched(quota_t)
+
+dev_read_sysfs(quota_t)
+dev_getattr_all_blk_files(quota_t)
+dev_getattr_all_chr_files(quota_t)
+
+files_list_all(quota_t)
+files_read_all_files(quota_t)
+files_read_all_symlinks(quota_t)
+files_getattr_all_pipes(quota_t)
+files_getattr_all_sockets(quota_t)
+files_getattr_all_file_type_fs(quota_t)
+files_read_etc_runtime_files(quota_t)
+
+fs_get_xattr_fs_quotas(quota_t)
+fs_set_xattr_fs_quotas(quota_t)
+fs_getattr_xattr_fs(quota_t)
+fs_remount_xattr_fs(quota_t)
+fs_search_auto_mountpoints(quota_t)
+
+mls_file_read_all_levels(quota_t)
+
+storage_raw_read_fixed_disk(quota_t)
+
+term_dontaudit_use_console(quota_t)
+
+domain_use_interactive_fds(quota_t)
+
+init_use_fds(quota_t)
+init_use_script_ptys(quota_t)
+
+logging_send_syslog_msg(quota_t)
+
+userdom_use_user_terminals(quota_t)
+userdom_dontaudit_use_unpriv_user_fds(quota_t)
+
+optional_policy(`
+	mta_queue_filetrans(quota_t, quota_db_t, file)
+	mta_spool_filetrans(quota_t, quota_db_t, file)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(quota_t)
+')
+
+optional_policy(`
+	udev_read_db(quota_t)
+')
+
+#######################################
+#
+# Nld local policy
+#
+
+allow quota_nld_t self:fifo_file rw_fifo_file_perms;
+allow quota_nld_t self:netlink_socket create_socket_perms;
+allow quota_nld_t self:unix_stream_socket { accept listen };
+
+manage_files_pattern(quota_nld_t, quota_nld_var_run_t, quota_nld_var_run_t)
+files_pid_filetrans(quota_nld_t, quota_nld_var_run_t, { file })
+
+kernel_read_network_state(quota_nld_t)
+
+auth_use_nsswitch(quota_nld_t)
+
+init_read_utmp(quota_nld_t)
+
+logging_send_syslog_msg(quota_nld_t)
+
+miscfiles_read_localization(quota_nld_t)
+
+userdom_use_user_terminals(quota_nld_t)
+
+optional_policy(`
+	dbus_system_bus_client(quota_nld_t)
+	dbus_connect_system_bus(quota_nld_t)
+')

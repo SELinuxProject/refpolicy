@@ -1,0 +1,196 @@
+policy_module(courier, 1.17.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute courier_domain;
+
+courier_domain_template(authdaemon)
+courier_domain_template(pcp)
+courier_domain_template(pop)
+courier_domain_template(tcpd)
+courier_domain_template(sqwebmail)
+typealias courier_sqwebmail_exec_t alias sqwebmail_cron_exec_t;
+
+type courier_etc_t;
+files_config_file(courier_etc_t)
+
+type courier_spool_t;
+files_type(courier_spool_t)
+
+type courier_var_lib_t;
+files_type(courier_var_lib_t)
+
+type courier_var_run_t;
+files_pid_file(courier_var_run_t)
+
+type courier_exec_t;
+mta_agent_executable(courier_exec_t)
+
+########################################
+#
+# Common local policy
+#
+
+allow courier_domain self:capability dac_override;
+dontaudit courier_domain self:capability sys_tty_config;
+allow courier_domain self:process { setpgid signal_perms };
+allow courier_domain self:fifo_file rw_fifo_file_perms;
+allow courier_domain self:tcp_socket create_stream_socket_perms;
+allow courier_domain self:udp_socket create_socket_perms;
+
+read_files_pattern(courier_domain, courier_etc_t, courier_etc_t)
+allow courier_domain courier_etc_t:dir list_dir_perms;
+
+manage_dirs_pattern(courier_domain, courier_var_run_t, courier_var_run_t)
+manage_files_pattern(courier_domain, courier_var_run_t, courier_var_run_t)
+manage_lnk_files_pattern(courier_domain, courier_var_run_t, courier_var_run_t)
+manage_sock_files_pattern(courier_domain, courier_var_run_t, courier_var_run_t)
+files_pid_filetrans(courier_domain, courier_var_run_t, dir)
+
+kernel_read_kernel_sysctls(courier_domain)
+kernel_read_system_state(courier_domain)
+
+corecmd_exec_bin(courier_domain)
+
+dev_read_sysfs(courier_domain)
+
+domain_use_interactive_fds(courier_domain)
+
+files_read_etc_files(courier_domain)
+files_read_etc_runtime_files(courier_domain)
+files_read_usr_files(courier_domain)
+
+fs_getattr_xattr_fs(courier_domain)
+fs_search_auto_mountpoints(courier_domain)
+
+logging_send_syslog_msg(courier_domain)
+
+sysnet_read_config(courier_domain)
+
+userdom_dontaudit_use_unpriv_user_fds(courier_domain)
+
+optional_policy(`
+	seutil_sigchld_newrole(courier_domain)
+')
+
+optional_policy(`
+	udev_read_db(courier_domain)
+')
+
+########################################
+#
+# Authdaemon local policy
+#
+
+allow courier_authdaemon_t self:capability { setgid setuid sys_tty_config };
+allow courier_authdaemon_t self:unix_stream_socket { accept connectto listen };
+
+create_dirs_pattern(courier_authdaemon_t, courier_var_lib_t, courier_var_lib_t)
+manage_sock_files_pattern(courier_authdaemon_t, courier_var_lib_t, courier_var_lib_t)
+
+manage_sock_files_pattern(courier_authdaemon_t, courier_spool_t, courier_spool_t)
+
+allow courier_authdaemon_t courier_tcpd_t:process sigchld;
+allow courier_authdaemon_t courier_tcpd_t:fd use;
+allow courier_authdaemon_t courier_tcpd_t:fifo_file rw_fifo_file_perms;
+allow courier_authdaemon_t courier_tcpd_t:tcp_socket rw_stream_socket_perms;
+allow courier_authdaemon_t courier_tcpd_t:unix_stream_socket rw_stream_socket_perms;
+
+can_exec(courier_authdaemon_t, courier_exec_t)
+
+corecmd_exec_shell(courier_authdaemon_t)
+
+domtrans_pattern(courier_authdaemon_t, courier_pop_exec_t, courier_pop_t)
+
+dev_read_urand(courier_authdaemon_t)
+
+files_getattr_tmp_dirs(courier_authdaemon_t)
+files_search_spool(courier_authdaemon_t)
+
+auth_domtrans_chk_passwd(courier_authdaemon_t)
+
+libs_read_lib_files(courier_authdaemon_t)
+
+miscfiles_read_localization(courier_authdaemon_t)
+
+selinux_getattr_fs(courier_authdaemon_t)
+
+userdom_dontaudit_search_user_home_dirs(courier_authdaemon_t)
+
+########################################
+#
+# Calendar (PCP) local policy
+#
+
+allow courier_pcp_t self:capability { setgid setuid };
+
+dev_read_rand(courier_pcp_t)
+
+########################################
+#
+# POP3/IMAP local policy
+#
+
+allow courier_pop_t self:capability { setgid setuid };
+allow courier_pop_t courier_authdaemon_t:tcp_socket rw_stream_socket_perms;
+allow courier_pop_t courier_authdaemon_t:process sigchld;
+
+allow courier_pop_t courier_tcpd_t:{ unix_stream_socket tcp_socket } rw_stream_socket_perms;
+
+allow courier_pop_t courier_var_lib_t:file { read write };
+
+stream_connect_pattern(courier_pop_t, courier_var_lib_t, courier_var_lib_t, courier_authdaemon_t)
+
+domtrans_pattern(courier_pop_t, courier_authdaemon_exec_t, courier_authdaemon_t)
+
+corecmd_exec_shell(courier_pop_t)
+
+miscfiles_read_localization(courier_pop_t)
+
+mta_manage_mail_home_rw_content(courier_pop_t)
+
+########################################
+#
+# TCPd local policy
+#
+
+allow courier_tcpd_t self:capability kill;
+
+manage_files_pattern(courier_tcpd_t, courier_var_lib_t, courier_var_lib_t)
+manage_lnk_files_pattern(courier_tcpd_t, courier_var_lib_t, courier_var_lib_t)
+files_search_var_lib(courier_tcpd_t)
+
+can_exec(courier_tcpd_t, courier_exec_t)
+
+domtrans_pattern(courier_tcpd_t, courier_pop_exec_t, courier_pop_t)
+
+corenet_all_recvfrom_unlabeled(courier_tcpd_t)
+corenet_all_recvfrom_netlabel(courier_tcpd_t)
+corenet_tcp_sendrecv_generic_if(courier_tcpd_t)
+corenet_tcp_sendrecv_generic_node(courier_tcpd_t)
+corenet_tcp_bind_generic_node(courier_tcpd_t)
+
+corenet_sendrecv_pop_server_packets(courier_tcpd_t)
+corenet_tcp_bind_pop_port(courier_tcpd_t)
+corenet_tcp_sendrecv_pop_port(courier_tcpd_t)
+
+dev_read_rand(courier_tcpd_t)
+dev_read_urand(courier_tcpd_t)
+
+miscfiles_read_localization(courier_tcpd_t)
+
+########################################
+#
+# Webmail local policy
+#
+
+kernel_read_kernel_sysctls(courier_sqwebmail_t)
+
+dev_read_urand(courier_sqwebmail_t)
+
+optional_policy(`
+	cron_system_entry(courier_sqwebmail_t, courier_sqwebmail_exec_t)
+')

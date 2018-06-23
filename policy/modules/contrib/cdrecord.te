@@ -1,0 +1,115 @@
+policy_module(cdrecord, 2.6.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether cdrecord can read
+##	various content. nfs, samba, removable
+##	devices, user temp and untrusted
+##	content files
+##	</p>
+## </desc>
+gen_tunable(cdrecord_read_content, false)
+
+attribute_role cdrecord_roles;
+
+type cdrecord_t;
+type cdrecord_exec_t;
+typealias cdrecord_t alias { user_cdrecord_t staff_cdrecord_t sysadm_cdrecord_t };
+typealias cdrecord_t alias { auditadm_cdrecord_t secadm_cdrecord_t };
+userdom_user_application_domain(cdrecord_t, cdrecord_exec_t)
+role cdrecord_roles types cdrecord_t;
+
+########################################
+#
+# Local policy
+#
+
+allow cdrecord_t self:capability { dac_override ipc_lock setuid sys_nice sys_rawio };
+allow cdrecord_t self:process { getcap getsched setrlimit setsched sigkill };
+allow cdrecord_t self:unix_stream_socket { accept listen };
+
+corecmd_exec_bin(cdrecord_t)
+
+dev_list_all_dev_nodes(cdrecord_t)
+dev_read_sysfs(cdrecord_t)
+
+domain_interactive_fd(cdrecord_t)
+domain_use_interactive_fds(cdrecord_t)
+
+files_read_etc_files(cdrecord_t)
+
+term_use_controlling_term(cdrecord_t)
+term_list_ptys(cdrecord_t)
+
+storage_raw_read_removable_device(cdrecord_t)
+storage_raw_write_removable_device(cdrecord_t)
+storage_write_scsi_generic(cdrecord_t)
+
+logging_send_syslog_msg(cdrecord_t)
+
+miscfiles_read_localization(cdrecord_t)
+
+userdom_use_user_terminals(cdrecord_t)
+userdom_read_user_home_content_files(cdrecord_t)
+
+tunable_policy(`cdrecord_read_content && use_nfs_home_dirs',`
+	fs_list_auto_mountpoints(cdrecord_t)
+	files_list_home(cdrecord_t)
+	fs_read_nfs_files(cdrecord_t)
+	fs_read_nfs_symlinks(cdrecord_t)
+',`
+	files_dontaudit_list_home(cdrecord_t)
+	fs_dontaudit_list_auto_mountpoints(cdrecord_t)
+	fs_dontaudit_read_nfs_files(cdrecord_t)
+	fs_dontaudit_list_nfs(cdrecord_t)
+')
+
+tunable_policy(`cdrecord_read_content && use_samba_home_dirs',`
+	fs_list_auto_mountpoints(cdrecord_t)
+	files_list_home(cdrecord_t)
+	fs_read_cifs_files(cdrecord_t)
+	fs_read_cifs_symlinks(cdrecord_t)
+',`
+	files_dontaudit_list_home(cdrecord_t)
+	fs_dontaudit_list_auto_mountpoints(cdrecord_t)
+	fs_dontaudit_read_cifs_files(cdrecord_t)
+	fs_dontaudit_list_cifs(cdrecord_t)
+')
+
+tunable_policy(`cdrecord_read_content',`
+	userdom_list_user_tmp(cdrecord_t)
+	userdom_read_user_tmp_files(cdrecord_t)
+	userdom_read_user_tmp_symlinks(cdrecord_t)
+	userdom_read_user_home_content_files(cdrecord_t)
+	userdom_read_user_home_content_symlinks(cdrecord_t)
+
+	ifndef(`enable_mls',`
+		fs_search_removable(cdrecord_t)
+		fs_read_removable_files(cdrecord_t)
+		fs_read_removable_symlinks(cdrecord_t)
+	')
+',`
+	files_dontaudit_list_tmp(cdrecord_t)
+	files_dontaudit_list_home(cdrecord_t)
+	fs_dontaudit_list_removable(cdrecord_t)
+	fs_dontaudit_read_removable_files(cdrecord_t)
+	userdom_dontaudit_list_user_tmp(cdrecord_t)
+	userdom_dontaudit_read_user_tmp_files(cdrecord_t)
+	userdom_dontaudit_list_user_home_dirs(cdrecord_t)
+	userdom_dontaudit_read_user_home_content_files(cdrecord_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	files_search_mnt(cdrecord_t)
+	fs_read_nfs_files(cdrecord_t)
+	fs_read_nfs_symlinks(cdrecord_t)
+')
+
+optional_policy(`
+	resmgr_stream_connect(cdrecord_t)
+')

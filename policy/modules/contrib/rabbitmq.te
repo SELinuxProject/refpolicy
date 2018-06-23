@@ -1,0 +1,124 @@
+policy_module(rabbitmq, 1.3.1)
+
+########################################
+#
+# Declarations
+#
+
+type rabbitmq_epmd_t;
+type rabbitmq_epmd_exec_t;
+init_daemon_domain(rabbitmq_epmd_t, rabbitmq_epmd_exec_t)
+
+type rabbitmq_beam_t;
+type rabbitmq_beam_exec_t;
+init_daemon_domain(rabbitmq_beam_t, rabbitmq_beam_exec_t)
+
+type rabbitmq_initrc_exec_t;
+init_script_file(rabbitmq_initrc_exec_t)
+
+type rabbitmq_var_lib_t;
+files_type(rabbitmq_var_lib_t)
+
+type rabbitmq_var_log_t;
+logging_log_file(rabbitmq_var_log_t)
+
+type rabbitmq_var_run_t;
+files_pid_file(rabbitmq_var_run_t)
+
+######################################
+#
+# Beam local policy
+#
+
+allow rabbitmq_beam_t self:process { setsched signal signull };
+allow rabbitmq_beam_t self:fifo_file rw_fifo_file_perms;
+allow rabbitmq_beam_t self:tcp_socket { accept listen };
+
+manage_dirs_pattern(rabbitmq_beam_t, rabbitmq_var_lib_t, rabbitmq_var_lib_t)
+manage_files_pattern(rabbitmq_beam_t, rabbitmq_var_lib_t, rabbitmq_var_lib_t)
+
+manage_dirs_pattern(rabbitmq_beam_t, rabbitmq_var_log_t, rabbitmq_var_log_t)
+append_files_pattern(rabbitmq_beam_t, rabbitmq_var_log_t, rabbitmq_var_log_t)
+create_files_pattern(rabbitmq_beam_t, rabbitmq_var_log_t, rabbitmq_var_log_t)
+setattr_files_pattern(rabbitmq_beam_t, rabbitmq_var_log_t, rabbitmq_var_log_t)
+
+manage_dirs_pattern(rabbitmq_beam_t, rabbitmq_var_run_t, rabbitmq_var_run_t)
+manage_files_pattern(rabbitmq_beam_t, rabbitmq_var_run_t, rabbitmq_var_run_t)
+
+can_exec(rabbitmq_beam_t, rabbitmq_beam_exec_t)
+
+domtrans_pattern(rabbitmq_beam_t, rabbitmq_epmd_exec_t, rabbitmq_epmd_t)
+
+kernel_read_system_state(rabbitmq_beam_t)
+kernel_read_fs_sysctls(rabbitmq_beam_t)
+
+corecmd_exec_bin(rabbitmq_beam_t)
+corecmd_exec_shell(rabbitmq_beam_t)
+
+corenet_all_recvfrom_unlabeled(rabbitmq_beam_t)
+corenet_all_recvfrom_netlabel(rabbitmq_beam_t)
+corenet_tcp_sendrecv_generic_if(rabbitmq_beam_t)
+corenet_tcp_sendrecv_generic_node(rabbitmq_beam_t)
+corenet_tcp_bind_generic_node(rabbitmq_beam_t)
+
+corenet_sendrecv_amqp_server_packets(rabbitmq_beam_t)
+corenet_tcp_bind_amqp_port(rabbitmq_beam_t)
+corenet_tcp_sendrecv_amqp_port(rabbitmq_beam_t)
+
+corenet_sendrecv_epmd_client_packets(rabbitmq_beam_t)
+corenet_tcp_connect_epmd_port(rabbitmq_beam_t)
+corenet_tcp_sendrecv_epmd_port(rabbitmq_beam_t)
+
+corenet_sendrecv_couchdb_server_packets(rabbitmq_beam_t)
+corenet_tcp_bind_couchdb_port(rabbitmq_beam_t)
+corenet_tcp_sendrecv_couchdb_port(rabbitmq_beam_t)
+
+dev_read_sysfs(rabbitmq_beam_t)
+dev_read_urand(rabbitmq_beam_t)
+
+fs_getattr_all_fs(rabbitmq_beam_t)
+fs_search_cgroup_dirs(rabbitmq_beam_t)
+
+files_read_etc_files(rabbitmq_beam_t)
+
+storage_getattr_fixed_disk_dev(rabbitmq_beam_t)
+
+miscfiles_read_localization(rabbitmq_beam_t)
+
+sysnet_dns_name_resolve(rabbitmq_beam_t)
+
+ optional_policy(`
+	couchdb_manage_lib_files(rabbitmq_beam_t)
+	couchdb_read_conf_files(rabbitmq_beam_t)
+	couchdb_read_log_files(rabbitmq_beam_t)
+	couchdb_read_pid_files(rabbitmq_beam_t)
+ ')
+
+########################################
+#
+# Epmd local policy
+#
+
+
+allow rabbitmq_epmd_t self:process signal;
+allow rabbitmq_epmd_t self:fifo_file rw_fifo_file_perms;
+allow rabbitmq_epmd_t self:tcp_socket create_stream_socket_perms;
+allow rabbitmq_epmd_t self:unix_stream_socket { accept listen };
+
+allow rabbitmq_epmd_t rabbitmq_var_log_t:file append_file_perms;
+
+corenet_all_recvfrom_unlabeled(rabbitmq_epmd_t)
+corenet_all_recvfrom_netlabel(rabbitmq_epmd_t)
+corenet_tcp_sendrecv_generic_if(rabbitmq_epmd_t)
+corenet_tcp_sendrecv_generic_node(rabbitmq_epmd_t)
+corenet_tcp_bind_generic_node(rabbitmq_epmd_t)
+
+corenet_sendrecv_epmd_server_packets(rabbitmq_epmd_t)
+corenet_tcp_bind_epmd_port(rabbitmq_epmd_t)
+corenet_tcp_sendrecv_epmd_port(rabbitmq_epmd_t)
+
+files_read_etc_files(rabbitmq_epmd_t)
+
+logging_send_syslog_msg(rabbitmq_epmd_t)
+
+miscfiles_read_localization(rabbitmq_epmd_t)

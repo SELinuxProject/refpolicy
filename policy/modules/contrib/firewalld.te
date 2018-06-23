@@ -1,0 +1,109 @@
+policy_module(firewalld, 1.6.1)
+
+########################################
+#
+# Declarations
+#
+
+type firewalld_t;
+type firewalld_exec_t;
+init_daemon_domain(firewalld_t, firewalld_exec_t)
+
+type firewalld_initrc_exec_t;
+init_script_file(firewalld_initrc_exec_t)
+
+type firewalld_etc_rw_t;
+files_config_file(firewalld_etc_rw_t)
+
+type firewalld_var_log_t;
+logging_log_file(firewalld_var_log_t)
+
+type firewalld_tmp_t;
+files_tmp_file(firewalld_tmp_t)
+
+type firewalld_var_run_t;
+files_pid_file(firewalld_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow firewalld_t self:capability { dac_override net_admin };
+dontaudit firewalld_t self:capability sys_tty_config;
+allow firewalld_t self:fifo_file rw_fifo_file_perms;
+allow firewalld_t self:unix_stream_socket { accept listen };
+allow firewalld_t self:udp_socket create_socket_perms;
+
+manage_dirs_pattern(firewalld_t, firewalld_etc_rw_t, firewalld_etc_rw_t)
+manage_files_pattern(firewalld_t, firewalld_etc_rw_t, firewalld_etc_rw_t)
+dontaudit firewalld_t firewalld_etc_rw_t:file { relabelfrom relabelto };
+
+allow firewalld_t firewalld_var_log_t:file append_file_perms;
+allow firewalld_t firewalld_var_log_t:file create_file_perms;
+allow firewalld_t firewalld_var_log_t:file read_file_perms;
+allow firewalld_t firewalld_var_log_t:file setattr_file_perms;
+logging_log_filetrans(firewalld_t, firewalld_var_log_t, file)
+
+manage_files_pattern(firewalld_t, firewalld_tmp_t, firewalld_tmp_t)
+files_tmp_filetrans(firewalld_t, firewalld_tmp_t, file)
+allow firewalld_t firewalld_tmp_t:file mmap_exec_file_perms;
+
+manage_dirs_pattern(firewalld_t, firewalld_var_run_t, firewalld_var_run_t)
+manage_files_pattern(firewalld_t, firewalld_var_run_t, firewalld_var_run_t)
+files_pid_filetrans(firewalld_t, firewalld_var_run_t, { dir file })
+
+kernel_read_network_state(firewalld_t)
+kernel_read_system_state(firewalld_t)
+kernel_rw_net_sysctls(firewalld_t)
+
+corecmd_exec_bin(firewalld_t)
+corecmd_exec_shell(firewalld_t)
+
+dev_read_urand(firewalld_t)
+dev_search_sysfs(firewalld_t)
+
+domain_use_interactive_fds(firewalld_t)
+
+files_read_etc_files(firewalld_t)
+files_read_usr_files(firewalld_t)
+files_dontaudit_list_tmp(firewalld_t)
+
+fs_getattr_xattr_fs(firewalld_t)
+
+logging_send_syslog_msg(firewalld_t)
+
+miscfiles_read_localization(firewalld_t)
+
+seutil_exec_setfiles(firewalld_t)
+seutil_read_file_contexts(firewalld_t)
+
+sysnet_read_config(firewalld_t)
+
+optional_policy(`
+	dbus_system_domain(firewalld_t, firewalld_exec_t)
+
+	optional_policy(`
+		devicekit_dbus_chat_power(firewalld_t)
+	')
+
+	optional_policy(`
+		policykit_dbus_chat(firewalld_t)
+	')
+
+	optional_policy(`
+		networkmanager_dbus_chat(firewalld_t)
+	')
+')
+
+optional_policy(`
+	iptables_domtrans(firewalld_t)
+')
+
+optional_policy(`
+	modutils_domtrans(firewalld_t)
+')
+
+optional_policy(`
+	networkmanager_read_state(firewalld_t)
+')

@@ -1,0 +1,131 @@
+## <summary>High-performance memory object caching system.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run memcached.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`memcached_domtrans',`
+	gen_require(`
+		type memcached_t,memcached_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, memcached_exec_t, memcached_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	memcached pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`memcached_manage_pid_files',`
+	gen_require(`
+		type memcached_var_run_t;
+	')
+
+	files_search_pids($1)
+	manage_files_pattern($1, memcached_var_run_t, memcached_var_run_t)
+')
+
+########################################
+## <summary>
+##	Read memcached pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`memcached_read_pid_files',`
+	gen_require(`
+		type memcached_var_run_t;
+	')
+
+	files_search_pids($1)
+	allow $1 memcached_var_run_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to memcached using a unix
+##	domain stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`memcached_stream_connect',`
+	gen_require(`
+		type memcached_t, memcached_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, memcached_var_run_t, memcached_var_run_t, memcached_t)
+')
+
+########################################
+## <summary>
+## 	Connect to memcache over the network.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`memcached_tcp_connect',`
+	gen_require(`
+		type memcached_t;
+	')
+
+	corenet_sendrecv_memcache_client_packets($1)
+	corenet_tcp_connect_memcache_port($1)
+	corenet_tcp_recvfrom_labeled($1, memcached_t)
+	corenet_tcp_sendrecv_memcache_port($1)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an memcached environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`memcached_admin',`
+	gen_require(`
+		type memcached_t, memcached_initrc_exec_t, memcached_var_run_t;
+	')
+
+	allow $1 memcached_t:process { ptrace signal_perms };
+	ps_process_pattern($1, memcached_t)
+
+	init_startstop_service($1, $2, memcached_t, memcached_initrc_exec_t)
+
+	files_search_pids($1)
+	admin_pattern($1, memcached_var_run_t)
+')

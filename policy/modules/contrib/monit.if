@@ -1,0 +1,126 @@
+## <summary>Monit - utility for monitoring services on a Unix system.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run monit cli.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`monit_domtrans_cli',`
+	gen_require(`
+		type monit_cli_t, monit_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, monit_exec_t, monit_cli_t)
+')
+
+########################################
+## <summary>
+##	Execute monit in the monit cli domain,
+##	and allow the specified role
+##	the monit cli domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`monit_run_cli',`
+	gen_require(`
+		attribute_role monit_cli_roles;
+	')
+
+	monit_domtrans_cli($1)
+	roleattribute $2 monit_cli_roles;
+')
+
+########################################
+## <summary>
+##	Reload the monit daemon.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`monit_reload',`
+	gen_require(`
+		class service { reload status };
+		type monit_initrc_exec_t, monit_unit_t;
+	')
+
+	allow $1 { monit_initrc_exec_t monit_unit_t }:service { reload status };
+')
+
+########################################
+## <summary>
+##	Start and stop the monit daemon.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`monit_startstop_service',`
+	gen_require(`
+		class service { start status stop };
+		type monit_initrc_exec_t, monit_unit_t;
+	')
+
+	allow $1 { monit_initrc_exec_t monit_unit_t }:service { start status stop };
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an monit environment.
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+## <param name="role">
+##      <summary>
+##      Role allowed access.
+##      </summary>
+## </param>
+#
+interface(`monit_admin',`
+	gen_require(`
+		type monit_t, monit_conf_t, monit_initrc_exec_t;
+		type monit_log_t, monit_runtime_t;
+		type monit_unit_t, monit_var_lib_t;
+	')
+
+	admin_process_pattern($1, monit_t)
+
+	init_startstop_service($1, $2, monit_t, monit_initrc_exec_t, monit_unit_t)
+
+	files_search_etc($1)
+	admin_pattern($1, monit_conf_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, monit_log_t)
+
+	files_search_pids($1)
+	admin_pattern($1, monit_runtime_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, monit_var_lib_t)
+
+	monit_run_cli($1, $2)
+')

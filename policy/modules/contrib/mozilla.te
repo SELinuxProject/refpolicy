@@ -1,0 +1,718 @@
+policy_module(mozilla, 2.13.2)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether mozilla can
+##	make its stack executable.
+##	</p>
+## </desc>
+gen_tunable(mozilla_execstack, false)
+
+attribute_role mozilla_roles;
+attribute_role mozilla_plugin_roles;
+attribute_role mozilla_plugin_config_roles;
+
+type mozilla_t;
+type mozilla_exec_t;
+typealias mozilla_t alias { user_mozilla_t staff_mozilla_t sysadm_mozilla_t };
+typealias mozilla_t alias { auditadm_mozilla_t secadm_mozilla_t };
+userdom_user_application_domain(mozilla_t, mozilla_exec_t)
+role mozilla_roles types mozilla_t;
+
+optional_policy(`
+	wm_application_domain(mozilla_t, mozilla_exec_t)
+')
+
+type mozilla_home_t;
+typealias mozilla_home_t alias { user_mozilla_home_t staff_mozilla_home_t sysadm_mozilla_home_t };
+typealias mozilla_home_t alias { auditadm_mozilla_home_t secadm_mozilla_home_t };
+userdom_user_home_content(mozilla_home_t)
+
+type mozilla_plugin_t;
+type mozilla_plugin_exec_t;
+userdom_user_application_domain(mozilla_plugin_t, mozilla_plugin_exec_t)
+role mozilla_plugin_roles types mozilla_plugin_t;
+
+type mozilla_plugin_home_t;
+userdom_user_home_content(mozilla_plugin_home_t)
+
+type mozilla_plugin_tmp_t;
+userdom_user_tmp_file(mozilla_plugin_tmp_t)
+
+type mozilla_plugin_tmpfs_t;
+userdom_user_tmpfs_file(mozilla_plugin_tmpfs_t)
+
+optional_policy(`
+	pulseaudio_tmpfs_content(mozilla_plugin_tmpfs_t)
+')
+
+type mozilla_plugin_rw_t;
+files_type(mozilla_plugin_rw_t)
+
+type mozilla_plugin_config_t;
+type mozilla_plugin_config_exec_t;
+userdom_user_application_domain(mozilla_plugin_config_t, mozilla_plugin_config_exec_t)
+role mozilla_plugin_config_roles types mozilla_plugin_config_t;
+
+type mozilla_tmp_t;
+userdom_user_tmp_file(mozilla_tmp_t)
+
+type mozilla_tmpfs_t;
+typealias mozilla_tmpfs_t alias { user_mozilla_tmpfs_t staff_mozilla_tmpfs_t sysadm_mozilla_tmpfs_t };
+typealias mozilla_tmpfs_t alias { auditadm_mozilla_tmpfs_t secadm_mozilla_tmpfs_t };
+userdom_user_tmpfs_file(mozilla_tmpfs_t)
+
+optional_policy(`
+	pulseaudio_tmpfs_content(mozilla_tmpfs_t)
+')
+
+type mozilla_xdg_cache_t;
+xdg_cache_content(mozilla_xdg_cache_t)
+
+########################################
+#
+# Local policy
+#
+
+allow mozilla_t self:capability { setgid setuid sys_nice };
+allow mozilla_t self:process { sigkill signal setsched getsched setrlimit };
+allow mozilla_t self:fifo_file rw_fifo_file_perms;
+allow mozilla_t self:shm create_shm_perms;
+allow mozilla_t self:sem create_sem_perms;
+allow mozilla_t self:socket create_socket_perms;
+allow mozilla_t self:unix_stream_socket { accept listen };
+
+allow mozilla_t mozilla_plugin_t:unix_stream_socket rw_socket_perms;
+allow mozilla_t mozilla_plugin_t:fd use;
+
+allow mozilla_t { mozilla_home_t mozilla_plugin_home_t }:dir manage_dir_perms;
+allow mozilla_t { mozilla_home_t mozilla_plugin_home_t }:file { manage_file_perms map };
+allow mozilla_t mozilla_home_t:lnk_file manage_lnk_file_perms;
+userdom_user_home_dir_filetrans(mozilla_t, mozilla_home_t, dir, ".galeon")
+userdom_user_home_dir_filetrans(mozilla_t, mozilla_home_t, dir, ".mozilla")
+userdom_user_home_dir_filetrans(mozilla_t, mozilla_home_t, dir, ".netscape")
+userdom_user_home_dir_filetrans(mozilla_t, mozilla_home_t, dir, ".phoenix")
+
+filetrans_pattern(mozilla_t, mozilla_home_t, mozilla_plugin_home_t, dir, "plugins")
+
+manage_files_pattern(mozilla_t, mozilla_tmp_t, mozilla_tmp_t)
+manage_lnk_files_pattern(mozilla_t, mozilla_tmp_t, mozilla_tmp_t)
+manage_dirs_pattern(mozilla_t, mozilla_tmp_t, mozilla_tmp_t)
+allow mozilla_t mozilla_tmp_t:file map;
+files_tmp_filetrans(mozilla_t, mozilla_tmp_t, { file dir })
+
+manage_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_lnk_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_fifo_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+manage_sock_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+fs_tmpfs_filetrans(mozilla_t, mozilla_tmpfs_t, { file lnk_file sock_file fifo_file })
+allow mozilla_t mozilla_plugin_tmpfs_t:file map;
+
+allow mozilla_t mozilla_plugin_rw_t:dir list_dir_perms;
+allow mozilla_t mozilla_plugin_rw_t:file read_file_perms;
+allow mozilla_t mozilla_plugin_rw_t:lnk_file read_lnk_file_perms;
+
+stream_connect_pattern(mozilla_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t, mozilla_plugin_t)
+
+manage_files_pattern(mozilla_t, mozilla_xdg_cache_t, mozilla_xdg_cache_t)
+manage_dirs_pattern(mozilla_t, mozilla_xdg_cache_t, mozilla_xdg_cache_t)
+xdg_cache_filetrans(mozilla_t, mozilla_xdg_cache_t, dir, "mozilla")
+
+can_exec(mozilla_t, { mozilla_exec_t mozilla_plugin_rw_t mozilla_plugin_home_t })
+
+kernel_read_kernel_sysctls(mozilla_t)
+kernel_read_network_state(mozilla_t)
+kernel_read_system_state(mozilla_t)
+kernel_read_net_sysctls(mozilla_t)
+
+corecmd_list_bin(mozilla_t)
+corecmd_exec_shell(mozilla_t)
+corecmd_exec_bin(mozilla_t)
+
+corenet_all_recvfrom_unlabeled(mozilla_t)
+corenet_all_recvfrom_netlabel(mozilla_t)
+corenet_tcp_sendrecv_generic_if(mozilla_t)
+corenet_tcp_sendrecv_generic_node(mozilla_t)
+
+corenet_sendrecv_http_client_packets(mozilla_t)
+corenet_tcp_connect_http_port(mozilla_t)
+corenet_tcp_sendrecv_http_port(mozilla_t)
+
+corenet_sendrecv_http_cache_client_packets(mozilla_t)
+corenet_tcp_connect_http_cache_port(mozilla_t)
+corenet_tcp_sendrecv_http_cache_port(mozilla_t)
+
+corenet_sendrecv_squid_client_packets(mozilla_t)
+corenet_tcp_connect_squid_port(mozilla_t)
+corenet_tcp_sendrecv_squid_port(mozilla_t)
+
+corenet_sendrecv_ftp_client_packets(mozilla_t)
+corenet_tcp_connect_ftp_port(mozilla_t)
+corenet_tcp_sendrecv_ftp_port(mozilla_t)
+
+corenet_sendrecv_ipp_client_packets(mozilla_t)
+corenet_tcp_connect_ipp_port(mozilla_t)
+corenet_tcp_sendrecv_ipp_port(mozilla_t)
+
+corenet_sendrecv_soundd_client_packets(mozilla_t)
+corenet_tcp_connect_soundd_port(mozilla_t)
+corenet_tcp_sendrecv_soundd_port(mozilla_t)
+
+corenet_sendrecv_speech_client_packets(mozilla_t)
+corenet_tcp_connect_speech_port(mozilla_t)
+corenet_tcp_sendrecv_speech_port(mozilla_t)
+
+dev_getattr_sysfs_dirs(mozilla_t)
+dev_read_sysfs(mozilla_t)
+dev_read_sound(mozilla_t)
+dev_read_rand(mozilla_t)
+dev_read_urand(mozilla_t)
+dev_rw_dri(mozilla_t)
+dev_write_sound(mozilla_t)
+
+domain_dontaudit_read_all_domains_state(mozilla_t)
+
+files_read_etc_runtime_files(mozilla_t)
+files_map_usr_files(mozilla_t)
+files_read_usr_files(mozilla_t)
+files_read_var_files(mozilla_t)
+files_read_var_lib_files(mozilla_t)
+files_read_var_symlinks(mozilla_t)
+files_dontaudit_getattr_boot_dirs(mozilla_t)
+
+fs_getattr_all_fs(mozilla_t)
+fs_search_auto_mountpoints(mozilla_t)
+fs_list_inotifyfs(mozilla_t)
+fs_rw_tmpfs_files(mozilla_t)
+
+term_dontaudit_getattr_pty_dirs(mozilla_t)
+
+auth_use_nsswitch(mozilla_t)
+
+logging_send_syslog_msg(mozilla_t)
+
+miscfiles_read_fonts(mozilla_t)
+miscfiles_read_generic_certs(mozilla_t)
+miscfiles_read_localization(mozilla_t)
+miscfiles_dontaudit_setattr_fonts_dirs(mozilla_t)
+miscfiles_dontaudit_setattr_fonts_cache_dirs(mozilla_t)
+
+userdom_use_user_ptys(mozilla_t)
+
+userdom_manage_user_tmp_dirs(mozilla_t)
+userdom_manage_user_tmp_files(mozilla_t)
+
+userdom_user_content_access_template(mozilla, { mozilla_t mozilla_plugin_t })
+userdom_user_home_dir_filetrans_user_home_content(mozilla_t, { dir file })
+
+userdom_write_user_tmp_sockets(mozilla_t)
+
+mozilla_run_plugin(mozilla_t, mozilla_roles)
+mozilla_run_plugin_config(mozilla_t, mozilla_roles)
+
+xdg_read_config_files(mozilla_t)
+xdg_read_data_files(mozilla_t)
+xdg_manage_downloads(mozilla_t)
+
+xserver_user_x_domain_template(mozilla, mozilla_t, mozilla_tmpfs_t)
+xserver_dontaudit_read_xdm_tmp_files(mozilla_t)
+xserver_dontaudit_getattr_xdm_tmp_sockets(mozilla_t)
+
+ifndef(`enable_mls',`
+	fs_list_dos(mozilla_t)
+	fs_read_dos_files(mozilla_t)
+
+	fs_search_removable(mozilla_t)
+	fs_read_removable_files(mozilla_t)
+	fs_read_removable_symlinks(mozilla_t)
+
+	fs_read_iso9660_files(mozilla_t)
+')
+
+tunable_policy(`allow_execmem',`
+	allow mozilla_t self:process execmem;
+')
+
+tunable_policy(`mozilla_execstack',`
+	allow mozilla_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(mozilla_t)
+	fs_manage_nfs_files(mozilla_t)
+	fs_manage_nfs_symlinks(mozilla_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(mozilla_t)
+	fs_manage_cifs_files(mozilla_t)
+	fs_manage_cifs_symlinks(mozilla_t)
+')
+
+optional_policy(`
+	alsa_read_config(mozilla_t)
+	alsa_read_home_files(mozilla_t)
+')
+
+optional_policy(`
+	apache_read_user_scripts(mozilla_t)
+	apache_read_user_content(mozilla_t)
+')
+
+optional_policy(`
+	automount_dontaudit_getattr_tmp_dirs(mozilla_t)
+')
+
+optional_policy(`
+	cups_read_rw_config(mozilla_t)
+	cups_stream_connect(mozilla_t)
+')
+
+optional_policy(`
+	dbus_all_session_bus_client(mozilla_t)
+	dbus_connect_all_session_bus(mozilla_t)
+	dbus_system_bus_client(mozilla_t)
+
+	optional_policy(`
+		cups_dbus_chat(mozilla_t)
+	')
+
+	optional_policy(`
+		mozilla_dbus_chat_plugin(mozilla_t)
+	')
+
+	optional_policy(`
+		networkmanager_dbus_chat(mozilla_t)
+	')
+')
+
+optional_policy(`
+	evolution_domtrans(mozilla_t)
+')
+
+optional_policy(`
+	gnome_stream_connect_gconf(mozilla_t)
+	gnome_manage_generic_gconf_home_content(mozilla_t)
+	gnome_home_filetrans_gconf_home(mozilla_t, dir, ".gconf")
+	gnome_home_filetrans_gconf_home(mozilla_t, dir, ".gconfd")
+	gnome_manage_generic_home_content(mozilla_t)
+	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome")
+	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome2")
+	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome2_private")
+')
+
+optional_policy(`
+	java_exec(mozilla_t)
+	java_manage_generic_home_content(mozilla_t)
+	java_manage_java_tmp(mozilla_t)
+	java_home_filetrans_java_home(mozilla_t, dir, ".java")
+')
+
+optional_policy(`
+	lpd_run_lpr(mozilla_t, mozilla_roles)
+')
+
+optional_policy(`
+	mplayer_exec(mozilla_t)
+	mplayer_manage_generic_home_content(mozilla_t)
+	mplayer_home_filetrans_mplayer_home(mozilla_t, dir, ".mplayer")
+')
+
+optional_policy(`
+	ooffice_domtrans(mozilla_t)
+	ooffice_rw_tmp_files(mozilla_t)
+')
+
+optional_policy(`
+	pulseaudio_run(mozilla_t, mozilla_roles)
+')
+
+optional_policy(`
+	thunderbird_domtrans(mozilla_t)
+')
+
+########################################
+#
+# Plugin local policy
+#
+
+dontaudit mozilla_plugin_t self:capability { ipc_lock sys_nice sys_ptrace sys_tty_config };
+allow mozilla_plugin_t self:process { setpgid getsched setsched signal_perms setrlimit };
+allow mozilla_plugin_t self:fifo_file manage_fifo_file_perms;
+allow mozilla_plugin_t self:netlink_kobject_uevent_socket create_socket_perms;
+allow mozilla_plugin_t self:sem create_sem_perms;
+allow mozilla_plugin_t self:shm create_shm_perms;
+allow mozilla_plugin_t self:tcp_socket { accept listen };
+allow mozilla_plugin_t self:unix_stream_socket { accept connectto listen };
+
+allow mozilla_plugin_t mozilla_t:unix_stream_socket rw_socket_perms;
+allow mozilla_plugin_t mozilla_t:unix_dgram_socket rw_socket_perms;
+allow mozilla_plugin_t mozilla_t:shm { rw_shm_perms destroy };
+allow mozilla_plugin_t mozilla_t:sem create_sem_perms;
+
+manage_dirs_pattern(mozilla_plugin_t, { mozilla_home_t mozilla_plugin_home_t }, { mozilla_home_t mozilla_plugin_home_t })
+manage_files_pattern(mozilla_plugin_t, { mozilla_home_t mozilla_plugin_home_t }, mozilla_plugin_home_t)
+manage_lnk_files_pattern(mozilla_plugin_t, { mozilla_home_t mozilla_plugin_home_t }, mozilla_plugin_home_t)
+allow mozilla_plugin_t mozilla_home_t:file map;
+
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_home_t, dir, ".galeon")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_home_t, dir, ".mozilla")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_home_t, dir, ".netscape")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_home_t, dir, ".phoenix")
+
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".adobe")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".macromedia")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".gnash")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".gcjwebplugin")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".icedteaplugin")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".spicec")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, ".ICAClient")
+userdom_user_home_dir_filetrans(mozilla_plugin_t, mozilla_plugin_home_t, dir, "zimbrauserdata")
+
+filetrans_pattern(mozilla_plugin_t, mozilla_home_t, mozilla_plugin_home_t, dir, "plugins")
+
+manage_dirs_pattern(mozilla_plugin_t, mozilla_plugin_tmp_t, mozilla_plugin_tmp_t)
+manage_files_pattern(mozilla_plugin_t, mozilla_plugin_tmp_t, mozilla_plugin_tmp_t)
+manage_fifo_files_pattern(mozilla_plugin_t, mozilla_plugin_tmp_t, mozilla_plugin_tmp_t)
+files_tmp_filetrans(mozilla_plugin_t, mozilla_plugin_tmp_t, { dir file fifo_file })
+userdom_user_tmp_filetrans(mozilla_plugin_t, mozilla_plugin_tmp_t, { dir file fifo_file })
+
+allow mozilla_plugin_t mozilla_tmp_t:file rw_file_perms;
+
+manage_files_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t)
+manage_lnk_files_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t)
+manage_fifo_files_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t)
+manage_sock_files_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t)
+fs_tmpfs_filetrans(mozilla_plugin_t, mozilla_plugin_tmpfs_t, { file lnk_file sock_file fifo_file })
+
+allow mozilla_plugin_t mozilla_plugin_rw_t:dir list_dir_perms;
+allow mozilla_plugin_t mozilla_plugin_rw_t:file read_file_perms;
+allow mozilla_plugin_t mozilla_plugin_rw_t:lnk_file read_lnk_file_perms;
+
+dgram_send_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t, mozilla_t)
+stream_connect_pattern(mozilla_plugin_t, mozilla_plugin_tmpfs_t, mozilla_plugin_tmpfs_t, mozilla_t)
+
+can_exec(mozilla_plugin_t, { mozilla_exec_t mozilla_plugin_home_t mozilla_plugin_tmp_t })
+
+kernel_read_all_sysctls(mozilla_plugin_t)
+kernel_read_system_state(mozilla_plugin_t)
+kernel_read_network_state(mozilla_plugin_t)
+kernel_request_load_module(mozilla_plugin_t)
+kernel_dontaudit_getattr_core_if(mozilla_plugin_t)
+
+corecmd_exec_bin(mozilla_plugin_t)
+corecmd_exec_shell(mozilla_plugin_t)
+
+corenet_all_recvfrom_netlabel(mozilla_plugin_t)
+corenet_all_recvfrom_unlabeled(mozilla_plugin_t)
+corenet_tcp_sendrecv_generic_if(mozilla_plugin_t)
+corenet_tcp_sendrecv_generic_node(mozilla_plugin_t)
+
+corenet_sendrecv_asterisk_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_asterisk_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_asterisk_port(mozilla_plugin_t)
+
+corenet_sendrecv_ftp_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_ftp_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_ftp_port(mozilla_plugin_t)
+
+corenet_sendrecv_gatekeeper_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_gatekeeper_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_gatekeeper_port(mozilla_plugin_t)
+
+corenet_sendrecv_http_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_http_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_http_port(mozilla_plugin_t)
+
+corenet_sendrecv_http_cache_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_http_cache_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_http_cache_port(mozilla_plugin_t)
+
+corenet_sendrecv_ipp_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_ipp_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_ipp_port(mozilla_plugin_t)
+
+corenet_sendrecv_ircd_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_ircd_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_ircd_port(mozilla_plugin_t)
+
+corenet_sendrecv_jabber_client_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_jabber_client_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_jabber_client_port(mozilla_plugin_t)
+
+corenet_sendrecv_mmcc_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_mmcc_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_mmcc_port(mozilla_plugin_t)
+
+corenet_sendrecv_monopd_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_monopd_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_monopd_port(mozilla_plugin_t)
+
+corenet_sendrecv_soundd_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_soundd_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_soundd_port(mozilla_plugin_t)
+
+corenet_sendrecv_speech_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_speech_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_speech_port(mozilla_plugin_t)
+
+corenet_sendrecv_squid_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_squid_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_squid_port(mozilla_plugin_t)
+
+corenet_sendrecv_vnc_client_packets(mozilla_plugin_t)
+corenet_tcp_connect_vnc_port(mozilla_plugin_t)
+corenet_tcp_sendrecv_vnc_port(mozilla_plugin_t)
+
+dev_read_generic_usb_dev(mozilla_plugin_t)
+dev_read_rand(mozilla_plugin_t)
+dev_read_realtime_clock(mozilla_plugin_t)
+dev_read_sound(mozilla_plugin_t)
+dev_read_sysfs(mozilla_plugin_t)
+dev_read_urand(mozilla_plugin_t)
+dev_read_video_dev(mozilla_plugin_t)
+dev_write_sound(mozilla_plugin_t)
+dev_write_video_dev(mozilla_plugin_t)
+dev_rw_dri(mozilla_plugin_t)
+dev_rw_xserver_misc(mozilla_plugin_t)
+
+dev_dontaudit_getattr_generic_files(mozilla_plugin_t)
+dev_dontaudit_getattr_generic_pipes(mozilla_plugin_t)
+dev_dontaudit_getattr_all_blk_files(mozilla_plugin_t)
+dev_dontaudit_getattr_all_chr_files(mozilla_plugin_t)
+
+domain_use_interactive_fds(mozilla_plugin_t)
+domain_dontaudit_read_all_domains_state(mozilla_plugin_t)
+
+files_exec_usr_files(mozilla_plugin_t)
+files_list_mnt(mozilla_plugin_t)
+files_read_config_files(mozilla_plugin_t)
+files_read_usr_files(mozilla_plugin_t)
+files_map_usr_files(mozilla_plugin_t)
+
+fs_getattr_all_fs(mozilla_plugin_t)
+# fs_read_hugetlbfs_files(mozilla_plugin_t)
+fs_search_auto_mountpoints(mozilla_plugin_t)
+
+term_getattr_all_ttys(mozilla_plugin_t)
+term_getattr_all_ptys(mozilla_plugin_t)
+
+application_exec(mozilla_plugin_t)
+
+auth_use_nsswitch(mozilla_plugin_t)
+
+libs_exec_ld_so(mozilla_plugin_t)
+libs_exec_lib_files(mozilla_plugin_t)
+
+logging_send_syslog_msg(mozilla_plugin_t)
+
+miscfiles_read_localization(mozilla_plugin_t)
+miscfiles_read_fonts(mozilla_plugin_t)
+miscfiles_read_generic_certs(mozilla_plugin_t)
+miscfiles_dontaudit_setattr_fonts_dirs(mozilla_plugin_t)
+miscfiles_dontaudit_setattr_fonts_cache_dirs(mozilla_plugin_t)
+
+userdom_manage_user_tmp_dirs(mozilla_plugin_t)
+userdom_manage_user_tmp_files(mozilla_plugin_t)
+
+userdom_user_home_dir_filetrans_user_home_content(mozilla_plugin_t, { dir file })
+
+userdom_write_user_tmp_sockets(mozilla_plugin_t)
+
+userdom_dontaudit_use_user_terminals(mozilla_plugin_t)
+
+xdg_read_config_files(mozilla_plugin_t)
+
+ifndef(`enable_mls',`
+	fs_list_dos(mozilla_plugin_t)
+	fs_read_dos_files(mozilla_plugin_t)
+
+	fs_search_removable(mozilla_plugin_t)
+	fs_read_removable_files(mozilla_plugin_t)
+	fs_read_removable_symlinks(mozilla_plugin_t)
+
+	fs_read_iso9660_files(mozilla_plugin_t)
+')
+
+tunable_policy(`allow_execmem',`
+	allow mozilla_plugin_t self:process execmem;
+')
+
+tunable_policy(`mozilla_execstack',`
+	allow mozilla_plugin_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(mozilla_plugin_t)
+	fs_manage_nfs_files(mozilla_plugin_t)
+	fs_manage_nfs_symlinks(mozilla_plugin_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(mozilla_plugin_t)
+	fs_manage_cifs_files(mozilla_plugin_t)
+	fs_manage_cifs_symlinks(mozilla_plugin_t)
+')
+
+optional_policy(`
+	alsa_read_config(mozilla_plugin_t)
+	alsa_read_home_files(mozilla_plugin_t)
+')
+
+optional_policy(`
+	automount_dontaudit_getattr_tmp_dirs(mozilla_plugin_t)
+')
+
+optional_policy(`
+	dbus_all_session_bus_client(mozilla_plugin_t)
+	dbus_connect_all_session_bus(mozilla_plugin_t)
+	dbus_system_bus_client(mozilla_plugin_t)
+')
+
+optional_policy(`
+	gnome_manage_generic_home_content(mozilla_plugin_t)
+	gnome_home_filetrans_gnome_home(mozilla_plugin_t, dir, ".gnome")
+	gnome_home_filetrans_gnome_home(mozilla_plugin_t, dir, ".gnome2")
+	gnome_home_filetrans_gnome_home(mozilla_plugin_t, dir, ".gnome2_private")
+')
+
+optional_policy(`
+	java_exec(mozilla_plugin_t)
+	java_manage_generic_home_content(mozilla_plugin_t)
+	java_manage_java_tmp(mozilla_plugin_t)
+	java_home_filetrans_java_home(mozilla_plugin_t, dir, ".java")
+')
+
+optional_policy(`
+	lpd_run_lpr(mozilla_plugin_t, mozilla_plugin_roles)
+')
+
+optional_policy(`
+	mplayer_exec(mozilla_plugin_t)
+	mplayer_manage_generic_home_content(mozilla_plugin_t)
+	mplayer_home_filetrans_mplayer_home(mozilla_plugin_t, dir, ".mplayer")
+')
+
+optional_policy(`
+	pcscd_stream_connect(mozilla_plugin_t)
+')
+
+optional_policy(`
+	pulseaudio_run(mozilla_plugin_t, mozilla_plugin_roles)
+')
+
+optional_policy(`
+	udev_read_db(mozilla_plugin_t)
+')
+
+optional_policy(`
+	xserver_read_user_xauth(mozilla_plugin_t)
+	xserver_read_xdm_pid(mozilla_plugin_t)
+	xserver_stream_connect(mozilla_plugin_t)
+	xserver_use_user_fonts(mozilla_plugin_t)
+	xserver_dontaudit_read_xdm_tmp_files(mozilla_plugin_t)
+')
+
+########################################
+#
+# Plugin config local policy
+#
+
+allow mozilla_plugin_config_t self:capability { dac_override dac_read_search setgid setuid sys_nice };
+allow mozilla_plugin_config_t self:process { setsched signal_perms getsched };
+allow mozilla_plugin_config_t self:fifo_file rw_fifo_file_perms;
+allow mozilla_plugin_config_t self:unix_stream_socket create_stream_socket_perms;
+
+allow mozilla_plugin_config_t mozilla_plugin_rw_t:dir manage_dir_perms;
+allow mozilla_plugin_config_t mozilla_plugin_rw_t:file manage_file_perms;
+allow mozilla_plugin_config_t mozilla_plugin_rw_t:lnk_file manage_lnk_file_perms;
+
+manage_dirs_pattern(mozilla_plugin_config_t, { mozilla_home_t mozilla_plugin_home_t }, { mozilla_home_t mozilla_plugin_home_t })
+manage_files_pattern(mozilla_plugin_config_t, { mozilla_home_t mozilla_plugin_home_t }, mozilla_plugin_home_t)
+manage_lnk_files_pattern(mozilla_plugin_config_t, { mozilla_home_t mozilla_plugin_home_t }, mozilla_plugin_home_t)
+
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_home_t, dir, ".galeon")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_home_t, dir, ".mozilla")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_home_t, dir, ".netscape")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_home_t, dir, ".phoenix")
+
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".adobe")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".macromedia")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".gnash")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".gcjwebplugin")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".icedteaplugin")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".spicec")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, ".ICAClient")
+userdom_user_home_dir_filetrans(mozilla_plugin_config_t, mozilla_plugin_home_t, dir, "zimbrauserdata")
+
+filetrans_pattern(mozilla_plugin_config_t, mozilla_home_t, mozilla_plugin_home_t, dir, "plugins")
+
+can_exec(mozilla_plugin_config_t, { mozilla_plugin_rw_t mozilla_plugin_home_t })
+
+ps_process_pattern(mozilla_plugin_config_t, mozilla_plugin_t)
+
+kernel_read_system_state(mozilla_plugin_config_t)
+kernel_request_load_module(mozilla_plugin_config_t)
+
+corecmd_exec_bin(mozilla_plugin_config_t)
+corecmd_exec_shell(mozilla_plugin_config_t)
+
+dev_read_urand(mozilla_plugin_config_t)
+dev_rw_dri(mozilla_plugin_config_t)
+dev_search_sysfs(mozilla_plugin_config_t)
+dev_dontaudit_read_rand(mozilla_plugin_config_t)
+
+domain_use_interactive_fds(mozilla_plugin_config_t)
+
+files_list_tmp(mozilla_plugin_config_t)
+files_read_usr_files(mozilla_plugin_config_t)
+files_dontaudit_search_home(mozilla_plugin_config_t)
+
+fs_getattr_all_fs(mozilla_plugin_config_t)
+fs_search_auto_mountpoints(mozilla_plugin_config_t)
+fs_list_inotifyfs(mozilla_plugin_config_t)
+
+auth_use_nsswitch(mozilla_plugin_config_t)
+
+miscfiles_read_localization(mozilla_plugin_config_t)
+miscfiles_read_fonts(mozilla_plugin_config_t)
+
+userdom_read_user_home_content_symlinks(mozilla_plugin_config_t)
+userdom_read_user_home_content_files(mozilla_plugin_config_t)
+
+userdom_use_user_ptys(mozilla_plugin_config_t)
+
+mozilla_run_plugin(mozilla_plugin_config_t, mozilla_plugin_config_roles)
+
+tunable_policy(`allow_execmem',`
+	allow mozilla_plugin_config_t self:process execmem;
+')
+
+tunable_policy(`mozilla_execstack',`
+	allow mozilla_plugin_config_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(mozilla_plugin_config_t)
+	fs_manage_nfs_files(mozilla_plugin_config_t)
+	fs_manage_nfs_symlinks(mozilla_plugin_config_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(mozilla_plugin_config_t)
+	fs_manage_cifs_files(mozilla_plugin_config_t)
+	fs_manage_cifs_symlinks(mozilla_plugin_config_t)
+')
+
+optional_policy(`
+	automount_dontaudit_getattr_tmp_dirs(mozilla_plugin_config_t)
+')
+
+optional_policy(`
+	xserver_use_user_fonts(mozilla_plugin_config_t)
+')

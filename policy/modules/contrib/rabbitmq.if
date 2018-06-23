@@ -1,0 +1,60 @@
+## <summary>AMQP server written in Erlang.</summary>
+
+########################################
+## <summary>
+##	Execute rabbitmq in the rabbitmq domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`rabbitmq_domtrans',`
+	gen_require(`
+		type rabbitmq_epmd_t, rabbitmq_epmd_exec_t;
+		type rabbitmq_beam_t, rabbitmq_beam_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, rabbitmq_epmd_exec_t, rabbitmq_epmd_t)
+	domtrans_pattern($1, rabbitmq_beam_exec_t, rabbitmq_beam_t)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an rabbitmq environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`rabbitmq_admin',`
+	gen_require(`
+		type rabbitmq_epmd_t, rabbitmq_beam_t, rabbitmq_initrc_exec_t;
+		type rabbitmq_var_lib_t, rabbitmq_var_log_t, rabbitmq_var_run_t;
+	')
+
+	allow $1 { rabbitmq_epmd_t rabbitmq_beam_t }:process { ptrace signal_perms };
+	ps_process_pattern($1, { rabbitmq_epmd_t rabbitmq_beam_t })
+
+	init_startstop_service($1, $2, { rabbitmq_epmd_t rabbitmq_beam_t }, rabbitmq_initrc_exec_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, rabbitmq_var_log_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, rabbitmq_var_lib_t)
+
+	files_search_pids($1)
+	admin_pattern($1, rabbitmq_var_run_t)
+')

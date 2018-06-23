@@ -1,0 +1,94 @@
+## <summary>Realtime scheduling for user processes.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run rtkit_daemon.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`rtkit_daemon_domtrans',`
+	gen_require(`
+		type rtkit_daemon_t, rtkit_daemon_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, rtkit_daemon_exec_t, rtkit_daemon_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	rtkit_daemon over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rtkit_daemon_dbus_chat',`
+	gen_require(`
+		type rtkit_daemon_t;
+		class dbus send_msg;
+	')
+
+	allow $1 rtkit_daemon_t:dbus send_msg;
+	allow rtkit_daemon_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Allow rtkit to control scheduling for your process.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rtkit_scheduled',`
+	gen_require(`
+		type rtkit_daemon_t;
+	')
+
+	allow rtkit_daemon_t $1:process { getsched setsched };
+
+	kernel_search_proc($1)
+	ps_process_pattern(rtkit_daemon_t, $1)
+
+	optional_policy(`
+		rtkit_daemon_dbus_chat($1)
+	')
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an rtkit environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`rtkit_admin',`
+	gen_require(`
+		type rtkit_daemon_t, rtkit_daemon_initrc_exec_t;
+	')
+
+	allow $1 rtkit_daemon_t:process { ptrace signal_perms };
+	ps_process_pattern($1, rtkit_daemon_t)
+
+	init_startstop_service($1, $2, rtkit_daemon_t, rtkit_daemon_initrc_exec_t)
+')

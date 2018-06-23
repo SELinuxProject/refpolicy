@@ -1,0 +1,115 @@
+policy_module(screen, 2.9.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute screen_domain;
+
+attribute_role screen_roles;
+
+type screen_exec_t;
+application_executable_file(screen_exec_t)
+
+type screen_home_t;
+userdom_user_home_content(screen_home_t)
+
+type screen_tmp_t;
+userdom_user_tmp_file(screen_tmp_t)
+
+type screen_runtime_t;
+typealias screen_runtime_t alias screen_var_run_t;
+files_pid_file(screen_runtime_t)
+ubac_constrained(screen_runtime_t)
+
+########################################
+#
+# Common screen domain local policy
+#
+
+# dac_override : read /dev/pts/ID
+allow screen_domain self:capability { dac_override fsetid setgid setuid };
+allow screen_domain self:process signal_perms;
+allow screen_domain self:fd use;
+allow screen_domain self:fifo_file rw_fifo_file_perms;
+allow screen_domain self:tcp_socket { accept listen };
+allow screen_domain self:unix_stream_socket { accept connectto listen };
+
+manage_dirs_pattern(screen_domain, screen_tmp_t, screen_tmp_t)
+manage_files_pattern(screen_domain, screen_tmp_t, screen_tmp_t)
+manage_fifo_files_pattern(screen_domain, screen_tmp_t, screen_tmp_t)
+files_tmp_filetrans(screen_domain, screen_tmp_t, { file dir })
+filetrans_pattern(screen_domain, screen_tmp_t, screen_runtime_t, sock_file)
+
+manage_fifo_files_pattern(screen_domain, screen_runtime_t, screen_runtime_t)
+manage_dirs_pattern(screen_domain, screen_runtime_t, screen_runtime_t)
+manage_sock_files_pattern(screen_domain, screen_runtime_t, screen_runtime_t)
+files_pid_filetrans(screen_domain, screen_runtime_t, dir)
+
+manage_dirs_pattern(screen_domain, screen_home_t, screen_home_t)
+read_files_pattern(screen_domain, screen_home_t, screen_home_t)
+manage_fifo_files_pattern(screen_domain, screen_home_t, screen_home_t)
+read_lnk_files_pattern(screen_domain, screen_home_t, screen_home_t)
+userdom_user_home_dir_filetrans(screen_domain, screen_home_t, dir, ".screen")
+
+kernel_read_system_state(screen_domain)
+kernel_read_kernel_sysctls(screen_domain)
+
+corecmd_list_bin(screen_domain)
+corecmd_read_bin_files(screen_domain)
+corecmd_read_bin_pipes(screen_domain)
+corecmd_read_bin_sockets(screen_domain)
+
+corenet_all_recvfrom_unlabeled(screen_domain)
+corenet_all_recvfrom_netlabel(screen_domain)
+corenet_tcp_sendrecv_generic_if(screen_domain)
+corenet_tcp_sendrecv_generic_node(screen_domain)
+corenet_tcp_sendrecv_all_ports(screen_domain)
+
+corenet_sendrecv_all_client_packets(screen_domain)
+corenet_tcp_connect_all_ports(screen_domain)
+
+dev_dontaudit_getattr_all_chr_files(screen_domain)
+dev_dontaudit_getattr_all_blk_files(screen_domain)
+dev_read_urand(screen_domain)
+
+domain_use_interactive_fds(screen_domain)
+domain_sigchld_interactive_fds(screen_domain)
+domain_read_all_domains_state(screen_domain)
+
+files_list_home(screen_domain)
+files_read_usr_files(screen_domain)
+
+fs_search_auto_mountpoints(screen_domain)
+fs_getattr_all_fs(screen_domain)
+
+auth_dontaudit_read_shadow(screen_domain)
+auth_dontaudit_exec_utempter(screen_domain)
+
+init_rw_utmp(screen_domain)
+
+logging_send_syslog_msg(screen_domain)
+
+miscfiles_read_localization(screen_domain)
+
+seutil_read_config(screen_domain)
+
+userdom_use_user_terminals(screen_domain)
+userdom_create_user_pty(screen_domain)
+userdom_setattr_user_ptys(screen_domain)
+userdom_setattr_user_ttys(screen_domain)
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(screen_domain)
+	fs_read_cifs_files(screen_domain)
+	fs_manage_cifs_named_pipes(screen_domain)
+	fs_read_cifs_symlinks(screen_domain)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(screen_domain)
+	fs_read_nfs_files(screen_domain)
+	fs_manage_nfs_named_pipes(screen_domain)
+	fs_read_nfs_symlinks(screen_domain)
+')

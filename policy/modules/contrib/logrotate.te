@@ -1,0 +1,282 @@
+policy_module(logrotate, 1.20.1)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role logrotate_roles;
+roleattribute system_r logrotate_roles;
+
+type logrotate_t;
+type logrotate_exec_t;
+domain_type(logrotate_t)
+domain_obj_id_change_exemption(logrotate_t)
+domain_system_change_exemption(logrotate_t)
+domain_entry_file(logrotate_t, logrotate_exec_t)
+init_system_domain(logrotate_t, logrotate_exec_t)
+role logrotate_roles types logrotate_t;
+
+type logrotate_lock_t;
+files_lock_file(logrotate_lock_t)
+
+type logrotate_tmp_t;
+files_tmp_file(logrotate_tmp_t)
+
+type logrotate_var_lib_t;
+files_type(logrotate_var_lib_t)
+
+type logrotate_unit_t;
+init_unit_file(logrotate_unit_t)
+
+mta_base_mail_template(logrotate)
+role system_r types logrotate_mail_t;
+
+########################################
+#
+# Local policy
+#
+
+allow logrotate_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid sys_nice sys_resource };
+allow logrotate_t self:process { transition signal_perms getsched setsched getsession getpgid setpgid getcap setcap share getattr setfscreate noatsecure siginh setrlimit rlimitinh dyntransition setkeycreate setsockcreate getrlimit };
+allow logrotate_t self:fd use;
+allow logrotate_t self:key manage_key_perms;
+allow logrotate_t self:fifo_file rw_fifo_file_perms;
+allow logrotate_t self:unix_dgram_socket sendto;
+allow logrotate_t self:unix_stream_socket { accept connectto listen };
+allow logrotate_t self:shm create_shm_perms;
+allow logrotate_t self:sem create_sem_perms;
+allow logrotate_t self:msgq create_msgq_perms;
+allow logrotate_t self:msg { send receive };
+
+allow logrotate_t logrotate_lock_t:file manage_file_perms;
+files_lock_filetrans(logrotate_t, logrotate_lock_t, file)
+
+manage_dirs_pattern(logrotate_t, logrotate_tmp_t, logrotate_tmp_t)
+manage_files_pattern(logrotate_t, logrotate_tmp_t, logrotate_tmp_t)
+files_tmp_filetrans(logrotate_t, logrotate_tmp_t, { file dir })
+
+create_dirs_pattern(logrotate_t, logrotate_var_lib_t, logrotate_var_lib_t)
+manage_files_pattern(logrotate_t, logrotate_var_lib_t, logrotate_var_lib_t)
+read_lnk_files_pattern(logrotate_t, logrotate_var_lib_t, logrotate_var_lib_t)
+files_var_lib_filetrans(logrotate_t, logrotate_var_lib_t, file)
+
+can_exec(logrotate_t, { logrotate_exec_t logrotate_tmp_t })
+
+kernel_read_system_state(logrotate_t)
+kernel_read_kernel_sysctls(logrotate_t)
+
+corecmd_exec_bin(logrotate_t)
+corecmd_exec_shell(logrotate_t)
+corecmd_getattr_all_executables(logrotate_t)
+
+dev_read_urand(logrotate_t)
+
+domain_signal_all_domains(logrotate_t)
+domain_use_interactive_fds(logrotate_t)
+domain_getattr_all_entry_files(logrotate_t)
+domain_read_all_domains_state(logrotate_t)
+
+files_map_etc_files(logrotate_t)
+files_read_usr_files(logrotate_t)
+files_read_etc_runtime_files(logrotate_t)
+files_read_all_pids(logrotate_t)
+files_search_all(logrotate_t)
+files_read_var_lib_files(logrotate_t)
+files_manage_generic_spool(logrotate_t)
+files_manage_generic_spool_dirs(logrotate_t)
+files_getattr_generic_locks(logrotate_t)
+files_dontaudit_list_mnt(logrotate_t)
+
+fs_search_auto_mountpoints(logrotate_t)
+fs_getattr_xattr_fs(logrotate_t)
+fs_list_inotifyfs(logrotate_t)
+fs_getattr_tmpfs(logrotate_t)
+
+mls_file_read_all_levels(logrotate_t)
+mls_file_write_all_levels(logrotate_t)
+mls_file_upgrade(logrotate_t)
+mls_process_write_to_clearance(logrotate_t)
+
+selinux_get_fs_mount(logrotate_t)
+selinux_get_enforce_mode(logrotate_t)
+
+auth_manage_login_records(logrotate_t)
+auth_use_nsswitch(logrotate_t)
+
+init_all_labeled_script_domtrans(logrotate_t)
+init_startstop_all_script_services(logrotate_t)
+init_get_generic_units_status(logrotate_t)
+init_get_all_units_status(logrotate_t)
+init_get_system_status(logrotate_t)
+init_dbus_chat(logrotate_t)
+init_stream_connect(logrotate_t)
+init_manage_all_units(logrotate_t)
+
+logging_manage_all_logs(logrotate_t)
+logging_send_syslog_msg(logrotate_t)
+logging_send_audit_msgs(logrotate_t)
+logging_exec_all_logs(logrotate_t)
+
+miscfiles_read_localization(logrotate_t)
+
+seutil_dontaudit_read_config(logrotate_t)
+
+userdom_use_user_terminals(logrotate_t)
+userdom_list_user_home_dirs(logrotate_t)
+userdom_use_unpriv_users_fds(logrotate_t)
+
+mta_sendmail_domtrans(logrotate_t, logrotate_mail_t)
+
+ifdef(`distro_debian',`
+	allow logrotate_t logrotate_tmp_t:file relabel_file_perms;
+	can_exec(logrotate_t, logrotate_exec_t)
+
+	logging_check_exec_syslog(logrotate_t)
+	logging_read_syslog_config(logrotate_t)
+')
+
+optional_policy(`
+	abrt_manage_cache(logrotate_t)
+')
+
+optional_policy(`
+	acct_domtrans(logrotate_t)
+	acct_manage_data(logrotate_t)
+	acct_exec_data(logrotate_t)
+')
+
+optional_policy(`
+	apache_read_config(logrotate_t)
+	apache_domtrans(logrotate_t)
+	apache_signull(logrotate_t)
+')
+
+optional_policy(`
+	asterisk_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	awstats_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	bind_manage_cache(logrotate_t)
+')
+
+optional_policy(`
+	callweaver_exec(logrotate_t)
+	callweaver_stream_connect(logrotate_t)
+')
+
+optional_policy(`
+	consoletype_exec(logrotate_t)
+')
+
+optional_policy(`
+	cron_system_entry(logrotate_t, logrotate_exec_t)
+	cron_search_spool(logrotate_t)
+')
+
+optional_policy(`
+	cups_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(logrotate_t)
+	init_write_pid_socket(logrotate_t)
+')
+
+optional_policy(`
+	fail2ban_stream_connect(logrotate_t)
+')
+
+optional_policy(`
+	hostname_exec(logrotate_t)
+')
+
+optional_policy(`
+	chronyd_read_key_files(logrotate_t)
+')
+
+optional_policy(`
+	icecast_signal(logrotate_t)
+')
+
+optional_policy(`
+	mailman_domtrans(logrotate_t)
+	mailman_search_data(logrotate_t)
+	mailman_manage_log(logrotate_t)
+')
+
+optional_policy(`
+	# reload after log rotation
+	monit_reload(logrotate_t)
+')
+
+optional_policy(`
+	munin_read_config(logrotate_t)
+	munin_stream_connect(logrotate_t)
+	munin_search_lib(logrotate_t)
+')
+
+optional_policy(`
+	mysql_read_config(logrotate_t)
+	mysql_stream_connect(logrotate_t)
+	mysql_signal(logrotate_t)
+')
+
+optional_policy(`
+	openvswitch_read_pid_files(logrotate_t)
+	openvswitch_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	polipo_log_filetrans_log(logrotate_t, file, "polipo")
+')
+
+optional_policy(`
+	psad_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	samba_exec_log(logrotate_t)
+')
+
+optional_policy(`
+	sssd_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	slrnpull_manage_spool(logrotate_t)
+')
+
+optional_policy(`
+	squid_domtrans(logrotate_t)
+')
+
+optional_policy(`
+	su_exec(logrotate_t)
+')
+
+optional_policy(`
+	varnishd_manage_log(logrotate_t)
+')
+
+optional_policy(`
+	manage_webalizer_var_lib(logrotate_t)
+	webalizer_run(logrotate_t, system_r)
+')
+
+#######################################
+#
+# Mail local policy
+#
+
+allow logrotate_mail_t logrotate_t:fd use;
+allow logrotate_mail_t logrotate_t:fifo_file rw_fifo_file_perms;
+allow logrotate_mail_t logrotate_t:process sigchld;
+
+manage_files_pattern(logrotate_mail_t, logrotate_tmp_t, logrotate_tmp_t)
+
+logging_read_all_logs(logrotate_mail_t)

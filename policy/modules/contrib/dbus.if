@@ -1,0 +1,557 @@
+## <summary>Desktop messaging bus.</summary>
+
+########################################
+## <summary>
+##	DBUS stub interface.  No access allowed.
+## </summary>
+## <param name="domain" unused="true">
+##	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`dbus_stub',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus all_dbus_perms;
+	')
+')
+
+########################################
+## <summary>
+##	Role access for dbus.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+template(`dbus_role_template',`
+	gen_require(`
+		class dbus { send_msg acquire_svc };
+		attribute session_bus_type;
+		type system_dbusd_t, dbusd_exec_t;
+		type session_dbusd_tmp_t, session_dbusd_home_t;
+	')
+
+	##############################
+	#
+	# Declarations
+	#
+
+	type $1_dbusd_t, session_bus_type;
+	domain_type($1_dbusd_t)
+	domain_entry_file($1_dbusd_t, dbusd_exec_t)
+	ubac_constrained($1_dbusd_t)
+
+	role $2 types $1_dbusd_t;
+
+	##############################
+	#
+	# Local policy
+	#
+
+	allow $3 $1_dbusd_t:unix_stream_socket connectto;
+	allow $3 $1_dbusd_t:dbus { send_msg acquire_svc };
+	allow $3 $1_dbusd_t:fd use;
+
+	allow $3 system_dbusd_t:dbus { send_msg acquire_svc };
+
+	allow $3 { session_dbusd_home_t session_dbusd_tmp_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $3 { session_dbusd_home_t session_dbusd_tmp_t }:file { manage_file_perms relabel_file_perms };
+	userdom_user_home_dir_filetrans($3, session_dbusd_home_t, dir, ".dbus")
+
+	domtrans_pattern($3, dbusd_exec_t, $1_dbusd_t)
+
+	ps_process_pattern($3, $1_dbusd_t)
+	allow $3 $1_dbusd_t:process { ptrace signal_perms };
+
+	allow $1_dbusd_t $3:process sigkill;
+
+	corecmd_bin_domtrans($1_dbusd_t, $3)
+	corecmd_shell_domtrans($1_dbusd_t, $3)
+
+	auth_use_nsswitch($1_dbusd_t)
+
+	ifdef(`hide_broken_symptoms',`
+		dontaudit $3 $1_dbusd_t:netlink_selinux_socket { read write };
+	')
+
+	optional_policy(`
+		systemd_read_logind_pids($1_dbusd_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Template for creating connections to
+##	the system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_system_bus_client',`
+	gen_require(`
+		attribute dbusd_system_bus_client;
+		type system_dbusd_t, system_dbusd_var_run_t, system_dbusd_var_lib_t;
+		class dbus send_msg;
+	')
+
+	typeattribute $1 dbusd_system_bus_client;
+
+	allow $1 { system_dbusd_t self }:dbus send_msg;
+	allow system_dbusd_t $1:dbus send_msg;
+
+	files_search_var_lib($1)
+	read_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+
+	files_search_pids($1)
+	stream_connect_pattern($1, system_dbusd_var_run_t, system_dbusd_var_run_t, system_dbusd_t)
+
+	dbus_read_config($1)
+')
+
+#######################################
+## <summary>
+##	Acquire service on all DBUS
+##	session busses.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_connect_all_session_bus',`
+	gen_require(`
+		attribute session_bus_type;
+		class dbus acquire_svc;
+	')
+
+	allow $1 session_bus_type:dbus acquire_svc;
+')
+
+#######################################
+## <summary>
+##	Acquire service on specified
+##	DBUS session bus.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_connect_spec_session_bus',`
+	gen_require(`
+		type $1_dbusd_t;
+		class dbus acquire_svc;
+	')
+
+	allow $2 $1_dbusd_t:dbus acquire_svc;
+')
+
+#######################################
+## <summary>
+##	Creating connections to all
+##	DBUS session busses.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_all_session_bus_client',`
+	gen_require(`
+		attribute session_bus_type, dbusd_session_bus_client;
+		class dbus send_msg;
+	')
+
+	typeattribute $1 dbusd_session_bus_client;
+
+	allow $1 { session_bus_type self }:dbus send_msg;
+	allow session_bus_type $1:dbus send_msg;
+
+	allow $1 session_bus_type:unix_stream_socket connectto;
+	allow $1 session_bus_type:fd use;
+')
+
+#######################################
+## <summary>
+##	Creating connections to specified
+##	DBUS session bus.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_spec_session_bus_client',`
+	gen_require(`
+		attribute dbusd_session_bus_client;
+		type $1_dbusd_t;
+		class dbus send_msg;
+	')
+
+	typeattribute $2 dbusd_session_bus_client;
+
+	allow $2 { $1_dbusd_t self }:dbus send_msg;
+	allow $1_dbusd_t $2:dbus send_msg;
+
+	allow $2 $1_dbusd_t:unix_stream_socket connectto;
+	allow $2 $1_dbusd_t:fd use;
+')
+
+#######################################
+## <summary>
+##	Send messages to all DBUS
+##	session busses.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_send_all_session_bus',`
+	gen_require(`
+		attribute session_bus_type;
+		class dbus send_msg;
+	')
+
+	allow $1 session_bus_type:dbus send_msg;
+')
+
+#######################################
+## <summary>
+##	Send messages to specified
+##	DBUS session busses.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_send_spec_session_bus',`
+	gen_require(`
+		type $1_dbusd_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_dbusd_t:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Read dbus configuration content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_read_config',`
+	gen_require(`
+		type dbusd_etc_t;
+	')
+
+	allow $1 dbusd_etc_t:dir list_dir_perms;
+	allow $1 dbusd_etc_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Read system dbus lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_read_lib_files',`
+	gen_require(`
+		type system_dbusd_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	read_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+	read_lnk_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	system dbus lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_manage_lib_files',`
+	gen_require(`
+		type system_dbusd_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	manage_files_pattern($1, system_dbusd_var_lib_t, system_dbusd_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow a application domain to be
+##	started by the specified session bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an
+##	entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`dbus_all_session_domain',`
+	gen_require(`
+		attribute session_bus_type;
+	')
+
+	domtrans_pattern(session_bus_type, $2, $1)
+
+	dbus_all_session_bus_client($1)
+	dbus_connect_all_session_bus($1)
+')
+
+########################################
+## <summary>
+##	Allow a application domain to be
+##	started by the specified session bus.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an
+##	entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`dbus_spec_session_domain',`
+	gen_require(`
+		type $1_dbusd_t;
+	')
+
+	domtrans_pattern($1_dbusd_t, $3, $2)
+
+	dbus_spec_session_bus_client($1, $2)
+	dbus_connect_spec_session_bus($1, $2)
+')
+
+########################################
+## <summary>
+##	Acquire service on the DBUS system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_connect_system_bus',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus acquire_svc;
+	')
+
+	allow $1 system_dbusd_t:dbus acquire_svc;
+')
+
+########################################
+## <summary>
+##	Send messages to the DBUS system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_send_system_bus',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus send_msg;
+	')
+
+	allow $1 system_dbusd_t:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Unconfined access to DBUS system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_system_bus_unconfined',`
+	gen_require(`
+		type system_dbusd_t;
+		class dbus { acquire_svc send_msg };
+	')
+
+	allow $1 system_dbusd_t:dbus { acquire_svc send_msg };
+')
+
+########################################
+## <summary>
+##	Create a domain for processes which
+##	can be started by the DBUS system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Type to be used as a domain.
+##	</summary>
+## </param>
+## <param name="entry_point">
+##	<summary>
+##	Type of the program to be used as an entry point to this domain.
+##	</summary>
+## </param>
+#
+interface(`dbus_system_domain',`
+	gen_require(`
+		type system_dbusd_t;
+		role system_r;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, $2)
+
+	role system_r types $1;
+
+	domtrans_pattern(system_dbusd_t, $2, $1)
+
+	dbus_system_bus_client($1)
+	dbus_connect_system_bus($1)
+
+	ps_process_pattern(system_dbusd_t, $1)
+
+	userdom_read_all_users_state($1)
+
+	ifdef(`init_systemd',`
+		init_daemon_domain($1, $2)
+	')
+
+	ifdef(`hide_broken_symptoms', `
+		dontaudit $1 system_dbusd_t:netlink_selinux_socket { read write };
+	')
+')
+
+########################################
+## <summary>
+##	Use and inherit DBUS system bus
+##	file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_use_system_bus_fds',`
+	gen_require(`
+		type system_dbusd_t;
+	')
+
+	allow $1 system_dbusd_t:fd use;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read and
+##	write DBUS system bus TCP sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`dbus_dontaudit_system_bus_rw_tcp_sockets',`
+	gen_require(`
+		type system_dbusd_t;
+	')
+
+	dontaudit $1 system_dbusd_t:tcp_socket { read write };
+')
+
+########################################
+## <summary>
+##	Unconfined access to DBUS.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_unconfined',`
+	gen_require(`
+		attribute dbusd_unconfined;
+	')
+
+	typeattribute $1 dbusd_unconfined;
+')

@@ -1,0 +1,152 @@
+policy_module(chronyd, 1.5.1)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role chronyc_roles;
+
+type chronyd_t;
+type chronyd_exec_t;
+init_daemon_domain(chronyd_t, chronyd_exec_t)
+
+type chronyc_t;
+type chronyc_exec_t;
+init_daemon_domain(chronyc_t, chronyc_exec_t)
+application_domain(chronyc_t, chronyc_exec_t)
+role chronyc_roles types chronyc_t;
+
+type chronyd_conf_t;
+files_config_file(chronyd_conf_t)
+
+type chronyd_initrc_exec_t;
+init_script_file(chronyd_initrc_exec_t)
+
+type chronyd_keys_t;
+files_type(chronyd_keys_t)
+
+type chronyd_tmpfs_t;
+files_tmpfs_file(chronyd_tmpfs_t)
+
+type chronyd_unit_t;
+init_unit_file(chronyd_unit_t)
+
+type chronyd_var_lib_t;
+files_type(chronyd_var_lib_t)
+
+type chronyd_var_log_t;
+logging_log_file(chronyd_var_log_t)
+
+type chronyd_var_run_t;
+init_daemon_pid_file(chronyd_var_run_t, dir, "chrony")
+
+########################################
+#
+# chronyd local policy
+#
+
+allow chronyd_t self:capability { chown dac_override ipc_lock setgid setuid sys_resource sys_time };
+allow chronyd_t self:process { getcap setcap setrlimit signal };
+allow chronyd_t self:shm create_shm_perms;
+allow chronyd_t self:fifo_file rw_fifo_file_perms;
+
+allow chronyd_t chronyd_keys_t:file read_file_perms;
+
+manage_dirs_pattern(chronyd_t, chronyd_tmpfs_t, chronyd_tmpfs_t)
+manage_files_pattern(chronyd_t, chronyd_tmpfs_t, chronyd_tmpfs_t)
+fs_tmpfs_filetrans(chronyd_t, chronyd_tmpfs_t, { dir file })
+
+manage_files_pattern(chronyd_t, chronyd_var_lib_t, chronyd_var_lib_t)
+manage_dirs_pattern(chronyd_t, chronyd_var_lib_t, chronyd_var_lib_t)
+manage_sock_files_pattern(chronyd_t, chronyd_var_lib_t, chronyd_var_lib_t)
+files_var_lib_filetrans(chronyd_t, chronyd_var_lib_t, dir)
+
+manage_dirs_pattern(chronyd_t, chronyd_var_log_t, chronyd_var_log_t)
+append_files_pattern(chronyd_t, chronyd_var_log_t, chronyd_var_log_t)
+create_files_pattern(chronyd_t, chronyd_var_log_t, chronyd_var_log_t)
+setattr_files_pattern(chronyd_t, chronyd_var_log_t, chronyd_var_log_t)
+logging_log_filetrans(chronyd_t, chronyd_var_log_t, dir)
+
+manage_dirs_pattern(chronyd_t, chronyd_var_run_t, chronyd_var_run_t)
+manage_files_pattern(chronyd_t, chronyd_var_run_t, chronyd_var_run_t)
+manage_sock_files_pattern(chronyd_t, chronyd_var_run_t, chronyd_var_run_t)
+files_pid_filetrans(chronyd_t, chronyd_var_run_t, { dir file sock_file })
+
+kernel_read_system_state(chronyd_t)
+kernel_read_network_state(chronyd_t)
+
+corenet_all_recvfrom_unlabeled(chronyd_t)
+corenet_all_recvfrom_netlabel(chronyd_t)
+corenet_udp_sendrecv_generic_if(chronyd_t)
+corenet_udp_sendrecv_generic_node(chronyd_t)
+corenet_udp_bind_generic_node(chronyd_t)
+
+corenet_sendrecv_ntp_client_packets(chronyd_t)
+corenet_sendrecv_ntp_server_packets(chronyd_t)
+corenet_udp_bind_ntp_port(chronyd_t)
+corenet_udp_sendrecv_ntp_port(chronyd_t)
+
+corenet_sendrecv_chronyd_server_packets(chronyd_t)
+corenet_udp_bind_chronyd_port(chronyd_t)
+corenet_udp_sendrecv_chronyd_port(chronyd_t)
+
+dev_rw_realtime_clock(chronyd_t)
+
+auth_use_nsswitch(chronyd_t)
+
+logging_send_syslog_msg(chronyd_t)
+
+miscfiles_read_localization(chronyd_t)
+
+chronyd_dgram_send_cli(chronyd_t)
+chronyd_read_config(chronyd_t)
+
+optional_policy(`
+	gpsd_rw_shm(chronyd_t)
+')
+
+optional_policy(`
+	mta_send_mail(chronyd_t)
+')
+
+########################################
+#
+# chronyc local policy
+#
+
+allow chronyc_t self:capability { dac_override };
+allow chronyc_t self:process { signal };
+allow chronyc_t self:udp_socket create_socket_perms;
+allow chronyc_t self:netlink_route_socket create_netlink_socket_perms;
+
+manage_dirs_pattern(chronyc_t, chronyd_var_run_t, chronyd_var_run_t)
+manage_files_pattern(chronyc_t, chronyd_var_run_t, chronyd_var_run_t)
+manage_sock_files_pattern(chronyc_t, chronyd_var_run_t, chronyd_var_run_t)
+files_pid_filetrans(chronyc_t, chronyd_var_run_t, { dir file sock_file })
+
+corenet_all_recvfrom_unlabeled(chronyc_t)
+corenet_all_recvfrom_netlabel(chronyc_t)
+corenet_udp_sendrecv_generic_if(chronyc_t)
+corenet_udp_sendrecv_generic_node(chronyc_t)
+
+corenet_sendrecv_chronyd_client_packets(chronyc_t)
+corenet_udp_sendrecv_chronyd_port(chronyc_t)
+
+files_read_etc_files(chronyc_t)
+files_read_usr_files(chronyc_t)
+
+locallogin_use_fds(chronyc_t)
+
+logging_send_syslog_msg(chronyc_t)
+
+sysnet_read_config(chronyc_t)
+sysnet_dns_name_resolve(chronyc_t)
+
+miscfiles_read_localization(chronyc_t)
+
+userdom_use_user_ttys(chronyc_t)
+
+chronyd_dgram_send(chronyc_t)
+chronyd_read_config(chronyc_t)
+

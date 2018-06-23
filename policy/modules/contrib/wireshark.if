@@ -1,0 +1,57 @@
+## <summary>Wireshark packet capture tool.</summary>
+
+############################################################
+## <summary>
+##	Role access for wireshark.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`wireshark_role',`
+	gen_require(`
+		attribute_role wireshark_roles;
+		type wireshark_t, wireshark_exec_t, wireshark_home_t;
+		type wireshark_tmp_t, wireshark_tmpfs_t;
+	')
+
+	roleattribute $1 wireshark_roles;
+
+	domtrans_pattern($2, wireshark_exec_t, wireshark_t)
+
+	allow $2 wireshark_t:process { ptrace signal_perms };
+	ps_process_pattern($2, wireshark_t)
+
+	allow $2 { wireshark_tmp_t wireshark_home_t wireshark_tmpfs_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { wireshark_tmp_t wireshark_home_t wireshark_tmpfs_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 { wireshark_home_t wireshark_tmpfs_t }:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 wireshark_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	allow $2 wireshark_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	userdom_user_home_dir_filetrans($2, wireshark_home_t, dir, ".wireshark")
+')
+
+########################################
+## <summary>
+##	Execute wireshark in wireshark domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`wireshark_domtrans',`
+	gen_require(`
+		type wireshark_t, wireshark_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, wireshark_exec_t, wireshark_t)
+')

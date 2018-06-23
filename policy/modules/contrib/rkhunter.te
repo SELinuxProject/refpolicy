@@ -1,0 +1,134 @@
+policy_module(rkhunter, 1.1.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether rkhunter can connect
+##	to http ports. This is required by the
+##	--update option.
+##	</p>
+## </desc>
+gen_tunable(rkhunter_connect_http, false)
+
+attribute_role rkhunter_roles;
+
+type rkhunter_t;
+type rkhunter_exec_t;
+application_domain(rkhunter_t, rkhunter_exec_t)
+role rkhunter_roles types rkhunter_t;
+
+type rkhunter_log_t;
+logging_log_file(rkhunter_log_t)
+
+type rkhunter_tmpfs_t;
+files_tmpfs_file(rkhunter_tmpfs_t)
+
+type rkhunter_var_lib_t;
+files_type(rkhunter_var_lib_t)
+
+########################################
+#
+# Application local policy
+#
+
+allow rkhunter_t self:capability { dac_read_search kill net_admin setgid setuid sys_nice sys_ptrace };
+allow rkhunter_t self:process { getsched setsched signal };
+allow rkhunter_t self:netlink_route_socket r_netlink_socket_perms;
+allow rkhunter_t self:tcp_socket { bind connect create listen read write };
+allow rkhunter_t self:netlink_tcpdiag_socket r_netlink_socket_perms;
+allow rkhunter_t self:udp_socket { bind connect create ioctl read write };
+allow rkhunter_t self:fifo_file rw_fifo_file_perms;
+
+allow rkhunter_t rkhunter_log_t:file { append_file_perms create_file_perms setattr };
+logging_log_filetrans(rkhunter_t, rkhunter_log_t, file)
+
+allow rkhunter_t rkhunter_tmpfs_t:file manage_file_perms;
+fs_tmpfs_filetrans(rkhunter_t, rkhunter_tmpfs_t, file)
+
+allow rkhunter_t rkhunter_var_lib_t:dir manage_dir_perms;
+allow rkhunter_t rkhunter_var_lib_t:file manage_file_perms;
+
+kernel_request_load_module(rkhunter_t)
+kernel_read_all_sysctls(rkhunter_t)
+kernel_read_network_state(rkhunter_t)
+kernel_getattr_message_if(rkhunter_t)
+kernel_get_sysvipc_info(rkhunter_t)
+
+auth_dontaudit_read_shadow(rkhunter_t)
+
+corecmd_exec_bin(rkhunter_t)
+corecmd_exec_shell(rkhunter_t)
+
+corenet_tcp_bind_all_ports(rkhunter_t)
+corenet_udp_bind_all_ports(rkhunter_t)
+corenet_tcp_bind_generic_node(rkhunter_t)
+corenet_udp_bind_generic_node(rkhunter_t)
+
+dev_getattr_fs(rkhunter_t)
+dev_read_urand(rkhunter_t)
+dev_getattr_all_chr_files(rkhunter_t)
+dev_getattr_all_blk_files(rkhunter_t)
+
+domain_read_all_domains_state(rkhunter_t)
+domain_use_interactive_fds(rkhunter_t)
+domain_getattr_all_sockets(rkhunter_t)
+domain_getattr_all_pipes(rkhunter_t)
+domain_getpgid_all_domains(rkhunter_t)
+domain_getsched_all_domains(rkhunter_t)
+domain_getsession_all_domains(rkhunter_t)
+domain_signull_all_domains(rkhunter_t)
+
+files_read_non_auth_files(rkhunter_t)
+files_read_all_symlinks(rkhunter_t)
+files_read_all_chr_files(rkhunter_t)
+files_getattr_all_pipes(rkhunter_t)
+files_getattr_all_sockets(rkhunter_t)
+files_check_write_lock_dirs(rkhunter_t)
+files_check_write_pid_dirs(rkhunter_t)
+
+fs_getattr_tracefs(rkhunter_t)
+fs_getattr_tracefs_dirs(rkhunter_t)
+fs_getattr_xattr_fs(rkhunter_t)
+
+hostname_exec(rkhunter_t)
+
+logging_send_syslog_msg(rkhunter_t)
+
+modutils_exec(rkhunter_t)
+
+sysnet_exec_ifconfig(rkhunter_t)
+
+userdom_use_inherited_user_terminals(rkhunter_t)
+
+ifdef(`init_systemd',`
+	# start as systemd timer
+	init_system_domain(rkhunter_t, rkhunter_exec_t)
+')
+
+tunable_policy(`rkhunter_connect_http',`
+	corenet_tcp_connect_http_port(rkhunter_t)
+')
+
+optional_policy(`
+	cron_system_entry(rkhunter_t, rkhunter_exec_t)
+	cron_rw_inherited_system_job_tmp_files(rkhunter_t)
+')
+
+optional_policy(`
+	# exim check
+	exim_exec(rkhunter_t)
+')
+
+optional_policy(`
+	# gpg check
+	gpg_exec(rkhunter_t)
+')
+
+optional_policy(`
+	# ssh check
+	ssh_exec_sshd(rkhunter_t)
+')

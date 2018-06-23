@@ -1,0 +1,179 @@
+policy_module(monit, 1.2.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+## <p>
+## Allow monit to start/stop services
+## </p>
+## </desc>
+gen_tunable(monit_startstop_services, false)
+
+attribute_role monit_cli_roles;
+
+attribute monit_domain;
+
+type monit_t, monit_domain;
+type monit_exec_t;
+init_daemon_domain(monit_t, monit_exec_t)
+
+type monit_conf_t alias monit_etc_t;
+files_security_file(monit_conf_t) # may contain password for monit webinterface
+
+type monit_initrc_exec_t;
+init_script_file(monit_initrc_exec_t)
+
+type monit_cli_t, monit_domain;
+application_domain(monit_cli_t, monit_exec_t)
+role monit_cli_roles types monit_cli_t;
+
+type monit_log_t;
+logging_log_file(monit_log_t)
+
+type monit_runtime_t alias monit_pid_t;
+files_pid_file(monit_runtime_t)
+
+type monit_unit_t;
+init_unit_file(monit_unit_t)
+
+type monit_var_lib_t;
+files_type(monit_var_lib_t)
+
+########################################
+#
+# Common monit domain policy
+#
+
+allow monit_domain self:unix_stream_socket create_stream_socket_perms;
+allow monit_domain monit_t:process { getpgid sigkill signal };
+
+allow monit_domain monit_conf_t:dir list_dir_perms;
+allow monit_domain monit_conf_t:file read_file_perms;
+allow monit_domain monit_conf_t:lnk_file read_lnk_file_perms;
+
+kernel_read_system_state(monit_domain)
+
+# can not use with attributes
+#auth_use_nsswitch(monit_domain)
+
+# read /sys/class/net/eth0 /sys/devices/system/cpu
+dev_read_sysfs(monit_domain)
+dev_read_urand(monit_domain)
+
+files_getattr_all_mountpoints(monit_domain)
+
+fs_getattr_dos_fs(monit_domain)
+fs_getattr_dos_dirs(monit_domain)
+fs_getattr_tmpfs(monit_domain)
+fs_getattr_xattr_fs(monit_domain)
+
+miscfiles_read_generic_certs(monit_domain)
+miscfiles_read_localization(monit_domain)
+
+logging_send_syslog_msg(monit_domain)
+
+# disk usage of sd card
+storage_getattr_removable_dev(monit_domain)
+storage_getattr_fixed_disk_dev(monit_domain)
+
+########################################
+#
+# Daemon policy
+#
+
+# dac_read_search : read /run/exim/*
+# net_raw         : create raw sockets
+# sys_ptrace      : trace processes
+allow monit_t self:capability { dac_read_search net_raw sys_ptrace };
+# setsockopt
+dontaudit monit_t self:capability net_admin;
+
+allow monit_t self:fifo_file rw_fifo_file_perms;
+allow monit_t self:rawip_socket connected_socket_perms;
+allow monit_t self:tcp_socket server_stream_socket_perms;
+
+allow monit_t monit_log_t:file { create read_file_perms append_file_perms };
+logging_log_filetrans(monit_t, monit_log_t, file)
+
+allow monit_t monit_runtime_t:file manage_file_perms;
+allow monit_t monit_runtime_t:sock_file manage_sock_file_perms;
+files_pid_filetrans(monit_t, monit_runtime_t, { file sock_file })
+
+allow monit_t monit_var_lib_t:dir manage_dir_perms;
+allow monit_t monit_var_lib_t:file manage_file_perms;
+
+# entropy
+kernel_read_kernel_sysctls(monit_t)
+kernel_read_vm_overcommit_sysctl(monit_t)
+
+auth_use_nsswitch(monit_t)
+
+corecmd_exec_bin(monit_t)
+corecmd_exec_shell(monit_t)
+
+corenet_tcp_bind_generic_node(monit_t)
+corenet_tcp_bind_monit_port(monit_t)
+corenet_tcp_connect_all_ports(monit_t)
+
+domain_getattr_all_domains(monit_t)
+domain_getpgid_all_domains(monit_t)
+domain_read_all_domains_state(monit_t)
+
+files_read_all_pids(monit_t)
+files_read_usr_files(monit_t)
+
+selinux_get_enforce_mode(monit_t)
+
+userdom_dontaudit_search_user_home_dirs(monit_t)
+
+ifdef(`init_systemd',`
+	# systemctl is-system-running
+	init_stream_connect(monit_t)
+	init_get_system_status(monit_t)
+')
+
+tunable_policy(`monit_startstop_services',`
+	init_get_all_units_status(monit_t)
+	init_start_all_units(monit_t)
+	init_stop_all_units(monit_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(monit_t)
+')
+
+########################################
+#
+# Client policy
+#
+
+allow monit_cli_t monit_t:unix_stream_socket connectto;
+
+allow monit_cli_t monit_log_t:file { append_file_perms read_file_perms };
+
+allow monit_cli_t monit_runtime_t:file rw_file_perms;
+allow monit_cli_t monit_runtime_t:sock_file write;
+
+allow monit_cli_t monit_var_lib_t:dir search_dir_perms;
+allow monit_cli_t monit_var_lib_t:file rw_file_perms;
+
+auth_use_nsswitch(monit_cli_t)
+
+corecmd_check_exec_bin_files(monit_cli_t)
+
+corenet_tcp_connect_monit_port(monit_cli_t)
+
+dev_read_rand(monit_cli_t)
+
+domain_use_interactive_fds(monit_cli_t)
+
+files_search_pids(monit_cli_t)
+files_search_var_lib(monit_cli_t)
+
+logging_search_logs(monit_cli_t)
+
+userdom_dontaudit_search_user_home_dirs(monit_cli_t)
+userdom_use_inherited_user_terminals(monit_cli_t)

@@ -1,0 +1,336 @@
+## <summary>Policy for GNU Privacy Guard and related programs.</summary>
+
+############################################################
+## <summary>
+##	Role access for gpg.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`gpg_role',`
+	gen_require(`
+		attribute_role gpg_roles, gpg_agent_roles, gpg_helper_roles, gpg_pinentry_roles;
+		type gpg_t, gpg_exec_t, gpg_agent_t;
+		type gpg_agent_exec_t, gpg_agent_tmp_t, gpg_helper_t;
+		type gpg_pinentry_t, gpg_pinentry_tmp_t, gpg_secret_t;
+	')
+
+	roleattribute $1 gpg_roles;
+	roleattribute $1 gpg_agent_roles;
+	roleattribute $1 gpg_helper_roles;
+	roleattribute $1 gpg_pinentry_roles;
+
+	domtrans_pattern($2, gpg_exec_t, gpg_t)
+	domtrans_pattern($2, gpg_agent_exec_t, gpg_agent_t)
+
+	allow $2 self:process setrlimit;
+	allow $2 { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t }:process { ptrace signal_perms };
+	ps_process_pattern($2, { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t })
+
+	allow gpg_pinentry_t $2:process signull;
+	allow gpg_helper_t $2:fd use;
+	allow { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t } $2:fifo_file { read write };
+
+	allow $2 { gpg_agent_tmp_t gpg_secret_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { gpg_agent_tmp_t gpg_secret_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 gpg_secret_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 { gpg_agent_tmp_t gpg_pinentry_tmp_t gpg_secret_t }:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	filetrans_pattern($2, gpg_secret_t, gpg_agent_tmp_t, sock_file, "log-socket")
+	userdom_user_home_dir_filetrans($2, gpg_secret_t, dir, ".gnupg")
+
+	optional_policy(`
+		gpg_pinentry_dbus_chat($2)
+	')
+')
+
+########################################
+## <summary>
+##	Execute the gpg in the gpg domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`gpg_domtrans',`
+	gen_require(`
+		type gpg_t, gpg_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, gpg_exec_t, gpg_t)
+')
+
+########################################
+## <summary>
+##	Execute the gpg in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_exec',`
+	gen_require(`
+		type gpg_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, gpg_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute gpg in a specified domain.
+## </summary>
+## <desc>
+##	<p>
+##	Execute gpg in a specified domain.
+##	</p>
+##	<p>
+##	No interprocess communication (signals, pipes,
+##	etc.) is provided by this interface since
+##	the domains are not owned by this module.
+##	</p>
+## </desc>
+## <param name="source_domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="target_domain">
+##	<summary>
+##	Domain to transition to.
+##	</summary>
+## </param>
+#
+interface(`gpg_spec_domtrans',`
+	gen_require(`
+		type gpg_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domain_auto_transition_pattern($1, gpg_exec_t, $2)
+')
+
+########################################
+## <summary>
+##	Execute the gpg-agent in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_exec_agent',`
+	gen_require(`
+		type gpg_agent_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, gpg_agent_exec_t)
+')
+
+######################################
+## <summary>
+##	Make gpg executable files an
+##	entrypoint for the specified domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	The domain for which gpg_exec_t is an entrypoint.
+##	</summary>
+## </param>
+#
+interface(`gpg_entry_type',`
+	gen_require(`
+		type gpg_exec_t;
+	')
+
+	domain_entry_file($1, gpg_exec_t)
+')
+
+########################################
+## <summary>
+##	Send generic signals to gpg.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_signal',`
+	gen_require(`
+		type gpg_t;
+	')
+
+	allow $1 gpg_t:process signal;
+')
+
+########################################
+## <summary>
+##	Read and write gpg agent pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_rw_agent_pipes',`
+	gen_require(`
+		type gpg_agent_t;
+	')
+
+	allow $1 gpg_agent_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to gpg agent socket
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_stream_connect_agent',`
+	gen_require(`
+		type gpg_agent_t, gpg_agent_tmp_t;
+		type gpg_secret_t, gpg_runtime_t;
+	')
+
+	stream_connect_pattern($1, gpg_agent_tmp_t, gpg_agent_tmp_t, gpg_agent_t)
+	allow $1 { gpg_secret_t gpg_runtime_t }:dir search_dir_perms;
+	userdom_search_user_runtime($1)
+	userdom_search_user_home_dirs($1)
+')
+
+########################################
+## <summary>
+##	Search gpg agent dirs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_search_agent_tmp_dirs',`
+	gen_require(`
+		type gpg_agent_tmp_t;
+	')
+
+	allow $1 gpg_agent_tmp_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	filetrans in gpg_agent_tmp_t dirs
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_agent_tmp_filetrans',`
+	gen_require(`
+		type gpg_agent_tmp_t;
+	')
+
+	filetrans_pattern($1, gpg_agent_tmp_t, $2, $3, $4)
+	userdom_search_user_runtime($1)
+')
+
+########################################
+## <summary>
+##	filetrans in gpg_runtime_t dirs
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_runtime_filetrans',`
+	gen_require(`
+		type gpg_runtime_t;
+	')
+
+	filetrans_pattern($1, gpg_runtime_t, $2, $3, $4)
+	userdom_search_user_runtime($1)
+')
+
+########################################
+## <summary>
+##	filetrans in gpg_secret_t dirs
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_secret_filetrans',`
+	gen_require(`
+		type gpg_secret_t;
+	')
+
+	filetrans_pattern($1, gpg_secret_t, $2, $3, $4)
+	allow $1 gpg_secret_t:dir search_dir_perms;
+	userdom_search_user_home_dirs($1)
+')
+
+########################################
+## <summary>
+##	Send messages to and from gpg
+##	pinentry over DBUS.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_pinentry_dbus_chat',`
+	gen_require(`
+		type gpg_pinentry_t;
+		class dbus send_msg;
+	')
+
+	allow $1 gpg_pinentry_t:dbus send_msg;
+	allow gpg_pinentry_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	List gpg user secrets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`gpg_list_user_secrets',`
+	gen_require(`
+		type gpg_secret_t;
+	')
+
+	list_dirs_pattern($1, gpg_secret_t, gpg_secret_t)
+	userdom_search_user_home_dirs($1)
+')

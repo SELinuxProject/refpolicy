@@ -1,0 +1,125 @@
+policy_module(samhain, 1.5.1)
+
+########################################
+#
+# Declarations
+#
+
+attribute samhain_domain;
+
+attribute_role samhain_roles;
+roleattribute system_r samhain_roles;
+
+type samhain_etc_t;
+files_config_file(samhain_etc_t)
+
+type samhain_exec_t;
+corecmd_executable_file(samhain_exec_t)
+
+type samhain_log_t;
+logging_log_file(samhain_log_t)
+
+type samhain_db_t;
+files_type(samhain_db_t)
+
+type samhain_initrc_exec_t;
+init_script_file(samhain_initrc_exec_t)
+
+type samhain_var_run_t;
+files_pid_file(samhain_var_run_t)
+
+samhain_service_template(samhain)
+application_domain(samhain_t, samhain_exec_t)
+role samhain_roles types samhain_t;
+
+samhain_service_template(samhaind)
+init_system_domain(samhaind_t, samhain_exec_t)
+
+ifdef(`enable_mcs',`
+	init_ranged_system_domain(samhaind_t, samhain_exec_t, mcs_systemhigh)
+')
+
+ifdef(`enable_mls',`
+	init_ranged_system_domain(samhaind_t, samhain_exec_t, mls_systemhigh)
+')
+
+########################################
+#
+# Common samhain domain local policy
+#
+
+allow samhain_domain self:capability { dac_override dac_read_search fowner ipc_lock };
+dontaudit samhain_domain self:capability { sys_ptrace sys_resource };
+allow samhain_domain self:process { setsched setrlimit signull };
+allow samhain_domain self:fd use;
+allow samhain_domain self:fifo_file rw_fifo_file_perms;
+
+allow samhain_domain samhain_etc_t:file read_file_perms;
+
+manage_files_pattern(samhain_domain, samhain_log_t, samhain_log_t)
+logging_log_filetrans(samhain_domain, samhain_log_t, file)
+
+manage_files_pattern(samhain_domain, samhain_var_run_t, samhain_var_run_t)
+files_pid_filetrans(samhain_domain, samhain_var_run_t, file)
+
+kernel_getattr_core_if(samhain_domain)
+
+corecmd_list_bin(samhain_domain)
+
+dev_read_urand(samhain_domain)
+dev_dontaudit_read_rand(samhain_domain)
+dev_getattr_all_blk_files(samhain_domain)
+dev_getattr_all_chr_files(samhain_domain)
+dev_getattr_generic_blk_files(samhain_domain)
+dev_getattr_generic_chr_files(samhain_domain)
+
+files_getattr_all_dirs(samhain_domain)
+files_getattr_all_files(samhain_domain)
+files_getattr_all_symlinks(samhain_domain)
+files_getattr_all_pipes(samhain_domain)
+files_getattr_all_sockets(samhain_domain)
+files_getattr_all_mountpoints(samhain_domain)
+files_read_all_symlinks(samhain_domain)
+files_search_etc(samhain_domain)
+
+fs_getattr_all_dirs(samhain_domain)
+
+auth_read_login_records(samhain_domain)
+
+init_read_utmp(samhain_domain)
+
+logging_send_syslog_msg(samhain_domain)
+
+########################################
+#
+# Client local policy
+#
+
+manage_files_pattern(samhain_t, samhain_db_t, samhain_db_t)
+manage_dirs_pattern(samhain_t, samhain_db_t, samhain_db_t)
+files_var_lib_filetrans(samhain_t, samhain_db_t, { file dir })
+
+domain_use_interactive_fds(samhain_t)
+
+seutil_sigchld_newrole(samhain_t)
+
+userdom_use_user_terminals(samhain_t)
+
+########################################
+#
+# Server local policy
+#
+
+allow samhaind_t { samhain_t self }:process signal_perms;
+
+can_exec(samhaind_t, samhain_exec_t)
+
+read_files_pattern(samhaind_t, samhain_db_t, samhain_db_t)
+
+corenet_tcp_connect_smtp_port(samhaind_t)
+
+dev_read_rand(samhaind_t)
+
+init_use_script_ptys(samhaind_t)
+
+sysnet_dns_name_resolve(samhaind_t)

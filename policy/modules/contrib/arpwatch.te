@@ -1,0 +1,90 @@
+policy_module(arpwatch, 1.15.0)
+
+########################################
+#
+# Declarations
+#
+
+type arpwatch_t;
+type arpwatch_exec_t;
+init_daemon_domain(arpwatch_t, arpwatch_exec_t)
+
+type arpwatch_initrc_exec_t;
+init_script_file(arpwatch_initrc_exec_t)
+
+type arpwatch_data_t;
+files_type(arpwatch_data_t)
+
+type arpwatch_tmp_t;
+files_tmp_file(arpwatch_tmp_t)
+
+type arpwatch_unit_t;
+init_unit_file(arpwatch_unit_t)
+
+type arpwatch_pid_t alias arpwatch_var_run_t;
+files_pid_file(arpwatch_pid_t)
+
+########################################
+#
+# Local policy
+#
+
+allow arpwatch_t self:capability { dac_override net_admin net_raw setgid setuid };
+allow arpwatch_t self:process signal_perms;
+allow arpwatch_t self:unix_stream_socket { accept listen };
+allow arpwatch_t self:tcp_socket { accept listen };
+allow arpwatch_t self:packet_socket create_socket_perms;
+allow arpwatch_t self:socket { create ioctl };
+allow arpwatch_t self:netlink_netfilter_socket { create read write };
+
+manage_dirs_pattern(arpwatch_t, arpwatch_data_t, arpwatch_data_t)
+manage_files_pattern(arpwatch_t, arpwatch_data_t, arpwatch_data_t)
+manage_lnk_files_pattern(arpwatch_t, arpwatch_data_t, arpwatch_data_t)
+
+manage_dirs_pattern(arpwatch_t, arpwatch_tmp_t, arpwatch_tmp_t)
+manage_files_pattern(arpwatch_t, arpwatch_tmp_t, arpwatch_tmp_t)
+files_tmp_filetrans(arpwatch_t, arpwatch_tmp_t, { file dir })
+
+manage_files_pattern(arpwatch_t, arpwatch_pid_t, arpwatch_pid_t)
+files_pid_filetrans(arpwatch_t, arpwatch_pid_t, file)
+
+kernel_read_kernel_sysctls(arpwatch_t)
+kernel_read_network_state(arpwatch_t)
+kernel_read_system_state(arpwatch_t)
+kernel_request_load_module(arpwatch_t)
+# /sys/kernel/debug/usb/usbmon/\d+t
+kernel_dontaudit_search_debugfs(arpwatch_t)
+
+# /sys/class/net
+dev_read_sysfs(arpwatch_t)
+dev_read_usbmon_dev(arpwatch_t)
+dev_rw_generic_usb_dev(arpwatch_t)
+
+fs_getattr_all_fs(arpwatch_t)
+fs_search_auto_mountpoints(arpwatch_t)
+
+domain_use_interactive_fds(arpwatch_t)
+
+files_read_usr_files(arpwatch_t)
+files_search_var_lib(arpwatch_t)
+
+auth_use_nsswitch(arpwatch_t)
+
+logging_send_syslog_msg(arpwatch_t)
+
+miscfiles_read_localization(arpwatch_t)
+
+userdom_dontaudit_search_user_home_dirs(arpwatch_t)
+userdom_dontaudit_use_unpriv_user_fds(arpwatch_t)
+
+optional_policy(`
+	mta_send_mail(arpwatch_t)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(arpwatch_t)
+')
+
+optional_policy(`
+	udev_read_db(arpwatch_t)
+')

@@ -1,0 +1,139 @@
+## <summary>Iptables/netfilter userspace logging daemon.</summary>
+
+########################################
+## <summary>
+##	Execute a domain transition to run ulogd.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`ulogd_domtrans',`
+	gen_require(`
+		type ulogd_t, ulogd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, ulogd_exec_t, ulogd_t)
+')
+
+########################################
+## <summary>
+##	Read ulogd configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ulogd_read_config',`
+	gen_require(`
+		type ulogd_etc_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, ulogd_etc_t, ulogd_etc_t)
+')
+
+########################################
+## <summary>
+##	Read ulogd log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ulogd_read_log',`
+	gen_require(`
+		type ulogd_var_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 ulogd_var_log_t:dir list_dir_perms;
+	read_files_pattern($1, ulogd_var_log_t, ulogd_var_log_t)
+')
+
+#######################################
+## <summary>
+##	Search ulogd log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`ulogd_search_log',`
+	gen_require(`
+		type ulogd_var_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 ulogd_var_log_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Append to ulogd log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ulogd_append_log',`
+	gen_require(`
+		type ulogd_var_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 ulogd_var_log_t:dir list_dir_perms;
+	allow $1 ulogd_var_log_t:file append_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an ulogd environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`ulogd_admin',`
+	gen_require(`
+		type ulogd_t, ulogd_etc_t, ulogd_modules_t;
+		type ulogd_var_log_t, ulogd_initrc_exec_t;
+	')
+
+	allow $1 ulogd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, ulogd_t)
+
+	init_startstop_service($1, $2, ulogd_t, ulogd_initrc_exec_t)
+
+	files_list_etc($1)
+	admin_pattern($1, ulogd_etc_t)
+
+	logging_list_logs($1)
+	admin_pattern($1, ulogd_var_log_t)
+
+	files_list_usr($1)
+	admin_pattern($1, ulogd_modules_t)
+')

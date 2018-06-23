@@ -1,0 +1,144 @@
+policy_module(irc, 2.5.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether irc clients can
+##	listen on and connect to any
+##	unreserved TCP ports.
+##	</p>
+## </desc>
+gen_tunable(irc_use_any_tcp_ports, false)
+
+attribute_role irc_roles;
+
+type irc_t;
+type irc_exec_t;
+typealias irc_t alias { user_irc_t staff_irc_t sysadm_irc_t };
+typealias irc_t alias { auditadm_irc_t secadm_irc_t };
+userdom_user_application_domain(irc_t, irc_exec_t)
+role irc_roles types irc_t;
+
+type irc_conf_t;
+files_config_file(irc_conf_t)
+
+type irc_home_t;
+typealias irc_home_t alias { user_irc_home_t staff_irc_home_t sysadm_irc_home_t };
+typealias irc_home_t alias { auditadm_irc_home_t secadm_irc_home_t };
+userdom_user_home_content(irc_home_t)
+
+type irc_log_home_t;
+userdom_user_home_content(irc_log_home_t)
+
+type irc_tmp_t;
+typealias irc_tmp_t alias { user_irc_tmp_t staff_irc_tmp_t sysadm_irc_tmp_t };
+typealias irc_tmp_t alias { auditadm_irc_tmp_t secadm_irc_tmp_t };
+userdom_user_tmp_file(irc_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow irc_t self:process { signal sigkill };
+allow irc_t self:fifo_file rw_fifo_file_perms;
+allow irc_t self:unix_stream_socket { accept listen };
+
+allow irc_t irc_conf_t:file read_file_perms;
+
+can_exec(irc_t, irc_exec_t)
+corecmd_search_bin(irc_t)
+
+manage_dirs_pattern(irc_t, irc_home_t, irc_home_t)
+manage_files_pattern(irc_t, irc_home_t, irc_home_t)
+manage_lnk_files_pattern(irc_t, irc_home_t, irc_home_t)
+userdom_user_home_dir_filetrans(irc_t, irc_home_t, dir, ".irssi")
+userdom_user_home_dir_filetrans(irc_t, irc_home_t, file, ".ircmotd")
+
+manage_dirs_pattern(irc_t, irc_log_home_t, irc_log_home_t)
+create_files_pattern(irc_t, irc_log_home_t, irc_log_home_t)
+append_files_pattern(irc_t, irc_log_home_t, irc_log_home_t)
+userdom_user_home_dir_filetrans(irc_t, irc_log_home_t, dir, "irclogs")
+
+manage_dirs_pattern(irc_t, irc_tmp_t, irc_tmp_t)
+manage_files_pattern(irc_t, irc_tmp_t, irc_tmp_t)
+manage_lnk_files_pattern(irc_t, irc_tmp_t, irc_tmp_t)
+manage_fifo_files_pattern(irc_t, irc_tmp_t, irc_tmp_t)
+manage_sock_files_pattern(irc_t, irc_tmp_t, irc_tmp_t)
+files_tmp_filetrans(irc_t, irc_tmp_t, { file dir lnk_file sock_file fifo_file })
+
+kernel_read_system_state(irc_t)
+
+corenet_all_recvfrom_unlabeled(irc_t)
+corenet_all_recvfrom_netlabel(irc_t)
+corenet_tcp_sendrecv_generic_if(irc_t)
+corenet_tcp_sendrecv_generic_node(irc_t)
+corenet_tcp_sendrecv_all_ports(irc_t)
+
+corenet_sendrecv_gatekeeper_client_packets(irc_t)
+corenet_tcp_sendrecv_gatekeeper_port(irc_t)
+corenet_tcp_connect_gatekeeper_port(irc_t)
+
+corenet_sendrecv_http_cache_client_packets(irc_t)
+corenet_tcp_connect_http_cache_port(irc_t)
+corenet_tcp_sendrecv_http_cache_port(irc_t)
+
+corenet_sendrecv_ircd_client_packets(irc_t)
+corenet_tcp_connect_ircd_port(irc_t)
+corenet_tcp_sendrecv_ircd_port(irc_t)
+
+dev_read_urand(irc_t)
+dev_read_rand(irc_t)
+
+domain_use_interactive_fds(irc_t)
+
+files_read_usr_files(irc_t)
+
+fs_getattr_all_fs(irc_t)
+fs_search_auto_mountpoints(irc_t)
+
+term_use_controlling_term(irc_t)
+term_list_ptys(irc_t)
+
+auth_use_nsswitch(irc_t)
+
+init_read_utmp(irc_t)
+init_dontaudit_lock_utmp(irc_t)
+
+miscfiles_read_generic_certs(irc_t)
+miscfiles_read_localization(irc_t)
+
+userdom_use_user_terminals(irc_t)
+
+userdom_user_content_access_template(irc, irc_t)
+
+xdg_manage_downloads(irc_t)
+
+tunable_policy(`irc_use_any_tcp_ports',`
+	allow irc_t self:tcp_socket { accept listen };
+	corenet_sendrecv_all_server_packets(irc_t)
+	corenet_tcp_bind_all_unreserved_ports(irc_t)
+	corenet_sendrecv_all_client_packets(irc_t)
+	corenet_tcp_connect_all_unreserved_ports(irc_t)
+	corenet_tcp_sendrecv_all_ports(irc_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(irc_t)
+	fs_manage_nfs_files(irc_t)
+	fs_manage_nfs_symlinks(irc_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(irc_t)
+	fs_manage_cifs_files(irc_t)
+	fs_manage_cifs_symlinks(irc_t)
+')
+
+optional_policy(`
+	seutil_use_newrole_fds(irc_t)
+')

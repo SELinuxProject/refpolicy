@@ -1,0 +1,81 @@
+## <summary>User mode linux tools and services.</summary>
+
+########################################
+## <summary>
+##	Role access for uml.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`uml_role',`
+	gen_require(`
+		attribute_role uml_roles;
+		type uml_t, uml_exec_t;
+		type uml_ro_t, uml_rw_t, uml_tmp_t;
+		type uml_devpts_t, uml_tmpfs_t;
+	')
+
+	roleattribute $1 uml_roles;
+
+	domtrans_pattern($2, uml_exec_t, uml_t)
+
+	dgram_send_pattern($2, uml_tmpfs_t, uml_tmpfs_t, uml_t)
+
+	allow uml_t $2:unix_dgram_socket sendto;
+
+	ps_process_pattern($2, uml_t)
+	allow $2 uml_t:process { ptrace signal_perms };
+
+	allow $2 { uml_ro_t uml_rw_t uml_tmp_t uml_exec_t }:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 { uml_ro_t uml_rw_t uml_tmp_t uml_tmpfs_t uml_exec_t }:file { manage_file_perms relabel_file_perms };
+	allow $2 { uml_ro_t uml_rw_t uml_tmpfs_t }:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 { uml_ro_t uml_rw_t uml_tmpfs_t }:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 { uml_ro_t uml_rw_t uml_tmpfs_t }:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	userdom_user_home_dir_filetrans($2, uml_rw_t, dir, ".uml")
+')
+
+########################################
+## <summary>
+##	Set attributes of uml pid sock files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`uml_setattr_util_sockets',`
+	gen_require(`
+		type uml_switch_var_run_t;
+	')
+
+	allow $1 uml_switch_var_run_t:sock_file setattr_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	uml pid files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`uml_manage_util_files',`
+	gen_require(`
+		type uml_switch_var_run_t;
+	')
+
+	manage_files_pattern($1, uml_switch_var_run_t, uml_switch_var_run_t)
+	manage_lnk_files_pattern($1, uml_switch_var_run_t, uml_switch_var_run_t)
+')

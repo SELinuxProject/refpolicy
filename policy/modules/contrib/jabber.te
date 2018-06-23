@@ -1,0 +1,147 @@
+policy_module(jabber, 1.13.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute jabberd_domain;
+
+jabber_domain_template(jabberd)
+jabber_domain_template(jabberd_router)
+
+type jabberd_initrc_exec_t;
+init_script_file(jabberd_initrc_exec_t)
+
+type jabberd_lock_t;
+files_lock_file(jabberd_lock_t)
+
+type jabberd_log_t;
+logging_log_file(jabberd_log_t)
+
+type jabberd_spool_t;
+files_type(jabberd_spool_t)
+
+type jabberd_var_lib_t;
+files_type(jabberd_var_lib_t)
+
+type jabberd_var_run_t;
+files_pid_file(jabberd_var_run_t)
+
+########################################
+#
+# Common local policy
+#
+
+allow jabberd_domain self:process signal_perms;
+allow jabberd_domain self:fifo_file rw_fifo_file_perms;
+allow jabberd_domain self:tcp_socket { accept listen };
+
+manage_files_pattern(jabberd_domain, jabberd_var_lib_t, jabberd_var_lib_t)
+
+kernel_read_system_state(jabberd_domain)
+
+corenet_all_recvfrom_unlabeled(jabberd_domain)
+corenet_all_recvfrom_netlabel(jabberd_domain)
+corenet_tcp_sendrecv_generic_if(jabberd_domain)
+corenet_tcp_sendrecv_generic_node(jabberd_domain)
+corenet_tcp_bind_generic_node(jabberd_domain)
+
+dev_read_urand(jabberd_domain)
+dev_read_sysfs(jabberd_domain)
+
+fs_getattr_all_fs(jabberd_domain)
+
+logging_send_syslog_msg(jabberd_domain)
+
+miscfiles_read_localization(jabberd_domain)
+
+optional_policy(`
+	nis_use_ypbind(jabberd_domain)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(jabberd_domain)
+')
+
+########################################
+#
+# Local policy
+#
+
+allow jabberd_t self:capability dac_override;
+dontaudit jabberd_t self:capability sys_tty_config;
+allow jabberd_t self:tcp_socket create_socket_perms;
+allow jabberd_t self:udp_socket create_socket_perms;
+allow jabberd_t self:netlink_route_socket r_netlink_socket_perms;
+
+manage_files_pattern(jabberd_t, jabberd_lock_t, jabberd_lock_t)
+
+allow jabberd_t jabberd_log_t:dir setattr_dir_perms;
+append_files_pattern(jabberd_t, jabberd_log_t, jabberd_log_t)
+create_files_pattern(jabberd_t, jabberd_log_t, jabberd_log_t)
+setattr_files_pattern(jabberd_t, jabberd_log_t, jabberd_log_t)
+logging_log_filetrans(jabberd_t, jabberd_log_t, { file dir })
+
+manage_files_pattern(jabberd_domain, jabberd_spool_t, jabberd_spool_t)
+
+manage_files_pattern(jabberd_t, jabberd_var_run_t, jabberd_var_run_t)
+files_pid_filetrans(jabberd_t, jabberd_var_run_t, file)
+
+domain_dontaudit_search_all_domains_state(jabberd_t)
+
+kernel_read_kernel_sysctls(jabberd_t)
+
+corecmd_exec_bin(jabberd_t)
+
+corenet_sendrecv_jabber_client_server_packets(jabberd_t)
+corenet_tcp_bind_jabber_client_port(jabberd_t)
+corenet_tcp_sendrecv_jabber_client_port(jabberd_t)
+
+corenet_sendrecv_jabber_interserver_server_packets(jabberd_t)
+corenet_tcp_bind_jabber_interserver_port(jabberd_t)
+corenet_tcp_sendrecv_jabber_interserver_port(jabberd_t)
+corenet_tcp_connect_jabber_interserver_port(jabberd_t)
+
+dev_read_rand(jabberd_t)
+
+domain_use_interactive_fds(jabberd_t)
+
+files_read_etc_files(jabberd_t)
+files_read_etc_runtime_files(jabberd_t)
+# usr for lua modules
+files_read_usr_files(jabberd_t)
+
+fs_search_auto_mountpoints(jabberd_t)
+
+miscfiles_read_all_certs(jabberd_t)
+
+sysnet_read_config(jabberd_t)
+
+userdom_dontaudit_use_unpriv_user_fds(jabberd_t)
+userdom_dontaudit_search_user_home_dirs(jabberd_t)
+
+optional_policy(`
+	udev_read_db(jabberd_t)
+')
+
+########################################
+#
+# Router local policy
+#
+
+manage_dirs_pattern(jabberd_router_t, jabberd_var_lib_t, jabberd_var_lib_t)
+
+kernel_read_network_state(jabberd_router_t)
+
+corenet_sendrecv_jabber_client_server_packets(jabberd_router_t)
+corenet_tcp_bind_jabber_client_port(jabberd_router_t)
+corenet_tcp_sendrecv_jabber_client_port(jabberd_router_t)
+
+# corenet_sendrecv_jabber_router_server_packets(jabberd_router_t)
+# corenet_tcp_bind_jabber_router_port(jabberd_router_t)
+# corenet_sendrecv_jabber_router_client_packets(jabberd_router_t)
+# corenet_tcp_connect_jabber_router_port(jabberd_router_t)
+# corenet_tcp_sendrecv_jabber_router_port(jabberd_router_t)
+
+auth_use_nsswitch(jabberd_router_t)

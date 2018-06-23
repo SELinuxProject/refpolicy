@@ -1,0 +1,308 @@
+policy_module(pulseaudio, 1.11.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+## <p>
+## Allow pulseaudio to execute code in
+## writable memory
+## </p>
+## </desc>
+gen_tunable(pulseaudio_execmem, false)
+
+attribute pulseaudio_client;
+attribute pulseaudio_tmpfsfile;
+
+attribute_role pulseaudio_roles;
+
+type pulseaudio_t;
+type pulseaudio_exec_t;
+# init_daemon_domain(pulseaudio_t, pulseaudio_exec_t)
+userdom_user_application_domain(pulseaudio_t, pulseaudio_exec_t)
+role pulseaudio_roles types pulseaudio_t;
+
+type pulseaudio_home_t;
+userdom_user_home_content(pulseaudio_home_t)
+
+type pulseaudio_tmp_t;
+userdom_user_tmp_file(pulseaudio_tmp_t)
+userdom_user_runtime_content(pulseaudio_tmp_t)
+
+type pulseaudio_tmpfs_t;
+userdom_user_tmpfs_file(pulseaudio_tmpfs_t)
+
+type pulseaudio_var_lib_t;
+files_type(pulseaudio_var_lib_t)
+
+type pulseaudio_var_run_t;
+files_pid_file(pulseaudio_var_run_t)
+
+type pulseaudio_xdg_config_t;
+xdg_config_content(pulseaudio_xdg_config_t)
+
+########################################
+#
+# Local policy
+#
+
+allow pulseaudio_t self:capability { chown fowner fsetid setgid setuid sys_nice sys_resource sys_tty_config };
+allow pulseaudio_t self:process { getcap getsched setcap setrlimit setsched signal signull };
+
+allow pulseaudio_t self:fifo_file rw_fifo_file_perms;
+allow pulseaudio_t self:unix_stream_socket { accept connectto listen };
+allow pulseaudio_t self:unix_dgram_socket sendto;
+allow pulseaudio_t self:tcp_socket { accept listen };
+allow pulseaudio_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+allow pulseaudio_t pulseaudio_home_t:dir manage_dir_perms;
+allow pulseaudio_t pulseaudio_home_t:file { manage_file_perms map };
+allow pulseaudio_t pulseaudio_home_t:lnk_file manage_lnk_file_perms;
+
+userdom_user_home_dir_filetrans(pulseaudio_t, pulseaudio_home_t, dir, ".pulse")
+userdom_user_home_dir_filetrans(pulseaudio_t, pulseaudio_home_t, file, ".esd_auth")
+userdom_user_home_dir_filetrans(pulseaudio_t, pulseaudio_home_t, file, ".pulse-cookie")
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_tmp_t, pulseaudio_tmp_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_tmp_t, pulseaudio_tmp_t)
+manage_sock_files_pattern(pulseaudio_t, pulseaudio_tmp_t, pulseaudio_tmp_t)
+files_tmp_filetrans(pulseaudio_t, pulseaudio_tmp_t, dir)
+userdom_user_runtime_filetrans(pulseaudio_t, pulseaudio_tmp_t, dir)
+userdom_user_tmp_filetrans(pulseaudio_t, pulseaudio_tmp_t, file, "autospawn.lock")
+userdom_user_tmp_filetrans(pulseaudio_t, pulseaudio_tmp_t, file, "pid")
+userdom_user_tmp_filetrans(pulseaudio_t, pulseaudio_tmp_t, sock_file, "dbus-socket")
+userdom_user_tmp_filetrans(pulseaudio_t, pulseaudio_tmp_t, sock_file, "native")
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_tmpfs_t, pulseaudio_tmpfs_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_tmpfs_t, { pulseaudio_tmpfs_t pulseaudio_tmpfsfile })
+allow pulseaudio_t { pulseaudio_tmpfs_t pulseaudio_tmpfsfile }:file map;
+fs_tmpfs_filetrans(pulseaudio_t, pulseaudio_tmpfs_t, { dir file })
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_var_lib_t, pulseaudio_var_lib_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_var_lib_t, pulseaudio_var_lib_t)
+manage_lnk_files_pattern(pulseaudio_t, pulseaudio_var_lib_t, pulseaudio_var_lib_t)
+files_var_lib_filetrans(pulseaudio_t, pulseaudio_var_lib_t, { dir file })
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+manage_sock_files_pattern(pulseaudio_t, pulseaudio_var_run_t, pulseaudio_var_run_t)
+files_pid_filetrans(pulseaudio_t, pulseaudio_var_run_t, { dir file })
+
+manage_dirs_pattern(pulseaudio_t, pulseaudio_xdg_config_t, pulseaudio_xdg_config_t)
+manage_files_pattern(pulseaudio_t, pulseaudio_xdg_config_t, pulseaudio_xdg_config_t)
+xdg_config_filetrans(pulseaudio_t, pulseaudio_xdg_config_t, dir, "pulse")
+
+allow pulseaudio_t pulseaudio_client:process signull;
+ps_process_pattern(pulseaudio_t, pulseaudio_client)
+
+can_exec(pulseaudio_t, pulseaudio_exec_t)
+
+kernel_getattr_proc(pulseaudio_t)
+kernel_read_system_state(pulseaudio_t)
+kernel_read_kernel_sysctls(pulseaudio_t)
+
+corecmd_exec_bin(pulseaudio_t)
+
+corenet_all_recvfrom_unlabeled(pulseaudio_t)
+corenet_all_recvfrom_netlabel(pulseaudio_t)
+corenet_tcp_sendrecv_generic_if(pulseaudio_t)
+corenet_udp_sendrecv_generic_if(pulseaudio_t)
+corenet_tcp_sendrecv_generic_node(pulseaudio_t)
+corenet_udp_sendrecv_generic_node(pulseaudio_t)
+
+corenet_sendrecv_pulseaudio_server_packets(pulseaudio_t)
+corenet_tcp_bind_pulseaudio_port(pulseaudio_t)
+corenet_tcp_sendrecv_pulseaudio_port(pulseaudio_t)
+
+corenet_sendrecv_soundd_server_packets(pulseaudio_t)
+corenet_tcp_bind_soundd_port(pulseaudio_t)
+corenet_tcp_sendrecv_soundd_port(pulseaudio_t)
+
+corenet_sendrecv_sap_server_packets(pulseaudio_t)
+corenet_udp_bind_sap_port(pulseaudio_t)
+corenet_udp_sendrecv_sap_port(pulseaudio_t)
+
+dev_read_sound(pulseaudio_t)
+dev_write_sound(pulseaudio_t)
+dev_read_sysfs(pulseaudio_t)
+dev_read_urand(pulseaudio_t)
+
+files_read_usr_files(pulseaudio_t)
+
+fs_getattr_tmpfs(pulseaudio_t)
+fs_getattr_all_fs(pulseaudio_t)
+fs_list_inotifyfs(pulseaudio_t)
+fs_rw_anon_inodefs_files(pulseaudio_t)
+fs_search_auto_mountpoints(pulseaudio_t)
+
+term_use_all_ttys(pulseaudio_t)
+term_use_all_ptys(pulseaudio_t)
+
+auth_use_nsswitch(pulseaudio_t)
+
+logging_send_syslog_msg(pulseaudio_t)
+
+miscfiles_read_localization(pulseaudio_t)
+
+seutil_read_config(pulseaudio_t)
+
+userdom_read_user_tmpfs_files(pulseaudio_t)
+userdom_map_user_tmpfs_files(pulseaudio_t)
+userdom_delete_user_tmpfs_files(pulseaudio_t)
+userdom_search_user_home_dirs(pulseaudio_t)
+userdom_search_user_home_content(pulseaudio_t)
+
+userdom_manage_user_tmp_dirs(pulseaudio_t)
+userdom_manage_user_tmp_sockets(pulseaudio_t)
+
+tunable_policy(`pulseaudio_execmem',`
+	allow pulseaudio_t self:process execmem;
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(pulseaudio_t)
+	fs_manage_nfs_files(pulseaudio_t)
+	fs_manage_nfs_symlinks(pulseaudio_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(pulseaudio_t)
+	fs_manage_cifs_files(pulseaudio_t)
+	fs_manage_cifs_symlinks(pulseaudio_t)
+')
+
+optional_policy(`
+	alsa_read_config(pulseaudio_t)
+	alsa_read_home_files(pulseaudio_t)
+')
+
+optional_policy(`
+	bluetooth_stream_connect(pulseaudio_t)
+')
+
+optional_policy(`
+	dbus_system_domain(pulseaudio_t, pulseaudio_exec_t)
+	dbus_all_session_bus_client(pulseaudio_t)
+	dbus_connect_all_session_bus(pulseaudio_t)
+
+	optional_policy(`
+		consolekit_dbus_chat(pulseaudio_t)
+	')
+
+	optional_policy(`
+		hal_dbus_chat(pulseaudio_t)
+	')
+
+	optional_policy(`
+		policykit_dbus_chat(pulseaudio_t)
+	')
+
+	optional_policy(`
+		rpm_dbus_chat(pulseaudio_t)
+	')
+')
+
+optional_policy(`
+	gnome_stream_connect_gconf(pulseaudio_t)
+
+	# OIL Runtime Compiler (ORC) optimized code execution
+	gnome_manage_gstreamer_orcexec(pulseaudio_t)
+	gnome_mmap_gstreamer_orcexec(pulseaudio_t)
+	gnome_user_runtime_filetrans_gstreamer_orcexec(pulseaudio_t, file)
+	gnome_user_home_dir_filetrans_gstreamer_orcexec(pulseaudio_t, file)
+')
+
+optional_policy(`
+	rtkit_scheduled(pulseaudio_t)
+')
+
+optional_policy(`
+	policykit_domtrans_auth(pulseaudio_t)
+	policykit_read_lib(pulseaudio_t)
+	policykit_read_reload(pulseaudio_t)
+')
+
+optional_policy(`
+	udev_read_pid_files(pulseaudio_t)
+	udev_read_state(pulseaudio_t)
+	udev_read_db(pulseaudio_t)
+')
+
+optional_policy(`
+	xserver_stream_connect(pulseaudio_t)
+	xserver_manage_xdm_tmp_files(pulseaudio_t)
+	xserver_read_xdm_lib_files(pulseaudio_t)
+	xserver_read_xdm_pid(pulseaudio_t)
+	xserver_user_x_domain_template(pulseaudio, pulseaudio_t, pulseaudio_tmpfs_t)
+')
+
+########################################
+#
+# Client local policy
+#
+
+allow pulseaudio_client self:unix_dgram_socket sendto;
+allow pulseaudio_client self:process signull;
+
+allow pulseaudio_client pulseaudio_tmp_t:dir manage_dir_perms;
+allow pulseaudio_client pulseaudio_tmp_t:file manage_file_perms;
+allow pulseaudio_client pulseaudio_tmp_t:sock_file manage_sock_file_perms;
+
+rw_files_pattern(pulseaudio_client, { pulseaudio_tmpfsfile pulseaudio_tmpfs_t }, { pulseaudio_tmpfsfile pulseaudio_tmpfs_t })
+allow pulseaudio_client pulseaudio_tmpfs_t:file map;
+delete_files_pattern(pulseaudio_client, pulseaudio_tmpfsfile, pulseaudio_tmpfsfile)
+
+manage_dirs_pattern(pulseaudio_client, pulseaudio_xdg_config_t, pulseaudio_xdg_config_t)
+manage_files_pattern(pulseaudio_client, pulseaudio_xdg_config_t, pulseaudio_xdg_config_t)
+xdg_config_filetrans(pulseaudio_client, pulseaudio_xdg_config_t, dir, "pulse")
+
+fs_getattr_tmpfs(pulseaudio_client)
+
+corenet_all_recvfrom_unlabeled(pulseaudio_client)
+corenet_all_recvfrom_netlabel(pulseaudio_client)
+corenet_tcp_sendrecv_generic_if(pulseaudio_client)
+corenet_tcp_sendrecv_generic_node(pulseaudio_client)
+
+corenet_sendrecv_pulseaudio_client_packets(pulseaudio_client)
+corenet_tcp_connect_pulseaudio_port(pulseaudio_client)
+corenet_tcp_sendrecv_pulseaudio_port(pulseaudio_client)
+
+pulseaudio_stream_connect(pulseaudio_client)
+pulseaudio_manage_home(pulseaudio_client)
+pulseaudio_home_filetrans_pulseaudio_home(pulseaudio_client, dir, ".pulse")
+pulseaudio_home_filetrans_pulseaudio_home(pulseaudio_client, file, ".esd_auth")
+pulseaudio_home_filetrans_pulseaudio_home(pulseaudio_client, file, ".pulse-cookie")
+pulseaudio_signull(pulseaudio_client)
+pulseaudio_use_fds(pulseaudio_client)
+
+userdom_read_user_tmpfs_files(pulseaudio_client)
+userdom_user_runtime_filetrans(pulseaudio_client, pulseaudio_tmp_t, dir, "pulse")
+# userdom_delete_user_tmpfs_files(pulseaudio_client)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_getattr_nfs(pulseaudio_client)
+	fs_manage_nfs_dirs(pulseaudio_client)
+	fs_manage_nfs_files(pulseaudio_client)
+	fs_read_nfs_symlinks(pulseaudio_client)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_getattr_cifs(pulseaudio_client)
+	fs_manage_cifs_dirs(pulseaudio_client)
+	fs_manage_cifs_files(pulseaudio_client)
+	fs_read_cifs_symlinks(pulseaudio_client)
+')
+
+optional_policy(`
+	pulseaudio_dbus_chat(pulseaudio_client)
+')
+
+optional_policy(`
+	rtkit_scheduled(pulseaudio_client)
+')
+
+optional_policy(`
+	unconfined_signull(pulseaudio_client)
+')

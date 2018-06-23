@@ -1,0 +1,265 @@
+policy_module(mplayer, 2.7.1)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether mplayer can make
+##	its stack executable.
+##	</p>
+## </desc>
+gen_tunable(allow_mplayer_execstack, false)
+
+attribute_role mencoder_roles;
+attribute_role mplayer_roles;
+
+type mencoder_t;
+type mencoder_exec_t;
+typealias mencoder_t alias { user_mencoder_t staff_mencoder_t sysadm_mencoder_t };
+typealias mencoder_t alias { auditadm_mencoder_t secadm_mencoder_t };
+userdom_user_application_domain(mencoder_t, mencoder_exec_t)
+role mencoder_roles types mencoder_t;
+
+type mplayer_t;
+type mplayer_exec_t;
+typealias mplayer_t alias { user_mplayer_t staff_mplayer_t sysadm_mplayer_t };
+typealias mplayer_t alias { auditadm_mplayer_t secadm_mplayer_t };
+userdom_user_application_domain(mplayer_t, mplayer_exec_t)
+role mplayer_roles types mplayer_t;
+
+optional_policy(`
+	wm_application_domain(mplayer_t, mplayer_exec_t)
+')
+
+type mplayer_etc_t;
+files_config_file(mplayer_etc_t)
+
+type mplayer_home_t;
+typealias mplayer_home_t alias { user_mplayer_home_t staff_mplayer_home_t sysadm_mplayer_home_t };
+typealias mplayer_home_t alias { auditadm_mplayer_home_t secadm_mplayer_home_t };
+userdom_user_home_content(mplayer_home_t)
+
+type mplayer_tmpfs_t;
+typealias mplayer_tmpfs_t alias { user_mplayer_tmpfs_t staff_mplayer_tmpfs_t sysadm_mplayer_tmpfs_t };
+typealias mplayer_tmpfs_t alias { auditadm_mplayer_tmpfs_t secadm_mplayer_tmpfs_t };
+userdom_user_tmpfs_file(mplayer_tmpfs_t)
+
+optional_policy(`
+	pulseaudio_tmpfs_content(mplayer_tmpfs_t)
+')
+
+########################################
+#
+# Mencoder local policy
+#
+
+allow mencoder_t mplayer_etc_t:dir list_dir_perms;
+allow mencoder_t mplayer_etc_t:file read_file_perms;
+allow mencoder_t mplayer_etc_t:lnk_file read_lnk_file_perms;
+
+allow mencoder_t mplayer_home_t:dir manage_dir_perms;
+allow mencoder_t mplayer_home_t:file manage_file_perms;
+allow mencoder_t mplayer_home_t:lnk_file manage_lnk_file_perms;
+userdom_user_home_dir_filetrans(mencoder_t, mplayer_home_t, dir, ".mplayer")
+
+kernel_read_system_state(mencoder_t)
+kernel_read_kernel_sysctls(mencoder_t)
+
+dev_rwx_zero(mencoder_t)
+dev_read_video_dev(mencoder_t)
+
+files_read_usr_files(mencoder_t)
+
+fs_search_auto_mountpoints(mencoder_t)
+
+storage_raw_read_removable_device(mencoder_t)
+
+miscfiles_read_localization(mencoder_t)
+
+userdom_use_user_terminals(mencoder_t)
+
+userdom_manage_user_tmp_dirs(mencoder_t)
+userdom_manage_user_tmp_files(mencoder_t)
+
+userdom_user_content_access_template(mplayer_mencoder, mencoder_t)
+
+xdg_manage_music(mencoder_t)
+xdg_manage_videos(mencoder_t)
+
+ifndef(`enable_mls',`
+	fs_list_dos(mencoder_t)
+	fs_read_dos_files(mencoder_t)
+
+	fs_search_removable(mencoder_t)
+	fs_read_removable_files(mencoder_t)
+	fs_read_removable_symlinks(mencoder_t)
+
+	fs_read_iso9660_files(mencoder_t)
+')
+
+tunable_policy(`allow_execmem',`
+	allow mencoder_t self:process execmem;
+')
+
+tunable_policy(`allow_execmod',`
+	dev_execmod_zero(mencoder_t)
+')
+
+tunable_policy(`allow_mplayer_execstack',`
+	allow mencoder_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_getattr_nfs(mencoder_t)
+	fs_manage_nfs_dirs(mencoder_t)
+	fs_manage_nfs_files(mencoder_t)
+	fs_manage_nfs_symlinks(mencoder_t)
+
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_getattr_cifs(mencoder_t)
+	fs_manage_cifs_dirs(mencoder_t)
+	fs_manage_cifs_files(mencoder_t)
+	fs_manage_cifs_symlinks(mencoder_t)
+')
+
+########################################
+#
+# Mplayer local policy
+#
+
+allow mplayer_t self:process { signal_perms getsched };
+allow mplayer_t self:fifo_file rw_fifo_file_perms;
+allow mplayer_t self:sem create_sem_perms;
+allow mplayer_t self:udp_socket create_socket_perms;
+
+allow mplayer_t mplayer_etc_t:dir list_dir_perms;
+allow mplayer_t mplayer_etc_t:file read_file_perms;
+allow mplayer_t mplayer_etc_t:lnk_file read_lnk_file_perms;
+
+allow mplayer_t mplayer_home_t:dir manage_dir_perms;
+allow mplayer_t mplayer_home_t:file manage_file_perms;
+allow mplayer_t mplayer_home_t:lnk_file manage_lnk_file_perms;
+userdom_user_home_dir_filetrans(mplayer_t, mplayer_home_t, dir, ".mplayer")
+
+manage_files_pattern(mplayer_t, mplayer_tmpfs_t, mplayer_tmpfs_t)
+manage_lnk_files_pattern(mplayer_t, mplayer_tmpfs_t, mplayer_tmpfs_t)
+manage_fifo_files_pattern(mplayer_t, mplayer_tmpfs_t, mplayer_tmpfs_t)
+manage_sock_files_pattern(mplayer_t, mplayer_tmpfs_t, mplayer_tmpfs_t)
+fs_tmpfs_filetrans(mplayer_t, mplayer_tmpfs_t,{ dir file lnk_file sock_file fifo_file })
+
+kernel_dontaudit_list_unlabeled(mplayer_t)
+kernel_dontaudit_getattr_unlabeled_files(mplayer_t)
+kernel_dontaudit_read_unlabeled_files(mplayer_t)
+kernel_read_system_state(mplayer_t)
+kernel_read_kernel_sysctls(mplayer_t)
+
+corecmd_exec_bin(mplayer_t)
+corecmd_exec_shell(mplayer_t)
+
+corenet_all_recvfrom_unlabeled(mplayer_t)
+corenet_all_recvfrom_netlabel(mplayer_t)
+corenet_tcp_sendrecv_generic_if(mplayer_t)
+corenet_tcp_sendrecv_generic_node(mplayer_t)
+
+corenet_tcp_connect_http_port(mplayer_t)
+corenet_tcp_sendrecv_http_port(mplayer_t)
+corenet_sendrecv_http_client_packets(mplayer_t)
+
+dev_read_rand(mplayer_t)
+dev_read_realtime_clock(mplayer_t)
+dev_read_sound_mixer(mplayer_t)
+dev_read_urand(mplayer_t)
+dev_read_video_dev(mplayer_t)
+dev_write_sound_mixer(mplayer_t)
+dev_write_video_dev(mplayer_t)
+dev_rwx_zero(mplayer_t)
+
+domain_use_interactive_fds(mplayer_t)
+
+storage_raw_read_removable_device(mplayer_t)
+
+files_dontaudit_list_non_security(mplayer_t)
+files_dontaudit_getattr_non_security_files(mplayer_t)
+files_read_non_security_files(mplayer_t)
+files_list_home(mplayer_t)
+files_read_etc_runtime_files(mplayer_t)
+files_read_usr_files(mplayer_t)
+
+fs_getattr_all_fs(mplayer_t)
+fs_search_auto_mountpoints(mplayer_t)
+fs_list_inotifyfs(mplayer_t)
+
+auth_use_nsswitch(mplayer_t)
+
+logging_send_syslog_msg(mplayer_t)
+
+miscfiles_read_localization(mplayer_t)
+miscfiles_read_fonts(mplayer_t)
+
+userdom_use_user_terminals(mplayer_t)
+
+userdom_manage_user_tmp_dirs(mplayer_t)
+userdom_manage_user_tmp_files(mplayer_t)
+userdom_tmp_filetrans_user_tmp(mplayer_t, { dir file })
+userdom_user_runtime_filetrans_user_tmp(mplayer_t, { dir file })
+
+userdom_user_content_access_template(mplayer, mplayer_t)
+
+userdom_write_user_tmp_sockets(mplayer_t)
+
+xdg_read_music(mplayer_t)
+xdg_read_videos(mplayer_t)
+
+xserver_user_x_domain_template(mplayer, mplayer_t, mplayer_tmpfs_t)
+
+ifndef(`enable_mls',`
+	fs_list_dos(mplayer_t)
+	fs_read_dos_files(mplayer_t)
+
+	fs_search_removable(mplayer_t)
+	fs_read_removable_files(mplayer_t)
+	fs_read_removable_symlinks(mplayer_t)
+
+	fs_read_iso9660_files(mplayer_t)
+')
+
+tunable_policy(`allow_execmem',`
+	allow mplayer_t self:process execmem;
+')
+
+tunable_policy(`allow_execmod',`
+	dev_execmod_zero(mplayer_t)
+')
+
+tunable_policy(`allow_mplayer_execstack',`
+	allow mplayer_t self:process { execmem execstack };
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(mplayer_t)
+	fs_manage_nfs_files(mplayer_t)
+	fs_manage_nfs_symlinks(mplayer_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(mplayer_t)
+	fs_manage_cifs_files(mplayer_t)
+	fs_manage_cifs_symlinks(mplayer_t)
+')
+
+tunable_policy(`allow_mplayer_execstack',`
+	allow mplayer_t mplayer_tmpfs_t:file execute;
+')
+
+optional_policy(`
+	alsa_read_config(mplayer_t)
+')
+
+optional_policy(`
+	pulseaudio_run(mplayer_t, mplayer_roles)
+')

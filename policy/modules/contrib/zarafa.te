@@ -1,0 +1,178 @@
+policy_module(zarafa, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute zarafa_domain;
+attribute zarafa_logfile;
+attribute zarafa_pidfile;
+
+zarafa_domain_template(deliver)
+
+type zarafa_deliver_tmp_t;
+files_tmp_file(zarafa_deliver_tmp_t)
+
+type zarafa_etc_t;
+files_config_file(zarafa_etc_t)
+
+type zarafa_initrc_exec_t;
+init_script_file(zarafa_initrc_exec_t)
+
+zarafa_domain_template(gateway)
+zarafa_domain_template(ical)
+zarafa_domain_template(indexer)
+
+type zarafa_indexer_tmp_t;
+files_tmp_file(zarafa_indexer_tmp_t)
+
+zarafa_domain_template(monitor)
+zarafa_domain_template(server)
+
+type zarafa_server_tmp_t;
+files_tmp_file(zarafa_server_tmp_t)
+
+type zarafa_share_t;
+files_type(zarafa_share_t)
+
+zarafa_domain_template(spooler)
+
+type zarafa_var_lib_t;
+files_tmp_file(zarafa_var_lib_t)
+
+########################################
+#
+# Deliver local policy
+#
+
+manage_dirs_pattern(zarafa_deliver_t, zarafa_deliver_tmp_t, zarafa_deliver_tmp_t)
+manage_files_pattern(zarafa_deliver_t, zarafa_deliver_tmp_t, zarafa_deliver_tmp_t)
+files_tmp_filetrans(zarafa_deliver_t, zarafa_deliver_tmp_t, { file dir })
+
+########################################
+#
+# Gateway local policy
+#
+
+corenet_all_recvfrom_unlabeled(zarafa_gateway_t)
+corenet_all_recvfrom_netlabel(zarafa_gateway_t)
+corenet_tcp_sendrecv_generic_if(zarafa_gateway_t)
+corenet_tcp_sendrecv_generic_node(zarafa_gateway_t)
+corenet_tcp_bind_generic_node(zarafa_gateway_t)
+
+corenet_sendrecv_pop_server_packets(zarafa_gateway_t)
+corenet_tcp_bind_pop_port(zarafa_gateway_t)
+corenet_tcp_sendrecv_pop_port(zarafa_gateway_t)
+
+#######################################
+#
+# Ical local policy
+#
+
+corenet_all_recvfrom_unlabeled(zarafa_ical_t)
+corenet_all_recvfrom_netlabel(zarafa_ical_t)
+corenet_tcp_sendrecv_generic_if(zarafa_ical_t)
+corenet_tcp_sendrecv_generic_node(zarafa_ical_t)
+corenet_tcp_bind_generic_node(zarafa_ical_t)
+
+corenet_sendrecv_http_cache_client_packets(zarafa_ical_t)
+corenet_tcp_bind_http_cache_port(zarafa_ical_t)
+corenet_tcp_sendrecv_http_cache_port(zarafa_ical_t)
+
+######################################
+#
+# Indexer local policy
+#
+
+manage_dirs_pattern(zarafa_indexer_t, zarafa_indexer_tmp_t, zarafa_indexer_tmp_t)
+manage_files_pattern(zarafa_indexer_t, zarafa_indexer_tmp_t, zarafa_indexer_tmp_t)
+files_tmp_filetrans(zarafa_indexer_t, zarafa_indexer_tmp_t, { file dir })
+
+manage_dirs_pattern(zarafa_indexer_t, zarafa_var_lib_t, zarafa_var_lib_t)
+manage_files_pattern(zarafa_indexer_t, zarafa_var_lib_t, zarafa_var_lib_t)
+manage_lnk_files_pattern(zarafa_indexer_t, zarafa_var_lib_t, zarafa_var_lib_t)
+
+########################################
+#
+# Server local policy
+#
+
+manage_dirs_pattern(zarafa_server_t, zarafa_server_tmp_t, zarafa_server_tmp_t)
+manage_files_pattern(zarafa_server_t, zarafa_server_tmp_t, zarafa_server_tmp_t)
+files_tmp_filetrans(zarafa_server_t, zarafa_server_tmp_t, { file dir })
+
+manage_dirs_pattern(zarafa_server_t, zarafa_var_lib_t, zarafa_var_lib_t)
+manage_files_pattern(zarafa_server_t, zarafa_var_lib_t, zarafa_var_lib_t)
+manage_lnk_files_pattern(zarafa_server_t, zarafa_var_lib_t, zarafa_var_lib_t)
+files_var_lib_filetrans(zarafa_server_t, zarafa_var_lib_t, { file dir lnk_file })
+
+stream_connect_pattern(zarafa_server_t, zarafa_indexer_var_run_t, zarafa_indexer_var_run_t, zarafa_indexer_t)
+
+corenet_all_recvfrom_unlabeled(zarafa_server_t)
+corenet_all_recvfrom_netlabel(zarafa_server_t)
+corenet_tcp_sendrecv_generic_if(zarafa_server_t)
+corenet_tcp_sendrecv_generic_node(zarafa_server_t)
+corenet_tcp_bind_generic_node(zarafa_server_t)
+
+corenet_sendrecv_zarafa_server_packets(zarafa_server_t)
+corenet_tcp_bind_zarafa_port(zarafa_server_t)
+corenet_tcp_sendrecv_zarafa_port(zarafa_server_t)
+
+files_read_usr_files(zarafa_server_t)
+
+logging_send_audit_msgs(zarafa_server_t)
+
+optional_policy(`
+	kerberos_use(zarafa_server_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(zarafa_server_t)
+	mysql_tcp_connect(zarafa_server_t)
+')
+
+optional_policy(`
+	postgresql_stream_connect(zarafa_server_t)
+	postgresql_tcp_connect(zarafa_server_t)
+')
+
+########################################
+#
+# Spooler local policy
+#
+
+can_exec(zarafa_spooler_t, zarafa_spooler_exec_t)
+
+corenet_all_recvfrom_unlabeled(zarafa_spooler_t)
+corenet_all_recvfrom_netlabel(zarafa_spooler_t)
+corenet_tcp_sendrecv_generic_if(zarafa_spooler_t)
+corenet_tcp_sendrecv_generic_node(zarafa_spooler_t)
+
+corenet_sendrecv_smtp_client_packets(zarafa_spooler_t)
+corenet_tcp_connect_smtp_port(zarafa_spooler_t)
+corenet_tcp_sendrecv_smtp_port(zarafa_spooler_t)
+
+########################################
+#
+# Zarafa domain local policy
+#
+
+allow zarafa_domain self:capability { chown dac_override kill setgid setuid };
+allow zarafa_domain self:process { setrlimit signal };
+allow zarafa_domain self:fifo_file rw_fifo_file_perms;
+allow zarafa_domain self:tcp_socket { accept listen };
+allow zarafa_domain self:unix_stream_socket { accept listen };
+
+stream_connect_pattern(zarafa_domain, zarafa_server_var_run_t, zarafa_server_var_run_t, zarafa_server_t)
+
+read_files_pattern(zarafa_domain, zarafa_etc_t, zarafa_etc_t)
+
+kernel_read_system_state(zarafa_domain)
+
+dev_read_rand(zarafa_domain)
+dev_read_urand(zarafa_domain)
+
+logging_send_syslog_msg(zarafa_domain)
+
+miscfiles_read_localization(zarafa_domain)

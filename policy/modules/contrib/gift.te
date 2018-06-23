@@ -1,0 +1,144 @@
+policy_module(gift, 2.5.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role gift_roles;
+attribute_role giftd_roles;
+
+type gift_t;
+type gift_exec_t;
+typealias gift_t alias { user_gift_t staff_gift_t sysadm_gift_t };
+typealias gift_t alias { auditadm_gift_t secadm_gift_t };
+userdom_user_application_domain(gift_t, gift_exec_t)
+role gift_roles types gift_t;
+
+type gift_home_t;
+typealias gift_home_t alias { user_gift_home_t staff_gift_home_t sysadm_gift_home_t };
+typealias gift_home_t alias { auditadm_gift_home_t secadm_gift_home_t };
+userdom_user_home_content(gift_home_t)
+
+type gift_tmpfs_t;
+typealias gift_tmpfs_t alias { user_gift_tmpfs_t staff_gift_tmpfs_t sysadm_gift_tmpfs_t };
+typealias gift_tmpfs_t alias { auditadm_gift_tmpfs_t secadm_gift_tmpfs_t };
+userdom_user_tmpfs_file(gift_tmpfs_t)
+
+type giftd_t;
+type giftd_exec_t;
+typealias giftd_t alias { user_giftd_t staff_giftd_t sysadm_giftd_t };
+typealias giftd_t alias { auditadm_giftd_t secadm_giftd_t };
+userdom_user_application_domain(giftd_t, giftd_exec_t)
+role giftd_roles types giftd_t;
+
+optional_policy(`
+	wm_application_domain(gift_t, gift_exec_t)
+')
+
+##############################
+#
+# Client local policy
+#
+
+manage_files_pattern(gift_t, gift_tmpfs_t, gift_tmpfs_t)
+manage_lnk_files_pattern(gift_t, gift_tmpfs_t, gift_tmpfs_t)
+manage_fifo_files_pattern(gift_t, gift_tmpfs_t, gift_tmpfs_t)
+manage_sock_files_pattern(gift_t, gift_tmpfs_t, gift_tmpfs_t)
+fs_tmpfs_filetrans(gift_t, gift_tmpfs_t, { dir file lnk_file sock_file fifo_file })
+
+manage_dirs_pattern(gift_t, gift_home_t, gift_home_t)
+manage_files_pattern(gift_t, gift_home_t, gift_home_t)
+manage_lnk_files_pattern(gift_t, gift_home_t, gift_home_t)
+userdom_user_home_dir_filetrans(gift_t, gift_home_t, dir)
+
+domtrans_pattern(gift_t, giftd_exec_t, giftd_t)
+
+kernel_read_system_state(gift_t)
+
+corenet_all_recvfrom_unlabeled(gift_t)
+corenet_all_recvfrom_netlabel(gift_t)
+corenet_tcp_sendrecv_generic_if(gift_t)
+corenet_tcp_sendrecv_generic_node(gift_t)
+
+corenet_sendrecv_giftd_client_packets(gift_t)
+corenet_tcp_connect_giftd_port(gift_t)
+corenet_tcp_sendrecv_giftd_port(gift_t)
+
+fs_search_auto_mountpoints(gift_t)
+
+auth_use_nsswitch(gift_t)
+
+userdom_dontaudit_read_user_home_content_files(gift_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(gift_t)
+	fs_manage_nfs_files(gift_t)
+	fs_manage_nfs_symlinks(gift_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(gift_t)
+	fs_manage_cifs_files(gift_t)
+	fs_manage_cifs_symlinks(gift_t)
+')
+
+optional_policy(`
+	xserver_user_x_domain_template(gift, gift_t, gift_tmpfs_t)
+')
+
+##############################
+#
+# Server local policy
+#
+
+allow giftd_t self:process { signal setsched };
+allow giftd_t self:unix_stream_socket create_socket_perms;
+allow giftd_t self:tcp_socket { accept listen };
+
+manage_dirs_pattern(giftd_t, gift_home_t, gift_home_t)
+manage_files_pattern(giftd_t, gift_home_t, gift_home_t)
+manage_lnk_files_pattern(giftd_t, gift_home_t, gift_home_t)
+userdom_user_home_dir_filetrans(giftd_t, gift_home_t, dir)
+
+kernel_read_system_state(giftd_t)
+kernel_read_kernel_sysctls(giftd_t)
+
+corenet_all_recvfrom_unlabeled(giftd_t)
+corenet_all_recvfrom_netlabel(giftd_t)
+corenet_tcp_sendrecv_generic_if(giftd_t)
+corenet_udp_sendrecv_generic_if(giftd_t)
+corenet_tcp_sendrecv_generic_node(giftd_t)
+corenet_udp_sendrecv_generic_node(giftd_t)
+corenet_tcp_sendrecv_all_ports(giftd_t)
+corenet_udp_sendrecv_all_ports(giftd_t)
+corenet_tcp_bind_generic_node(giftd_t)
+corenet_udp_bind_generic_node(giftd_t)
+
+corenet_sendrecv_all_server_packets(giftd_t)
+corenet_tcp_bind_all_ports(giftd_t)
+corenet_udp_bind_all_ports(giftd_t)
+
+corenet_sendrecv_all_client_packets(giftd_t)
+corenet_tcp_connect_all_ports(giftd_t)
+
+files_read_etc_runtime_files(giftd_t)
+files_read_usr_files(giftd_t)
+
+miscfiles_read_localization(giftd_t)
+
+sysnet_dns_name_resolve(giftd_t)
+
+userdom_use_user_terminals(giftd_t)
+
+tunable_policy(`use_nfs_home_dirs',`
+	fs_manage_nfs_dirs(giftd_t)
+	fs_manage_nfs_files(giftd_t)
+	fs_manage_nfs_symlinks(giftd_t)
+')
+
+tunable_policy(`use_samba_home_dirs',`
+	fs_manage_cifs_dirs(giftd_t)
+	fs_manage_cifs_files(giftd_t)
+	fs_manage_cifs_symlinks(giftd_t)
+')

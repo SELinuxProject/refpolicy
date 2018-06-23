@@ -1,0 +1,73 @@
+policy_module(qpid, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+type qpidd_t;
+type qpidd_exec_t;
+init_daemon_domain(qpidd_t, qpidd_exec_t)
+
+type qpidd_initrc_exec_t;
+init_script_file(qpidd_initrc_exec_t)
+
+type qpidd_tmpfs_t;
+files_tmpfs_file(qpidd_tmpfs_t)
+
+type qpidd_var_lib_t;
+files_type(qpidd_var_lib_t)
+
+type qpidd_var_run_t;
+files_pid_file(qpidd_var_run_t)
+
+########################################
+#
+# Local policy
+#
+
+allow qpidd_t self:process { setsched signull };
+allow qpidd_t self:fifo_file rw_fifo_file_perms;
+allow qpidd_t self:sem create_sem_perms;
+allow qpidd_t self:shm create_shm_perms;
+allow qpidd_t self:tcp_socket { accept listen };
+allow qpidd_t self:unix_stream_socket { accept listen };
+
+manage_dirs_pattern(qpidd_t, qpidd_tmpfs_t, qpidd_tmpfs_t)
+manage_files_pattern(qpidd_t, qpidd_tmpfs_t, qpidd_tmpfs_t)
+fs_tmpfs_filetrans(qpidd_t, qpidd_tmpfs_t, { dir file })
+
+manage_dirs_pattern(qpidd_t, qpidd_var_lib_t, qpidd_var_lib_t)
+manage_files_pattern(qpidd_t, qpidd_var_lib_t, qpidd_var_lib_t)
+files_var_lib_filetrans(qpidd_t, qpidd_var_lib_t, { file dir })
+
+manage_dirs_pattern(qpidd_t, qpidd_var_run_t, qpidd_var_run_t)
+manage_files_pattern(qpidd_t, qpidd_var_run_t, qpidd_var_run_t)
+files_pid_filetrans(qpidd_t, qpidd_var_run_t, { file dir })
+
+kernel_read_system_state(qpidd_t)
+
+corenet_all_recvfrom_unlabeled(qpidd_t)
+corenet_all_recvfrom_netlabel(qpidd_t)
+corenet_tcp_sendrecv_generic_if(qpidd_t)
+corenet_tcp_sendrecv_generic_node(qpidd_t)
+corenet_tcp_bind_generic_node(qpidd_t)
+
+corenet_sendrecv_amqp_server_packets(qpidd_t)
+corenet_tcp_bind_amqp_port(qpidd_t)
+corenet_tcp_sendrecv_amqp_port(qpidd_t)
+
+dev_read_sysfs(qpidd_t)
+dev_read_urand(qpidd_t)
+
+files_read_etc_files(qpidd_t)
+
+logging_send_syslog_msg(qpidd_t)
+
+miscfiles_read_localization(qpidd_t)
+
+sysnet_dns_name_resolve(qpidd_t)
+
+optional_policy(`
+	corosync_stream_connect(qpidd_t)
+')

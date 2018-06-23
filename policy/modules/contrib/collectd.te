@@ -1,0 +1,95 @@
+policy_module(collectd, 1.4.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether collectd can connect
+##	to the network using TCP.
+##	</p>
+## </desc>
+gen_tunable(collectd_tcp_network_connect, false)
+
+type collectd_t;
+type collectd_exec_t;
+init_daemon_domain(collectd_t, collectd_exec_t)
+
+type collectd_initrc_exec_t;
+init_script_file(collectd_initrc_exec_t)
+
+type collectd_var_lib_t;
+files_type(collectd_var_lib_t)
+
+type collectd_var_run_t;
+files_pid_file(collectd_var_run_t)
+
+apache_content_template(collectd)
+
+########################################
+#
+# Local policy
+#
+
+allow collectd_t self:capability { ipc_lock net_raw sys_nice };
+allow collectd_t self:process { getsched setsched signal };
+allow collectd_t self:fifo_file rw_fifo_file_perms;
+allow collectd_t self:packet_socket create_socket_perms;
+allow collectd_t self:rawip_socket create_socket_perms;
+allow collectd_t self:unix_stream_socket { accept listen };
+
+manage_dirs_pattern(collectd_t, collectd_var_lib_t, collectd_var_lib_t)
+manage_files_pattern(collectd_t, collectd_var_lib_t, collectd_var_lib_t)
+files_var_lib_filetrans(collectd_t, collectd_var_lib_t, dir)
+
+manage_files_pattern(collectd_t, collectd_var_run_t, collectd_var_run_t)
+manage_dirs_pattern(collectd_t, collectd_var_run_t, collectd_var_run_t)
+files_pid_filetrans(collectd_t, collectd_var_run_t, { dir file })
+
+domain_use_interactive_fds(collectd_t)
+
+kernel_read_kernel_sysctls(collectd_t)
+kernel_read_network_state(collectd_t)
+kernel_read_net_sysctls(collectd_t)
+kernel_read_system_state(collectd_t)
+
+dev_read_rand(collectd_t)
+dev_read_sysfs(collectd_t)
+dev_read_urand(collectd_t)
+
+files_getattr_all_dirs(collectd_t)
+files_read_etc_files(collectd_t)
+files_read_usr_files(collectd_t)
+
+fs_getattr_all_fs(collectd_t)
+
+init_read_utmp(collectd_t)
+
+miscfiles_read_localization(collectd_t)
+
+logging_send_syslog_msg(collectd_t)
+
+sysnet_dns_name_resolve(collectd_t)
+
+tunable_policy(`collectd_tcp_network_connect',`
+	corenet_sendrecv_all_client_packets(collectd_t)
+	corenet_tcp_connect_all_ports(collectd_t)
+	corenet_tcp_sendrecv_all_ports(collectd_t)
+')
+
+optional_policy(`
+	virt_read_config(collectd_t)
+')
+
+########################################
+#
+# Web local policy
+#
+
+optional_policy(`
+	read_files_pattern(httpd_collectd_script_t, collectd_var_lib_t, collectd_var_lib_t)
+	list_dirs_pattern(httpd_collectd_script_t, collectd_var_lib_t, collectd_var_lib_t)
+	miscfiles_setattr_fonts_cache_dirs(httpd_collectd_script_t)
+')

@@ -1,0 +1,183 @@
+## <summary>Trivial file transfer protocol daemon.</summary>
+
+########################################
+## <summary>
+##	Read tftp content files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`tftp_read_content',`
+	gen_require(`
+		type tftpdir_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 tftpdir_t:dir list_dir_perms;
+	allow $1 tftpdir_t:file read_file_perms;
+	allow $1 tftpdir_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	tftp rw content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`tftp_manage_rw_content',`
+	gen_require(`
+		type tftpdir_rw_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 tftpdir_rw_t:dir manage_dir_perms;
+	allow $1 tftpdir_rw_t:file manage_file_perms;
+	allow $1 tftpdir_rw_t:lnk_file manage_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Read tftpd configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`tftp_read_config_files',`
+	gen_require(`
+		type tftpd_conf_t;
+	')
+
+	files_search_etc($1)
+	allow $1 tftpd_conf_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete
+##	tftpd configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`tftp_manage_config_files',`
+	gen_require(`
+		type tftpd_conf_t;
+	')
+
+	files_search_etc($1)
+	allow $1 tftpd_conf_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Create objects in etc directories
+##	with tftp conf type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`tftp_etc_filetrans_config',`
+	gen_require(`
+		type tftpd_conf_t;
+	')
+
+	files_etc_filetrans($1, tftpd_conf_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Create objects in tftpdir directories
+##	with a private type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="private_type">
+##	<summary>
+##	Private file type.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	Class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`tftp_filetrans_tftpdir',`
+	gen_require(`
+		type tftpdir_rw_t;
+	')
+
+	files_search_var_lib($1)
+	filetrans_pattern($1, tftpdir_rw_t, $2, $3, $4)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an tftp environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role" unused="true">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`tftp_admin',`
+	gen_require(`
+		type tftpd_t, tftpdir_t, tftpdir_rw_t, tftpd_var_run_t;
+		type tftpd_conf_t;
+	')
+
+	allow $1 tftpd_t:process { ptrace signal_perms };
+	ps_process_pattern($1, tftpd_t)
+
+	files_search_etc($1)
+	admin_pattern($1, tftpd_conf_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, { tftpdir_t tftpdir_rw_t })
+
+	files_list_pids($1)
+	admin_pattern($1, tftpd_var_run_t)
+')

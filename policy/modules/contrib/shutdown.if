@@ -1,0 +1,127 @@
+## <summary>System shutdown command.</summary>
+
+########################################
+## <summary>
+##	Role access for shutdown.
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+#
+interface(`shutdown_role',`
+	gen_require(`
+		type shutdown_t;
+	')
+
+	shutdown_run($2, $1)
+
+	allow $2 shutdown_t:process { ptrace signal_perms };
+	ps_process_pattern($2, shutdown_t)
+')
+
+########################################
+## <summary>
+##	Execute a domain transition to run shutdown.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`shutdown_domtrans',`
+	gen_require(`
+		type shutdown_t, shutdown_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, shutdown_exec_t, shutdown_t)
+')
+
+########################################
+## <summary>
+##	Execute shutdown in the shutdown
+##	domain, and allow the specified role
+##	the shutdown domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`shutdown_run',`
+	gen_require(`
+		attribute_role shutdown_roles;
+	')
+
+	shutdown_domtrans($1)
+	roleattribute $2 shutdown_roles;
+')
+
+########################################
+## <summary>
+##	Send generic signals to shutdown.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`shutdown_signal',`
+	gen_require(`
+		type shutdown_t;
+	')
+
+	allow shutdown_t $1:process signal;
+')
+
+########################################
+## <summary>
+##     Send SIGCHLD signals to shutdown.
+## </summary>
+## <param name="domain">
+##     <summary>
+##     Domain allowed access.
+##     </summary>
+## </param>
+#
+interface(`shutdown_sigchld',`
+	gen_require(`
+		type shutdown_t;
+	')
+
+	allow $1 shutdown_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Get attributes of shutdown executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`shutdown_getattr_exec_files',`
+	gen_require(`
+		type shutdown_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	allow $1 shutdown_exec_t:file getattr_file_perms;
+')

@@ -1,0 +1,359 @@
+policy_module(rpc, 1.21.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether gssd can read
+##	generic user temporary content.
+##	</p>
+## </desc>
+gen_tunable(allow_gssd_read_tmp, false)
+
+## <desc>
+##	<p>
+##	Determine whether gssd can write
+##	generic user temporary content.
+##	</p>
+## </desc>
+gen_tunable(allow_gssd_write_tmp, false)
+
+## <desc>
+##	<p>
+##	Determine whether nfs can modify
+##	public files used for public file
+##	transfer services. Directories/Files must
+##	be labeled public_content_rw_t.
+##	</p>
+## </desc>
+gen_tunable(allow_nfsd_anon_write, false)
+
+attribute rpc_domain;
+
+type exports_t;
+files_config_file(exports_t)
+
+rpc_domain_template(gssd)
+
+type gssd_keytab_t;
+files_type(gssd_keytab_t)
+
+type gssd_tmp_t;
+files_tmp_file(gssd_tmp_t)
+
+type rpcd_var_run_t;
+files_pid_file(rpcd_var_run_t)
+
+rpc_domain_template(rpcd)
+
+type rpcd_initrc_exec_t;
+init_script_file(rpcd_initrc_exec_t)
+
+type rpcd_unit_t;
+init_unit_file(rpcd_unit_t)
+
+rpc_domain_template(nfsd)
+
+type nfsd_initrc_exec_t;
+init_script_file(nfsd_initrc_exec_t)
+
+type nfsd_rw_t;
+files_type(nfsd_rw_t)
+
+type nfsd_ro_t;
+files_type(nfsd_ro_t)
+
+type nfsd_unit_t;
+init_unit_file(nfsd_unit_t)
+
+type var_lib_nfs_t;
+files_mountpoint(var_lib_nfs_t)
+
+########################################
+#
+# Common rpc domain local policy
+#
+
+dontaudit rpc_domain self:capability { net_admin sys_tty_config };
+allow rpc_domain self:process signal_perms;
+allow rpc_domain self:unix_stream_socket { accept listen };
+allow rpc_domain self:tcp_socket { accept listen };
+
+manage_dirs_pattern(rpc_domain, var_lib_nfs_t, var_lib_nfs_t)
+manage_files_pattern(rpc_domain, var_lib_nfs_t, var_lib_nfs_t)
+
+kernel_read_system_state(rpc_domain)
+kernel_read_kernel_sysctls(rpc_domain)
+kernel_rw_rpc_sysctls(rpc_domain)
+
+dev_read_sysfs(rpc_domain)
+dev_read_urand(rpc_domain)
+dev_read_rand(rpc_domain)
+
+corenet_all_recvfrom_unlabeled(rpc_domain)
+corenet_all_recvfrom_netlabel(rpc_domain)
+corenet_tcp_sendrecv_generic_if(rpc_domain)
+corenet_udp_sendrecv_generic_if(rpc_domain)
+corenet_tcp_sendrecv_generic_node(rpc_domain)
+corenet_udp_sendrecv_generic_node(rpc_domain)
+corenet_tcp_sendrecv_all_ports(rpc_domain)
+corenet_udp_sendrecv_all_ports(rpc_domain)
+corenet_tcp_bind_generic_node(rpc_domain)
+corenet_udp_bind_generic_node(rpc_domain)
+
+corenet_sendrecv_all_server_packets(rpc_domain)
+corenet_tcp_bind_reserved_port(rpc_domain)
+corenet_tcp_connect_all_ports(rpc_domain)
+corenet_sendrecv_portmap_client_packets(rpc_domain)
+corenet_dontaudit_tcp_bind_all_ports(rpc_domain)
+corenet_dontaudit_udp_bind_all_ports(rpc_domain)
+corenet_tcp_bind_generic_port(rpc_domain)
+corenet_udp_bind_generic_port(rpc_domain)
+corenet_tcp_bind_all_rpc_ports(rpc_domain)
+corenet_udp_bind_all_rpc_ports(rpc_domain)
+
+fs_rw_rpc_named_pipes(rpc_domain)
+fs_search_auto_mountpoints(rpc_domain)
+
+files_read_etc_runtime_files(rpc_domain)
+files_read_usr_files(rpc_domain)
+files_list_home(rpc_domain)
+
+logging_send_syslog_msg(rpc_domain)
+
+miscfiles_read_localization(rpc_domain)
+
+userdom_dontaudit_use_unpriv_user_fds(rpc_domain)
+
+optional_policy(`
+	rpcbind_stream_connect(rpc_domain)
+')
+
+optional_policy(`
+	seutil_sigchld_newrole(rpc_domain)
+')
+
+optional_policy(`
+	udev_read_db(rpc_domain)
+')
+
+########################################
+#
+# Local policy
+#
+
+allow rpcd_t self:capability { chown dac_override setgid setpcap setuid sys_admin };
+allow rpcd_t self:capability2 block_suspend;
+allow rpcd_t self:process { getcap setcap };
+allow rpcd_t self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(rpcd_t, rpcd_var_run_t, rpcd_var_run_t)
+manage_files_pattern(rpcd_t, rpcd_var_run_t, rpcd_var_run_t)
+files_pid_filetrans(rpcd_t, rpcd_var_run_t, { file dir })
+
+can_exec(rpcd_t, rpcd_exec_t)
+
+kernel_read_network_state(rpcd_t)
+kernel_read_sysctl(rpcd_t)
+kernel_rw_fs_sysctls(rpcd_t)
+kernel_dontaudit_getattr_core_if(rpcd_t)
+kernel_signal(rpcd_t)
+# for /proc/fs/lockd/nlm_end_grace
+kernel_write_proc_files(rpcd_t)
+
+corecmd_exec_bin(rpcd_t)
+
+files_manage_mounttab(rpcd_t)
+files_getattr_all_dirs(rpcd_t)
+
+fs_list_rpc(rpcd_t)
+fs_read_rpc_files(rpcd_t)
+fs_read_rpc_symlinks(rpcd_t)
+fs_rw_rpc_sockets(rpcd_t)
+fs_get_all_fs_quotas(rpcd_t)
+fs_set_xattr_fs_quotas(rpcd_t)
+fs_getattr_all_fs(rpcd_t)
+
+storage_getattr_fixed_disk_dev(rpcd_t)
+
+selinux_dontaudit_read_fs(rpcd_t)
+
+miscfiles_read_generic_certs(rpcd_t)
+miscfiles_read_generic_tls_privkey(rpcd_t)
+
+seutil_dontaudit_search_config(rpcd_t)
+
+userdom_signal_all_users(rpcd_t)
+
+ifdef(`distro_debian',`
+	term_dontaudit_use_unallocated_ttys(rpcd_t)
+')
+
+optional_policy(`
+	automount_signal(rpcd_t)
+	automount_dontaudit_write_pipes(rpcd_t)
+')
+
+optional_policy(`
+	nis_read_ypserv_config(rpcd_t)
+')
+
+optional_policy(`
+	quota_manage_db_files(rpcd_t)
+')
+
+optional_policy(`
+	rgmanager_manage_tmp_files(rpcd_t)
+')
+
+optional_policy(`
+	unconfined_signal(rpcd_t)
+')
+
+########################################
+#
+# NFSD local policy
+#
+
+allow nfsd_t self:capability { dac_override dac_read_search sys_admin sys_resource };
+
+allow nfsd_t exports_t:file read_file_perms;
+allow nfsd_t { nfsd_rw_t nfsd_ro_t }:dir list_dir_perms;
+
+kernel_read_network_state(nfsd_t)
+kernel_dontaudit_getattr_core_if(nfsd_t)
+kernel_setsched(nfsd_t)
+kernel_request_load_module(nfsd_t)
+# kernel_mounton_proc(nfsd_t)
+
+corenet_sendrecv_nfs_server_packets(nfsd_t)
+corenet_tcp_bind_nfs_port(nfsd_t)
+corenet_udp_bind_nfs_port(nfsd_t)
+
+corecmd_exec_shell(nfsd_t)
+
+dev_dontaudit_getattr_all_blk_files(nfsd_t)
+dev_dontaudit_getattr_all_chr_files(nfsd_t)
+dev_rw_lvm_control(nfsd_t)
+
+files_getattr_tmp_dirs(nfsd_t)
+files_manage_mounttab(nfsd_t)
+
+fs_mount_nfsd_fs(nfsd_t)
+fs_getattr_all_fs(nfsd_t)
+fs_getattr_all_dirs(nfsd_t)
+fs_rw_nfsd_fs(nfsd_t)
+# fs_manage_nfsd_fs(nfsd_t)
+
+storage_dontaudit_read_fixed_disk(nfsd_t)
+storage_raw_read_removable_device(nfsd_t)
+
+miscfiles_read_public_files(nfsd_t)
+
+tunable_policy(`allow_nfsd_anon_write',`
+	miscfiles_manage_public_files(nfsd_t)
+')
+
+tunable_policy(`nfs_export_all_rw',`
+	dev_getattr_all_blk_files(nfsd_t)
+	dev_getattr_all_chr_files(nfsd_t)
+
+	fs_read_noxattr_fs_files(nfsd_t)
+	files_manage_non_auth_files(nfsd_t)
+')
+
+tunable_policy(`nfs_export_all_ro',`
+	dev_getattr_all_blk_files(nfsd_t)
+	dev_getattr_all_chr_files(nfsd_t)
+
+	files_getattr_all_pipes(nfsd_t)
+	files_getattr_all_sockets(nfsd_t)
+
+	fs_read_noxattr_fs_files(nfsd_t)
+
+	files_list_non_auth_dirs(nfsd_t)
+	files_read_non_auth_files(nfsd_t)
+')
+
+optional_policy(`
+	mount_exec(nfsd_t)
+')
+
+########################################
+#
+# GSSD local policy
+#
+
+allow gssd_t self:capability { dac_override dac_read_search setgid setuid sys_nice };
+allow gssd_t self:process { getsched setsched };
+allow gssd_t self:fifo_file rw_fifo_file_perms;
+
+allow gssd_t gssd_keytab_t:file read_file_perms;
+
+manage_dirs_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
+manage_files_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
+files_tmp_filetrans(gssd_t, gssd_tmp_t, { file dir })
+
+kernel_read_network_state(gssd_t)
+kernel_read_network_state_symlinks(gssd_t)
+kernel_request_load_module(gssd_t)
+kernel_search_network_sysctl(gssd_t)
+kernel_signal(gssd_t)
+
+corecmd_exec_bin(gssd_t)
+
+fs_list_inotifyfs(gssd_t)
+fs_list_rpc(gssd_t)
+fs_rw_rpc_sockets(gssd_t)
+fs_read_rpc_files(gssd_t)
+fs_read_nfs_files(gssd_t)
+
+files_list_tmp(gssd_t)
+files_dontaudit_write_var_dirs(gssd_t)
+
+auth_manage_cache(gssd_t)
+
+miscfiles_read_generic_certs(gssd_t)
+miscfiles_read_generic_tls_privkey(gssd_t)
+
+userdom_signal_all_users(gssd_t)
+
+tunable_policy(`allow_gssd_read_tmp',`
+	userdom_list_user_tmp(gssd_t)
+	userdom_read_user_tmp_files(gssd_t)
+	userdom_read_user_tmp_symlinks(gssd_t)
+')
+
+tunable_policy(`allow_gssd_write_tmp',`
+	userdom_list_user_tmp(gssd_t)
+	userdom_rw_user_tmp_files(gssd_t)
+')
+
+optional_policy(`
+	automount_signal(gssd_t)
+')
+
+optional_policy(`
+	gssproxy_stream_connect(gssd_t)
+')
+optional_policy(`
+	kerberos_manage_host_rcache(gssd_t)
+	kerberos_read_keytab(gssd_t)
+	kerberos_tmp_filetrans_host_rcache(gssd_t, file, "nfs_0")
+	kerberos_use(gssd_t)
+')
+
+optional_policy(`
+	mount_signal(gssd_t)
+')
+
+optional_policy(`
+	pcscd_read_pid_files(gssd_t)
+')
+
+optional_policy(`
+	xserver_rw_xdm_tmp_files(gssd_t)
+')
