@@ -1134,6 +1134,25 @@ interface(`init_dbus_chat',`
 
 ########################################
 ## <summary>
+##      read/follow symlinks under /var/lib/systemd/
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`init_read_var_lib_links',`
+	gen_require(`
+		type init_var_lib_t;
+	')
+
+	allow $1 init_var_lib_t:dir list_dir_perms;
+	allow $1 init_var_lib_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
 ##      List /var/lib/systemd/ dir
 ## </summary>
 ## <param name="domain">
@@ -1304,23 +1323,13 @@ interface(`init_pid_filetrans',`
 ## </param>
 #
 interface(`init_getattr_initctl',`
-	ifdef(`init_systemd',`
-		# stat /run/systemd/initctl/fifo
-		gen_require(`
-			type init_var_run_t;
-		')
-
-		allow $1 init_var_run_t:fifo_file getattr;
-		allow $1 init_var_run_t:dir list_dir_perms;
-	',`
-		gen_require(`
-			type initctl_t;
-		')
-
-		dev_list_all_dev_nodes($1)
-		files_search_pids($1)
-		allow $1 initctl_t:fifo_file getattr;
+	gen_require(`
+		type initctl_t;
 	')
+
+	files_search_pids($1)
+	dev_list_all_dev_nodes($1)
+	allow $1 initctl_t:fifo_file getattr;
 ')
 
 ########################################
@@ -1855,6 +1864,25 @@ interface(`init_ptrace',`
 	')
 
 	allow $1 init_t:process ptrace;
+')
+
+########################################
+## <summary>
+##	get init process stats
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`init_getattr',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:process getattr;
 ')
 
 ########################################
@@ -2822,6 +2850,25 @@ interface(`init_search_units',`
 	fs_search_tmpfs($1)
 ')
 
+######################################
+## <summary>
+##	read systemd unit lnk files (usually under /run/systemd/units/)
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`init_read_unit_links',`
+	gen_require(`
+		type init_var_run_t, systemd_unit_t;
+	')
+
+	search_dirs_pattern($1, init_var_run_t, systemd_unit_t)
+	allow $1 init_var_run_t:lnk_file read_lnk_file_perms;
+')
+
 ########################################
 ## <summary>
 ##	Get status of generic systemd units.
@@ -3029,4 +3076,22 @@ interface(`init_admin',`
 	init_stop_generic_units($1)
 	init_stop_system($1)
 	init_telinit($1)
+')
+
+########################################
+## <summary>
+##      Allow getting init_t rlimit
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Source domain
+##      </summary>
+## </param>
+#
+interface(`init_getrlimit',`
+	gen_require(`
+		type init_t;
+	')
+
+	allow $1 init_t:process getrlimit;
 ')
