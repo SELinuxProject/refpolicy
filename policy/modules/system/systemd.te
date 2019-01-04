@@ -136,6 +136,7 @@ init_daemon_domain(systemd_notify_t, systemd_notify_exec_t)
 type systemd_nspawn_t;
 type systemd_nspawn_exec_t;
 init_system_domain(systemd_nspawn_t, systemd_nspawn_exec_t)
+mcs_killall(systemd_nspawn_t)
 
 type systemd_nspawn_var_run_t;
 files_pid_file(systemd_nspawn_var_run_t)
@@ -236,6 +237,7 @@ fs_register_binary_executable_type(systemd_binfmt_t)
 #
 
 dev_read_sysfs(systemd_gpt_generator_t)
+files_list_usr(systemd_gpt_generator_t)
 files_read_etc_files(systemd_gpt_generator_t)
 fs_getattr_xattr_fs(systemd_gpt_generator_t)
 storage_raw_read_fixed_disk(systemd_gpt_generator_t)
@@ -387,7 +389,7 @@ logging_send_syslog_msg(systemd_log_parse_env_type)
 # Logind local policy
 #
 
-allow systemd_logind_t self:capability { chown dac_override fowner sys_admin sys_tty_config };
+allow systemd_logind_t self:capability { chown dac_override dac_read_search fowner sys_admin sys_tty_config };
 allow systemd_logind_t self:process { getcap setfscreate };
 allow systemd_logind_t self:netlink_kobject_uevent_socket create_socket_perms;
 allow systemd_logind_t self:unix_dgram_socket create_socket_perms;
@@ -671,8 +673,8 @@ miscfiles_read_localization(systemd_notify_t)
 # Nspawn local policy
 #
 
-allow systemd_nspawn_t self:process { getcap setcap setfscreate sigkill };
-allow systemd_nspawn_t self:capability { dac_override fsetid mknod net_admin setgid setuid setpcap sys_admin sys_chroot };
+allow systemd_nspawn_t self:process { getcap setcap setfscreate setrlimit sigkill };
+allow systemd_nspawn_t self:capability { dac_override dac_read_search fsetid mknod net_admin setgid setuid setpcap sys_admin sys_chroot };
 allow systemd_nspawn_t self:capability2 wake_alarm;
 allow systemd_nspawn_t self:unix_dgram_socket connected_socket_perms;
 
@@ -684,9 +686,11 @@ allow systemd_nspawn_t systemd_nspawn_var_run_t:dir manage_dir_perms;
 allow systemd_nspawn_t systemd_nspawn_var_run_t:file manage_file_perms;
 init_pid_filetrans(systemd_nspawn_t, systemd_nspawn_var_run_t, dir)
 
-files_tmp_filetrans(systemd_nspawn_t, systemd_nspawn_tmp_t, { dir })
+files_tmp_filetrans(systemd_nspawn_t, systemd_nspawn_tmp_t, { dir file })
 allow systemd_nspawn_t systemd_nspawn_tmp_t:dir manage_dir_perms;
 allow systemd_nspawn_t systemd_nspawn_tmp_t:dir mounton;
+# for /tmp/.#inaccessible*
+allow systemd_nspawn_t systemd_nspawn_tmp_t:file manage_file_perms;
 
 # for /run/systemd/nspawn/incoming in chroot
 allow systemd_nspawn_t systemd_nspawn_var_run_t:dir mounton;
@@ -720,6 +724,7 @@ files_manage_mnt_dirs(systemd_nspawn_t)
 files_mounton_mnt(systemd_nspawn_t)
 files_mounton_root(systemd_nspawn_t)
 files_mounton_tmp(systemd_nspawn_t)
+files_read_kernel_symbol_table(systemd_nspawn_t)
 files_setattr_pid_dirs(systemd_nspawn_t)
 
 fs_getattr_tmpfs(systemd_nspawn_t)
@@ -751,6 +756,7 @@ sysnet_manage_config(systemd_nspawn_t)
 userdom_manage_user_home_dirs(systemd_nspawn_t)
 
 tunable_policy(`systemd_nspawn_labeled_namespace',`
+	corecmd_exec_bin(systemd_nspawn_t)
 	corecmd_exec_shell(systemd_nspawn_t)
 
 	dev_mounton(systemd_nspawn_t)
@@ -776,6 +782,7 @@ tunable_policy(`systemd_nspawn_labeled_namespace',`
 	fs_write_cgroup_files(systemd_nspawn_t)
 
 	selinux_getattr_fs(systemd_nspawn_t)
+	selinux_remount_fs(systemd_nspawn_t)
 	selinux_search_fs(systemd_nspawn_t)
 
 	init_domtrans(systemd_nspawn_t)
@@ -845,6 +852,7 @@ miscfiles_read_localization(systemd_passwd_agent_t)
 
 seutil_search_default_contexts(systemd_passwd_agent_t)
 
+userdom_use_user_ttys(systemd_passwd_agent_t)
 userdom_use_user_ptys(systemd_passwd_agent_t)
 
 optional_policy(`
@@ -926,7 +934,7 @@ systemd_log_parse_environment(systemd_sessions_t)
 # Tmpfiles local policy
 #
 
-allow systemd_tmpfiles_t self:capability { chown dac_override fowner fsetid mknod net_admin sys_admin };
+allow systemd_tmpfiles_t self:capability { chown dac_override dac_read_search fowner fsetid mknod net_admin sys_admin };
 allow systemd_tmpfiles_t self:process { setfscreate getcap };
 
 allow systemd_tmpfiles_t systemd_coredump_var_lib_t:dir { relabelfrom relabelto manage_dir_perms };
@@ -942,9 +950,11 @@ allow systemd_tmpfiles_t systemd_journal_t:file { relabelfrom relabelto };
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_t:dir list_dir_perms;
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_type:file read_file_perms;
 
+kernel_getattr_proc(systemd_tmpfiles_t)
 kernel_read_kernel_sysctls(systemd_tmpfiles_t)
 kernel_read_network_state(systemd_tmpfiles_t)
 
+dev_getattr_fs(systemd_tmpfiles_t)
 dev_manage_all_dev_nodes(systemd_tmpfiles_t)
 dev_read_urand(systemd_tmpfiles_t)
 dev_relabel_all_sysfs(systemd_tmpfiles_t)
@@ -960,6 +970,7 @@ files_manage_var_dirs(systemd_tmpfiles_t)
 files_manage_var_lib_dirs(systemd_tmpfiles_t)
 files_purge_tmp(systemd_tmpfiles_t)
 files_read_etc_files(systemd_tmpfiles_t)
+files_read_etc_runtime_files(systemd_tmpfiles_t)
 files_relabel_all_lock_dirs(systemd_tmpfiles_t)
 files_relabel_all_pid_dirs(systemd_tmpfiles_t)
 files_relabel_all_tmp_dirs(systemd_tmpfiles_t)
