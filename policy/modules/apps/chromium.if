@@ -1,0 +1,139 @@
+## <summary>
+##	Chromium browser
+## </summary>
+
+#######################################
+## <summary>
+## 	Role access for chromium
+## </summary>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+## <param name="domain">
+## 	<summary>
+##	User domain for the role
+##	</summary>
+## </param>
+#
+interface(`chromium_role',`
+	gen_require(`
+		type chromium_t;
+		type chromium_renderer_t;
+		type chromium_sandbox_t;
+		type chromium_naclhelper_t;
+		type chromium_exec_t;
+	')
+
+	role $1 types chromium_t;
+	role $1 types chromium_renderer_t;
+	role $1 types chromium_sandbox_t;
+	role $1 types chromium_naclhelper_t;
+
+	# Transition from the user domain to the derived domain
+	chromium_domtrans($2)
+
+	# Allow ps to show chromium processes and allow the user to signal it
+	ps_process_pattern($2, chromium_t)
+	ps_process_pattern($2, chromium_renderer_t)
+
+	allow $2 chromium_t:process signal_perms;
+	allow $2 chromium_renderer_t:process signal_perms;
+	allow $2 chromium_naclhelper_t:process signal_perms;
+
+	allow chromium_sandbox_t $2:fd use;
+	allow chromium_naclhelper_t $2:fd use;
+')
+
+#######################################
+## <summary>
+##	Read-write access to Chromiums' temporary fifo files
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`chromium_rw_tmp_pipes',`
+	gen_require(`
+		type chromium_tmp_t;
+	')
+
+	rw_fifo_files_pattern($1, chromium_tmp_t, chromium_tmp_t)
+')
+
+##############################################
+## <summary>
+##	Automatically use the specified type for resources created in chromium's
+##	temporary locations
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain that creates the resource(s)
+##	</summary>
+## </param>
+## <param name="class">
+##	<summary>
+##	Type of the resource created
+##	</summary>
+## </param>
+## <param name="filename" optional="true">
+##	<summary>
+##	The name of the resource being created
+##	</summary>
+## </param>
+#
+interface(`chromium_tmp_filetrans',`
+	gen_require(`
+		type chromium_tmp_t;
+	')
+
+	search_dirs_pattern($1, chromium_tmp_t, chromium_tmp_t)
+	filetrans_pattern($1, chromium_tmp_t, $2, $3, $4)
+')
+
+#######################################
+## <summary>
+## 	Execute a domain transition to the chromium domain (chromium_t)
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`chromium_domtrans',`
+	gen_require(`
+		type chromium_t;
+		type chromium_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, chromium_exec_t, chromium_t)
+')
+
+#######################################
+## <summary>
+## 	Execute chromium in the chromium domain and allow the specified role to access the chromium domain
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+interface(`chromium_run',`
+	gen_require(`
+		type chromium_t;
+	')
+
+	chromium_domtrans($1)
+	role $2 types chromium_t;
+')
