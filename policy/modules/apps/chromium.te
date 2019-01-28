@@ -94,8 +94,8 @@ allow chromium_t chromium_renderer_t:shm rw_shm_perms;
 allow chromium_t chromium_renderer_t:unix_dgram_socket { read write };
 allow chromium_t chromium_renderer_t:unix_stream_socket { read write };
 
-allow chromium_t chromium_sandbox_t:unix_dgram_socket { read write };
-allow chromium_t chromium_sandbox_t:unix_stream_socket { read write };
+allow chromium_t chromium_sandbox_t:unix_dgram_socket { getattr read write };
+allow chromium_t chromium_sandbox_t:unix_stream_socket { getattr read write };
 
 allow chromium_t chromium_naclhelper_t:process { share };
 
@@ -149,6 +149,7 @@ dev_rw_xserver_misc(chromium_t)
 dev_map_xserver_misc(chromium_t)
 
 domain_dontaudit_search_all_domains_state(chromium_t)
+domain_use_interactive_fds(chromium_t)
 
 files_list_home(chromium_t)
 files_search_home(chromium_t)
@@ -159,11 +160,16 @@ files_read_etc_files(chromium_t)
 files_dontaudit_getattr_all_dirs(chromium_t)
 
 fs_dontaudit_getattr_xattr_fs(chromium_t)
+fs_getattr_tmpfs(chromium_t)
+fs_search_cgroup_dirs(chromium_t)
 
 miscfiles_read_all_certs(chromium_t)
 miscfiles_read_localization(chromium_t)
 
 sysnet_dns_name_resolve(chromium_t)
+
+# for /run/udev/data/*
+udev_read_pid_files(chromium_t)
 
 userdom_user_content_access_template(chromium, chromium_t)
 userdom_dontaudit_list_user_home_dirs(chromium_t)
@@ -195,6 +201,8 @@ tunable_policy(`chromium_rw_usb_dev',`
 tunable_policy(`chromium_read_system_info',`
 	kernel_read_kernel_sysctls(chromium_t)
 	# Memory optimizations & optimizations based on OS/version
+	kernel_read_crypto_sysctls(chromium_t)
+	kernel_read_kernel_sysctls(chromium_t)
 	kernel_read_system_state(chromium_t)
 
 	# Debugging (sys/kernel/debug) and device information (sys/bus and sys/devices).
@@ -235,6 +243,13 @@ optional_policy(`
 	optional_policy(`
 		devicekit_dbus_chat_power(chromium_t)
 	')
+')
+
+optional_policy(`
+	apt_read_cache(chromium_t)
+	apt_read_db(chromium_t)
+	dpkg_exec(chromium_t)
+	dpkg_read_db(chromium_t)
 ')
 
 ifdef(`use_alsa',`
@@ -309,23 +324,27 @@ allow chromium_sandbox_t chromium_t:dir list_dir_perms;
 allow chromium_sandbox_t chromium_t:lnk_file read_lnk_file_perms;
 allow chromium_sandbox_t chromium_t:file rw_file_perms;
 
-allow chromium_sandbox_t chromium_t:unix_stream_socket { read write };
-allow chromium_sandbox_t chromium_t:unix_dgram_socket { read write };
+allow chromium_sandbox_t chromium_t:unix_stream_socket { getattr read write };
+allow chromium_sandbox_t chromium_t:unix_dgram_socket { getattr read write };
 
 kernel_list_proc(chromium_sandbox_t)
 
 domain_dontaudit_read_all_domains_state(chromium_sandbox_t)
+domain_use_interactive_fds(chromium_sandbox_t)
 
 userdom_use_user_ptys(chromium_sandbox_t)
 
 chromium_domtrans(chromium_sandbox_t)
+domtrans_pattern(chromium_sandbox_t, chromium_naclhelper_exec_t, chromium_naclhelper_t)
+allow chromium_sandbox_t chromium_naclhelper_t:process share;
 
 ##########################################
 #
 # Chromium nacl helper local policy
 #
 
-allow chromium_naclhelper_t chromium_t:unix_stream_socket { read write };
+allow chromium_naclhelper_t chromium_t:unix_stream_socket { getattr read write };
+allow chromium_naclhelper_t chromium_sandbox_t:unix_stream_socket { getattr read write };
 
 domain_mmap_low_uncond(chromium_naclhelper_t)
 
@@ -338,3 +357,6 @@ tunable_policy(`chromium_read_system_info',`
 	kernel_dontaudit_read_kernel_sysctl(chromium_naclhelper_t)
 	kernel_dontaudit_read_system_state(chromium_naclhelper_t)
 ')
+
+dev_read_sysfs(chromium_naclhelper_t)
+dev_read_urand(chromium_naclhelper_t)
