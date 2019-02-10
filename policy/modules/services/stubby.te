@@ -1,0 +1,51 @@
+policy_module(stubby, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type stubby_t;
+type stubby_exec_t;
+init_daemon_domain(stubby_t, stubby_exec_t)
+
+type stubby_etc_t;
+files_config_file(stubby_etc_t)
+
+type stubby_unit_t;
+init_unit_file(stubby_unit_t)
+
+########################################
+#
+# Local policy
+#
+
+allow stubby_t self:tcp_socket create_stream_socket_perms;
+allow stubby_t self:udp_socket create_stream_socket_perms;
+
+read_files_pattern(stubby_t, stubby_etc_t, stubby_etc_t)
+
+corenet_tcp_bind_dns_port(stubby_t)
+corenet_tcp_bind_generic_node(stubby_t)
+corenet_udp_bind_dns_port(stubby_t)
+corenet_udp_bind_generic_node(stubby_t)
+
+# DNS-over-TLS uses TCP port 853
+corenet_tcp_connect_dns_port(stubby_t)
+# DNS-over-HTTPS uses TCP port 443
+corenet_tcp_connect_http_port(stubby_t)
+
+# for /etc/trusted-key.key
+files_read_etc_files(stubby_t)
+
+miscfiles_read_generic_certs(stubby_t)
+miscfiles_read_localization(stubby_t)
+
+sysnet_read_config(stubby_t)
+
+ifdef(`init_systemd',`
+	# stubby systemd service uses DynamicUser=yes, which makes it call
+	# LookupDynamicUserByUID in order to get its own user name.
+	init_dbus_chat(stubby_t)
+	dbus_system_bus_client(stubby_t)
+')
