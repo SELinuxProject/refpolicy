@@ -486,9 +486,5 @@ try:
 	selconf=selinuxConfig(directory, setype, usepwd)
 	selconf.write()
 
-except getopt.error as error:
-	errorExit("Options Error " + error)
-except ValueError as error:
-	errorExit("ValueError " + error)
-except IndexError:
-	errorExit("IndexError")
+except Exception as error:
+	errorExit(error)
