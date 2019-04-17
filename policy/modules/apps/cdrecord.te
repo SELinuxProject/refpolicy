@@ -15,7 +15,20 @@ policy_module(cdrecord, 2.6.1)
 ## </desc>
 gen_tunable(cdrecord_read_content, false)
 
+## <desc>
+##	<p>
+##	Determine whether the cdripper
+##	programs can read and write various
+##	content, including user home
+##	directories, user temporary
+##	directories, nfs, samba, devices
+##	and untrusted content files
+##	</p>
+## </desc>
+gen_tunable(cdripper_rw_content, false)
+
 attribute_role cdrecord_roles;
+attribute_role cdripper_roles;
 
 type cdrecord_t;
 type cdrecord_exec_t;
@@ -24,13 +37,18 @@ typealias cdrecord_t alias { auditadm_cdrecord_t secadm_cdrecord_t };
 userdom_user_application_domain(cdrecord_t, cdrecord_exec_t)
 role cdrecord_roles types cdrecord_t;
 
+type cdripper_t;
+type cdripper_exec_t;
+userdom_user_application_domain(cdripper_t, cdripper_exec_t)
+role cdripper_roles types cdripper_t;
+
 ########################################
 #
-# Local policy
+# Cdrecord local policy
 #
 
-allow cdrecord_t self:capability { dac_override ipc_lock setuid sys_nice sys_rawio };
-allow cdrecord_t self:process { getcap getsched setrlimit setsched sigkill };
+allow cdrecord_t self:capability { dac_override ipc_lock setuid sys_nice sys_rawio sys_resource };
+allow cdrecord_t self:process { getcap getsched setrlimit setsched sigkill signal };
 allow cdrecord_t self:unix_stream_socket { accept listen };
 
 corecmd_exec_bin(cdrecord_t)
@@ -48,6 +66,7 @@ term_list_ptys(cdrecord_t)
 
 storage_raw_read_removable_device(cdrecord_t)
 storage_raw_write_removable_device(cdrecord_t)
+storage_read_scsi_generic(cdrecord_t)
 storage_write_scsi_generic(cdrecord_t)
 
 logging_send_syslog_msg(cdrecord_t)
@@ -112,4 +131,95 @@ tunable_policy(`use_nfs_home_dirs',`
 
 optional_policy(`
 	resmgr_stream_connect(cdrecord_t)
+')
+
+########################################
+#
+# Cdripper (e.g. cdda2wav) local policy
+#
+
+allow cdripper_t self:capability { ipc_lock sys_nice setgid setuid dac_override sys_rawio };
+allow cdripper_t self:process { getcap getsched setcap setrlimit setsched sigkill };
+allow cdripper_t self:fifo_file rw_fifo_file_perms;
+
+can_exec(cdripper_t, cdripper_exec_t)
+
+corecmd_exec_bin(cdripper_t)
+corecmd_exec_shell(cdripper_t)
+
+corenet_tcp_connect_cddb_port(cdripper_t)
+
+dev_list_all_dev_nodes(cdripper_t)
+dev_read_sysfs(cdripper_t)
+
+files_read_etc_files(cdripper_t)
+
+term_use_controlling_term(cdripper_t)
+term_list_ptys(cdripper_t)
+
+storage_raw_read_removable_device(cdripper_t)
+storage_read_scsi_generic(cdripper_t)
+storage_write_scsi_generic(cdripper_t)
+
+miscfiles_read_localization(cdripper_t)
+
+sysnet_dns_name_resolve(cdripper_t)
+
+userdom_use_user_terminals(cdripper_t)
+
+tunable_policy(`cdripper_rw_content && use_nfs_home_dirs',`
+	fs_list_auto_mountpoints(cdripper_t)
+	files_list_home(cdripper_t)
+	fs_manage_nfs_files(cdripper_t)
+	fs_manage_nfs_symlinks(cdripper_t)
+',`
+	files_dontaudit_list_home(cdripper_t)
+	fs_dontaudit_list_auto_mountpoints(cdripper_t)
+	fs_dontaudit_manage_nfs_files(cdripper_t)
+	fs_dontaudit_list_nfs(cdripper_t)
+')
+
+tunable_policy(`cdripper_rw_content && use_samba_home_dirs',`
+	fs_list_auto_mountpoints(cdripper_t)
+	files_list_home(cdripper_t)
+	fs_manage_cifs_files(cdripper_t)
+	fs_manage_cifs_symlinks(cdripper_t)
+',`
+	files_dontaudit_list_home(cdripper_t)
+	fs_dontaudit_list_auto_mountpoints(cdripper_t)
+	fs_dontaudit_manage_cifs_files(cdripper_t)
+	fs_dontaudit_list_cifs(cdripper_t)
+')
+
+tunable_policy(`cdripper_rw_content',`
+	userdom_list_user_tmp(cdripper_t)
+	userdom_manage_user_tmp_files(cdripper_t)
+	userdom_manage_user_tmp_symlinks(cdripper_t)
+	userdom_manage_user_home_content_files(cdripper_t)
+	userdom_manage_user_home_content_symlinks(cdripper_t)
+
+	ifndef(`enable_mls',`
+		fs_search_removable(cdripper_t)
+		fs_read_removable_files(cdripper_t)
+		fs_read_removable_symlinks(cdripper_t)
+	')
+',`
+	files_dontaudit_list_tmp(cdripper_t)
+	files_dontaudit_list_home(cdripper_t)
+	fs_dontaudit_list_removable(cdripper_t)
+	fs_dontaudit_read_removable_files(cdripper_t)
+	userdom_dontaudit_list_user_tmp(cdripper_t)
+	userdom_dontaudit_manage_user_tmp_files(cdripper_t)
+	userdom_dontaudit_list_user_home_dirs(cdripper_t)
+	userdom_dontaudit_write_user_home_content_files(cdripper_t)
+')
+
+tunable_policy(`use_nfs_home_dirs',`
+	files_search_mnt(cdripper_t)
+	fs_manage_nfs_files(cdripper_t)
+	fs_manage_nfs_symlinks(cdripper_t)
+')
+
+optional_policy(`
+	resmgr_stream_connect(cdripper_t)
 ')
