@@ -22,6 +22,7 @@ gen_tunable(systemd_nspawn_labeled_namespace, false)
 
 attribute systemd_log_parse_env_type;
 attribute systemd_tmpfiles_conf_type;
+attribute systemd_user_session_type;
 
 type systemd_activate_t;
 type systemd_activate_exec_t;
@@ -201,6 +202,12 @@ init_system_domain(systemd_update_done_t, systemd_update_done_exec_t)
 
 type systemd_update_run_t;
 files_type(systemd_update_run_t)
+
+type systemd_user_runtime_notify_t;
+userdom_user_runtime_content(systemd_user_runtime_notify_t)
+
+type systemd_user_runtime_t;
+userdom_user_runtime_content(systemd_user_runtime_t)
 
 #
 # Unit file types
@@ -1132,3 +1139,44 @@ files_var_filetrans(systemd_update_done_t, systemd_update_run_t, file, ".updated
 seutil_read_file_contexts(systemd_update_done_t)
 
 systemd_log_parse_environment(systemd_update_done_t)
+
+#########################################
+#
+# User session (systemd --user) local policy
+#
+
+allow systemd_user_session_type self:capability { dac_read_search sys_resource };
+dontaudit systemd_user_session_type self:capability dac_override;
+allow systemd_user_session_type self:process setfscreate;
+allow systemd_user_session_type self:udp_socket create_socket_perms;
+allow systemd_user_session_type self:unix_stream_socket create_stream_socket_perms;
+allow systemd_user_session_type self:netlink_kobject_uevent_socket { bind create getattr setopt };
+
+allow systemd_user_session_type systemd_user_runtime_t:dir manage_dir_perms;
+allow systemd_user_session_type systemd_user_runtime_t:sock_file { create write };
+userdom_user_runtime_filetrans(systemd_user_session_type, systemd_user_runtime_t, dir)
+
+allow systemd_user_session_type systemd_user_runtime_notify_t:sock_file create;
+type_transition systemd_user_session_type systemd_user_runtime_t:sock_file systemd_user_runtime_notify_t "notify";
+
+dev_write_sysfs_dirs(systemd_user_session_type)
+dev_read_sysfs(systemd_user_session_type)
+
+files_read_etc_files(systemd_user_session_type)
+files_list_usr(systemd_user_session_type)
+
+fs_getattr_cgroup(systemd_user_session_type)
+fs_rw_cgroup_files(systemd_user_session_type)
+fs_manage_cgroup_dirs(systemd_user_session_type)
+
+init_signal(systemd_user_session_type)
+
+kernel_read_kernel_sysctls(systemd_user_session_type)
+
+mount_list_runtime(systemd_user_session_type)
+
+storage_getattr_fixed_disk_dev(systemd_user_session_type)
+
+# for systemd to read udev status
+udev_read_pid_files(systemd_user_session_type)
+udev_list_pids(systemd_user_session_type)
