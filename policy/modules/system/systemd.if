@@ -1,5 +1,62 @@
 ## <summary>Systemd components (not PID 1)</summary>
 
+#########################################
+## <summary>
+##	Template for systemd --user per-role domains.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for generated types
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The user role.
+##	</summary>
+## </param>
+## <param name="userdomain">
+##	<summary>
+##	The user domain for the role.
+##	</summary>
+## </param>
+#
+template(`systemd_role_template',`
+	gen_require(`
+		attribute systemd_user_session_type, systemd_log_parse_env_type;
+		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
+	')
+
+	#################################
+	#
+	# Declarations
+	#
+	type $1_systemd_t, systemd_user_session_type, systemd_log_parse_env_type;
+	init_pgm_spec_user_daemon_domain($1_systemd_t)
+	domain_user_exemption_target($1_systemd_t)
+	ubac_constrained($1_systemd_t)
+	role $2 types $1_systemd_t;
+
+	#################################
+	#
+	# Local policy
+	#
+
+	allow $3 systemd_user_runtime_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $3 systemd_user_runtime_t:file { manage_file_perms relabel_file_perms };
+	allow $3 systemd_user_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $3 systemd_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $3 systemd_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	allow $3 systemd_user_runtime_notify_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	# This domain is per-role because of the below transitions.
+	# See the sytemd --user section of systemd.te for the
+	# remainder of the rules.
+	allow $1_systemd_t $3:process { setsched rlimitinh };
+	corecmd_shell_domtrans($1_systemd_t, $3)
+	corecmd_bin_domtrans($1_systemd_t, $3)
+')
+
 ######################################
 ## <summary>
 ##   Make the specified type usable as an
@@ -904,4 +961,58 @@ interface(`systemd_getattr_updated_runtime',`
 	')
 
 	getattr_files_pattern($1, systemd_update_run_t, systemd_update_run_t)
+')
+
+########################################
+## <summary>
+##	Search keys for the all systemd --user domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_search_all_user_keys',`
+	gen_require(`
+		attribute systemd_user_session_type;
+	')
+
+	allow $1 systemd_user_session_type:key search;
+')
+
+########################################
+## <summary>
+##	Create keys for the all systemd --user domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_create_all_user_keys',`
+	gen_require(`
+		attribute systemd_user_session_type;
+	')
+
+	allow $1 systemd_user_session_type:key create;
+')
+
+########################################
+## <summary>
+##	Write keys for the all systemd --user domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_write_all_user_keys',`
+	gen_require(`
+		attribute systemd_user_session_type;
+	')
+
+	allow $1 systemd_user_session_type:key write;
 ')

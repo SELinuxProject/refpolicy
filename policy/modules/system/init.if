@@ -652,6 +652,44 @@ interface(`init_domtrans',`
 
 ########################################
 ## <summary>
+##	Execute init (/sbin/init) with a domain transition
+##	to the provided domain.
+## </summary>
+## <desc>
+##	Execute init (/sbin/init) with a domain transition
+##	to the provided domain.  This is used by systemd
+##	to execute the systemd user session.
+## </desc>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	New domain.
+##	</summary>
+## </param>
+#
+interface(`init_pgm_spec_user_daemon_domain',`
+	gen_require(`
+		type init_t, init_exec_t;
+	')
+
+	domain_type($1)
+	domain_entry_file($1, init_exec_t)
+
+	spec_domtrans_pattern(init_t, init_exec_t, $1)
+
+	allow init_t $1:process { setsched rlimitinh noatsecure };
+
+	ifdef(`init_systemd',`
+		allow $1 init_t:unix_stream_socket { getattr read write ioctl };
+	')
+')
+
+########################################
+## <summary>
 ##	Execute the init program in the caller domain.
 ## </summary>
 ## <param name="domain">
@@ -668,6 +706,26 @@ interface(`init_exec',`
 
 	corecmd_search_bin($1)
 	can_exec($1, init_exec_t)
+')
+
+########################################
+## <summary>
+##	Allow the init program to be an entrypoint
+##	for the specified domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`init_pgm_entrypoint',`
+	gen_require(`
+		type init_exec_t;
+	')
+
+	allow $1 init_exec_t:file entrypoint;
 ')
 
 ########################################
