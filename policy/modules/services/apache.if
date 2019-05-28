@@ -15,7 +15,7 @@ template(`apache_content_template',`
 	gen_require(`
 		attribute httpdcontent, httpd_exec_scripts, httpd_script_exec_type;
 		attribute httpd_script_domains, httpd_htaccess_type;
-		attribute httpd_rw_content, httpd_ra_content;
+		attribute httpd_ro_content, httpd_rw_content, httpd_ra_content;
 		type httpd_t, httpd_suexec_t;
 	')
 
@@ -34,7 +34,7 @@ template(`apache_content_template',`
 	## </desc>
 	gen_tunable(allow_httpd_$1_script_anon_write, false)
 
-	type httpd_$1_content_t, httpdcontent; # customizable
+	type httpd_$1_content_t, httpdcontent, httpd_ro_content; # customizable
 	typealias httpd_$1_content_t alias httpd_$1_script_ro_t;
 	files_type(httpd_$1_content_t)
 
@@ -79,28 +79,8 @@ template(`apache_content_template',`
 	manage_sock_files_pattern(httpd_$1_script_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
 	files_tmp_filetrans(httpd_$1_script_t, httpd_$1_rw_content_t, { dir file lnk_file sock_file fifo_file })
 
-	allow { httpd_t httpd_suexec_t } httpd_$1_content_t:dir list_dir_perms;
-	allow { httpd_t httpd_suexec_t } { httpd_$1_content_t httpd_$1_htaccess_t }:file read_file_perms;
-	allow { httpd_t httpd_suexec_t } httpd_$1_content_t:lnk_file read_lnk_file_perms;
-
 	tunable_policy(`allow_httpd_$1_script_anon_write',`
 		miscfiles_manage_public_files(httpd_$1_script_t)
-	')
-
-	tunable_policy(`httpd_builtin_scripting',`
-		manage_dirs_pattern(httpd_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
-		manage_files_pattern(httpd_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
-		manage_fifo_files_pattern(httpd_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
-		manage_lnk_files_pattern(httpd_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
-		manage_sock_files_pattern(httpd_t, httpd_$1_rw_content_t, httpd_$1_rw_content_t)
-
-		allow httpd_t httpd_$1_ra_content_t:dir { list_dir_perms add_entry_dir_perms setattr_dir_perms };
-		allow httpd_t httpd_$1_ra_content_t:file { append_file_perms read_file_perms create_file_perms setattr_file_perms };
-		allow httpd_t httpd_$1_ra_content_t:lnk_file read_lnk_file_perms;
-	')
-
-	tunable_policy(`httpd_builtin_scripting && httpd_tmp_exec',`
-		can_exec(httpd_t, httpd_$1_rw_content_t)
 	')
 
 	tunable_policy(`httpd_enable_cgi',`
