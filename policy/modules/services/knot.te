@@ -1,0 +1,121 @@
+policy_module(knot, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role knot_roles;
+
+type knotd_t;
+type knotd_exec_t;
+init_daemon_domain(knotd_t, knotd_exec_t)
+
+type knotc_t;
+type knotc_exec_t;
+application_domain(knotc_t, knotc_exec_t)
+init_system_domain(knotc_t, knotc_exec_t)
+role knot_roles types knotc_t;
+
+type knot_conf_t;
+files_config_file(knot_conf_t)
+
+type knot_initrc_exec_t;
+init_script_file(knot_initrc_exec_t)
+
+type knot_runtime_t;
+files_pid_file(knot_runtime_t)
+
+type knot_var_lib_t;
+files_type(knot_var_lib_t)
+
+type knot_tmp_t;
+files_tmp_file(knot_tmp_t)
+
+########################################
+#
+# knotd local policy
+#
+allow knotd_t self:capability { dac_override dac_read_search setgid setpcap setuid };
+allow knotd_t self:process { signal_perms getcap getsched setsched };
+allow knotd_t self:tcp_socket create_stream_socket_perms;
+allow knotd_t self:udp_socket create_socket_perms;
+allow knotd_t self:unix_stream_socket create_stream_socket_perms;
+
+corenet_tcp_bind_generic_node(knotd_t)
+corenet_udp_bind_generic_node(knotd_t)
+
+corenet_sendrecv_dns_server_packets(knotd_t)
+corenet_tcp_bind_dns_port(knotd_t)
+corenet_udp_bind_dns_port(knotd_t)
+# Slave replication
+corenet_tcp_connect_dns_port(knotd_t)
+
+kernel_read_kernel_sysctls(knotd_t)
+
+allow knotd_t knot_conf_t:file map;
+knot_read_config_files(knotd_t)
+
+manage_dirs_pattern(knotd_t, knot_runtime_t, knot_runtime_t)
+manage_files_pattern(knotd_t, knot_runtime_t, knot_runtime_t)
+manage_lnk_files_pattern(knotd_t, knot_runtime_t, knot_runtime_t)
+manage_sock_files_pattern(knotd_t, knot_runtime_t, knot_runtime_t)
+files_pid_filetrans(knotd_t, knot_runtime_t, dir)
+
+allow knotd_t knot_tmp_t:file map;
+allow knotd_t knot_tmp_t:file manage_file_perms;
+allow knotd_t knot_tmp_t:dir manage_dir_perms;
+files_tmp_filetrans(knotd_t, knot_tmp_t, { file dir })
+
+allow knotd_t knot_var_lib_t:file map;
+manage_dirs_pattern(knotd_t, knot_var_lib_t, knot_var_lib_t)
+manage_files_pattern(knotd_t, knot_var_lib_t, knot_var_lib_t)
+manage_lnk_files_pattern(knotd_t, knot_var_lib_t, knot_var_lib_t)
+files_var_lib_filetrans(knotd_t, knot_var_lib_t, dir)
+
+files_map_etc_files(knotd_t)
+files_search_var_lib(knotd_t)
+
+fs_getattr_xattr_fs(knotd_t)
+
+fs_getattr_tmpfs(knotd_t)
+
+auth_use_nsswitch(knotd_t)
+
+logging_send_syslog_msg(knotd_t)
+
+miscfiles_read_localization(knotd_t)
+
+########################################
+#
+# knotc local policy
+#
+allow knotc_t self:capability { dac_override dac_read_search };
+allow knotc_t self:process signal;
+
+stream_connect_pattern(knotc_t, knot_runtime_t, knot_runtime_t, knotd_t)
+
+allow knotc_t knot_conf_t:file map;
+knot_read_config_files(knotc_t)
+
+allow knotc_t knot_tmp_t:file map;
+allow knotc_t knot_tmp_t:file manage_file_perms;
+allow knotc_t knot_tmp_t:dir manage_dir_perms;
+files_tmp_filetrans(knotc_t, knot_tmp_t, { file dir })
+
+allow knotc_t knot_var_lib_t:file map;
+manage_dirs_pattern(knotc_t, knot_var_lib_t, knot_var_lib_t)
+manage_files_pattern(knotc_t, knot_var_lib_t, knot_var_lib_t)
+manage_lnk_files_pattern(knotc_t, knot_var_lib_t, knot_var_lib_t)
+
+files_read_etc_files(knotc_t)
+files_search_pids(knotc_t)
+files_search_var_lib(knotc_t)
+
+fs_getattr_tmpfs(knotc_t)
+
+domain_use_interactive_fds(knotc_t)
+
+miscfiles_read_localization(knotc_t)
+
+userdom_use_user_ptys(knotc_t)
