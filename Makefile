@@ -415,15 +415,17 @@ $(fcsort) : $(support)/fc_sort.c
 #
 # Documentation generation
 #
-iftemplates:  
+iftemplates: $(tmpdir)/iftemplates
+$(tmpdir)/iftemplates:
 	@echo "Generating interface templates into $(tmpdir)/iftemplates"
 	@test -d $(tmpdir)/iftemplates || mkdir -p $(tmpdir)/iftemplates
 	$(verbose) $(gentemplates) -g -s $(moddir) -t $(tmpdir)/iftemplates
 ifdef LOCAL_ROOT
 	$(verbose) $(gentemplates) -g -s $(local_moddir) -t $(tmpdir)/iftemplates
 endif
+	@touch $(tmpdir)/iftemplates
 
-$(layerxml): %.xml: iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
+$(layerxml): %.xml: $(tmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) cat $(filter %$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
 	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
