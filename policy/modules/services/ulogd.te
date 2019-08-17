@@ -18,6 +18,9 @@ init_script_file(ulogd_initrc_exec_t)
 type ulogd_modules_t;
 files_type(ulogd_modules_t)
 
+type ulogd_var_run_t;
+files_pid_file(ulogd_var_run_t)
+
 type ulogd_var_log_t;
 logging_log_file(ulogd_var_log_t)
 
@@ -26,6 +29,11 @@ logging_log_file(ulogd_var_log_t)
 # Local policy
 #
 
+# If there is an AVC about capability dac_read_search being denied to ulogd_t,
+# it may be caused by root not being able to access to /var/log/ulog according
+# to the directory permissions. Such an issue can be fixed using ACL (for
+# example with: setfacl -m u:root:rwx /var/log/ulog). Please do not add
+# a rule allowing dac_read_search if you encounter this, but fix your system.
 allow ulogd_t self:capability { net_admin setgid setuid sys_nice };
 allow ulogd_t self:process setsched;
 allow ulogd_t self:netlink_netfilter_socket create_socket_perms;
@@ -38,6 +46,8 @@ read_files_pattern(ulogd_t, ulogd_etc_t, ulogd_etc_t)
 list_dirs_pattern(ulogd_t, ulogd_modules_t, ulogd_modules_t)
 mmap_exec_files_pattern(ulogd_t, ulogd_modules_t, ulogd_modules_t)
 
+manage_files_pattern(ulogd_t, ulogd_var_run_t, ulogd_var_run_t)
+
 append_files_pattern(ulogd_t, ulogd_var_log_t, ulogd_var_log_t)
 create_files_pattern(ulogd_t, ulogd_var_log_t, ulogd_var_log_t)
 setattr_files_pattern(ulogd_t, ulogd_var_log_t, ulogd_var_log_t)
@@ -45,6 +55,11 @@ logging_log_filetrans(ulogd_t, ulogd_var_log_t, file)
 
 files_read_etc_files(ulogd_t)
 files_read_usr_files(ulogd_t)
+
+# For /proc/sys/kernel/ngroups_max
+kernel_read_kernel_sysctls(ulogd_t)
+
+logging_send_syslog_msg(ulogd_t)
 
 miscfiles_read_localization(ulogd_t)
 
