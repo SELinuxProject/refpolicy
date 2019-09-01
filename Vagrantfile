@@ -1,6 +1,61 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# Provisioning script to install the reference policy
+$install_refpolicy = <<-SHELL
+  # fail as soon as a command failed
+  set -e
+
+  # we set to permissive to allow loading and working with reference policy as opposed to fedora's fork
+  echo "Setting SELinux to Permissive Mode..."
+  setenforce 0
+
+  # build the reference policy
+  sudo -su vagrant make -C /vagrant bare
+  sudo -su vagrant make -C /vagrant conf
+  sudo -su vagrant make -C /vagrant all
+  sudo -su vagrant make -C /vagrant validate
+  sudo -s make -C /vagrant install
+  sudo -s make -C /vagrant install-headers
+  sudo -s semodule -s refpolicy -i /usr/share/selinux/refpolicy/*.pp
+
+  if ! (LANG=C sestatus -v | grep '^Loaded policy name:\s*refpolicy$' > /dev/null)
+  then
+      # Use the reference policy
+      sed -i -e 's/^\\(SELINUXTYPE=\\).*/SELINUXTYPE=refpolicy/' /etc/selinux/config
+  fi
+  sudo -s semodule --reload
+
+  # allow every domain to use /dev/urandom
+  sudo -s semanage boolean --modify --on global_ssp
+
+  # allow systemd-tmpfiles to manage every file
+  sudo -s semanage boolean --modify --on systemd_tmpfiles_manage_all
+
+  # make vagrant user use unconfined_u context
+  if ! (sudo -s semanage login -l | grep '^vagrant' > /dev/null)
+  then
+      echo "Configuring SELinux context for vagrant user"
+      sudo -s semanage login -a -s unconfined_u vagrant
+  fi
+
+  # label /vagrant as vagrant's home files
+  if sudo -s semanage fcontext --list | grep '^/vagrant(/\.\*)?'
+  then
+      sudo -s semanage fcontext -m -s unconfined_u -t user_home_t '/vagrant(/.*)?'
+  else
+      sudo -s semanage fcontext -a -s unconfined_u -t user_home_t '/vagrant(/.*)?'
+  fi
+
+  # Update interface_info
+  sudo -s sepolgen-ifgen -o /var/lib/sepolgen/interface_info -i /usr/share/selinux/refpolicy
+
+  echo "Relabelling the system..."
+  sudo -s restorecon -RF /
+
+  echo "If this is a fresh install, you need to reboot in order to enable enforcing mode"
+SHELL
+
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
@@ -35,6 +90,7 @@ Vagrant.configure("2") do |config|
       echo "Installing SELinux dev dependencies..."
       dnf install -q -y \
         bash-completion \
+        gcc \
         man-pages \
         vim \
         make \
@@ -43,9 +99,15 @@ Vagrant.configure("2") do |config|
         libselinux-python3 \
         >/dev/null
 
-      # we set to permissive to allow loading and working with reference policy as opposed to fedora's fork
-      echo "Setting SELinux to Permissive Mode..."
-      setenforce 0
+      # configure the reference policy for Fedora
+      if ! grep '^DISTRO = fedora$' /vagrant/build.conf > /dev/null
+      then
+        echo 'DISTRO = fedora' >> /vagrant/build.conf
+        echo 'SYSTEMD = y' >> /vagrant/build.conf
+        echo 'UBAC = n' >> /vagrant/build.conf
+      fi
+
+      #{$install_refpolicy}
     SHELL
   end
 end
