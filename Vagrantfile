@@ -110,4 +110,65 @@ Vagrant.configure("2") do |config|
       #{$install_refpolicy}
     SHELL
   end
+
+  # build a Debian 10 VM
+  config.vm.define "debian" do |debian|
+    debian.vm.box = "debian/buster64"
+    # assign a nice hostname
+    debian.vm.hostname = "selinux-debian-devel"
+    # give it a private internal IP address
+    debian.vm.network "private_network", type: "dhcp"
+
+    # Customize the amount of memory on the VM
+    debian.vm.provider "virtualbox" do |vb|
+      vb.memory = 1024
+    end
+    debian.vm.provider "libvirt" do |lv|
+      lv.memory = 1024
+    end
+
+    # redefine the /vagrant as a synced folder (not an NFS share), in order to work cleanly on it
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+    config.vm.synced_folder ".", "/vagrant", type: "rsync",
+      rsync__exclude: ".vagrant/"
+
+    debian.vm.provision "shell", run: "once", inline: <<-SHELL
+      # install a few packages to make this machine ready to go out of the box
+      echo "Installing SELinux dev dependencies..."
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get -qq update
+      apt-get install --no-install-recommends --no-install-suggests -qy \
+        bash-completion \
+        gcc \
+        git \
+        libc6-dev \
+        vim \
+        make \
+        auditd \
+        selinux-basics \
+        selinux-policy-default \
+        selinux-policy-dev \
+        setools
+
+      # If SELinux is not enabled, enable it with Debian's policy and ask for a reboot
+      if ! selinuxenabled
+      then
+        echo "Enabling SELinux for Debian according to https://wiki.debian.org/SELinux/Setup"
+        selinux-activate
+        echo "Please reboot now in order to enable SELinux:"
+        echo "vagrant reload debian && vagrant provision debian"
+        exit
+      fi
+
+      # configure the reference policy for Debian
+      if ! grep '^DISTRO = debian$' /vagrant/build.conf > /dev/null
+      then
+        echo 'DISTRO = debian' >> /vagrant/build.conf
+        echo 'SYSTEMD = y' >> /vagrant/build.conf
+        echo 'UBAC = n' >> /vagrant/build.conf
+      fi
+
+      #{$install_refpolicy}
+    SHELL
+  end
 end
