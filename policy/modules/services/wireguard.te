@@ -1,0 +1,72 @@
+policy_module(wireguard, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role wireguard_roles;
+roleattribute system_r wireguard_roles;
+
+type wireguard_t;
+type wireguard_exec_t;
+init_system_domain(wireguard_t, wireguard_exec_t)
+role wireguard_roles types wireguard_t;
+
+type wireguard_etc_t;
+files_config_file(wireguard_etc_t)
+
+type wireguard_initrc_exec_t;
+init_unit_file(wireguard_initrc_exec_t)
+
+type wireguard_runtime_t;
+files_pid_file(wireguard_runtime_t)
+
+type wireguard_unit_t;
+init_unit_file(wireguard_unit_t)
+
+type wireguard_tmp_t;
+files_tmp_file(wireguard_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow wireguard_t self:capability net_admin;
+allow wireguard_t self:process getsched;
+
+allow wireguard_t self:fifo_file rw_fifo_file_perms;
+allow wireguard_t self:netlink_generic_socket create_socket_perms;
+allow wireguard_t self:netlink_route_socket r_netlink_socket_perms;
+allow wireguard_t self:udp_socket create_socket_perms;
+allow wireguard_t self:unix_stream_socket create_socket_perms;
+
+manage_files_pattern(wireguard_t, wireguard_etc_t, wireguard_etc_t);
+files_read_etc_files(wireguard_t)
+
+manage_files_pattern(wireguard_t, wireguard_runtime_t, wireguard_runtime_t)
+files_pid_filetrans(wireguard_t, wireguard_runtime_t, dir)
+
+manage_dirs_pattern(wireguard_t, wireguard_tmp_t, wireguard_tmp_t)
+manage_files_pattern(wireguard_t, wireguard_tmp_t, wireguard_tmp_t)
+files_tmp_filetrans(wireguard_t, wireguard_tmp_t, file)
+
+# wg-quick can execute wg
+can_exec(wireguard_t, wireguard_exec_t)
+
+# wg-quick is a shell script
+corecmd_exec_bin(wireguard_t)
+corecmd_exec_shell(wireguard_t)
+
+domain_use_interactive_fds(wireguard_t)
+
+# wg-quick tries to read /proc/filesystem when running "stat" and "mv" commands
+kernel_dontaudit_read_system_state(wireguard_t)
+
+miscfiles_read_localization(wireguard_t)
+
+# wg-quick runs /usr/bin/ip to configure the network
+sysnet_run_ifconfig(wireguard_t, wireguard_roles)
+
+userdom_use_user_terminals(wireguard_t)
