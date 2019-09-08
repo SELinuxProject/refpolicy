@@ -129,6 +129,10 @@ def analyze_fc_file(fc_path):
                 print(f"{prefix}using (.*/)? without a previous slash could be a bug in {path} as it can match the empty string, please use /(.*/)? instead")  # noqa
                 retval = False
 
+            if re.search(r'[^/]\(\[\^/\]\+/\)\?', path):
+                print(f"{prefix}using ([^/]+/)? without a previous slash could be a bug in {path} as it can match the empty string, please use /([^/]+/)? instead")  # noqa
+                retval = False
+
             if re.search(r'[^/]\(\.\*/\)\*', path):
                 print(f"{prefix}using (.*/)* without a previous slash could be a bug in {path} as it can match the empty string, please use /(.*/)* instead")  # noqa
                 retval = False
@@ -202,6 +206,8 @@ def analyze_fc_file(fc_path):
                 retval = False
 
             # Remove optional directories and filename parts
+            reduced_path = reduced_path.replace('/([^/]+/)?', '/')
+            reduced_path = reduced_path.replace('(/[^/]+)?/', '/')
             reduced_path = reduced_path.replace('[^/]*', '')
             reduced_path = reduced_path.replace('[^/]+', '∞')
             reduced_path = reduced_path.replace('[^/-]+', '∞')
