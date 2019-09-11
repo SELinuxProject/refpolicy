@@ -36,6 +36,7 @@ logging_log_file(ulogd_var_log_t)
 # a rule allowing dac_read_search if you encounter this, but fix your system.
 allow ulogd_t self:capability { net_admin setgid setuid sys_nice };
 allow ulogd_t self:process setsched;
+allow ulogd_t self:fifo_file rw_fifo_file_perms;
 allow ulogd_t self:netlink_netfilter_socket create_socket_perms;
 allow ulogd_t self:netlink_nflog_socket create_socket_perms;
 allow ulogd_t self:netlink_socket create_socket_perms;
@@ -64,6 +65,17 @@ logging_send_syslog_msg(ulogd_t)
 miscfiles_read_localization(ulogd_t)
 
 sysnet_dns_name_resolve(ulogd_t)
+
+ifdef(`init_systemd', `
+	# For /run/systemd/dynamic-uid/
+	init_list_pids(ulogd_t)
+
+	optional_policy(`
+		dbus_system_bus_client(ulogd_t)
+		# For GetDynamicUser() of org.freedesktop.systemd1.Manager
+		init_dbus_chat(ulogd_t)
+	')
+')
 
 optional_policy(`
 	mysql_stream_connect(ulogd_t)
