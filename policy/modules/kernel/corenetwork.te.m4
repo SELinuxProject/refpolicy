@@ -45,7 +45,7 @@ ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
 #
 define(`network_interface',`
 gen_require(``type unlabeled_t;'')
-type $1_netif_t alias netif_$1_t, netif_type;
+type $1_netif_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
 
@@ -60,7 +60,7 @@ gen_bool(network_enabled, true)
 define(`__network_enabled_declared__')
 ')
 gen_require(``type unlabeled_t;'')
-type $1_netif_t alias netif_$1_t, netif_type;
+type $1_netif_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
 
@@ -73,7 +73,7 @@ ifelse(`$5',`',`',`declare_nodes($1,shiftn(4,$*))')dnl
 # network_node(node_name,mls_sensitivity,address,netmask[, mls_sensitivity,address,netmask, [...]])
 #
 define(`network_node',`
-type $1_node_t alias node_$1_t, node_type;
+type $1_node_t, node_type;
 declare_nodes($1_node_t,shift($*))
 ')
 
