@@ -30,22 +30,22 @@ init_daemon_domain(auditd_t, auditd_exec_t)
 type auditd_initrc_exec_t;
 init_script_file(auditd_initrc_exec_t)
 
+type auditd_runtime_t alias auditd_var_run_t;
+files_pid_file(auditd_runtime_t)
+
 type auditd_unit_t;
 init_unit_file(auditd_unit_t)
-
-type auditd_var_run_t;
-files_pid_file(auditd_var_run_t)
 
 type audisp_t;
 type audisp_exec_t;
 init_system_domain(audisp_t, audisp_exec_t)
 
-type audisp_var_run_t;
-files_pid_file(audisp_var_run_t)
-
 type audisp_remote_t;
 type audisp_remote_exec_t;
 logging_dispatcher_domain(audisp_remote_t, audisp_remote_exec_t)
+
+type audisp_runtime_t alias audisp_var_run_t;
+files_pid_file(audisp_runtime_t)
 
 type devlog_t;
 files_type(devlog_t)
@@ -55,11 +55,11 @@ type klogd_t;
 type klogd_exec_t;
 init_daemon_domain(klogd_t, klogd_exec_t)
 
+type klogd_runtime_t alias klogd_var_run_t;
+files_pid_file(klogd_runtime_t)
+
 type klogd_tmp_t;
 files_tmp_file(klogd_tmp_t)
-
-type klogd_var_run_t;
-files_pid_file(klogd_var_run_t)
 
 type syslog_conf_t;
 files_config_file(syslog_conf_t)
@@ -67,11 +67,14 @@ files_config_file(syslog_conf_t)
 type syslogd_t;
 type syslogd_exec_t;
 init_daemon_domain(syslogd_t, syslogd_exec_t)
-init_named_socket_activation(syslogd_t, syslogd_var_run_t)
+init_named_socket_activation(syslogd_t, syslogd_runtime_t)
 mls_trusted_socket(syslogd_t)
 
 type syslogd_initrc_exec_t;
 init_script_file(syslogd_initrc_exec_t)
+
+type syslogd_runtime_t alias syslogd_var_run_t;
+files_pid_file(syslogd_runtime_t)
 
 type syslogd_tmp_t;
 files_tmp_file(syslogd_tmp_t)
@@ -81,9 +84,6 @@ init_unit_file(syslogd_unit_t)
 
 type syslogd_var_lib_t;
 files_type(syslogd_var_lib_t)
-
-type syslogd_var_run_t;
-files_pid_file(syslogd_var_run_t)
 
 type var_log_t;
 logging_log_file(var_log_t)
@@ -162,9 +162,9 @@ allow auditd_t auditd_log_t:dir setattr;
 manage_lnk_files_pattern(auditd_t, auditd_log_t, auditd_log_t)
 allow auditd_t var_log_t:dir search_dir_perms;
 
-manage_files_pattern(auditd_t, auditd_var_run_t, auditd_var_run_t)
-manage_sock_files_pattern(auditd_t, auditd_var_run_t, auditd_var_run_t)
-files_pid_filetrans(auditd_t, auditd_var_run_t, { file sock_file })
+manage_files_pattern(auditd_t, auditd_runtime_t, auditd_runtime_t)
+manage_sock_files_pattern(auditd_t, auditd_runtime_t, auditd_runtime_t)
+files_pid_filetrans(auditd_t, auditd_runtime_t, { file sock_file })
 
 kernel_read_kernel_sysctls(auditd_t)
 # Needs to be able to run dispatcher.  see /etc/audit/auditd.conf
@@ -249,8 +249,8 @@ allow audisp_t self:unix_dgram_socket create_socket_perms;
 
 allow audisp_t auditd_t:unix_stream_socket rw_socket_perms;
 
-manage_sock_files_pattern(audisp_t, audisp_var_run_t, audisp_var_run_t)
-files_pid_filetrans(audisp_t, audisp_var_run_t, sock_file)
+manage_sock_files_pattern(audisp_t, audisp_runtime_t, audisp_runtime_t)
+files_pid_filetrans(audisp_t, audisp_runtime_t, sock_file)
 
 kernel_read_system_state(audisp_t)
 
@@ -323,8 +323,8 @@ manage_dirs_pattern(klogd_t, klogd_tmp_t, klogd_tmp_t)
 manage_files_pattern(klogd_t, klogd_tmp_t, klogd_tmp_t)
 files_tmp_filetrans(klogd_t, klogd_tmp_t,{ file dir })
 
-manage_files_pattern(klogd_t, klogd_var_run_t, klogd_var_run_t)
-files_pid_filetrans(klogd_t, klogd_var_run_t, file)
+manage_files_pattern(klogd_t, klogd_runtime_t, klogd_runtime_t)
+files_pid_filetrans(klogd_t, klogd_runtime_t, file)
 
 kernel_read_system_state(klogd_t)
 kernel_read_messages(klogd_t)
@@ -426,11 +426,11 @@ allow syslogd_t syslogd_var_lib_t:file map;
 files_search_var_lib(syslogd_t)
 
 # manage pid file
-manage_files_pattern(syslogd_t, syslogd_var_run_t, syslogd_var_run_t)
-allow syslogd_t syslogd_var_run_t:file map;
+manage_files_pattern(syslogd_t, syslogd_runtime_t, syslogd_runtime_t)
+allow syslogd_t syslogd_runtime_t:file map;
 
-files_pid_filetrans(syslogd_t, syslogd_var_run_t, file)
-allow syslogd_t syslogd_var_run_t:dir create_dir_perms;
+files_pid_filetrans(syslogd_t, syslogd_runtime_t, file)
+allow syslogd_t syslogd_runtime_t:dir create_dir_perms;
 
 kernel_read_crypto_sysctls(syslogd_t)
 kernel_read_system_state(syslogd_t)
@@ -541,7 +541,7 @@ ifdef(`init_systemd',`
 	domain_read_all_domains_state(syslogd_t)
 
 	init_create_runtime_dirs(syslogd_t)
-	init_daemon_pid_file(syslogd_var_run_t, dir, "syslogd")
+	init_daemon_pid_file(syslogd_runtime_t, dir, "syslogd")
 	init_getattr(syslogd_t)
 	init_rename_runtime_files(syslogd_t)
 	init_delete_runtime_files(syslogd_t)

@@ -47,10 +47,10 @@ kernel_domtrans_to(init_t, init_exec_t)
 role system_r types init_t;
 
 #
-# init_var_run_t is the type for /var/run/shutdown.pid and /var/run/systemd.
+# init_runtime_t is the type for /var/run/shutdown.pid and /var/run/systemd.
 #
-type init_var_run_t;
-files_pid_file(init_var_run_t)
+type init_runtime_t alias init_var_run_t;
+files_pid_file(init_runtime_t)
 
 #
 # init_var_lib_t is the type for /var/lib/systemd.
@@ -71,7 +71,7 @@ type initrc_t, init_script_domain_type, init_run_all_scripts_domain;
 type initrc_exec_t, init_script_file_type;
 domain_type(initrc_t)
 domain_entry_file(initrc_t, initrc_exec_t)
-init_named_socket_activation(initrc_t, init_var_run_t)
+init_named_socket_activation(initrc_t, init_runtime_t)
 role system_r types initrc_t;
 # should be part of the true block
 # of the below init_upstart tunable
@@ -85,6 +85,9 @@ files_type(initrc_devpts_t)
 type initrc_lock_t;
 files_lock_file(initrc_lock_t)
 
+type initrc_runtime_t alias initrc_var_run_t;
+files_pid_file(initrc_runtime_t)
+
 type initrc_state_t;
 files_type(initrc_state_t)
 
@@ -93,9 +96,6 @@ files_tmp_file(initrc_tmp_t)
 
 type initrc_var_log_t;
 logging_log_file(initrc_var_log_t)
-
-type initrc_var_run_t;
-files_pid_file(initrc_var_run_t)
 
 type systemd_unit_t;
 init_unit_file(systemd_unit_t)
@@ -132,23 +132,23 @@ can_exec(init_t, init_exec_t)
 allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
-allow init_t init_var_run_t:file manage_file_perms;
-files_pid_filetrans(init_t, init_var_run_t, file)
+allow init_t init_runtime_t:file manage_file_perms;
+files_pid_filetrans(init_t, init_runtime_t, file)
 
 # for /run/initctl
-allow init_t init_var_run_t:fifo_file manage_fifo_file_perms;
+allow init_t init_runtime_t:fifo_file manage_fifo_file_perms;
 
-allow init_t init_var_run_t:lnk_file manage_lnk_file_perms;
+allow init_t init_runtime_t:lnk_file manage_lnk_file_perms;
 
 # for systemd to manage service file symlinks
-allow init_t init_var_run_t:file manage_lnk_file_perms;
+allow init_t init_runtime_t:file manage_lnk_file_perms;
 
 allow init_t initctl_t:fifo_file manage_fifo_file_perms;
 dev_filetrans(init_t, initctl_t, fifo_file)
 files_pid_filetrans(init_t, initctl_t, fifo_file)
 
 # Modify utmp.
-allow init_t initrc_var_run_t:file { rw_file_perms setattr };
+allow init_t initrc_runtime_t:file { rw_file_perms setattr };
 
 kernel_read_system_state(init_t)
 kernel_share_state(init_t)
@@ -233,8 +233,8 @@ ifdef(`init_systemd',`
 	allow init_t self:bpf { map_create map_read map_write prog_load prog_run };
 
 	# for /run/systemd/inaccessible/{chr,blk}
-	allow init_t init_var_run_t:blk_file { create getattr };
-	allow init_t init_var_run_t:chr_file { create getattr };
+	allow init_t init_runtime_t:blk_file { create getattr };
+	allow init_t init_runtime_t:chr_file { create getattr };
 
 	allow init_t systemprocess:process { dyntransition siginh };
 	allow init_t systemprocess:unix_stream_socket create_stream_socket_perms;
@@ -246,7 +246,7 @@ ifdef(`init_systemd',`
 	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
 	allow init_t self:unix_dgram_socket lock;
 
-	allow init_t init_var_run_t:sock_file manage_sock_file_perms;
+	allow init_t init_runtime_t:sock_file manage_sock_file_perms;
 
 	allow init_t daemon:unix_stream_socket create_stream_socket_perms;
 	allow init_t daemon:unix_dgram_socket create_socket_perms;
@@ -260,10 +260,10 @@ ifdef(`init_systemd',`
 	allow systemprocess init_t:unix_stream_socket { append write read getattr ioctl };
 
 	allow daemon init_t:unix_stream_socket { append write read getattr ioctl };
-	manage_files_pattern(init_t, init_var_run_t, init_var_run_t)
-	manage_lnk_files_pattern(init_t, init_var_run_t, init_var_run_t)
-	manage_sock_files_pattern(init_t, init_var_run_t, init_var_run_t)
-	manage_dirs_pattern(init_t, init_var_run_t, init_var_run_t)
+	manage_files_pattern(init_t, init_runtime_t, init_runtime_t)
+	manage_lnk_files_pattern(init_t, init_runtime_t, init_runtime_t)
+	manage_sock_files_pattern(init_t, init_runtime_t, init_runtime_t)
+	manage_dirs_pattern(init_t, init_runtime_t, init_runtime_t)
 
 	manage_files_pattern(init_t, systemd_unit_t, systemdunit)
 
@@ -477,8 +477,8 @@ ifdef(`init_systemd',`
 ifdef(`distro_debian',`
 	fs_tmpfs_filetrans(init_t, initctl_t, fifo_file, "initctl")
 
-	allow init_t initrc_var_run_t:file manage_file_perms;
-	fs_tmpfs_filetrans(init_t, initrc_var_run_t, file, "utmp")
+	allow init_t initrc_runtime_t:file manage_file_perms;
+	fs_tmpfs_filetrans(init_t, initrc_runtime_t, file, "utmp")
 	fs_manage_tmpfs_files(initrc_t)
 
 	sysnet_manage_config(initrc_t)
@@ -577,8 +577,8 @@ manage_files_pattern(initrc_t, initrc_state_t, initrc_state_t)
 manage_lnk_files_pattern(initrc_t, initrc_state_t, initrc_state_t)
 manage_fifo_files_pattern(initrc_t, initrc_state_t, initrc_state_t)
 
-allow initrc_t initrc_var_run_t:file manage_file_perms;
-files_pid_filetrans(initrc_t, initrc_var_run_t, file)
+allow initrc_t initrc_runtime_t:file manage_file_perms;
+files_pid_filetrans(initrc_t, initrc_runtime_t, file)
 
 allow initrc_t daemon:process siginh;
 
@@ -779,7 +779,7 @@ ifdef(`distro_debian',`
 
 	dev_getattr_generic_blk_files(initrc_t)
 
-	fs_tmpfs_filetrans(initrc_t, initrc_var_run_t, dir)
+	fs_tmpfs_filetrans(initrc_t, initrc_runtime_t, dir)
 
 	# for storing state under /dev/shm
 	fs_setattr_tmpfs_dirs(initrc_t)
@@ -966,15 +966,15 @@ ifdef(`init_systemd',`
 	manage_files_pattern(initrc_t, initrc_lock_t, initrc_lock_t)
 	files_lock_filetrans(initrc_t, initrc_lock_t, file)
 
-	manage_dirs_pattern(initrc_t, init_var_run_t, init_var_run_t)
-	allow initrc_t init_var_run_t:file create_file_perms;
-	allow initrc_t init_var_run_t:lnk_file create_lnk_file_perms;
-	allow initrc_t init_var_run_t:service { start status };
+	manage_dirs_pattern(initrc_t, init_runtime_t, init_runtime_t)
+	allow initrc_t init_runtime_t:file create_file_perms;
+	allow initrc_t init_runtime_t:lnk_file create_lnk_file_perms;
+	allow initrc_t init_runtime_t:service { start status };
 
-	manage_dirs_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
-	manage_chr_files_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
-	manage_lnk_files_pattern(initrc_t, initrc_var_run_t, initrc_var_run_t)
-	files_pid_filetrans(initrc_t, initrc_var_run_t, dir_file_class_set)
+	manage_dirs_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
+	manage_chr_files_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
+	manage_lnk_files_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
+	files_pid_filetrans(initrc_t, initrc_runtime_t, dir_file_class_set)
 
 	create_dirs_pattern(initrc_t, systemd_unit_t, systemd_unit_t)
 	allow initrc_t systemd_unit_t:service reload;
