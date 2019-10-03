@@ -427,7 +427,7 @@ endif
 
 $(layerxml): %.xml: $(tmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
-	$(verbose) cat $(filter %$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
+	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
 	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
 ifdef LOCAL_ROOT
 	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
