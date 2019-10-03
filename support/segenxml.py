@@ -235,7 +235,7 @@ def getTunableXML(file_name, kind):
 					template_code = template_file.readlines()
 					template_file.close()
 				except OSError:
-					warning("cannot open file %s for read, bailing out" % templatedir + "/" + template_call.group(1) + ".iftemplate")
+					warning("cannot open file %s for read, bailing out" % (templatedir + "/" + template_call.group(1) + ".iftemplate"))
 					return []
 				# Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
 				template_split = re.findall(r"[\w\" {}]+", line.strip())
