@@ -108,7 +108,7 @@ class FileContext():
         return 0
 
     def __lt__(self, other):
-        return self._compare(self, other) is -1
+        return self._compare(self, other) == -1
 
     def __str__(self):
         if self.file_type:
