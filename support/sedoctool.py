@@ -266,7 +266,7 @@ def format_html_desc(node):
 	desc_buf = ''
 	for desc in node.childNodes:
 		if desc.nodeName == "#text":
-			if desc.data is not '':
+			if desc.data:
 				if desc.parentNode.nodeName != "p":
 					desc_buf += "<p>" + desc.data + "</p>"
 				else:

@@ -46,10 +46,10 @@ EXCLUDE_LOGINS=["/sbin/nologin", "/bin/false"]
 
 # Python 2/3 wrapper
 def getstatusoutput_wrapper(cmd):
-    if sys.version_info.major is 2:
+    if sys.version_info.major == 2:
         import commands
         return commands.getstatusoutput(cmd)
-    elif sys.version_info.major is 3:
+    elif sys.version_info.major == 3:
         import subprocess
         return subprocess.getstatusoutput(cmd)
     else:
