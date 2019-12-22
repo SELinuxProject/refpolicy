@@ -128,8 +128,8 @@ Vagrant.configure("2") do |config|
     end
 
     # redefine the /vagrant as a synced folder (not an NFS share), in order to work cleanly on it
-    config.vm.synced_folder ".", "/vagrant", disabled: true
-    config.vm.synced_folder ".", "/vagrant", type: "rsync",
+    debian.vm.synced_folder ".", "/vagrant", disabled: true
+    debian.vm.synced_folder ".", "/vagrant", type: "rsync",
       rsync__exclude: ".vagrant/"
 
     debian.vm.provision "shell", run: "once", inline: <<-SHELL
