@@ -1,0 +1,65 @@
+policy_module(cryfs, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role cryfs_roles;
+
+type cryfs_t;
+type cryfs_exec_t;
+userdom_user_application_domain(cryfs_t, cryfs_exec_t)
+role cryfs_roles types cryfs_t;
+
+########################################
+#
+# Local policy
+#
+
+allow cryfs_t self:capability { dac_read_search sys_admin };
+allow cryfs_t self:process { getsched signal };
+allow cryfs_t self:fifo_file rw_fifo_file_perms;
+
+# CryFS 0.9.10 can check for updates everytime it runs, if it is not compiled with CRYFS_NO_UPDATE_CHECKS (option -DCRYFS_UPDATE_CHECKS=off).
+# When update checks are disabled (for example with Debian package), libcurl is nonetheless initialized.
+# curl_global_init() calls Curl_ipv6works(), which uses socket(PF_INET6, SOCK_DGRAM, 0) to check for IPv6 support.
+# Hide this useless access.
+dontaudit cryfs_t self:udp_socket create;
+
+# gocryptfs re-executes itself
+allow cryfs_t cryfs_exec_t:file execute_no_trans;
+
+# gocryptfs runs logger
+corecmd_exec_bin(cryfs_t)
+
+domain_use_interactive_fds(cryfs_t)
+
+files_mounton_all_mountpoints(cryfs_t)
+files_read_etc_files(cryfs_t)
+
+fs_getattr_xattr_fs(cryfs_t)
+fs_mount_fusefs(cryfs_t)
+
+# For /proc/sys/crypto/fips_enabled
+kernel_read_crypto_sysctls(cryfs_t)
+# gocryptfs reads /proc/sys/fs/pipe-max-size
+kernel_read_fs_sysctls(cryfs_t)
+# gocryptfs reads /proc/sys/net/core/somaxconn
+kernel_read_net_sysctls(cryfs_t)
+# gocryptfs reads /proc/cpuinfo
+kernel_read_system_state(cryfs_t)
+
+logging_send_syslog_msg(cryfs_t)
+
+miscfiles_read_generic_certs(cryfs_t)
+miscfiles_read_localization(cryfs_t)
+
+# Run fusermount in the same domain
+mount_exec(cryfs_t)
+
+# Use /dev/fuse
+storage_rw_fuse(cryfs_t)
+
+userdom_use_user_terminals(cryfs_t)
+userdom_user_content_access_template(cryfs, cryfs_t)
