@@ -19,6 +19,9 @@ $install_refpolicy = <<-SHELL
   make -C /vagrant install-headers
   semodule -s refpolicy -i /usr/share/selinux/refpolicy/*.pp
 
+  # Load the module specific to Vagrant VM
+  semodule -s refpolicy -i /vagrant/support/vagrant-vm.cil
+
   if ! (LANG=C sestatus -v | grep '^Loaded policy name:\s*refpolicy$' > /dev/null)
   then
       # Use the reference policy
