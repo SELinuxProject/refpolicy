@@ -152,7 +152,7 @@ def analyze_fc_file(fc_path):
             reduced_path = reduced_path.replace("include`'(", 'include(')
 
             # Check the character set of the path
-            invalid_characters = set(re.findall(r'[^-0-9A-Za-z_./()?+*%{}\[\]^|:~\\]', reduced_path))
+            invalid_characters = set(re.findall(r'[^-0-9A-Za-z_@./()?+*%{}\[\]^|:~\\]', reduced_path))
             if invalid_characters:
                 print(f"{prefix}unexpected characters {' '.join(sorted(invalid_characters))} in {path}")
                 retval = False
@@ -271,7 +271,7 @@ def analyze_fc_file(fc_path):
 
             # Check the remaining symbols in the reduced path.
             # Only show a warning if no other ones were reported, in order to reduce the probability of false-positive.
-            invalid_symbols = set(re.findall(r'[^-0-9A-Za-z_~:·†∞/]', reduced_path))
+            invalid_symbols = set(re.findall(r'[^-0-9A-Za-z_@~:·†∞/]', reduced_path))
             if retval and invalid_symbols:
                 print(f"{prefix}unexpected symbols {' '.join(sorted(invalid_symbols))} in {path} after being reduced to {reduced_path}. This could be due to an error in the pattern or a missing reduction rule in the checker")  # noqa
                 retval = False
