@@ -1,0 +1,21 @@
+; SELinux policy module for running virtual machines with Vagrant
+
+; Vagrant performs "ssh sudo ..." without allocating a pseudo-terminal.
+; This leads sudo to directly using sshd pipes, as well as other processes
+; spawned from the provision scripts. Define an attribute for those processes.
+(typeattribute vagrant_provisioning_cmd_type)
+(typeattributeset vagrant_provisioning_cmd_type (
+    load_policy_t
+    semanage_t
+    setfiles_t
+    sudodomain
+))
+(allow vagrant_provisioning_cmd_type sshd_t (fifo_file (append getattr ioctl read write)))
+
+; "vagrant rsync" makes Vagrant invoke "sudo rsync" without a shell which would
+; make sudo transition out of sysadm_sudo_t.
+; Therefore add a transition from sysadm_sudo_t to sysadm_t through rsync_exec_t
+(optional sysadm_sudo_rsync_transition
+    (allow sysadm_t rsync_exec_t (file (entrypoint)))
+    (typetransition sysadm_sudo_t rsync_exec_t process sysadm_t)
+)

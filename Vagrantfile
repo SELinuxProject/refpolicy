@@ -15,43 +15,46 @@ $install_refpolicy = <<-SHELL
   sudo -su vagrant make -C /vagrant conf
   sudo -su vagrant make -C /vagrant all
   sudo -su vagrant make -C /vagrant validate
-  sudo -s make -C /vagrant install
-  sudo -s make -C /vagrant install-headers
-  sudo -s semodule -s refpolicy -i /usr/share/selinux/refpolicy/*.pp
+  make -C /vagrant install
+  make -C /vagrant install-headers
+  semodule -s refpolicy -i /usr/share/selinux/refpolicy/*.pp
+
+  # Load the module specific to Vagrant VM
+  semodule -s refpolicy -i /vagrant/support/vagrant-vm.cil
 
   if ! (LANG=C sestatus -v | grep '^Loaded policy name:\s*refpolicy$' > /dev/null)
   then
       # Use the reference policy
       sed -i -e 's/^\\(SELINUXTYPE=\\).*/SELINUXTYPE=refpolicy/' /etc/selinux/config
   fi
-  sudo -s semodule --reload
+  semodule --reload
 
   # allow every domain to use /dev/urandom
-  sudo -s semanage boolean --modify --on global_ssp
+  semanage boolean --modify --on global_ssp
 
   # allow systemd-tmpfiles to manage every file
-  sudo -s semanage boolean --modify --on systemd_tmpfiles_manage_all
+  semanage boolean --modify --on systemd_tmpfiles_manage_all
 
   # make vagrant user use unconfined_u context
-  if ! (sudo -s semanage login -l | grep '^vagrant' > /dev/null)
+  if ! (semanage login -l | grep '^vagrant' > /dev/null)
   then
       echo "Configuring SELinux context for vagrant user"
-      sudo -s semanage login -a -s unconfined_u vagrant
+      semanage login -a -s unconfined_u vagrant
   fi
 
   # label /vagrant as vagrant's home files
-  if sudo -s semanage fcontext --list | grep '^/vagrant(/\.\*)?'
+  if semanage fcontext --list | grep '^/vagrant(/\.\*)?'
   then
-      sudo -s semanage fcontext -m -s unconfined_u -t user_home_t '/vagrant(/.*)?'
+      semanage fcontext -m -s unconfined_u -t user_home_t '/vagrant(/.*)?'
   else
-      sudo -s semanage fcontext -a -s unconfined_u -t user_home_t '/vagrant(/.*)?'
+      semanage fcontext -a -s unconfined_u -t user_home_t '/vagrant(/.*)?'
   fi
 
   # Update interface_info
-  sudo -s sepolgen-ifgen -o /var/lib/sepolgen/interface_info -i /usr/share/selinux/refpolicy
+  sepolgen-ifgen -o /var/lib/sepolgen/interface_info -i /usr/share/selinux/refpolicy
 
   echo "Relabelling the system..."
-  sudo -s restorecon -RF /
+  restorecon -RF /
 
   echo "If this is a fresh install, you need to reboot in order to enable enforcing mode"
 SHELL
@@ -128,8 +131,8 @@ Vagrant.configure("2") do |config|
     end
 
     # redefine the /vagrant as a synced folder (not an NFS share), in order to work cleanly on it
-    config.vm.synced_folder ".", "/vagrant", disabled: true
-    config.vm.synced_folder ".", "/vagrant", type: "rsync",
+    debian.vm.synced_folder ".", "/vagrant", disabled: true
+    debian.vm.synced_folder ".", "/vagrant", type: "rsync",
       rsync__exclude: ".vagrant/"
 
     debian.vm.provision "shell", run: "once", inline: <<-SHELL
