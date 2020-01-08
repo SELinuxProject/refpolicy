@@ -23,6 +23,7 @@ gen_tunable(init_upstart, false)
 ## </desc>
 gen_tunable(init_daemons_use_tty, false)
 
+attribute init_path_unit_loc_type;
 attribute init_script_domain_type;
 attribute init_script_file_type;
 attribute init_run_all_scripts_domain;
@@ -232,6 +233,8 @@ ifdef(`init_systemd',`
 	allow init_t self:capability2 audit_read;
 	allow init_t self:bpf { map_create map_read map_write prog_load prog_run };
 
+	allow init_t init_path_unit_loc_type:{ dir file } { getattr watch };
+
 	# for /run/systemd/inaccessible/{chr,blk}
 	allow init_t init_runtime_t:blk_file { create getattr };
 	allow init_t init_runtime_t:chr_file { create getattr };
@@ -260,6 +263,8 @@ ifdef(`init_systemd',`
 	allow systemprocess init_t:unix_stream_socket { append write read getattr ioctl };
 
 	allow daemon init_t:unix_stream_socket { append write read getattr ioctl };
+
+	allow init_t init_runtime_t:{ dir file } watch;
 	manage_files_pattern(init_t, init_runtime_t, init_runtime_t)
 	manage_lnk_files_pattern(init_t, init_runtime_t, init_runtime_t)
 	manage_sock_files_pattern(init_t, init_runtime_t, init_runtime_t)
@@ -327,6 +332,7 @@ ifdef(`init_systemd',`
 	files_list_var(init_t)
 	files_list_var_lib(init_t)
 	files_mounton_root(init_t)
+	files_watch_root_dirs(init_t)
 	files_search_pids(init_t)
 	files_relabel_all_pids(init_t)
 	files_relabel_all_pid_sock_files(init_t)
@@ -338,6 +344,7 @@ ifdef(`init_systemd',`
 	files_create_all_pid_sockets(init_t)
 	files_create_all_spool_sockets(init_t)
 	files_create_lock_dirs(init_t)
+	files_watch_runtime_dirs(init_t)
 	files_delete_all_pids(init_t)
 	files_delete_all_spool_sockets(init_t)
 	files_exec_generic_pid_files(init_t)
@@ -357,6 +364,8 @@ ifdef(`init_systemd',`
 	files_mounton_tmp(init_t)
 	# for ProtectSystem
 	files_mounton_etc_dirs(init_t)
+	# If /etc/localtime is missing, a watch on /etc is added.
+	files_watch_etc_dirs(init_t)
 
 	fs_relabel_cgroup_dirs(init_t)
 	fs_list_auto_mountpoints(init_t)
@@ -368,6 +377,7 @@ ifdef(`init_systemd',`
 	fs_relabel_pstore_dirs(init_t)
 	fs_dontaudit_getattr_xattr_fs(init_t)
 	fs_create_cgroup_links(init_t)
+	fs_watch_cgroup_files(init_t)
 	fs_getattr_all_fs(init_t)
 	fs_manage_cgroup_dirs(init_t)
 	fs_manage_cgroup_files(init_t)
@@ -387,6 +397,10 @@ ifdef(`init_systemd',`
 	fs_read_nsfs_files(init_t)
 
 	init_read_script_state(init_t)
+
+	miscfiles_watch_localization(init_t)
+
+	mount_watch_runtime_dirs(init_t)
 
 	# systemd_socket_activated policy
 	mls_socket_write_all_levels(init_t)
@@ -1006,11 +1020,14 @@ ifdef(`init_systemd',`
 
 	# Create /etc/audit.rules.prev after firstboot remediation
 	logging_manage_audit_config(initrc_t)
+	# journalctl:
+	logging_watch_runtime_dirs(initrc_t)
 
 	# lvm2-activation-generator checks file labels
 	seutil_read_file_contexts(initrc_t)
 
 	systemd_start_power_units(initrc_t)
+	systemd_watch_networkd_runtime_dirs(initrc_t)
 
 	optional_policy(`
 		# create /var/lock/lvm/
