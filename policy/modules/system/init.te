@@ -23,6 +23,14 @@ gen_tunable(init_upstart, false)
 ## </desc>
 gen_tunable(init_daemons_use_tty, false)
 
+## <desc>
+## <p>
+## Enable systemd to mount on all non-security files.
+## </p>
+## </desc>
+gen_tunable(init_mounton_non_security, false)
+
+attribute init_mountpoint_type;
 attribute init_path_unit_loc_type;
 attribute init_script_domain_type;
 attribute init_script_file_type;
@@ -233,6 +241,8 @@ ifdef(`init_systemd',`
 	allow init_t self:capability2 audit_read;
 	allow init_t self:bpf { map_create map_read map_write prog_load prog_run };
 
+	allow init_t init_mountpoint_type:dir_file_class_set { getattr mounton };
+
 	allow init_t init_path_unit_loc_type:{ dir file } { getattr watch };
 
 	# for /run/systemd/inaccessible/{chr,blk}
@@ -291,7 +301,6 @@ ifdef(`init_systemd',`
 	kernel_search_key(init_t)
 	kernel_setsched(init_t)
 	kernel_rw_unix_sysctls(init_t)
-	kernel_mounton_message_if(init_t)
 
 	# run systemd misc initializations
 	# in the initrc_t domain, as would be
@@ -303,7 +312,6 @@ ifdef(`init_systemd',`
 	dev_relabel_all_sysfs(init_t)
 	dev_relabel_generic_symlinks(init_t)
 	dev_read_urand(init_t)
-	dev_mounton_kmsg(init_t)
 	dev_write_kmsg(init_t)
 	dev_write_urand(init_t)
 	dev_rw_lvm_control(init_t)
@@ -331,7 +339,6 @@ ifdef(`init_systemd',`
 	files_list_usr(init_t)
 	files_list_var(init_t)
 	files_list_var_lib(init_t)
-	files_mounton_root(init_t)
 	files_watch_root_dirs(init_t)
 	files_search_pids(init_t)
 	files_relabel_all_pids(init_t)
@@ -353,17 +360,12 @@ ifdef(`init_systemd',`
 	files_manage_all_pid_dirs(init_t)
 	files_manage_generic_tmp_dirs(init_t)
 	files_manage_urandom_seed(init_t)
-	files_mounton_all_mountpoints(init_t)
 	files_read_boot_files(initrc_t)
 	files_relabel_all_lock_dirs(init_t)
 	files_relabel_all_pid_dirs(init_t)
 	files_relabel_all_pid_files(init_t)
 	files_search_all(init_t)
 	files_unmount_all_file_type_fs(init_t)
-	# for privatetmp functions
-	files_mounton_tmp(init_t)
-	# for ProtectSystem
-	files_mounton_etc_dirs(init_t)
 	# If /etc/localtime is missing, a watch on /etc is added.
 	files_watch_etc_dirs(init_t)
 
@@ -452,6 +454,10 @@ ifdef(`init_systemd',`
 	udev_read_pid_files(init_t)
 
 	udev_relabelto_db_sockets(init_t)
+
+	tunable_policy(`init_mounton_non_security',`
+		files_mounton_non_security(init_t)
+	')
 
 	optional_policy(`
 		clock_read_adjtime(init_t)
