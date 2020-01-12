@@ -32,6 +32,9 @@ $install_refpolicy = <<-SHELL
   # allow every domain to use /dev/urandom
   semanage boolean --modify --on global_ssp
 
+  # allow opening SSH sessions as unconfined_u and sysadm_u
+  semanage boolean --modify --on ssh_sysadm_login
+
   # allow systemd-tmpfiles to manage every file
   semanage boolean --modify --on systemd_tmpfiles_manage_all
 
