@@ -20,6 +20,15 @@ gen_tunable(systemd_tmpfiles_manage_all, false)
 ## </desc>
 gen_tunable(systemd_nspawn_labeled_namespace, false)
 
+## <desc>
+## <p>
+## Allow systemd-logind to interact with the bootloader (read which one is
+## installed on fixed disks, enumerate entries for dbus property
+## BootLoaderEntries, etc.)
+## </p>
+## </desc>
+gen_tunable(systemd_logind_get_bootloader, false)
+
 attribute systemd_log_parse_env_type;
 attribute systemd_tmpfiles_conf_type;
 attribute systemd_user_session_type;
@@ -544,6 +553,16 @@ userdom_use_user_ttys(systemd_logind_t)
 ifdef(`distro_redhat',`
 	userdom_user_run_filetrans_user_runtime(systemd_logind_t, dir)
 	userdom_user_runtime_root_filetrans_user_runtime(systemd_logind_t, dir)
+')
+
+tunable_policy(`systemd_logind_get_bootloader',`
+	fs_getattr_dos_fs(systemd_logind_t)
+	fs_list_dos(systemd_logind_t)
+	fs_read_dos_files(systemd_logind_t)
+
+	# systemd-logind uses util-linux's blkid in order to find the ESP (EFI System Partition).
+	# This reads the first sectors of fixed disk devices.
+	storage_raw_read_fixed_disk(systemd_logind_t)
 ')
 
 optional_policy(`
