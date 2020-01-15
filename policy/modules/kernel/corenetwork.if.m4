@@ -28,7 +28,7 @@ interface(`corenet_tcp_sendrecv_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { tcp_send tcp_recv egress ingress };
+	allow dollarsone $1_$2:netif { egress ingress };
 ')
 
 ########################################
@@ -47,7 +47,7 @@ interface(`corenet_udp_send_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { udp_send egress };
+	allow dollarsone $1_$2:netif { egress };
 ')
 
 ########################################
@@ -66,7 +66,7 @@ interface(`corenet_udp_receive_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { udp_recv ingress };
+	allow dollarsone $1_$2:netif { ingress };
 ')
 
 ########################################
@@ -101,7 +101,7 @@ interface(`corenet_raw_send_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { rawip_send egress };
+	allow dollarsone $1_$2:netif { egress };
 ')
 
 ########################################
@@ -120,7 +120,7 @@ interface(`corenet_raw_receive_$1_if',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:netif { rawip_recv ingress };
+	allow dollarsone $1_$2:netif { ingress };
 ')
 
 ########################################
@@ -160,7 +160,7 @@ interface(`corenet_tcp_sendrecv_$1_if',`
 	')
 
 	if (network_enabled) {
-		allow dollarsone $1_$2:netif { tcp_send tcp_recv egress ingress };
+		allow dollarsone $1_$2:netif { egress ingress };
 	}
 ')
 
@@ -181,7 +181,7 @@ interface(`corenet_udp_send_$1_if',`
 	')
 
 	if (network_enabled) {
-		allow dollarsone $1_$2:netif { udp_send egress };
+		allow dollarsone $1_$2:netif { egress };
 	}
 ')
 
@@ -202,7 +202,7 @@ interface(`corenet_udp_receive_$1_if',`
 	')
 
 	if (network_enabled) {
-		allow dollarsone $1_$2:netif { udp_recv ingress };
+		allow dollarsone $1_$2:netif { ingress };
 	}
 ')
 
@@ -239,7 +239,7 @@ interface(`corenet_raw_send_$1_if',`
 	')
 
 	if (network_enabled) {
-		allow dollarsone $1_$2:netif { rawip_send egress };
+		allow dollarsone $1_$2:netif { egress };
 	}
 ')
 
@@ -260,7 +260,7 @@ interface(`corenet_raw_receive_$1_if',`
 	')
 
 	if (network_enabled) {
-		allow dollarsone $1_$2:netif { rawip_recv ingress };
+		allow dollarsone $1_$2:netif { ingress };
 	}
 ')
 
@@ -304,7 +304,7 @@ interface(`corenet_tcp_sendrecv_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { tcp_send tcp_recv sendto recvfrom };
+	allow dollarsone $1_$2:node { sendto recvfrom };
 ')
 
 ########################################
@@ -323,7 +323,7 @@ interface(`corenet_udp_send_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { udp_send sendto };
+	allow dollarsone $1_$2:node { sendto };
 ')
 
 ########################################
@@ -342,7 +342,7 @@ interface(`corenet_udp_receive_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { udp_recv recvfrom };
+	allow dollarsone $1_$2:node { recvfrom };
 ')
 
 ########################################
@@ -377,7 +377,7 @@ interface(`corenet_raw_send_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { rawip_send sendto };
+	allow dollarsone $1_$2:node { sendto };
 ')
 
 ########################################
@@ -396,7 +396,7 @@ interface(`corenet_raw_receive_$1_node',`
 		$3 $1_$2;
 	')
 
-	allow dollarsone $1_$2:node { rawip_recv recvfrom };
+	allow dollarsone $1_$2:node { recvfrom };
 ')
 
 ########################################
@@ -473,11 +473,7 @@ define(`create_port_interfaces',``
 ## <infoflow type="both" weight="10"/>
 #
 interface(`corenet_tcp_sendrecv_$1_port',`
-	gen_require(`
-		$3 $1_$2;
-	')
-
-	allow dollarsone $1_$2:tcp_socket { send_msg recv_msg };
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -492,11 +488,7 @@ interface(`corenet_tcp_sendrecv_$1_port',`
 ## <infoflow type="write" weight="10"/>
 #
 interface(`corenet_udp_send_$1_port',`
-	gen_require(`
-		$3 $1_$2;
-	')
-
-	allow dollarsone $1_$2:udp_socket send_msg;
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -511,11 +503,7 @@ interface(`corenet_udp_send_$1_port',`
 ## <infoflow type="none"/>
 #
 interface(`corenet_dontaudit_udp_send_$1_port',`
-	gen_require(`
-		$3 $1_$2;
-	')
-
-	dontaudit dollarsone $1_$2:udp_socket send_msg;
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -530,11 +518,7 @@ interface(`corenet_dontaudit_udp_send_$1_port',`
 ## <infoflow type="read" weight="10"/>
 #
 interface(`corenet_udp_receive_$1_port',`
-	gen_require(`
-		$3 $1_$2;
-	')
-
-	allow dollarsone $1_$2:udp_socket recv_msg;
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -549,11 +533,7 @@ interface(`corenet_udp_receive_$1_port',`
 ## <infoflow type="none"/>
 #
 interface(`corenet_dontaudit_udp_receive_$1_port',`
-	gen_require(`
-		$3 $1_$2;
-	')
-
-	dontaudit dollarsone $1_$2:udp_socket recv_msg;
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -568,8 +548,7 @@ interface(`corenet_dontaudit_udp_receive_$1_port',`
 ## <infoflow type="both" weight="10"/>
 #
 interface(`corenet_udp_sendrecv_$1_port',`
-	corenet_udp_send_$1_port(dollarsone)
-	corenet_udp_receive_$1_port(dollarsone)
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
@@ -585,8 +564,7 @@ interface(`corenet_udp_sendrecv_$1_port',`
 ## <infoflow type="none"/>
 #
 interface(`corenet_dontaudit_udp_sendrecv_$1_port',`
-	corenet_dontaudit_udp_send_$1_port(dollarsone)
-	corenet_dontaudit_udp_receive_$1_port(dollarsone)
+	refpolicywarn(`dollarszero() has been deprecated, please remove.')
 ')
 
 ########################################
