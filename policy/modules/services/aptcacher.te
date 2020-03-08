@@ -1,0 +1,111 @@
+policy_module(aptcacher, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role acngtool_roles;
+
+type acngtool_t;
+type acngtool_exec_t;
+application_domain(acngtool_t, acngtool_exec_t)
+role acngtool_roles types acngtool_t;
+
+type aptcacher_t;
+type aptcacher_exec_t;
+init_daemon_domain(aptcacher_t, aptcacher_exec_t)
+
+type aptcacher_conf_t;
+files_config_file(aptcacher_conf_t)
+
+type aptcacher_cache_t;
+files_type(aptcacher_cache_t)
+
+type aptcacher_lib_t;
+files_type(aptcacher_lib_t)
+
+type aptcacher_log_t;
+logging_log_file(aptcacher_log_t)
+
+type aptcacher_runtime_t;
+files_pid_file(aptcacher_runtime_t)
+
+########################################
+#
+# Local policy
+#
+
+allow aptcacher_t self:process signal;
+
+allow aptcacher_t self:fifo_file rw_inherited_fifo_file_perms;
+allow aptcacher_t self:tcp_socket create_stream_socket_perms;
+allow aptcacher_t self:unix_dgram_socket create_socket_perms;
+allow aptcacher_t self:unix_stream_socket create_stream_socket_perms;
+
+can_exec(aptcacher_t, acngtool_exec_t)
+
+allow aptcacher_t aptcacher_conf_t:dir list_dir_perms;
+allow aptcacher_t aptcacher_conf_t:file mmap_read_file_perms;
+# /etc/apt-cacher-ng/ contains symlinks that point to /var/lib/apt-cacher-ng/
+allow aptcacher_t aptcacher_conf_t:lnk_file read_lnk_file_perms;
+
+allow aptcacher_t aptcacher_cache_t:dir manage_dir_perms;
+allow aptcacher_t aptcacher_cache_t:file { manage_file_perms map };
+allow aptcacher_t aptcacher_cache_t:lnk_file manage_lnk_file_perms;
+
+allow aptcacher_t aptcacher_lib_t:file map;
+files_search_var_lib(aptcacher_t)
+read_files_pattern(aptcacher_t, aptcacher_lib_t, aptcacher_lib_t)
+
+allow aptcacher_t aptcacher_log_t:file map;
+logging_search_logs(aptcacher_t)
+manage_files_pattern(aptcacher_t, aptcacher_log_t, aptcacher_log_t)
+
+manage_sock_files_pattern(aptcacher_t, aptcacher_runtime_t, aptcacher_runtime_t)
+
+kernel_read_vm_overcommit_sysctl(aptcacher_t)
+
+# Calls system()
+corecmd_exec_shell(aptcacher_t)
+
+corenet_tcp_bind_aptcacher_port(aptcacher_t)
+corenet_tcp_bind_generic_node(aptcacher_t)
+corenet_tcp_connect_http_port(aptcacher_t)
+
+auth_use_nsswitch(aptcacher_t)
+
+# Uses sd_notify() to inform systemd it has properly started
+init_dgram_send(aptcacher_t)
+
+miscfiles_read_generic_certs(aptcacher_t)
+
+# Reads /usr/share/zoneinfo/
+miscfiles_read_localization(aptcacher_t)
+
+# For some reasons it's trying to mmap /etc/hosts.deny
+sysnet_mmap_config_files(aptcacher_t)
+
+#######################################
+#
+# acngtool local policy
+#
+
+allow acngtool_t self:tcp_socket create_stream_socket_perms;
+allow acngtool_t self:unix_stream_socket create_socket_perms;
+
+allow acngtool_t aptcacher_conf_t:dir list_dir_perms;
+allow acngtool_t aptcacher_conf_t:file mmap_read_file_perms;
+
+aptcacher_stream_connect(acngtool_t)
+
+corenet_tcp_connect_aptcacher_port(acngtool_t)
+
+auth_use_nsswitch(acngtool_t)
+
+# For some reasons it's trying to mmap /etc/hosts.deny
+sysnet_mmap_config_files(acngtool_t)
+
+optional_policy(`
+	cron_system_entry(acngtool_t, acngtool_exec_t)
+')
