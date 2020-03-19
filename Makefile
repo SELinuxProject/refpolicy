@@ -442,6 +442,8 @@ $(polxml): $(layerxml) $(tunxml) $(boolxml)
 	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
+		else \
+		echo "$@ XML validation not run. Please install the xmllint tool." ;\
 	fi
 
 xml: $(polxml)
