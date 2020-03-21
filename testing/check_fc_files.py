@@ -97,19 +97,26 @@ def analyze_fc_file(fc_path):
 
             # Check the SELinux context
             if context != NONE_CONTEXT:
-                matches = re.match(r'^gen_context\((\S*), ?(\S*)\)$', context)
+                matches = re.match(r'^gen_system_context\((\S*?)(, ?(\S*))?\)$', context)
+
                 if not matches:
                     print(f"{prefix}unknown SELinux context format for {path}: {context}")
                     retval = False
                 else:
-                    context_label, context_mls = matches.groups()
-                    if not context_label.startswith('system_u:object_r:'):
-                        print(f"{prefix}SELinux context does not begin with 'system_u:object_r:' for {path}: {context}")  # noqa
+                    context_label, _, context_mls = matches.groups()
+                    if not context_label:
+                        print(f"{prefix}SELinux context empty for {path}: {context_label} (in {context})")  # noqa
                         retval = False
-                    elif not re.match(r'^system_u:object_r:[0-9A-Za-z_]+$', context_label):
-                        print(f"{prefix}SELinux context type uses unexpected characters for {path}: {context}")  # noqa
+                    elif context_label.startswith('system_u:object_r:'):
+                        print(f"{prefix}SELinux context does begin with 'system_u:object_r:' for {path}: {context_label} (in {context})")  # noqa
                         retval = False
-                    elif context_mls not in MLS_LEVELS:
+                    elif not re.match(r'^[0-9A-Za-z_]+$', context_label):
+                        print(f"{prefix}SELinux context type uses unexpected characters for {path}: {context_label} (in {context})")  # noqa
+                        retval = False
+                    elif context_mls and context_mls == 's0':
+                        print(f"{prefix}SELinux context uses an default MLS label s0 for {path}: {context_mls} (in {context})")  # noqa
+                        retval = False
+                    elif context_mls and context_mls not in MLS_LEVELS:
                         print(f"{prefix}SELinux context uses an unexpected MLS label for {path}: {context_mls} (in {context})")  # noqa
                         retval = False
 
