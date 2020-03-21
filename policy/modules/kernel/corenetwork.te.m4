@@ -36,7 +36,7 @@ changequote(`,')dnl
 ')
 
 define(`declare_netifs',`dnl
-netifcon $2 gen_context(system_u:object_r:$1,$3) gen_context(system_u:object_r:unlabeled_t,$3)
+netifcon $2 gen_system_context($1,$3) gen_system_context(unlabeled_t,$3)
 ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
 ')
 
@@ -65,7 +65,7 @@ declare_netifs($1_netif_t,shift($*))
 ')
 
 define(`declare_nodes',`dnl
-nodecon $3 $4 gen_context(system_u:object_r:$1,$2)
+nodecon $3 $4 gen_system_context($1,$2)
 ifelse(`$5',`',`',`declare_nodes($1,shiftn(4,$*))')dnl
 ')
 
@@ -78,7 +78,7 @@ declare_nodes($1_node_t,shift($*))
 ')
 
 define(`declare_portcons',`dnl
-portcon $2 $3 gen_context(system_u:object_r:$1,$4)
+portcon $2 $3 gen_system_context($1,$4)
 ifelse(`$5',`',`',`declare_portcons($1,shiftn(4,$*))')dnl
 ')
 
@@ -113,7 +113,7 @@ type $1_server_packet_t, packet_type, server_packet_type;
 ')
 
 define(`declare_ibpkeycons',`dnl
-ibpkeycon $2 $3 gen_context(system_u:object_r:$1,$4)
+ibpkeycon $2 $3 gen_system_context($1,$4)
 ifelse(`$5',`',`',`declare_ibpkeycons($1,shiftn(4,$*))')dnl
 ')
 
@@ -126,7 +126,7 @@ ifelse(`$2',`',`',`declare_ibpkeycons($1_ibpkey_t,shift($*))')dnl
 ')
 
 define(`declare_ibendportcons',`dnl
-ibendportcon $2 $3 gen_context(system_u:object_r:$1,$4)
+ibendportcon $2 $3 gen_system_context($1,$4)
 ifelse(`$5',`',`',`declare_ibendportcons($1,shiftn(4,$*))')dnl
 ')
 
