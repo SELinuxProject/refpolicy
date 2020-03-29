@@ -2,6 +2,95 @@
 
 ########################################
 ## <summary>
+##	Execute tpm2_* processes
+##	in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`tpm2_exec',`
+	gen_require(`
+		type tpm2_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, tpm2_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute tpm2_* processes in the tpm2 domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`tpm2_domtrans',`
+	gen_require(`
+		type tpm2_t, tpm2_exec_t;
+	')
+
+	allow tpm2_t $1:fd use;
+	allow tpm2_t $1:fifo_file rw_file_perms;
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, tpm2_exec_t, tpm2_t)
+')
+
+########################################
+## <summary>
+##	Execute tpm2_* processes in the tpm2
+##	domain and allow the specified role
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`tpm2_run',`
+	gen_require(`
+		type tpm2_t;
+	')
+
+	role $2 types tpm2_t;
+
+	tpm2_domtrans($1)
+')
+
+########################################
+## <summary>
+##   Send and receive messages from
+##   tpm2-abrmd over dbus.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`tpm2_dbus_chat_abrmd',`
+	gen_require(`
+		type tpm2_abrmd_t;
+		class dbus send_msg;
+	')
+
+	allow $1 tpm2_abrmd_t:dbus send_msg;
+	allow tpm2_abrmd_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
 ##	Allow specified domain to enable/disable tpm2-abrmd unit
 ## </summary>
 ## <param name="domain">
@@ -56,3 +145,23 @@ interface(`tpm2_status_abrmd',`
 
 	allow $1 tpm2_abrmd_unit_t:service status;
 ')
+
+########################################
+## <summary>
+##	access tpm2-abrmd fifos
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access
+##	</summary>
+## </param>
+#
+interface(`tpm2_rw_abrmd_pipes',`
+	gen_require(`
+		type tpm2_abrmd_t;
+	')
+
+	allow $1 tpm2_abrmd_t:fd use;
+	allow $1 tpm2_abrmd_t:fifo_file rw_file_perms;
+')
+
