@@ -270,7 +270,8 @@ generated_fc := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.fc.in
 # when a generated file is already generated
 detected_mods := $(sort $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te)) $(generated_te))
 
-modxml := $(addprefix $(tmpdir)/, $(detected_mods:.te=.xml))
+modxml := $(addprefix $(tmpdir)/,$(patsubst $(moddir)/%,%,$(filter $(moddir)/%,$(detected_mods:.te=.xml))))
+localmodxml := $(addprefix $(tmpdir)/,$(patsubst $(local_moddir)/%,%,$(filter $(local_moddir)/%,$(detected_mods:.te=.xml))))
 layerxml := $(sort $(addprefix $(tmpdir)/, $(notdir $(addsuffix .xml,$(all_layers)))))
 layer_names := $(sort $(notdir $(all_layers)))
 all_metaxml = $(call detect-metaxml, $(layer_names))
@@ -416,13 +417,21 @@ ifdef LOCAL_ROOT
 endif
 	@touch $(tmpdir)/iftemplates
 
-$(layerxml): %.xml: $(tmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
+$(layerxml): %.xml: $(tmpdir)/iftemplates $(all_metaxml) $(modxml) $(localmodxml)
 	@test -d $(tmpdir) || mkdir -p $(tmpdir)
 	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) cat $(filter $(addprefix $(tmpdir)/, $(notdir $*))%, $(modxml)) >> $@
 ifdef LOCAL_ROOT
-	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(tmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) cat $(filter $(addprefix $(tmpdir)/, $(notdir $*))%, $(localmodxml)) >> $@
 endif
+
+$(modxml): $(tmpdir)/%.xml: $(tmpdir)/iftemplates $(moddir)/%.te $(moddir)/%.if
+	@test -d $(tmpdir)/$(dir $*) || mkdir -p $(tmpdir)/$(dir $*)
+	$(verbose) $(genxml) -w -T $(tmpdir)/iftemplates -m $(moddir)/$* > $@
+
+$(localmodxml): $(tmpdir)/%.xml: $(tmpdir)/iftemplates $(local_moddir)/%.te $(local_moddir)/%.if
+	@test -d $(tmpdir)/$(dir $*) || mkdir -p $(tmpdir)/$(dir $*)
+	$(verbose) $(genxml) -w -T $(tmpdir)/iftemplates -m $(local_moddir)/$* > $@
 
 $(tunxml): $(globaltun)
 	$(verbose) $(genxml) -w -t $< > $@
