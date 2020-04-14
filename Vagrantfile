@@ -15,6 +15,7 @@ $install_refpolicy = <<-SHELL
   sudo -su vagrant make -C /vagrant conf
   sudo -su vagrant make -C /vagrant all
   sudo -su vagrant make -C /vagrant validate
+  rm -f /usr/share/selinux/refpolicy/*.pp
   make -C /vagrant install
   make -C /vagrant install-headers
   semodule -s refpolicy -i /usr/share/selinux/refpolicy/*.pp
