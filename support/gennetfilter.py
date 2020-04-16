@@ -9,7 +9,7 @@
 
 import sys,getopt,re
 
-NETPORT = re.compile("^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
+NETPORT = re.compile(r"^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
 
 DEFAULT_INPUT_PACKET = "server_packet_t"
 DEFAULT_OUTPUT_PACKET = "client_packet_t"
@@ -101,7 +101,7 @@ def parse_corenet(file_name):
 			# parse out the parameters
 			openparen = corenet_line.find('(')+1
 			closeparen = corenet_line.find(')',openparen)
-			parms = re.split('\W+',corenet_line[openparen:closeparen])
+			parms = re.split(r'\W+',corenet_line[openparen:closeparen])
 			name = parms[0]
 			del parms[0]
 
