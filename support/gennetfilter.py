@@ -9,7 +9,7 @@
 
 import sys,getopt,re
 
-NETPORT = re.compile(r"^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
+NETPORT = re.compile(r"^network_port\(\s*\w+\s*(\s*,\s*\w+\s*,\s*[-0-9]+\s*,\s*\w+\s*)+\s*\)\s*(#|$)")
 
 DEFAULT_INPUT_PACKET = "server_packet_t"
 DEFAULT_OUTPUT_PACKET = "client_packet_t"
@@ -53,7 +53,7 @@ def print_input_rules(packets,mls,mcs):
 
 	for i in packets:
 		for j in i.ports:
-			line="base -A selinux_new_input -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
+			line="base -A selinux_new_input -p "+j.proto+" --dport "+re.sub('-', ':', j.num)+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_INPUT
 			if mls:
 				line += ":"+j.mls_sens
 			elif mcs:
@@ -73,7 +73,7 @@ def print_output_rules(packets,mls,mcs):
 
 	for i in packets:
 		for j in i.ports:
-			line = "base -A selinux_new_output -p "+j.proto+" --dport "+j.num+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
+			line = "base -A selinux_new_output -p "+j.proto+" --dport "+re.sub('-', ':', j.num)+" -j SECMARK --selctx system_u:object_r:"+i.prefix+PACKET_OUTPUT
 			if mls:
 				line += ":"+j.mls_sens
 			elif mcs:
@@ -101,7 +101,7 @@ def parse_corenet(file_name):
 			# parse out the parameters
 			openparen = corenet_line.find('(')+1
 			closeparen = corenet_line.find(')',openparen)
-			parms = re.split(r'\W+',corenet_line[openparen:closeparen])
+			parms = re.split(r'[^-a-zA-Z0-9_]+',corenet_line[openparen:closeparen])
 			name = parms[0]
 			del parms[0]
 
