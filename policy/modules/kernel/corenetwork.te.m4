@@ -112,6 +112,13 @@ type $1_client_packet_t, packet_type, client_packet_type;
 type $1_server_packet_t, packet_type, server_packet_type;
 ')
 
+#
+# network_packet_simple(packet_name)
+#
+define(`network_packet_simple',`
+type $1_packet_t, packet_type;
+')
+
 define(`declare_ibpkeycons',`dnl
 ibpkeycon $2 $3 gen_context(system_u:object_r:$1,$4)
 ifelse(`$5',`',`',`declare_ibpkeycons($1,shiftn(4,$*))')dnl
