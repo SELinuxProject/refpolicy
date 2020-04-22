@@ -18,6 +18,7 @@ DEFAULT_MLS = "s0"
 
 PACKET_INPUT = "_server_packet_t"
 PACKET_OUTPUT = "_client_packet_t"
+ICMP_PACKET = "icmp_packet_t"
 
 class Port:
 	def __init__(self, proto, num, mls_sens):
@@ -55,6 +56,13 @@ def print_nft_secmarks(packets,mls,mcs):
 		line += ":"+DEFAULT_MLS
 	line += '"\n\t}'
 	print(line)
+	line = '\tsecmark icmp_packet {\n\t\t"system_u:object_r:'+ICMP_PACKET
+	if mcs:
+		line += ":"+DEFAULT_MCS
+	elif mls:
+		line += ":"+DEFAULT_MLS
+	line += '"\n\t}'
+	print(line)
 	for i in packets:
 		line = "\tsecmark "+i.prefix+'_input {\n\t\t"system_u:object_r:'+i.prefix+PACKET_INPUT
 		if mcs:
@@ -73,6 +81,8 @@ def print_nft_rules(packets,mls,mcs,direction):
 	for i in packets:
 		for j in i.ports:
 			print("\t\tct state new "+j.proto+" dport "+j.num+' meta secmark set "'+i.prefix+'_'+direction+'"')
+	print('\t\tip protocol icmp meta secmark set "icmp_packet"')
+	print('\t\tip6 nexthdr icmpv6 meta secmark set "icmp_packet"')
 
 def print_input_rules(packets,mls,mcs):
 	line = "base -A selinux_new_input -j SECMARK --selctx system_u:object_r:"+DEFAULT_INPUT_PACKET
@@ -81,6 +91,20 @@ def print_input_rules(packets,mls,mcs):
 	elif mcs:
 		line += ":"+DEFAULT_MCS
 
+	print(line)
+
+	line = "base -A selinux_new_input -p icmp -j SECMARK --selctx system_u:object_r:"+ICMP_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
+	print(line)
+
+	line = "base -A selinux_new_input -p icmpv6 -j SECMARK --selctx system_u:object_r:"+ICMP_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
 	print(line)
 
 	for i in packets:
@@ -97,6 +121,20 @@ def print_input_rules(packets,mls,mcs):
 
 def print_output_rules(packets,mls,mcs):
 	line = "base -A selinux_new_output -j SECMARK --selctx system_u:object_r:"+DEFAULT_OUTPUT_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
+	print(line)
+
+	line = "base -A selinux_new_output -p icmp -j SECMARK --selctx system_u:object_r:"+ICMP_PACKET
+	if mls:
+		line += ":"+DEFAULT_MLS
+	elif mcs:
+		line += ":"+DEFAULT_MCS
+	print(line)
+
+	line = "base -A selinux_new_output -p icmpv6 -j SECMARK --selctx system_u:object_r:"+ICMP_PACKET
 	if mls:
 		line += ":"+DEFAULT_MLS
 	elif mcs:
