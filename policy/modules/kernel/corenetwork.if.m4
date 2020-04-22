@@ -872,6 +872,13 @@ create_packet_interfaces($1_client)
 create_packet_interfaces($1_server)
 ')
 
+#
+# network_packet_simple(packet_name)
+#
+define(`network_packet_simple',`
+create_packet_interfaces($1)
+')
+
 # create_ibpkey_*_interfaces(name, subnet_prefix, pkeynum,mls_sensitivity)
 # (these wrap create_port_interfaces to handle attributes and types)
 define(`create_ibpkey_type_interfaces',`create_ibpkey_interfaces($1,ibpkey_t,type,determine_reserved_capability(shift($*)))')
