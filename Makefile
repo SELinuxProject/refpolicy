@@ -658,5 +658,3 @@ endif
 endif
 
 .PHONY: install-src install-appconfig install-headers generate xml conf html bare tags
-.SUFFIXES:
-.SUFFIXES: .c
