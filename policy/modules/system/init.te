@@ -60,6 +60,7 @@ role system_r types init_t;
 #
 type init_runtime_t alias init_var_run_t;
 files_pid_file(init_runtime_t)
+init_mountpoint(init_runtime_t)
 
 #
 # init_var_lib_t is the type for /var/lib/systemd.
@@ -78,10 +79,17 @@ mls_trusted_object(initctl_t)
 
 type initrc_t, init_script_domain_type, init_run_all_scripts_domain;
 type initrc_exec_t, init_script_file_type;
-domain_type(initrc_t)
-domain_entry_file(initrc_t, initrc_exec_t)
+init_domain(initrc_t, initrc_exec_t)
+
+ifdef(`enable_mcs', `
+	init_ranged_daemon_domain(initrc_t, initrc_exec_t, s0)
+')
+
+ifdef(`enable_mls', `
+	init_ranged_daemon_domain(initrc_t, initrc_exec_t, s0 - mls_systemhigh)
+')
+
 init_named_socket_activation(initrc_t, init_runtime_t)
-role system_r types initrc_t;
 # should be part of the true block
 # of the below init_upstart tunable
 # but this has a typeattribute in it
@@ -207,9 +215,6 @@ selinux_get_fs_mount(init_t)
 selinux_set_all_booleans(init_t)
 
 term_use_all_terms(init_t)
-
-# Run init scripts.
-init_domtrans_script(init_t)
 
 libs_rw_ld_so_cache(init_t)
 
@@ -435,6 +440,7 @@ ifdef(`init_systemd',`
 	logging_send_audit_msgs(init_t)
 	logging_relabelto_devlog_sock_files(init_t)
 	logging_relabel_generic_log_dirs(init_t)
+	logging_audit_socket_activation(init_t)
 
 	# lvm2-activation-generator checks file labels
 	seutil_read_file_contexts(init_t)
