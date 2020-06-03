@@ -62,6 +62,7 @@ SEMOD_PKG ?= $(tc_usrbindir)/semodule_package
 SEMOD_LNK ?= $(tc_usrbindir)/semodule_link
 SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
 LOADPOLICY ?= $(tc_usrsbindir)/load_policy
+SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen
 SETFILES ?= $(tc_sbindir)/setfiles
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
@@ -228,6 +229,8 @@ MCS_CATS ?= 1024
 
 ifeq ($(QUIET),y)
 	verbose = @
+else
+	VERBOSE_FLAG = --verbose
 endif
 
 M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS) -D hide_broken_symptoms
@@ -556,6 +559,14 @@ endif
 
 ########################################
 #
+# Build policy interface database
+#
+build-interface-db: install-headers
+	@mkdir -p $(DESTDIR)/var/lib/sepolgen $(tmpdir)
+	$(verbose) $(SEPOLGEN_IFGEN) $(VERBOSE_FLAG) --interfaces $(headerdir) --output $(DESTDIR)/var/lib/sepolgen/interface_info
+
+########################################
+#
 # Install policy documentation
 #
 install-docs: $(tmpdir)/html $(docfiles)
@@ -657,4 +668,4 @@ ifneq ($(generated_fc),)
 endif
 endif
 
-.PHONY: install-src install-appconfig install-headers generate xml conf html bare tags
+.PHONY: install-src install-appconfig install-headers build-interface-db generate xml conf html bare tags
