@@ -131,7 +131,7 @@ def getModuleXML(file_name):
 		if line.isspace():
 			continue
 
-		# Grab a comment and add it to the temprorary buffer, if it
+		# Grab a comment and add it to the temporary buffer, if it
 		#  is there.
 		comment = XML_COMMENT.match(line)
 		if comment:
@@ -283,7 +283,7 @@ def getTunableXML(file_name, kind):
 			temp_buf = []
 			tunable_buf.append("</%s>\n" % boolean.group(1))
 
-	# If there are XML comments at the end of the file, they arn't
+	# If there are XML comments at the end of the file, they aren't
 	# attributed to anything. These are ignored.
 	if len(temp_buf):
 		warning("orphan XML comments at bottom of file %s" % file_name)

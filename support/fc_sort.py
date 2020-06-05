@@ -20,7 +20,7 @@ import re
 
 
 class FileContext():
-    """ Container class for file context defintions
+    """ Container class for file context definitions
     """
 
     def __init__(self, context_line):
@@ -36,7 +36,7 @@ class FileContext():
         self.compute_diffdata()
 
     def compute_diffdata(self):
-        """ Compute the interal values needed for comparing two file context definitions
+        """ Compute the internal values needed for comparing two file context definitions
         """
 
         self.meta = False

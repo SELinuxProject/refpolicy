@@ -71,7 +71,7 @@ def getStartingUID():
 
 #############################################################################
 #
-# This section is just for backwards compatability
+# This section is just for backwards compatibility
 #
 #############################################################################
 def getPrefixes():
@@ -158,7 +158,7 @@ def oldgenhomedircon(filecontextdir, filecontext):
         #any default home directory defined by either /etc/libuser.conf or /etc/default/useradd
         #we then get the potential home directory roots from /etc/passwd or nis or wherever and look at
         #the defined homedir for all users with UID > STARTING_UID.  This list of possible root homedirs
-        #is then checked to see if it has an explicite context defined in the file_contexts.  Explicit
+        #is then checked to see if it has an explicit context defined in the file_contexts.  Explicit
         #is any regex that would match it which does not end with .*$ or .+$ since those are general
         #recursive matches.  We then take any regex which ends with [pattern](/.*)?$ and just check against
         #[pattern]
@@ -221,7 +221,7 @@ def oldgenhomedircon(filecontextdir, filecontext):
 
 #############################################################################
 #
-# End of backwards compatability section
+# End of backwards compatibility section
 #
 #############################################################################
 
