@@ -36,7 +36,7 @@ def get_perms(name, av_db, common):
 	Returns the list of permissions contained within an access vector
 	class that is stored in the access vector database av_db.
 	Returns an empty list if the object name is not found.
-	Specifiy whether get_perms is to return the class or the
+	Specify whether get_perms is to return the class or the
 	common set of permissions with the boolean value 'common',
 	which is important in the case of having duplicate names (such as
 	class file and common file).
@@ -59,7 +59,7 @@ def get_av_db(file_name):
 	# Reading into av_data:
 	#  The file specified will be read line by line. Each line will have
 	#   its comments removed. Once comments are removed, each 'word' (text
-	#   seperated by whitespace) and braces will be split up into seperate
+	#   separated by whitespace) and braces will be split up into separate
 	#   strings and appended to the av_data list, in the order they were
 	#   read.
 	# Parsing av_data:
