@@ -1083,6 +1083,8 @@ optional_policy(`
 # Rfkill local policy
 #
 
+allow systemd_rfkill_t self:netlink_kobject_uevent_socket { bind create getattr read setopt };
+
 manage_dirs_pattern(systemd_rfkill_t, systemd_rfkill_var_lib_t, systemd_rfkill_var_lib_t)
 manage_files_pattern(systemd_rfkill_t, systemd_rfkill_var_lib_t, systemd_rfkill_var_lib_t)
 init_var_lib_filetrans(systemd_rfkill_t, systemd_rfkill_var_lib_t, dir)
@@ -1250,6 +1252,7 @@ files_manage_etc_symlinks(systemd_tmpfiles_t)
 fs_getattr_tmpfs(systemd_tmpfiles_t)
 fs_getattr_xattr_fs(systemd_tmpfiles_t)
 fs_list_tmpfs(systemd_tmpfiles_t)
+fs_relabelfrom_tmpfs_dirs(systemd_tmpfiles_t)
 
 selinux_get_fs_mount(systemd_tmpfiles_t)
 selinux_search_fs(systemd_tmpfiles_t)
@@ -1346,14 +1349,17 @@ systemd_log_parse_environment(systemd_update_done_t)
 # User session (systemd --user) local policy
 #
 
+allow systemd_user_session_type self:bpf { prog_load prog_run };
 allow systemd_user_session_type self:capability { dac_read_search sys_resource };
 dontaudit systemd_user_session_type self:capability dac_override;
-allow systemd_user_session_type self:process { setfscreate setsockcreate };
+allow systemd_user_session_type self:fifo_file rw_fifo_file_perms;
+allow systemd_user_session_type self:process { setfscreate setsockcreate setcap getcap };
 allow systemd_user_session_type self:udp_socket create_socket_perms;
 allow systemd_user_session_type self:unix_stream_socket create_stream_socket_perms;
 allow systemd_user_session_type self:netlink_kobject_uevent_socket { bind create getattr read setopt };
 
 allow systemd_user_session_type systemd_user_runtime_t:dir manage_dir_perms;
+allow systemd_user_session_type systemd_user_runtime_t:lnk_file manage_lnk_file_perms;
 allow systemd_user_session_type systemd_user_runtime_t:sock_file { create write };
 userdom_user_runtime_filetrans(systemd_user_session_type, systemd_user_runtime_t, dir)
 
@@ -1369,31 +1375,43 @@ can_exec(systemd_user_session_type, systemd_generator_exec_t)
 dev_write_sysfs_dirs(systemd_user_session_type)
 dev_read_sysfs(systemd_user_session_type)
 
+domain_getattr_all_entry_files(systemd_user_session_type)
+
 files_read_etc_files(systemd_user_session_type)
 files_list_usr(systemd_user_session_type)
+# /etc/localtime
+files_watch_etc_symlinks(systemd_user_session_type)
 
 fs_getattr_cgroup(systemd_user_session_type)
 fs_getattr_tmpfs(systemd_user_session_type)
 fs_rw_cgroup_files(systemd_user_session_type)
 fs_manage_cgroup_dirs(systemd_user_session_type)
 
-# for /run/systemd/notify
-init_dgram_send(systemd_user_session_type)
-init_signal(systemd_user_session_type)
-
 # for /proc/sys/fs/nr_open
 kernel_read_fs_sysctls(systemd_user_session_type)
 kernel_read_kernel_sysctls(systemd_user_session_type)
 
-mount_list_runtime(systemd_user_session_type)
-
+selinux_compute_access_vector(systemd_user_session_type)
 selinux_compute_create_context(systemd_user_session_type)
 
 storage_getattr_fixed_disk_dev(systemd_user_session_type)
 
+# for /run/systemd/notify
+init_dgram_send(systemd_user_session_type)
+init_signal(systemd_user_session_type)
+
+logging_send_audit_msgs(systemd_user_session_type)
+
+miscfiles_read_localization(systemd_user_session_type)
+
+mount_list_runtime(systemd_user_session_type)
+mount_watch_runtime_dirs(systemd_user_session_type)
+
 # for systemd to read udev status
 udev_read_pid_files(systemd_user_session_type)
 udev_list_pids(systemd_user_session_type)
+
+seutil_libselinux_linked(systemd_user_session_type)
 
 #########################################
 #
