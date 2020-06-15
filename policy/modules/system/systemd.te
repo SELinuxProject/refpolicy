@@ -29,7 +29,6 @@ gen_tunable(systemd_nspawn_labeled_namespace, false)
 ## </desc>
 gen_tunable(systemd_logind_get_bootloader, false)
 
-attribute systemd_generator_type;
 attribute systemd_log_parse_env_type;
 attribute systemd_tmpfiles_conf_type;
 attribute systemd_user_session_type;
@@ -64,30 +63,6 @@ init_unit_file(systemd_binfmt_unit_t)
 type systemd_conf_t;
 files_config_file(systemd_conf_t)
 
-type systemd_generator_t;
-type systemd_generator_exec_t;
-systemd_unit_generator(systemd_generator_t, systemd_generator_exec_t)
-
-type systemd_efi_generator_t;
-type systemd_efi_generator_exec_t;
-systemd_unit_generator(systemd_efi_generator_t, systemd_efi_generator_exec_t)
-
-type systemd_fstab_generator_t;
-type systemd_fstab_generator_exec_t;
-systemd_unit_generator(systemd_fstab_generator_t, systemd_fstab_generator_exec_t)
-
-type systemd_gpt_generator_t;
-type systemd_gpt_generator_exec_t;
-systemd_unit_generator(systemd_gpt_generator_t, systemd_gpt_generator_exec_t)
-
-type systemd_lvm2_generator_t;
-type systemd_lvm2_generator_exec_t;
-systemd_unit_generator(systemd_lvm2_generator_t, systemd_lvm2_generator_exec_t)
-
-type systemd_sysv_generator_t;
-type systemd_sysv_generator_exec_t;
-systemd_unit_generator(systemd_sysv_generator_t, systemd_sysv_generator_exec_t)
-
 type systemd_cgroups_t;
 type systemd_cgroups_exec_t;
 domain_type(systemd_cgroups_t)
@@ -112,6 +87,12 @@ files_type(systemd_coredump_var_lib_t)
 type systemd_detect_virt_t;
 type systemd_detect_virt_exec_t;
 init_daemon_domain(systemd_detect_virt_t, systemd_detect_virt_exec_t)
+
+type systemd_generator_t;
+type systemd_generator_exec_t;
+typealias systemd_generator_t alias { systemd_fstab_generator_t systemd_gpt_generator_t };
+typealias systemd_generator_exec_t alias { systemd_fstab_generator_exec_t systemd_gpt_generator_exec_t };
+init_system_domain(systemd_generator_t, systemd_generator_exec_t)
 
 type systemd_hostnamed_t;
 type systemd_hostnamed_exec_t;
@@ -306,91 +287,6 @@ files_read_etc_files(systemd_binfmt_t)
 
 fs_register_binary_executable_type(systemd_binfmt_t)
 
-#######################################
-#
-# generic generator local policy
-#
-
-corecmd_search_bin(systemd_generator_type)
-
-dev_read_sysfs(systemd_generator_type)
-dev_write_kmsg(systemd_generator_type)
-
-files_read_etc_files(systemd_generator_type)
-files_search_pids(systemd_generator_type)
-
-init_create_pid_files(systemd_generator_type)
-init_manage_pid_dirs(systemd_generator_type)
-init_manage_pid_symlinks(systemd_generator_type)
-init_read_runtime_files(systemd_generator_type)
-init_read_state(systemd_generator_type)
-init_rename_runtime_files(systemd_generator_type)
-init_search_pids(systemd_generator_type)
-init_setattr_runtime_files(systemd_generator_type)
-init_write_pid_files(systemd_generator_type)
-
-kernel_use_fds(systemd_generator_type)
-kernel_read_system_state(systemd_generator_type)
-kernel_read_kernel_sysctls(systemd_generator_type)
-
-#######################################
-#
-# efi generator local policy
-#
-
-files_list_boot(systemd_efi_generator_t)
-files_read_boot_files(systemd_efi_generator_t)
-
-fs_list_efivars(systemd_efi_generator_t)
-
-#######################################
-#
-# fstab generator local policy
-#
-
-dev_write_sysfs_dirs(systemd_fstab_generator_t)
-
-files_search_all_mountpoints(systemd_fstab_generator_t)
-
-fstools_exec(systemd_fstab_generator_t)
-
-systemd_log_parse_environment(systemd_fstab_generator_t)
-
-#######################################
-#
-# GPT auto generator local policy
-#
-
-files_list_usr(systemd_gpt_generator_t)
-fs_getattr_xattr_fs(systemd_gpt_generator_t)
-storage_raw_read_fixed_disk(systemd_gpt_generator_t)
-
-systemd_log_parse_environment(systemd_gpt_generator_t)
-
-#######################################
-#
-# lvm2 activation generator local policy
-#
-
-allow systemd_lvm2_generator_t self:fifo_file rw_fifo_file_perms;
-
-optional_policy(`
-	lvm_exec(systemd_lvm2_generator_t)
-	lvm_map_config(systemd_lvm2_generator_t)
-	lvm_read_config(systemd_lvm2_generator_t)
-	miscfiles_read_localization(systemd_lvm2_generator_t)
-')
-
-#######################################
-#
-# sysv generator local policy
-#
-
-corecmd_getattr_bin_files(systemd_sysv_generator_t)
-
-init_list_unit_dirs(systemd_sysv_generator_t)
-init_read_generic_units_symlinks(systemd_sysv_generator_t)
-init_read_script_files(systemd_sysv_generator_t)
 
 ######################################
 #
@@ -460,6 +356,60 @@ logging_send_syslog_msg(systemd_coredump_t)
 
 seutil_search_default_contexts(systemd_coredump_t)
 
+#######################################
+#
+# Systemd generator local policy
+#
+
+allow systemd_generator_t self:fifo_file rw_fifo_file_perms;
+
+corecmd_getattr_bin_files(systemd_generator_t)
+
+dev_read_sysfs(systemd_generator_t)
+dev_write_kmsg(systemd_generator_t)
+dev_write_sysfs_dirs(systemd_generator_t)
+
+files_read_etc_files(systemd_generator_t)
+files_search_pids(systemd_generator_t)
+files_list_boot(systemd_generator_t)
+files_read_boot_files(systemd_generator_t)
+files_search_all_mountpoints(systemd_generator_t)
+files_list_usr(systemd_generator_t)
+
+fs_list_efivars(systemd_generator_t)
+fs_getattr_xattr_fs(systemd_generator_t)
+
+init_create_pid_files(systemd_generator_t)
+init_manage_pid_dirs(systemd_generator_t)
+init_manage_pid_symlinks(systemd_generator_t)
+init_read_runtime_files(systemd_generator_t)
+init_read_state(systemd_generator_t)
+init_rename_runtime_files(systemd_generator_t)
+init_search_pids(systemd_generator_t)
+init_setattr_runtime_files(systemd_generator_t)
+init_write_pid_files(systemd_generator_t)
+init_list_unit_dirs(systemd_generator_t)
+init_read_generic_units_symlinks(systemd_generator_t)
+init_read_script_files(systemd_generator_t)
+
+kernel_use_fds(systemd_generator_t)
+kernel_read_system_state(systemd_generator_t)
+kernel_read_kernel_sysctls(systemd_generator_t)
+
+storage_raw_read_fixed_disk(systemd_generator_t)
+
+systemd_log_parse_environment(systemd_generator_t)
+
+optional_policy(`
+	fstools_exec(systemd_generator_t)
+')
+
+optional_policy(`
+	lvm_exec(systemd_generator_t)
+	lvm_map_config(systemd_generator_t)
+	lvm_read_config(systemd_generator_t)
+	miscfiles_read_localization(systemd_generator_t)
+')
 
 #######################################
 #
