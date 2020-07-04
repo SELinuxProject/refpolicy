@@ -59,7 +59,7 @@ role system_r types init_t;
 # init_runtime_t is the type for /var/run/shutdown.pid and /var/run/systemd.
 #
 type init_runtime_t alias init_var_run_t;
-files_pid_file(init_runtime_t)
+files_runtime_file(init_runtime_t)
 init_mountpoint(init_runtime_t)
 
 #
@@ -103,7 +103,7 @@ type initrc_lock_t;
 files_lock_file(initrc_lock_t)
 
 type initrc_runtime_t alias initrc_var_run_t;
-files_pid_file(initrc_runtime_t)
+files_runtime_file(initrc_runtime_t)
 
 type initrc_state_t;
 files_type(initrc_state_t)
@@ -150,7 +150,7 @@ allow init_t initrc_t:unix_stream_socket connectto;
 
 # For /var/run/shutdown.pid.
 allow init_t init_runtime_t:file manage_file_perms;
-files_pid_filetrans(init_t, init_runtime_t, file)
+files_runtime_filetrans(init_t, init_runtime_t, file)
 
 # for /run/initctl
 allow init_t init_runtime_t:fifo_file manage_fifo_file_perms;
@@ -160,7 +160,7 @@ allow init_t init_runtime_t:lnk_file manage_lnk_file_perms;
 
 allow init_t initctl_t:fifo_file manage_fifo_file_perms;
 dev_filetrans(init_t, initctl_t, fifo_file)
-files_pid_filetrans(init_t, initctl_t, fifo_file)
+files_runtime_filetrans(init_t, initctl_t, fifo_file)
 
 # Modify utmp.
 allow init_t initrc_runtime_t:file { rw_file_perms setattr };
@@ -185,7 +185,7 @@ domain_sigstop_all_domains(init_t)
 domain_sigchld_all_domains(init_t)
 
 files_read_etc_files(init_t)
-files_rw_generic_pids(init_t)
+files_rw_runtime_files(init_t)
 files_manage_etc_runtime_files(init_t)
 files_etc_filetrans_etc_runtime(init_t, file)
 # Run /etc/X11/prefdm:
@@ -351,35 +351,39 @@ ifdef(`init_systemd',`
 	files_getattr_all_pipes(init_t)
 	files_getattr_all_sockets(init_t)
 	files_read_all_symlinks(init_t)
-	files_read_all_pids(init_t)
+	files_read_all_runtime_files(init_t)
 	files_list_usr(init_t)
 	files_list_var(init_t)
 	files_list_var_lib(init_t)
 	files_watch_root_dirs(init_t)
-	files_search_pids(init_t)
-	files_relabel_all_pids(init_t)
-	files_relabel_all_pid_sock_files(init_t)
+	files_search_runtime(init_t)
+	files_relabel_all_runtime_dirs(init_t)
+	files_relabel_all_runtime_files(init_t)
+	files_relabel_all_runtime_symlinks(init_t)
+	files_relabel_all_runtime_sockets(init_t)
 	files_relabelto_etc_runtime_dirs(init_t)
 	files_relabelto_etc_runtime_files(init_t)
 	files_read_all_locks(init_t)
 	files_search_kernel_modules(init_t)
-	files_create_all_pid_pipes(init_t)
-	files_create_all_pid_sockets(init_t)
+	files_create_all_runtime_pipes(init_t)
+	files_create_all_runtime_sockets(init_t)
 	files_create_all_spool_sockets(init_t)
 	files_create_lock_dirs(init_t)
 	files_watch_runtime_dirs(init_t)
-	files_delete_all_pids(init_t)
+	files_delete_runtime_symlinks(init_t)
+	files_delete_all_runtime_files(init_t)
+	files_delete_all_runtime_dirs(init_t)
+	files_delete_all_runtime_sockets(init_t)
+	files_delete_all_runtime_pipes(init_t)
 	files_delete_all_spool_sockets(init_t)
-	files_exec_generic_pid_files(init_t)
+	files_exec_runtime(init_t)
 	files_list_locks(init_t)
 	files_list_spool(init_t)
-	files_manage_all_pid_dirs(init_t)
+	files_manage_all_runtime_dirs(init_t)
 	files_manage_generic_tmp_dirs(init_t)
 	files_manage_urandom_seed(init_t)
 	files_read_boot_files(initrc_t)
 	files_relabel_all_lock_dirs(init_t)
-	files_relabel_all_pid_dirs(init_t)
-	files_relabel_all_pid_files(init_t)
 	files_search_all(init_t)
 	files_unmount_all_file_type_fs(init_t)
 	# If /etc/localtime is missing, a watch on /etc is added.
@@ -444,7 +448,7 @@ ifdef(`init_systemd',`
 	auth_relabel_pam_console_data_dirs(init_t)
 	auth_domtrans_chk_passwd(init_t)
 
-	logging_manage_pid_sockets(init_t)
+	logging_manage_runtime_sockets(init_t)
 	logging_relabelto_devlog_sock_files(init_t)
 	logging_relabel_generic_log_dirs(init_t)
 	logging_audit_socket_activation(init_t)
@@ -473,7 +477,7 @@ ifdef(`init_systemd',`
 	udev_create_kobject_uevent_sockets(init_t)
 
 	# for systemd to read udev status
-	udev_read_pid_files(init_t)
+	udev_read_runtime_files(init_t)
 
 	udev_relabelto_db_sockets(init_t)
 
@@ -618,7 +622,7 @@ manage_lnk_files_pattern(initrc_t, initrc_state_t, initrc_state_t)
 manage_fifo_files_pattern(initrc_t, initrc_state_t, initrc_state_t)
 
 allow initrc_t initrc_runtime_t:file manage_file_perms;
-files_pid_filetrans(initrc_t, initrc_runtime_t, file)
+files_runtime_filetrans(initrc_t, initrc_runtime_t, file)
 
 allow initrc_t daemon:process siginh;
 
@@ -653,7 +657,7 @@ kernel_mounton_unlabeled_dirs(initrc_t)
 
 files_create_lock_dirs(initrc_t)
 files_manage_all_locks(initrc_t)
-files_pid_filetrans_lock_dir(initrc_t, "lock")
+files_runtime_filetrans_lock_dir(initrc_t, "lock")
 files_read_kernel_symbol_table(initrc_t)
 files_setattr_lock_dirs(initrc_t)
 
@@ -717,10 +721,13 @@ files_getattr_all_sockets(initrc_t)
 files_purge_tmp(initrc_t)
 files_manage_all_locks(initrc_t)
 files_manage_boot_files(initrc_t)
-files_read_all_pids(initrc_t)
+files_read_all_runtime_files(initrc_t)
 files_delete_root_files(initrc_t)
-files_delete_all_pids(initrc_t)
-files_delete_all_pid_dirs(initrc_t)
+files_delete_runtime_symlinks(initrc_t)
+files_delete_all_runtime_files(initrc_t)
+files_delete_all_runtime_dirs(initrc_t)
+files_delete_all_runtime_sockets(initrc_t)
+files_delete_all_runtime_pipes(initrc_t)
 files_read_etc_files(initrc_t)
 files_manage_etc_runtime_files(initrc_t)
 files_etc_filetrans_etc_runtime(initrc_t, file)
@@ -777,8 +784,8 @@ term_reset_tty_labels(initrc_t)
 auth_rw_login_records(initrc_t)
 auth_setattr_login_records(initrc_t)
 auth_rw_lastlog(initrc_t)
-auth_read_pam_pid(initrc_t)
-auth_delete_pam_pid(initrc_t)
+auth_read_pam_runtime_files(initrc_t)
+auth_delete_pam_runtime_files(initrc_t)
 auth_delete_pam_console_data(initrc_t)
 auth_use_nsswitch(initrc_t)
 
@@ -853,11 +860,13 @@ ifdef(`distro_gentoo',`
 	dev_delete_generic_dirs(initrc_t)
 	dev_setattr_generic_dirs(initrc_t)
 
-	files_manage_all_pids(initrc_t)
+	files_manage_all_runtime_dirs(initrc_t)
+	files_manage_all_runtime_files(initrc_t)
+	files_manage_all_runtime_symlinks(initrc_t)
 	# allow bootmisc to create /var/lock/.keep.
 	files_manage_generic_locks(initrc_t)
 	files_manage_var_symlinks(initrc_t)
-	files_pid_filetrans(initrc_t, initrc_state_t, dir, "openrc")
+	files_runtime_filetrans(initrc_t, initrc_state_t, dir, "openrc")
 
 	# openrc uses tmpfs for its state data
 	fs_tmpfs_filetrans(initrc_t, initrc_state_t, { dir file fifo_file lnk_file })
@@ -874,7 +883,7 @@ ifdef(`distro_gentoo',`
 	sysnet_manage_config(initrc_t)
 
 	optional_policy(`
-		abrt_manage_pid_files(initrc_t)
+		abrt_manage_runtime_files(initrc_t)
 	')
 
 	optional_policy(`
@@ -940,7 +949,7 @@ ifdef(`distro_redhat',`
 	')
 
 	optional_policy(`
-		abrt_manage_pid_files(initrc_t)
+		abrt_manage_runtime_files(initrc_t)
 	')
 
 	optional_policy(`
@@ -1008,7 +1017,7 @@ ifdef(`init_systemd',`
 	manage_dirs_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
 	manage_chr_files_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
 	manage_lnk_files_pattern(initrc_t, initrc_runtime_t, initrc_runtime_t)
-	files_pid_filetrans(initrc_t, initrc_runtime_t, dir_file_class_set)
+	files_runtime_filetrans(initrc_t, initrc_runtime_t, dir_file_class_set)
 
 	create_dirs_pattern(initrc_t, systemd_unit_t, systemd_unit_t)
 	allow initrc_t systemd_unit_t:service reload;
@@ -1028,8 +1037,8 @@ ifdef(`init_systemd',`
 	# Allow initrc_t to check /etc/fstab "service." It appears that
 	# systemd is conflating files and services.
 	files_get_etc_unit_status(initrc_t)
-	files_create_pid_dirs(initrc_t)
-	files_setattr_pid_dirs(initrc_t)
+	files_create_runtime_dirs(initrc_t)
+	files_setattr_runtime_dirs(initrc_t)
 
 	# for logsave in strict configuration
 	fstools_write_log(initrc_t)
@@ -1057,7 +1066,7 @@ ifdef(`init_systemd',`
 
 optional_policy(`
 	amavis_search_lib(initrc_t)
-	amavis_setattr_pid_files(initrc_t)
+	amavis_setattr_runtime_files(initrc_t)
 ')
 
 optional_policy(`
@@ -1073,14 +1082,10 @@ optional_policy(`
 
 optional_policy(`
 	asterisk_setattr_logs(initrc_t)
-	asterisk_setattr_pid_files(initrc_t)
 ')
 
 optional_policy(`
 	bind_read_config(initrc_t)
-
-	# for chmod in start script
-	bind_setattr_pid_dirs(initrc_t)
 ')
 
 optional_policy(`
@@ -1179,7 +1184,7 @@ optional_policy(`
 
 optional_policy(`
 	ipsec_read_config(initrc_t)
-	ipsec_manage_pid(initrc_t)
+	ipsec_manage_runtime_files(initrc_t)
 ')
 
 optional_policy(`
@@ -1289,7 +1294,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	raid_manage_mdadm_pid(initrc_t)
+	raid_manage_mdadm_runtime_files(initrc_t)
 ')
 
 optional_policy(`
@@ -1309,16 +1314,16 @@ optional_policy(`
 	kernel_dontaudit_getattr_unlabeled_blk_files(initrc_t)
 
 	# for a bug in rm
-	files_dontaudit_write_all_pids(initrc_t)
+	files_dontaudit_write_all_runtime_files(initrc_t)
 
 	# bash tries ioctl for some reason
-	files_dontaudit_ioctl_all_pids(initrc_t)
+	files_dontaudit_ioctl_all_runtime_files(initrc_t)
 
 ')
 
 optional_policy(`
 	samba_rw_config(initrc_t)
-	samba_read_winbind_pid(initrc_t)
+	samba_read_winbind_runtime_files(initrc_t)
 ')
 
 optional_policy(`
@@ -1345,8 +1350,8 @@ optional_policy(`
 ')
 
 optional_policy(`
-	udev_manage_pid_files(initrc_t)
-	udev_manage_pid_dirs(initrc_t)
+	udev_manage_runtime_files(initrc_t)
+	udev_manage_runtime_dirs(initrc_t)
 	udev_manage_rules_files(initrc_t)
 ')
 
