@@ -11,5 +11,6 @@
 /^[[:blank:]]*sid /s/^/# this line was moved by the build process: &/
 /^[[:blank:]]*bool /s/^/# this line was moved by the build process: &/
 /^[[:blank:]]*role[[:blank:]]+[a-zA-Z_]+[[:blank:]]*;/s/^/# this line was moved by the build process: &/
+/^[[:blank:]]*user [a-zA-Z_]+ roles /s/^/# this line was moved by the build process: &/
 
 :nextline
