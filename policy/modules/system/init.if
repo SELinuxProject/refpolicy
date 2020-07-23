@@ -2047,25 +2047,7 @@ interface(`init_get_script_status',`
 ## </param>
 #
 interface(`init_startstop_service',`
-	gen_require(`
-		role system_r;
-	')
-
-	# sysvinit/upstart systems will need to use run_init
-	# if not using direct_sysadm_daemon.
-	ifdef(`direct_sysadm_daemon',`
-		init_labeled_script_domtrans($1, $4)
-		domain_system_change_exemption($1)
-		role_transition $2 $4 system_r;
-		allow $2 system_r;
-	')
-
-	ifdef(`distro_gentoo',`
-		# for OpenRC
-		seutil_labeled_init_script_run_runinit($1, $2, $4)
-	')
-
-	ifdef(`init_systemd',`
+	ifelse(`init_systemd',`true',`
 		# This ifelse condition is temporary, until
 		# all callers are updated to provide unit files.
 		ifelse(`$5',`',`',`
@@ -2074,6 +2056,26 @@ interface(`init_startstop_service',`
 			')
 
 			allow $1 $5:service { start status stop };
+		')
+
+	',`distro_gentoo',`true',`
+		# for OpenRC
+		seutil_labeled_init_script_run_runinit($1, $2, $4)
+
+	',`direct_sysadm_daemon',`true',`
+		gen_require(`
+			role system_r;
+		')
+
+		# rules for sysvinit / upstart
+		init_labeled_script_domtrans($1, $4)
+		domain_system_change_exemption($1)
+		role_transition $2 $4 system_r;
+		allow $2 system_r;
+
+	',` dnl else
+		optional_policy(`
+			seutil_run_runinit($1, $2)
 		')
 	')
 ')
