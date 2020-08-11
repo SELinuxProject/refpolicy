@@ -44,7 +44,7 @@ ifelse(`$4',`',`',`declare_netifs($1,shiftn(3,$*))')dnl
 # network_interface(if_name,linux_interface,mls_sensitivity)
 #
 define(`network_interface',`
-gen_require(``type unlabeled_t;'')
+gen_require(``type unlabeled_t;'')  #selint-disable:S-001
 type $1_netif_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
@@ -59,7 +59,7 @@ ifdef(`__network_enabled_declared__',`',`
 gen_bool(network_enabled, true)
 define(`__network_enabled_declared__')
 ')
-gen_require(``type unlabeled_t;'')
+gen_require(``type unlabeled_t;'')  #selint-disable:S-001
 type $1_netif_t, netif_type;
 declare_netifs($1_netif_t,shift($*))
 ')
