@@ -102,12 +102,35 @@ install:
   # Drop build.conf settings to listen to env vars
   - sed -r -i -e '/(MONOLITHIC|TYPE|DISTRO|SYSTEMD|WERROR)/d' build.conf
 
+  - |
+      if [ -n "$LINT" ] ; then
+        # Install SELint from Debian testing
+        wget -O - https://ftp-master.debian.org/keys/archive-key-10.asc 2>/dev/null | sudo apt-key add -
+        sudo add-apt-repository 'deb http://deb.debian.org/debian/ testing main' -y
+        sudo apt-get update -q
+        sudo apt-get install -y selint
+
+        selint -V
+      fi
+
 script:
   - echo $TYPE $DISTRO $MONOLITHIC $SYSTEMD $WERROR
   - set -e
-  - if [ -n "$LINT" ] ; then python3 -t -t -E -W error testing/check_fc_files.py ; fi
   - make bare
   - make conf
+  - |
+      if [ -n "$LINT" ] ; then
+        # Run filecontext checker
+        python3 -t -t -E -W error testing/check_fc_files.py
+
+        # Run SELint
+        #   disable C-005 (Permissions in av rule or class declaration not ordered) for now: has 712 findings
+        #   disable S-010 (Permission macro usage suggested) for now: has 96 findings
+        #   disable W-005 (Interface call from module not in optional_policy block): refpolicy does not follow this rule
+        selint --source --recursive --summary --fail --disable C-005 --disable S-010 --disable W-005 .
+
+        exit 0
+      fi
   - make
   - make validate
   - make xml
