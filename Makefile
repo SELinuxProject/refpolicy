@@ -169,7 +169,7 @@ docsdir := $(prefix)/share/doc/$(PKGNAME)
 
 # enable MLS if requested.
 ifeq "$(TYPE)" "mls"
-	M4PARAM += -D enable_mls
+	M4PARAM += -D enable_mls=true
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
 	gennetfilter += -m
@@ -177,7 +177,7 @@ endif
 
 # enable MLS if MCS requested.
 ifeq "$(TYPE)" "mcs"
-	M4PARAM += -D enable_mcs
+	M4PARAM += -D enable_mcs=true
 	CHECKPOLICY += -M
 	CHECKMODULE += -M
 	gennetfilter += -c
@@ -185,15 +185,15 @@ endif
 
 # enable distribution-specific policy
 ifneq ($(DISTRO),)
-	M4PARAM += -D distro_$(DISTRO)
+	M4PARAM += -D distro_$(DISTRO)=true
 endif
 
 ifeq "$(DISTRO)" "ubuntu"
-	M4PARAM += -D distro_debian
+	M4PARAM += -D distro_debian=true
 endif
 
 ifeq "$(SYSTEMD)" "y"
-	M4PARAM += -D init_systemd
+	M4PARAM += -D init_systemd=true
 endif
 
 ifneq ($(OUTPUT_POLICY),)
@@ -201,7 +201,7 @@ ifneq ($(OUTPUT_POLICY),)
 endif
 
 ifneq "$(CUSTOM_BUILDOPT)" ""
-	M4PARAM += $(foreach opt,$(CUSTOM_BUILDOPT),-D $(opt))
+	M4PARAM += $(foreach opt,$(CUSTOM_BUILDOPT),-D $(opt)=true)
 endif
 
 # if not set, use the type as the name.
@@ -211,15 +211,15 @@ NAME ?= $(TYPE)
 UNK_PERMS ?= deny
 
 ifeq ($(DIRECT_INITRC),y)
-	M4PARAM += -D direct_sysadm_daemon
+	M4PARAM += -D direct_sysadm_daemon=true
 endif
 
 ifeq "$(WERROR)" "y"
-	M4PARAM += -D m4_werror
+	M4PARAM += -D m4_werror=true
 endif
 
 ifeq "$(UBAC)" "y"
-	M4PARAM += -D enable_ubac
+	M4PARAM += -D enable_ubac=true
 endif
 
 # default MLS/MCS sensitivity and category settings.
@@ -233,7 +233,7 @@ else
 	VERBOSE_FLAG = --verbose
 endif
 
-M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS) -D hide_broken_symptoms
+M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS) -D hide_broken_symptoms=true
 
 # we need exuberant ctags; unfortunately it is named
 # differently on different distros
