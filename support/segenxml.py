@@ -78,7 +78,7 @@ def getModuleXML(file_name):
 	module_te = "%s/%s.te" % (module_dir, module_name)
 	module_if = "%s/%s.if" % (module_dir, module_name)
 
-	# Try to open the file, if it cant, just ignore it.
+	# Try to open the file, if it can't, just ignore it.
 	try:
 		module_file = open(module_if, "r")
 		module_code = module_file.readlines()
@@ -201,7 +201,7 @@ def getTunableXML(file_name, kind):
 	Return all the XML for the tunables/bools in the file specified.
 	'''
 
-	# Try to open the file, if it cant, just ignore it.
+	# Try to open the file, if it can't, just ignore it.
 	try:
 		tunable_file = open(file_name, "r")
 		tunable_code = tunable_file.readlines()
