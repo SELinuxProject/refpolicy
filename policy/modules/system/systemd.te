@@ -168,6 +168,13 @@ files_runtime_file(systemd_nspawn_runtime_t)
 type systemd_nspawn_tmp_t;
 files_tmp_file(systemd_nspawn_tmp_t)
 
+type systemd_pstore_t;
+type systemd_pstore_exec_t;
+init_system_domain(systemd_pstore_t, systemd_pstore_exec_t)
+
+type systemd_pstore_var_lib_t;
+files_type(systemd_pstore_var_lib_t)
+
 type systemd_resolved_t;
 type systemd_resolved_exec_t;
 init_system_domain(systemd_resolved_t, systemd_resolved_exec_t)
@@ -1168,6 +1175,9 @@ allow systemd_tmpfiles_t self:process { setfscreate getcap };
 allow systemd_tmpfiles_t systemd_coredump_var_lib_t:dir { manage_dir_perms relabel_dir_perms };
 allow systemd_tmpfiles_t systemd_coredump_var_lib_t:file manage_file_perms;
 
+allow systemd_tmpfiles_t systemd_pstore_var_lib_t:dir { manage_dir_perms relabel_dir_perms };
+allow systemd_tmpfiles_t systemd_pstore_var_lib_t:file manage_file_perms;
+
 allow systemd_tmpfiles_t systemd_sessions_runtime_t:file { manage_file_perms relabel_file_perms };
 
 manage_dirs_pattern(systemd_tmpfiles_t, systemd_journal_t, systemd_journal_t)
@@ -1187,6 +1197,10 @@ dev_manage_all_dev_nodes(systemd_tmpfiles_t)
 dev_read_urand(systemd_tmpfiles_t)
 dev_relabel_all_sysfs(systemd_tmpfiles_t)
 dev_setattr_all_sysfs(systemd_tmpfiles_t)
+# Allow systemd-tmpfiles to enable pstore kernel parameters over sysfs
+# /sys/module/printk/parameters/always_kmsg_dump
+# /sys/module/kernel/parameters/crash_kexec_post_notifiers
+dev_write_sysfs(systemd_tmpfiles_t)
 
 files_create_lock_dirs(systemd_tmpfiles_t)
 files_manage_all_runtime_dirs(systemd_tmpfiles_t)
@@ -1411,3 +1425,26 @@ userdom_mounton_user_runtime_dirs(systemd_user_runtime_dir_t)
 userdom_relabelto_user_runtime_dirs(systemd_user_runtime_dir_t)
 
 dbus_system_bus_client(systemd_user_runtime_dir_t)
+
+#########################################
+#
+# systemd-pstore local policy
+#
+
+dontaudit systemd_pstore_t self:capability net_admin;
+
+manage_files_pattern(systemd_pstore_t, systemd_pstore_var_lib_t, systemd_pstore_var_lib_t)
+
+files_read_etc_files(systemd_pstore_t)
+files_search_var_lib(systemd_pstore_t)
+
+fs_list_pstore_dirs(systemd_pstore_t)
+fs_read_pstore_files(systemd_pstore_t)
+fs_delete_pstore_files(systemd_pstore_t)
+
+init_search_run(systemd_pstore_t)
+init_list_var_lib_dirs(systemd_pstore_t)
+
+kernel_read_system_state(systemd_pstore_t)
+
+logging_send_syslog_msg(systemd_pstore_t)
