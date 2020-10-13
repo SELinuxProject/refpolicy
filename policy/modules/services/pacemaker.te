@@ -5,6 +5,13 @@ policy_module(pacemaker, 1.6.0)
 # Declarations
 #
 
+## <desc>
+## <p>
+## Allow pacemaker to start/stop services
+## </p>
+## </desc>
+gen_tunable(pacemaker_startstop_all_services, false)
+
 type pacemaker_t;
 type pacemaker_exec_t;
 init_daemon_domain(pacemaker_t, pacemaker_exec_t)
@@ -12,8 +19,14 @@ init_daemon_domain(pacemaker_t, pacemaker_exec_t)
 type pacemaker_initrc_exec_t;
 init_script_file(pacemaker_initrc_exec_t)
 
+type pacemaker_log_t;
+logging_log_file(pacemaker_log_t)
+
 type pacemaker_runtime_t alias pacemaker_var_run_t;
 files_runtime_file(pacemaker_runtime_t)
+
+type pacemaker_runtime_unit_t;
+init_unit_file(pacemaker_runtime_unit_t)
 
 type pacemaker_tmp_t;
 files_tmp_file(pacemaker_tmp_t)
@@ -29,15 +42,23 @@ files_type(pacemaker_var_lib_t)
 # Local policy
 #
 
-allow pacemaker_t self:capability { chown dac_override fowner fsetid kill setuid };
-allow pacemaker_t self:process { setrlimit signal setpgid };
+allow pacemaker_t self:capability { chown dac_override fowner fsetid kill net_raw setgid setuid };
+allow pacemaker_t self:process { getsched getcap setcap setpgid setrlimit setsched signal signull };
 allow pacemaker_t self:fifo_file rw_fifo_file_perms;
+allow pacemaker_t self:packet_socket { bind create getattr read write };
 allow pacemaker_t self:unix_stream_socket { connectto accept listen };
+
+create_files_pattern(pacemaker_t, pacemaker_log_t, pacemaker_log_t)
+append_files_pattern(pacemaker_t, pacemaker_log_t, pacemaker_log_t)
+setattr_files_pattern(pacemaker_t, pacemaker_log_t, pacemaker_log_t)
+read_files_pattern(pacemaker_t, pacemaker_log_t, pacemaker_log_t)
+logging_log_filetrans(pacemaker_t, pacemaker_log_t, file)
 
 manage_dirs_pattern(pacemaker_t, pacemaker_tmp_t, pacemaker_tmp_t)
 manage_files_pattern(pacemaker_t, pacemaker_tmp_t, pacemaker_tmp_t)
 files_tmp_filetrans(pacemaker_t, pacemaker_tmp_t, { file dir })
 
+mmap_rw_files_pattern(pacemaker_t, pacemaker_tmpfs_t, pacemaker_tmpfs_t)
 manage_dirs_pattern(pacemaker_t, pacemaker_tmpfs_t, pacemaker_tmpfs_t)
 manage_files_pattern(pacemaker_t, pacemaker_tmpfs_t, pacemaker_tmpfs_t)
 fs_tmpfs_filetrans(pacemaker_t, pacemaker_tmpfs_t, { dir file })
@@ -50,6 +71,10 @@ manage_dirs_pattern(pacemaker_t, pacemaker_runtime_t, pacemaker_runtime_t)
 manage_files_pattern(pacemaker_t, pacemaker_runtime_t, pacemaker_runtime_t)
 files_runtime_filetrans(pacemaker_t, pacemaker_runtime_t, { dir file })
 
+manage_dirs_pattern(pacemaker_t, pacemaker_runtime_unit_t, pacemaker_runtime_unit_t)
+manage_files_pattern(pacemaker_t, pacemaker_runtime_unit_t, pacemaker_runtime_unit_t)
+init_runtime_filetrans(pacemaker_t, pacemaker_runtime_unit_t, { dir file })
+
 kernel_getattr_core_if(pacemaker_t)
 kernel_read_all_sysctls(pacemaker_t)
 kernel_read_messages(pacemaker_t)
@@ -60,6 +85,8 @@ kernel_read_system_state(pacemaker_t)
 corecmd_exec_bin(pacemaker_t)
 corecmd_exec_shell(pacemaker_t)
 
+corenet_udp_bind_generic_node(pacemaker_t)
+
 dev_getattr_mtrr_dev(pacemaker_t)
 dev_read_rand(pacemaker_t)
 dev_read_urand(pacemaker_t)
@@ -68,16 +95,44 @@ domain_read_all_domains_state(pacemaker_t)
 domain_use_interactive_fds(pacemaker_t)
 
 files_read_kernel_symbol_table(pacemaker_t)
+files_read_usr_files(pacemaker_t)
 
 fs_getattr_all_fs(pacemaker_t)
 
 auth_use_nsswitch(pacemaker_t)
 
+init_dbus_chat(pacemaker_t)
+
+libs_exec_lib_files(pacemaker_t)
+
 logging_send_syslog_msg(pacemaker_t)
 
 miscfiles_read_localization(pacemaker_t)
 
+ifdef(`init_systemd',`
+	init_get_all_units_status(pacemaker_t)
+	init_reload(pacemaker_t)
+')
+
+tunable_policy(`pacemaker_startstop_all_services',`
+	init_start_all_units(pacemaker_t)
+	init_stop_all_units(pacemaker_t)
+')
+
 optional_policy(`
 	corosync_read_log(pacemaker_t)
+	corosync_mmap_rw_tmpfs(pacemaker_t)
 	corosync_stream_connect(pacemaker_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(pacemaker_t)
+')
+
+optional_policy(`
+	netutils_exec(pacemaker_t)
+')
+
+optional_policy(`
+	sysnet_domtrans_ifconfig(pacemaker_t)
 ')
