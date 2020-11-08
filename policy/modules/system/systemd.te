@@ -29,6 +29,22 @@ gen_tunable(systemd_nspawn_labeled_namespace, false)
 ## </desc>
 gen_tunable(systemd_logind_get_bootloader, false)
 
+## <desc>
+## <p>
+## Allow systemd-socket-proxyd to bind any port instead of one labelled
+## with systemd_socket_proxyd_port_t.
+## </p>
+## </desc>
+gen_tunable(systemd_socket_proxyd_bind_any, false)
+
+## <desc>
+## <p>
+## Allow systemd-socket-proxyd to connect to any port instead of
+## labelled ones.
+## </p>
+## </desc>
+gen_tunable(systemd_socket_proxyd_connect_any, false)
+
 attribute systemd_log_parse_env_type;
 attribute systemd_tmpfiles_conf_type;
 attribute systemd_user_session_type;
@@ -216,6 +232,16 @@ type systemd_sessions_runtime_t alias systemd_sessions_var_run_t;
 files_runtime_file(systemd_sessions_runtime_t)
 init_daemon_runtime_file(systemd_sessions_runtime_t, dir, "systemd_sessions")
 init_mountpoint(systemd_sessions_runtime_t)
+
+type systemd_socket_proxyd_t;
+type systemd_socket_proxyd_exec_t;
+init_daemon_domain(systemd_socket_proxyd_t, systemd_socket_proxyd_exec_t)
+
+type systemd_socket_proxyd_port_t;
+corenet_port(systemd_socket_proxyd_port_t)
+
+type systemd_socket_proxyd_unit_file_t;
+init_unit_file(systemd_socket_proxyd_unit_file_t)
 
 type systemd_sysusers_t;
 type systemd_sysusers_exec_t;
@@ -1143,6 +1169,32 @@ optional_policy(`
 	dbus_watch_system_bus_runtime_dirs(systemd_resolved_t)
 	dbus_watch_system_bus_runtime_named_sockets(systemd_resolved_t)
 ')
+
+#########################################
+#
+# Socket-proxyd local policy
+#
+
+allow systemd_socket_proxyd_t self:unix_dgram_socket { create create_socket_perms getopt setopt sendto read write };
+allow systemd_socket_proxyd_t self:tcp_socket accept;
+
+kernel_read_system_state(systemd_socket_proxyd_t)
+
+auth_use_nsswitch(systemd_socket_proxyd_t)
+sysnet_dns_name_resolve(systemd_socket_proxyd_t)
+
+tunable_policy(`systemd_socket_proxyd_bind_any',`
+ corenet_tcp_bind_all_ports(systemd_socket_proxyd_t)
+',`
+ allow systemd_socket_proxyd_t systemd_socket_proxyd_port_t:tcp_socket name_bind;
+')
+
+tunable_policy(`systemd_socket_proxyd_connect_any',`
+ corenet_tcp_connect_all_ports(systemd_socket_proxyd_t)
+',`
+ allow systemd_socket_proxyd_t systemd_socket_proxyd_port_t:tcp_socket name_connect;
+')
+
 
 #########################################
 #
