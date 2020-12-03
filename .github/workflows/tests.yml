@@ -1,0 +1,158 @@
+name: Build tests
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+env:
+  SELINUX_USERSPACE_VERSION: checkpolicy-3.1
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # This version should be the minimum required to run the fc checker
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -qq
+
+        # Install SELint from Debian testing
+        wget -O - https://ftp-master.debian.org/keys/archive-key-10.asc 2>/dev/null | sudo apt-key add -
+        sudo add-apt-repository 'deb http://deb.debian.org/debian/ testing main' -y
+        sudo apt-get install -qqy selint
+        selint -V
+
+    - name: Create generated policy files
+      run: |
+        make conf
+        make generate
+
+    - name: Run file context checker
+      run: python3 -t -t -E -W error testing/check_fc_files.py
+
+    - name: Run SELint
+      run: |
+        # disable C-005 (Permissions in av rule or class declaration not ordered) for now: needs fixing
+        # disable W-005 (Interface call from module not in optional_policy block): refpolicy does not follow this rule
+        selint --source --recursive --summary --fail --disable C-005 --disable W-005 policy
+
+  build:
+    runs-on: ubuntu-latest
+
+    needs: lint
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        build-opts:
+          - {type: standard, distro: redhat, monolithic: y, systemd: y}
+          - {type: standard, distro: redhat, monolithic: n, systemd: y}
+          - {type: standard, distro: debian, monolithic: y, systemd: y}
+          - {type: standard, distro: debian, monolithic: n, systemd: y}
+          - {type: standard, distro: gentoo, monolithic: y, systemd: n}
+          - {type: standard, distro: gentoo, monolithic: n, systemd: n}
+          - {type: mcs, distro: redhat, monolithic: y, systemd: y}
+          - {type: mcs, distro: redhat, monolithic: n, systemd: y}
+          - {type: mcs, distro: debian, monolithic: y, systemd: y}
+          - {type: mcs, distro: debian, monolithic: n, systemd: y}
+          - {type: mcs, distro: gentoo, monolithic: y, systemd: n}
+          - {type: mcs, distro: gentoo, monolithic: n, systemd: n}
+          - {type: mls, distro: redhat, monolithic: y, systemd: y}
+          - {type: mls, distro: redhat, monolithic: n, systemd: y}
+          - {type: mls, distro: debian, monolithic: y, systemd: y}
+          - {type: mls, distro: debian, monolithic: n, systemd: y}
+          - {type: mls, distro: gentoo, monolithic: y, systemd: n}
+          - {type: mls, distro: gentoo, monolithic: n, systemd: n}
+          - {type: standard, distro: redhat, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: standard, distro: debian, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: standard, distro: gentoo, monolithic: y, systemd: n, apps-off: unconfined}
+          - {type: mcs, distro: redhat, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: mcs, distro: debian, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: mcs, distro: gentoo, monolithic: y, systemd: n, apps-off: unconfined}
+          - {type: mls, distro: redhat, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: mls, distro: debian, monolithic: y, systemd: y, apps-off: unconfined}
+          - {type: mls, distro: gentoo, monolithic: y, systemd: n, apps-off: unconfined}
+  
+    steps:
+    - uses: actions/checkout@v2
+
+    # This should be the minimum required Python version to build refpolicy.
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.5
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -qqy \
+            bison \
+            flex \
+            gettext \
+            libaudit-dev \
+            libbz2-dev \
+            libpcre3-dev \
+            libxml2-utils \
+            swig
+
+    - name: Configure environment
+      run: |
+        echo "DESTDIR=/tmp/refpolicy" >> $GITHUB_ENV
+        echo "PYTHON=python" >> $GITHUB_ENV
+        echo "TEST_TOOLCHAIN_SRC=/tmp/selinux-src" >> $GITHUB_ENV
+        echo "TEST_TOOLCHAIN=/tmp/selinux" >> $GITHUB_ENV
+        echo "TYPE=${{matrix.build-opts.type}}" >> $GITHUB_ENV
+        echo "DISTRO=${{matrix.build-opts.distro}}" >> $GITHUB_ENV
+        echo "MONOLITHIC=${{matrix.build-opts.monolithic}}" >> $GITHUB_ENV
+        echo "SYSTEMD=${{matrix.build-opts.systemd}}" >> $GITHUB_ENV
+        echo "APPS_OFF=${{matrix.build-opts.apps-off}}" >> $GITHUB_ENV
+        echo "WERROR=y" >> $GITHUB_ENV
+
+    - name: Build toolchain
+      run: |
+        # Download current SELinux userspace tools and libraries
+        git clone https://github.com/SELinuxProject/selinux.git ${TEST_TOOLCHAIN_SRC} -b ${SELINUX_USERSPACE_VERSION}
+        # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
+        sed -i -e 's/secilc//' ${TEST_TOOLCHAIN_SRC}/Makefile
+        # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
+        sed -i -e 's/sepolicy//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        # Drop restorecond to break glib dependence
+        sed -i -e 's/ restorecond//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        # Drop sandbox to break libcap-ng dependence
+        sed -i -e 's/ sandbox//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        # Compile and install SELinux toolchain
+        make OPT_SUBDIRS=semodule-utils DESTDIR=${TEST_TOOLCHAIN} -C ${TEST_TOOLCHAIN_SRC} install
+
+    - name: Build refpolicy
+      run: |
+        # Drop build.conf settings to listen to env vars
+        sed -r -i -e '/(MONOLITHIC|TYPE|DISTRO|SYSTEMD|WERROR)/d' build.conf
+
+        make bare
+        make conf
+        make
+        make validate
+
+    - name: Build docs
+      run: |
+        make xml
+        make html
+
+    - name: Test installation
+      run: |
+        make install
+        make install-headers
+        make install-src
+        make install-docs
+        make install-appconfig
