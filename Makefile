@@ -97,6 +97,7 @@ genxml := $(PYTHON) $(support)/segenxml.py
 gendoc := $(PYTHON) $(support)/sedoctool.py
 genperm := $(PYTHON) $(support)/genclassperms.py
 policyvers := $(PYTHON) $(support)/policyvers.py
+binary_policy_path := $(PYTHON) $(support)/selinux_binary_policy_path.py
 fcsort := $(PYTHON) $(support)/fc_sort.py
 setbools := $(AWK) -f $(support)/set_bools_tuns.awk
 get_type_attr_decl := $(SED) -r -f $(support)/get_type_attr_decl.sed

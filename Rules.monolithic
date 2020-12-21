@@ -13,6 +13,12 @@ ifeq "$(kv)" ""
 	kv := $(pv)
 endif
 
+# load_policy(8) loads policy from /etc/selinux/<SELINUXTYPE>/policy/policy.$(pv)
+# It does this by reading the /etc/selinux/config file SELINUXTYPE entry to
+# form the full path. $(polbinpath) will contain this evaluated path for use as
+# a validation check.
+polbinpath := $(shell $(binary_policy_path))
+
 policy_conf = $(builddir)policy.conf
 fc = $(builddir)file_contexts
 polver = $(builddir)policy.$(pv)
@@ -91,9 +97,16 @@ endif
 # Load the binary policy
 #
 reload $(tmpdir)/load: $(loadpath) $(fcpath) $(appfiles)
+ifneq ($(DESTDIR),)
+	$(error Cannot load policy as '$$DESTDIR' is set to $(DESTDIR), \
+		creating an invalid policy load path)
+endif
+ifneq ($(polbinpath).$(pv),$(loadpath))
+	$(error Cannot load policy as invalid policy path: $(polbinpath).$(pv) - \
+		Check $(topdir)/config file entry is: "SELINUXTYPE=$(NAME)")
+endif
 	@echo "Loading $(NAME) $(loadpath)"
 	$(verbose) $(LOADPOLICY) -q $(loadpath)
-	@touch $(tmpdir)/load
 
 ########################################
 #
