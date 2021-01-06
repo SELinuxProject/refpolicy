@@ -614,7 +614,7 @@ checklabels:
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -v -n $(fcpath) $(filesystems)
+	$(verbose) $(SETFILES) -E -v -n $(fcpath) $(filesystems)
 
 restorelabels:
 	@echo "Restoring labels on filesystem types: $(fs_names)"
@@ -622,7 +622,7 @@ restorelabels:
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -v $(fcpath) $(filesystems)
+	$(verbose) $(SETFILES) -E -v $(fcpath) $(filesystems)
 
 relabel:
 	@echo "Relabeling filesystem types: $(fs_names)"
@@ -630,7 +630,7 @@ relabel:
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) $(fcpath) $(filesystems)
+	$(verbose) $(SETFILES) -E $(fcpath) $(filesystems)
 
 resetlabels:
 	@echo "Resetting labels on filesystem types: $(fs_names)"
@@ -638,7 +638,7 @@ resetlabels:
 		echo "No filesystems with extended attributes found!" ;\
 		false ;\
 	fi
-	$(verbose) $(SETFILES) -F $(fcpath) $(filesystems)
+	$(verbose) $(SETFILES) -E -F $(fcpath) $(filesystems)
 
 ########################################
 #
