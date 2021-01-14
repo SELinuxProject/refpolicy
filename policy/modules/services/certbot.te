@@ -1,0 +1,101 @@
+policy_module(certbot, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type certbot_t;
+type certbot_exec_t;
+init_daemon_domain(certbot_t, certbot_exec_t)
+
+type certbot_log_t;
+logging_log_file(certbot_log_t)
+
+type certbot_runtime_t alias certbot_var_run_t;
+files_runtime_file(certbot_runtime_t)
+
+type certbot_tmp_t;
+files_tmp_file(certbot_tmp_t)
+
+type certbot_tmpfs_t;
+files_tmpfs_file(certbot_tmpfs_t)
+
+type certbot_lib_t alias certbot_var_lib_t;
+files_type(certbot_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+allow certbot_t self:fifo_file { getattr ioctl read write };
+allow certbot_t self:capability { chown dac_override sys_resource };
+allow certbot_t self:udp_socket all_udp_socket_perms;
+allow certbot_t self:tcp_socket all_tcp_socket_perms;
+allow certbot_t self:netlink_route_socket create_netlink_socket_perms;
+
+files_search_var_lib(certbot_t)
+manage_dirs_pattern(certbot_t, certbot_lib_t, certbot_lib_t)
+manage_files_pattern(certbot_t, certbot_lib_t, certbot_lib_t)
+
+manage_dirs_pattern(certbot_t, certbot_tmp_t, certbot_tmp_t)
+manage_files_pattern(certbot_t, certbot_tmp_t, certbot_tmp_t)
+files_tmp_filetrans(certbot_t, certbot_tmp_t, { dir file })
+
+manage_files_pattern(certbot_t, certbot_tmpfs_t, certbot_tmpfs_t)
+fs_tmpfs_filetrans(certbot_t, certbot_tmpfs_t, { file })
+
+# this is for certbot to have write-exec memory, I know it is bad
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=913544
+# the Debian bug report has background about python-acme and python3-openssl
+allow certbot_t self:process execmem;
+allow certbot_t certbot_tmp_t:file { map execute };
+allow certbot_t certbot_tmpfs_t:file { map execute };
+allow certbot_t certbot_runtime_t:file { map execute };
+
+logging_search_logs(certbot_t)
+allow certbot_t certbot_log_t:dir manage_dir_perms;
+allow certbot_t certbot_log_t:file manage_file_perms;
+
+manage_files_pattern(certbot_t, certbot_runtime_t, certbot_runtime_t)
+files_runtime_filetrans(certbot_t, certbot_runtime_t, file)
+
+kernel_search_fs_sysctls(certbot_t)
+
+corecmd_list_bin(certbot_t)
+corecmd_mmap_bin_files(certbot_t)
+
+corenet_tcp_bind_generic_node(certbot_t)
+corenet_tcp_connect_http_port(certbot_t)
+corenet_tcp_connect_dns_port(certbot_t)
+
+# bind to http port for standalone mode
+corenet_tcp_bind_http_port(certbot_t)
+
+domain_use_interactive_fds(certbot_t)
+files_read_etc_files(certbot_t)
+files_read_usr_files(certbot_t)
+
+libs_exec_ldconfig(certbot_t)
+# for /usr/lib/gcc/x86_64-linux-gnu/8/collect2
+libs_exec_lib_files(certbot_t)
+
+miscfiles_read_localization(certbot_t)
+
+miscfiles_read_generic_certs(certbot_t)
+miscfiles_manage_generic_tls_privkey_dirs(certbot_t)
+miscfiles_manage_generic_tls_privkey_files(certbot_t)
+miscfiles_manage_generic_tls_privkey_lnk_files(certbot_t)
+
+sysnet_read_config(certbot_t)
+
+userdom_dontaudit_search_user_home_dirs(certbot_t)
+userdom_use_user_ptys(certbot_t)
+
+optional_policy(`
+	# for writing to webroot
+	apache_manage_sys_content(certbot_t)
+
+	apache_search_config(certbot_t)
+')
