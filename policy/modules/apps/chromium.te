@@ -7,6 +7,16 @@ policy_module(chromium, 1.3.1)
 
 ## <desc>
 ## <p>
+## Allow chromium to access direct rendering interface
+## </p>
+## <p>
+## Needed for good performance on complex sites
+## </p>
+## </desc>
+gen_tunable(chromium_dri, true)
+
+## <desc>
+## <p>
 ## Allow chromium to read system information
 ## </p>
 ## <p>
@@ -63,6 +73,9 @@ type chromium_tmpfs_t;
 userdom_user_tmpfs_file(chromium_tmpfs_t)
 optional_policy(`
 	pulseaudio_tmpfs_content(chromium_tmpfs_t)
+	pulseaudio_rw_tmpfs_files(chromium_t)
+	pulseaudio_stream_connect(chromium_t)
+	pulseaudio_use_fds(chromium_t)
 ')
 
 type chromium_xdg_config_t;
@@ -96,6 +109,7 @@ allow chromium_t chromium_renderer_t:unix_stream_socket { read write };
 
 allow chromium_t chromium_sandbox_t:unix_dgram_socket { getattr read write };
 allow chromium_t chromium_sandbox_t:unix_stream_socket { getattr read write };
+allow chromium_t chromium_sandbox_t:file read_file_perms;
 
 allow chromium_t chromium_naclhelper_t:process { share };
 
@@ -107,6 +121,9 @@ manage_lnk_files_pattern(chromium_t, chromium_tmp_t, chromium_tmp_t)
 manage_sock_files_pattern(chromium_t, chromium_tmp_t, chromium_tmp_t)
 manage_fifo_files_pattern(chromium_t, chromium_tmp_t, chromium_tmp_t)
 files_tmp_filetrans(chromium_t, chromium_tmp_t, { file dir sock_file })
+
+# for /run/user/$UID
+userdom_user_runtime_filetrans(chromium_t, chromium_tmp_t, { file sock_file })
 
 manage_files_pattern(chromium_t, chromium_tmpfs_t, chromium_tmpfs_t)
 allow chromium_t chromium_tmpfs_t:file map;
@@ -129,6 +146,8 @@ domtrans_pattern(chromium_t, chromium_sandbox_exec_t, chromium_sandbox_t)
 domtrans_pattern(chromium_t, chromium_naclhelper_exec_t, chromium_naclhelper_t)
 
 kernel_list_proc(chromium_t)
+kernel_read_fs_sysctls(chromium_t)
+kernel_read_kernel_sysctls(chromium_t)
 kernel_read_net_sysctls(chromium_t)
 
 corecmd_exec_bin(chromium_t)
@@ -187,11 +206,18 @@ xdg_read_config_files(chromium_t)
 xdg_read_data_files(chromium_t)
 
 xserver_user_x_domain_template(chromium, chromium_t, chromium_tmpfs_t)
+xserver_stream_connect_xdm(chromium_t)
+
+xserver_manage_mesa_shader_cache(chromium_t)
 
 tunable_policy(`chromium_bind_tcp_unreserved_ports',`
 	corenet_tcp_bind_generic_node(chromium_t)
 	corenet_tcp_bind_all_unreserved_ports(chromium_t)
 	allow chromium_t self:tcp_socket { listen accept };
+')
+
+tunable_policy(`chromium_dri', `
+	dev_rw_dri(chromium_t)
 ')
 
 tunable_policy(`chromium_rw_usb_dev',`
@@ -240,7 +266,12 @@ optional_policy(`
 	')
 
 	optional_policy(`
+		devicekit_dbus_chat_disk(chromium_t)
 		devicekit_dbus_chat_power(chromium_t)
+	')
+
+	optional_policy(`
+		systemd_dbus_chat_hostnamed(chromium_t)
 	')
 ')
 
@@ -249,6 +280,14 @@ optional_policy(`
 	apt_read_db(chromium_t)
 	dpkg_exec(chromium_t)
 	dpkg_read_db(chromium_t)
+')
+
+optional_policy(`
+	networkmanager_dbus_chat(chromium_t)
+')
+
+optional_policy(`
+	ssh_dontaudit_agent_tmp(chromium_t)
 ')
 
 ########################################
@@ -349,3 +388,6 @@ tunable_policy(`chromium_read_system_info',`
 
 dev_read_sysfs(chromium_naclhelper_t)
 dev_read_urand(chromium_naclhelper_t)
+kernel_list_proc(chromium_naclhelper_t)
+
+miscfiles_read_localization(chromium_naclhelper_t)

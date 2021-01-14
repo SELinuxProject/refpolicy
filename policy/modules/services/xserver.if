@@ -48,8 +48,9 @@ interface(`xserver_restricted_role',`
 	files_search_tmp($2)
 
 	# Communicate via System V shared memory.
+	allow $2 xserver_t:fd use;
 	allow $2 xserver_t:shm r_shm_perms;
-	allow $2 xserver_tmpfs_t:file read_file_perms;
+	allow $2 xserver_tmpfs_t:file { map read_file_perms };
 
 	# allow ps to show iceauth
 	ps_process_pattern($2, iceauth_t)
@@ -74,10 +75,6 @@ interface(`xserver_restricted_role',`
 	allow $2 xdm_tmp_t:dir search;
 	allow $2 xdm_tmp_t:sock_file { read write };
 	dontaudit $2 xdm_t:tcp_socket { read write };
-
-	# Client read xserver shm
-	allow $2 xserver_t:fd use;
-	allow $2 xserver_tmpfs_t:file read_file_perms;
 
 	# Read /tmp/.X0-lock
 	allow $2 xserver_tmp_t:file read_inherited_file_perms;
@@ -118,6 +115,9 @@ interface(`xserver_restricted_role',`
 	tunable_policy(`allow_write_xshm',`
 		allow $2 xserver_t:shm rw_shm_perms;
 		allow $2 xserver_tmpfs_t:file rw_file_perms;
+	')
+	tunable_policy(`xserver_allow_dri',`
+		dev_rw_dri($2)
 	')
 ')
 
@@ -1658,6 +1658,26 @@ interface(`xserver_rw_mesa_shader_cache',`
 
 	rw_dirs_pattern($1, mesa_shader_cache_t, mesa_shader_cache_t)
 	rw_files_pattern($1, mesa_shader_cache_t, mesa_shader_cache_t)
+	xdg_search_cache_dirs($1)
+')
+
+########################################
+## <summary>
+##	Manage the mesa shader cache.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`xserver_manage_mesa_shader_cache',`
+	gen_require(`
+		type mesa_shader_cache_t;
+	')
+
+	manage_dirs_pattern($1, mesa_shader_cache_t, mesa_shader_cache_t)
+	manage_files_pattern($1, mesa_shader_cache_t, mesa_shader_cache_t)
 	allow $1 mesa_shader_cache_t:file map;
 
 	xdg_search_cache_dirs($1)
