@@ -21,6 +21,14 @@ gen_tunable(spamassassin_can_network, false)
 ## </desc>
 gen_tunable(spamd_enable_home_dirs, false)
 
+## <desc>
+##	<p>
+##	Determine whether extra rules should
+##	be enabled to support rspamd.
+##	</p>
+## </desc>
+gen_tunable(rspamd_spamd, false)
+
 type spamd_update_t;
 typealias spamd_update_t alias spamd_gpg_t;
 type spamd_update_exec_t;
@@ -80,6 +88,9 @@ files_type(spamd_spool_t)
 
 type spamd_tmp_t;
 files_tmp_file(spamd_tmp_t)
+
+type spamd_tmpfs_t;
+files_tmpfs_file(spamd_tmpfs_t)
 
 type spamd_var_lib_t;
 files_type(spamd_var_lib_t)
@@ -382,6 +393,30 @@ tunable_policy(`spamd_enable_home_dirs',`
 	userdom_manage_user_home_content_dirs(spamd_t)
 	userdom_manage_user_home_content_files(spamd_t)
 	userdom_manage_user_home_content_symlinks(spamd_t)
+')
+
+tunable_policy(`rspamd_spamd',`
+	allow spamd_t self:process setrlimit;
+	allow spamc_t self:process setrlimit;
+
+	list_dirs_pattern(spamd_t, spamd_etc_t, spamd_etc_t)
+	mmap_read_files_pattern(spamd_t, spamd_etc_t, spamd_etc_t)
+	allow spamd_t spamd_etc_t:dir watch;
+
+	mmap_read_files_pattern(spamd_t, spamd_var_lib_t, spamd_var_lib_t)
+	allow spamd_t spamd_var_lib_t:dir watch;
+	filetrans_pattern(spamd_t, spamd_var_lib_t, spamd_runtime_t, sock_file)
+
+	search_dirs_pattern(spamd_t, spamd_log_t, spamd_log_t)
+
+	fs_search_tmpfs(spamd_t)
+	manage_dirs_pattern(spamd_t, spamd_tmpfs_t, spamd_tmpfs_t)
+	manage_files_pattern(spamd_t, spamd_tmpfs_t, spamd_tmpfs_t)
+	mmap_read_files_pattern(spamd_t, spamd_tmpfs_t, spamd_tmpfs_t)
+	fs_tmpfs_filetrans(spamd_t, spamd_tmpfs_t, { dir file })
+
+	corenet_tcp_connect_http_port(spamd_t)
+	corenet_tcp_connect_redis_port(spamd_t)
 ')
 
 tunable_policy(`use_nfs_home_dirs',`
