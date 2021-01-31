@@ -138,9 +138,6 @@ class selinuxConfig:
 	def getFileContextFile(self):
 		return self.getFileContextDir()+"/file_contexts"
 
-	def getContextDir(self):
-		return self.selinuxdir+self.setype+self.contextdir
-
 	def getHomeDirTemplate(self):
 		return self.getFileContextDir()+"/homedir_template"
 
@@ -270,9 +267,6 @@ class selinuxConfig:
 			ret += self.getHomeRootContext(h)
 		ret += self.genHomeDirContext()
 		return ret
-
-	def printout(self):
-		print(self.genoutput())
 
 	def write(self):
 		try:
