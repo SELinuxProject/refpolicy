@@ -143,10 +143,9 @@ class selinuxConfig:
 
 	def getHomeRootContext(self, homedir):
 		rc=getstatusoutput("grep HOME_ROOT  %s | sed -e \"s|^HOME_ROOT|%s|\"" % ( self.getHomeDirTemplate(), homedir))
-		if rc[0] == 0:
-			return rc[1]+"\n"
-		else:
-			errorExit("sed error " + rc[1])
+		if rc[0] != 0:
+			errorExit("sed error (" + str(rc[0]) + "): " + rc[1])
+		return rc[1]+"\n"
 
 	def getUsersFile(self):
 		return self.selinuxdir+self.setype+"/users/local.users"
@@ -211,7 +210,7 @@ class selinuxConfig:
 		users = self.getUsers()
 		ret=""
 		# Fill in HOME and ROLE for users that are defined
-		for u in users.keys():
+		for u in users:
 			ret += self.getHomeDirContext (u, users[u]["home"], users[u]["role"], users[u]["name"], users[u]["uid"])
 		return ret+"\n"
 
@@ -244,8 +243,7 @@ class selinuxConfig:
 				break
 		if exists == 1:
 			return 1
-		else:
-			return 0
+		return 0
 
 
 	def getHomeDirs(self):
@@ -301,11 +299,11 @@ try:
 						'nopasswd',
 						'dir='])
 	for o,a in gopts:
-		if o == '--type' or o == "-t":
+		if o in ('--type', '-t'):
 			setype=a
-		if o == '--nopasswd'  or o == "-n":
+		if o in ('--nopasswd', '-n'):
 			usepwd=0
-		if o == '--dir'  or o == "-d":
+		if o in ('--dir', '-d'):
 			directory=a
 		if o == '--help':
 			usage()
