@@ -40,7 +40,7 @@
 #  are always "real" (including root, in the default configuration).
 #
 
-import sys, pwd, getopt, re
+import sys, pwd, getopt, re, os
 from subprocess import getstatusoutput
 
 EXCLUDE_LOGINS=["/sbin/nologin", "/bin/false"]
@@ -71,32 +71,34 @@ def getStartingUID():
 
 def getDefaultHomeDir():
 	ret = []
-	rc=getstatusoutput("grep -h '^HOME' /etc/default/useradd")
-	if rc[0] == 0:
-		homedir = rc[1].split("=")[1]
-		homedir = homedir.split("#")[0]
-		homedir = homedir.strip()
-		if not homedir in ret:
-			ret.append(homedir)
-	else:
-		#rc[0] == 256 means the file was there, we read it, but the grep didn't match
-		if rc[0] != 256:
-			sys.stderr.write("%s\n" % rc[1])
-			sys.stderr.write("You do not have access to /etc/default/useradd HOME=\n")
-			sys.stderr.flush()
-	rc=getstatusoutput("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
-	if rc[0] == 0:
-		homedir = rc[1].split("=")[1]
-		homedir = homedir.split("#")[0]
-		homedir = homedir.strip()
-		if not homedir in ret:
-			ret.append(homedir)
-	else:
-		#rc[0] == 256 means the file was there, we read it, but the grep didn't match
-		if rc[0] != 256:
-			sys.stderr.write("%s\n" % rc[1])
-			sys.stderr.write("You do not have access to /etc/libuser.conf LU_HOMEDIRECTORY=\n")
-			sys.stderr.flush()
+	if os.path.isfile('/etc/default/useradd'):
+		rc=getstatusoutput("grep -h '^HOME' /etc/default/useradd")
+		if rc[0] == 0:
+			homedir = rc[1].split("=")[1]
+			homedir = homedir.split("#")[0]
+			homedir = homedir.strip()
+			if not homedir in ret:
+				ret.append(homedir)
+		else:
+			#rc[0] == 1 means the file was there, we read it, but the grep didn't match
+			if rc[0] != 1:
+				sys.stderr.write("(%d): %s\n" % (rc[0], rc[1]))
+				sys.stderr.write("You do not have access to /etc/default/useradd HOME=\n")
+				sys.stderr.flush()
+	if os.path.isfile('/etc/libuser.conf'):
+		rc=getstatusoutput("grep -h '^LU_HOMEDIRECTORY' /etc/libuser.conf")
+		if rc[0] == 0:
+			homedir = rc[1].split("=")[1]
+			homedir = homedir.split("#")[0]
+			homedir = homedir.strip()
+			if not homedir in ret:
+				ret.append(homedir)
+		else:
+			#rc[0] == 1 means the file was there, we read it, but the grep didn't match
+			if rc[0] != 1:
+				sys.stderr.write("(%d): %s\n" % (rc[0], rc[1]))
+				sys.stderr.write("You do not have access to /etc/libuser.conf LU_HOMEDIRECTORY=\n")
+				sys.stderr.flush()
 	if ret == []:
 		ret.append("/home")
 	return ret
