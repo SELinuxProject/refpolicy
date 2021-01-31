@@ -266,7 +266,7 @@ class selinuxConfig:
 	def genoutput(self):
 		ret= self.heading()
 		for h in self.getHomeDirs():
-			ret += self.getHomeDirContext ("user_u" , h+'/[^/]*', "user")
+			ret += self.getHomeDirContext ("user_u" , h+'/[^/]+', "user")
 			ret += self.getHomeRootContext(h)
 		ret += self.genHomeDirContext()
 		return ret
