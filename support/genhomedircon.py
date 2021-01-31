@@ -168,7 +168,6 @@ class selinuxConfig:
 		if rc[0] == 0:
 			users+=rc[1]
 		udict = {}
-		prefs = {}
 		if users != "":
 			ulist = users.split("\n")
 			for u in ulist:
@@ -181,20 +180,31 @@ class selinuxConfig:
 					if role == "{":
 						role = user[4]
 					role = role.split("_r")[0]
-					home = pwd.getpwnam(user[1])[5]
+					pwdentry = pwd.getpwnam(user[1])
+					home = pwdentry[5]
 					if home == "/":
 						continue
 					prefs = {}
 					prefs["role"] = role
 					prefs["home"] = home
+					prefs["name"] = pwdentry[0]
+					prefs["uid"] = pwdentry[2]
 					udict[user[1]] = prefs
 				except KeyError:
 					sys.stderr.write("The user \"%s\" is not present in the passwd file, skipping...\n" % user[1])
 		return udict
 
-	def getHomeDirContext(self, user, home, role):
-		ret="\n\n#\n# Context for user %s\n#\n\n" % user
-		rc=getstatusoutput("grep '^HOME_DIR' %s | sed -e 's|HOME_DIR|%s|' -e 's/ROLE/%s/' -e 's/system_u/%s/'" % (self.getHomeDirTemplate(), home, role, user))
+	def getHomeDirContext(self, seuser, home, role, username, userid):
+		ret = "\n\n#\n# Context for user %s\n#\n\n" % seuser
+		rc = getstatusoutput("grep -E '^HOME_DIR|%%{USERID}|%%{USERNAME}' %s | sed"
+			" -e 's|HOME_DIR|%s|'"
+			" -e 's|ROLE|%s|'"
+			" -e 's|system_u|%s|'"
+			" -e 's|%%{USERID}|%s|'"
+			" -e 's|%%{USERNAME}|%s|'"
+			% (self.getHomeDirTemplate(), home, role, seuser, userid, username))
+		if rc[0] != 0:
+			errorExit("sed error (" + str(rc[0]) + "): " + rc[1])
 		return ret + rc[1] + "\n"
 
 	def genHomeDirContext(self):
@@ -202,7 +212,7 @@ class selinuxConfig:
 		ret=""
 		# Fill in HOME and ROLE for users that are defined
 		for u in users.keys():
-			ret += self.getHomeDirContext (u, users[u]["home"], users[u]["role"])
+			ret += self.getHomeDirContext (u, users[u]["home"], users[u]["role"], users[u]["name"], users[u]["uid"])
 		return ret+"\n"
 
 	def checkExists(self, home):
@@ -263,7 +273,7 @@ class selinuxConfig:
 	def genoutput(self):
 		ret= self.heading()
 		for h in self.getHomeDirs():
-			ret += self.getHomeDirContext ("user_u" , h+'/[^/]+', "user")
+			ret += self.getHomeDirContext ("user_u" , h+'/[^/]+', "user", "[^/]+", "[0-9]+")
 			ret += self.getHomeRootContext(h)
 		ret += self.genHomeDirContext()
 		return ret
