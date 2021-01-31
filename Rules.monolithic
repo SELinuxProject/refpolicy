@@ -13,6 +13,11 @@ ifeq "$(kv)" ""
 	kv := $(pv)
 endif
 
+# dont print version warnings if we specified a lower version than the kernel supports
+ifneq "$(OUTPUT_POLICY)" ""
+	kv := $(shell if test $(kv) -gt $(pv); then echo $(pv); else echo $(kv); fi)
+endif
+
 # load_policy(8) loads policy from /etc/selinux/<SELINUXTYPE>/policy/policy.$(pv)
 # It does this by reading the /etc/selinux/config file SELINUXTYPE entry to
 # form the full path. $(polbinpath) will contain this evaluated path for use as
@@ -73,7 +78,7 @@ $(polver): $(policy_conf)
 	@echo "Compiling $(NAME) $(polver)"
 ifneq ($(pv),$(kv))
 	@echo
-	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
+	@echo "WARNING: Policy version mismatch (policy:$(pv) kernel:$(kv))!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
 	$(verbose) $(CHECKPOLICY) -U $(UNK_PERMS) $^ -o $@
@@ -86,7 +91,7 @@ $(loadpath): $(policy_conf)
 	@echo "Compiling and installing $(NAME) $(loadpath)"
 ifneq ($(pv),$(kv))
 	@echo
-	@echo "WARNING: Policy version mismatch!  Is your OUTPUT_POLICY set correctly?"
+	@echo "WARNING: Policy version mismatch (policy:$(pv) kernel:$(kv))!  Is your OUTPUT_POLICY set correctly?"
 	@echo
 endif
 	@$(INSTALL) -d -m 0755 $(@D)
