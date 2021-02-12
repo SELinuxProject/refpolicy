@@ -252,9 +252,10 @@ ifdef(`init_systemd',`
 
 	allow init_t init_path_unit_loc_type:{ dir file } { getattr watch };
 
-	# for /run/systemd/inaccessible/{chr,blk}
-	allow init_t init_runtime_t:blk_file create_blk_file_perms;
-	allow init_t init_runtime_t:chr_file create_chr_file_perms;
+	# for /run/systemd/inaccessible/{chr,blk,fifo}
+	allow init_t init_runtime_t:blk_file { create_blk_file_perms relabelto };
+	allow init_t init_runtime_t:chr_file { create_chr_file_perms relabelto };
+	allow init_t init_runtime_t:fifo_file { create_fifo_file_perms relabelto };
 
 	allow init_t systemprocess:process { dyntransition siginh };
 	allow init_t systemprocess:unix_stream_socket create_stream_socket_perms;
@@ -311,6 +312,8 @@ ifdef(`init_systemd',`
 	kernel_setsched(init_t)
 	kernel_link_key(init_t)
 	kernel_rw_unix_sysctls(init_t)
+	kernel_rw_stream_sockets(init_t)
+	kernel_rw_unix_dgram_sockets(init_t)
 
 	# run systemd misc initializations
 	# in the initrc_t domain, as would be
@@ -411,6 +414,9 @@ ifdef(`init_systemd',`
 	fs_remount_all_fs(init_t)
 	fs_relabelfrom_tmpfs_symlinks(init_t)
 	fs_unmount_all_fs(init_t)
+	fs_relabel_tmpfs_blk_files(init_t)
+	fs_relabel_tmpfs_chr_files(init_t)
+	fs_relabel_tmpfs_fifo_files(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
 	fs_relabel_tmpfs_files(init_t)
@@ -484,6 +490,8 @@ ifdef(`init_systemd',`
 
 	# for systemd to read udev status
 	udev_read_runtime_files(init_t)
+
+	userdom_relabel_user_runtime_root_dirs(init_t)
 
 	tunable_policy(`init_mounton_non_security',`
 		files_mounton_non_security(init_t)
@@ -1022,6 +1030,9 @@ ifdef(`init_systemd',`
 	allow initrc_t systemdunit:service reload;
 	allow initrc_t init_script_file_type:service { stop start status reload };
 
+	# Access to notify socket for services with Type=notify
+	kernel_dgram_send(initrc_t)
+
 	# run systemd misc initializations
 	# in the initrc_t domain, as would be
 	# done in traditional sysvinit/upstart.
@@ -1046,6 +1057,7 @@ ifdef(`init_systemd',`
 	logging_manage_audit_config(initrc_t)
 	# journalctl:
 	logging_watch_runtime_dirs(initrc_t)
+	logging_manage_runtime_sockets(initrc_t)
 
 	# lvm2-activation-generator checks file labels
 	seutil_read_file_contexts(initrc_t)

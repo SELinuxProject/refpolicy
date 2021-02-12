@@ -45,6 +45,14 @@ gen_tunable(systemd_socket_proxyd_bind_any, false)
 ## </desc>
 gen_tunable(systemd_socket_proxyd_connect_any, false)
 
+## <desc>
+## <p>
+## Allow systemd-tmpfilesd to populate missing configuration files from factory
+## template directory.
+## </p>
+## </desc>
+gen_tunable(systemd_tmpfilesd_factory, false)
+
 attribute systemd_log_parse_env_type;
 attribute systemd_tmpfiles_conf_type;
 attribute systemd_user_session_type;
@@ -103,6 +111,9 @@ files_type(systemd_coredump_var_lib_t)
 type systemd_detect_virt_t;
 type systemd_detect_virt_exec_t;
 init_daemon_domain(systemd_detect_virt_t, systemd_detect_virt_exec_t)
+
+type systemd_factory_conf_t;
+systemd_tmpfiles_conf_file(systemd_factory_conf_t)
 
 type systemd_generator_t;
 type systemd_generator_exec_t;
@@ -168,6 +179,7 @@ init_system_domain(systemd_networkd_t, systemd_networkd_exec_t)
 
 type systemd_networkd_runtime_t alias systemd_networkd_var_run_t;
 files_runtime_file(systemd_networkd_runtime_t)
+init_mountpoint(systemd_networkd_runtime_t)
 
 type systemd_networkd_unit_t;
 init_unit_file(systemd_networkd_unit_t)
@@ -442,6 +454,10 @@ storage_raw_read_fixed_disk(systemd_generator_t)
 systemd_log_parse_environment(systemd_generator_t)
 
 term_use_unallocated_ttys(systemd_generator_t)
+
+ifdef(`distro_gentoo',`
+	corecmd_shell_entry_type(systemd_generator_t)
+')
 
 optional_policy(`
 	fstools_exec(systemd_generator_t)
@@ -1279,6 +1295,7 @@ allow systemd_tmpfiles_t systemd_journal_t:dir relabel_dir_perms;
 allow systemd_tmpfiles_t systemd_journal_t:file relabel_file_perms;
 
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_t:dir list_dir_perms;
+allow systemd_tmpfiles_t systemd_tmpfiles_conf_type:dir search_dir_perms;
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_type:file read_file_perms;
 
 kernel_getattr_proc(systemd_tmpfiles_t)
@@ -1314,6 +1331,7 @@ files_relabel_var_lib_dirs(systemd_tmpfiles_t)
 files_relabelfrom_home(systemd_tmpfiles_t)
 files_relabelto_home(systemd_tmpfiles_t)
 files_relabelto_etc_dirs(systemd_tmpfiles_t)
+files_setattr_lock_dirs(systemd_tmpfiles_t)
 # for /etc/mtab
 files_manage_etc_symlinks(systemd_tmpfiles_t)
 
@@ -1333,6 +1351,8 @@ auth_manage_var_auth(systemd_tmpfiles_t)
 auth_relabel_lastlog(systemd_tmpfiles_t)
 auth_relabel_login_records(systemd_tmpfiles_t)
 auth_setattr_login_records(systemd_tmpfiles_t)
+
+auth_use_nsswitch(systemd_tmpfiles_t)
 
 init_manage_utmp(systemd_tmpfiles_t)
 init_manage_var_lib_files(systemd_tmpfiles_t)
@@ -1371,6 +1391,22 @@ tunable_policy(`systemd_tmpfiles_manage_all',`
 	files_manage_non_security_files(systemd_tmpfiles_t)
 	files_relabel_non_security_dirs(systemd_tmpfiles_t)
 	files_relabel_non_security_files(systemd_tmpfiles_t)
+')
+
+tunable_policy(`systemd_tmpfilesd_factory', `
+	allow systemd_tmpfiles_t systemd_factory_conf_t:dir list_dir_perms;
+	allow systemd_tmpfiles_t systemd_factory_conf_t:file read_file_perms;
+
+	files_manage_etc_files(systemd_tmpfiles_t)
+	files_relabel_config_dirs(systemd_tmpfiles_t)
+	files_relabel_config_files(systemd_tmpfiles_t)
+',`
+	dontaudit systemd_tmpfiles_t systemd_factory_conf_t:dir list_dir_perms;
+	dontaudit systemd_tmpfiles_t systemd_factory_conf_t:file read_file_perms;
+
+	files_dontaudit_manage_etc_files(systemd_tmpfiles_t)
+	files_dontaudit_relabel_config_dirs(systemd_tmpfiles_t)
+	files_dontaudit_relabel_config_files(systemd_tmpfiles_t)
 ')
 
 optional_policy(`
