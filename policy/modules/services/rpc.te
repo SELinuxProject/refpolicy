@@ -33,6 +33,13 @@ gen_tunable(allow_nfsd_anon_write, false)
 
 attribute rpc_domain;
 
+rpc_domain_template(blkmapd)
+
+type blkmapd_runtime_t;
+files_runtime_file(blkmapd_runtime_t)
+files_runtime_filetrans(blkmapd_t, blkmapd_runtime_t, file, "blkmapd.pid")
+allow blkmapd_t blkmapd_runtime_t:file manage_file_perms;
+
 type exports_t;
 files_config_file(exports_t)
 
@@ -71,14 +78,6 @@ init_unit_file(nfsd_unit_t)
 
 type var_lib_nfs_t;
 files_mountpoint(var_lib_nfs_t)
-
-rpc_domain_template(blkmapd)
-
-type blkmapd_runtime_t;
-files_runtime_file(blkmapd_runtime_t)
-files_runtime_filetrans(blkmapd_t, blkmapd_runtime_t, file, "blkmapd.pid")
-allow blkmapd_t blkmapd_runtime_t:file manage_file_perms;
-
 
 ########################################
 #
@@ -139,6 +138,93 @@ optional_policy(`
 
 optional_policy(`
 	seutil_sigchld_newrole(rpc_domain)
+')
+
+########################################
+#
+# BLKMAPD local policy
+#
+
+allow blkmapd_t self:capability sys_rawio;
+allow blkmapd_t self:unix_dgram_socket create_socket_perms;
+
+fs_list_rpc(blkmapd_t)
+storage_raw_read_fixed_disk(blkmapd_t)
+
+########################################
+#
+# GSSD local policy
+#
+
+allow gssd_t self:capability { dac_override dac_read_search setgid setuid sys_nice };
+allow gssd_t self:process { getsched setsched };
+allow gssd_t self:fifo_file rw_fifo_file_perms;
+
+allow gssd_t gssd_keytab_t:file read_file_perms;
+
+manage_dirs_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
+manage_files_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
+files_tmp_filetrans(gssd_t, gssd_tmp_t, { file dir })
+
+kernel_read_network_state(gssd_t)
+kernel_read_network_state_symlinks(gssd_t)
+kernel_request_load_module(gssd_t)
+kernel_search_network_sysctl(gssd_t)
+kernel_signal(gssd_t)
+
+corecmd_exec_bin(gssd_t)
+
+fs_list_inotifyfs(gssd_t)
+fs_list_rpc(gssd_t)
+fs_rw_rpc_sockets(gssd_t)
+fs_read_rpc_files(gssd_t)
+fs_read_nfs_files(gssd_t)
+
+files_list_tmp(gssd_t)
+files_dontaudit_write_var_dirs(gssd_t)
+
+auth_manage_cache(gssd_t)
+
+miscfiles_read_generic_certs(gssd_t)
+miscfiles_read_generic_tls_privkey(gssd_t)
+
+userdom_signal_all_users(gssd_t)
+
+tunable_policy(`allow_gssd_read_tmp',`
+	userdom_list_user_tmp(gssd_t)
+	userdom_read_user_tmp_files(gssd_t)
+	userdom_read_user_tmp_symlinks(gssd_t)
+')
+
+tunable_policy(`allow_gssd_write_tmp',`
+	userdom_list_user_tmp(gssd_t)
+	userdom_rw_user_tmp_files(gssd_t)
+')
+
+optional_policy(`
+	automount_signal(gssd_t)
+')
+
+optional_policy(`
+	gssproxy_stream_connect(gssd_t)
+')
+optional_policy(`
+	kerberos_manage_host_rcache(gssd_t)
+	kerberos_read_keytab(gssd_t)
+	kerberos_tmp_filetrans_host_rcache(gssd_t, file, "nfs_0")
+	kerberos_use(gssd_t)
+')
+
+optional_policy(`
+	mount_signal(gssd_t)
+')
+
+optional_policy(`
+	pcscd_read_runtime_files(gssd_t)
+')
+
+optional_policy(`
+	xserver_rw_xdm_tmp_files(gssd_t)
 ')
 
 ########################################
@@ -282,91 +368,4 @@ tunable_policy(`nfs_export_all_ro',`
 
 optional_policy(`
 	mount_exec(nfsd_t)
-')
-
-########################################
-#
-# BLKMAPD local policy
-#
-
-allow blkmapd_t self:capability sys_rawio;
-allow blkmapd_t self:unix_dgram_socket create_socket_perms;
-
-fs_list_rpc(blkmapd_t)
-storage_raw_read_fixed_disk(blkmapd_t)
-
-########################################
-#
-# GSSD local policy
-#
-
-allow gssd_t self:capability { dac_override dac_read_search setgid setuid sys_nice };
-allow gssd_t self:process { getsched setsched };
-allow gssd_t self:fifo_file rw_fifo_file_perms;
-
-allow gssd_t gssd_keytab_t:file read_file_perms;
-
-manage_dirs_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
-manage_files_pattern(gssd_t, gssd_tmp_t, gssd_tmp_t)
-files_tmp_filetrans(gssd_t, gssd_tmp_t, { file dir })
-
-kernel_read_network_state(gssd_t)
-kernel_read_network_state_symlinks(gssd_t)
-kernel_request_load_module(gssd_t)
-kernel_search_network_sysctl(gssd_t)
-kernel_signal(gssd_t)
-
-corecmd_exec_bin(gssd_t)
-
-fs_list_inotifyfs(gssd_t)
-fs_list_rpc(gssd_t)
-fs_rw_rpc_sockets(gssd_t)
-fs_read_rpc_files(gssd_t)
-fs_read_nfs_files(gssd_t)
-
-files_list_tmp(gssd_t)
-files_dontaudit_write_var_dirs(gssd_t)
-
-auth_manage_cache(gssd_t)
-
-miscfiles_read_generic_certs(gssd_t)
-miscfiles_read_generic_tls_privkey(gssd_t)
-
-userdom_signal_all_users(gssd_t)
-
-tunable_policy(`allow_gssd_read_tmp',`
-	userdom_list_user_tmp(gssd_t)
-	userdom_read_user_tmp_files(gssd_t)
-	userdom_read_user_tmp_symlinks(gssd_t)
-')
-
-tunable_policy(`allow_gssd_write_tmp',`
-	userdom_list_user_tmp(gssd_t)
-	userdom_rw_user_tmp_files(gssd_t)
-')
-
-optional_policy(`
-	automount_signal(gssd_t)
-')
-
-optional_policy(`
-	gssproxy_stream_connect(gssd_t)
-')
-optional_policy(`
-	kerberos_manage_host_rcache(gssd_t)
-	kerberos_read_keytab(gssd_t)
-	kerberos_tmp_filetrans_host_rcache(gssd_t, file, "nfs_0")
-	kerberos_use(gssd_t)
-')
-
-optional_policy(`
-	mount_signal(gssd_t)
-')
-
-optional_policy(`
-	pcscd_read_runtime_files(gssd_t)
-')
-
-optional_policy(`
-	xserver_rw_xdm_tmp_files(gssd_t)
 ')
