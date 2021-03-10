@@ -7,12 +7,18 @@ policy_module(selinux, 1.18.0)
 
 ## <desc>
 ## <p>
-## Boolean to determine whether the system permits loading policy, setting
-## enforcing mode, and changing boolean values.  Set this to true and you
-## have to reboot to set it back.
+## Boolean to determine whether the system permits loading policy, and setting
+## enforcing mode.  Set this to true and you have to reboot to set it back.
 ## </p>
 ## </desc>
 gen_bool(secure_mode_policyload,false)
+
+## <desc>
+## <p>
+## Boolean to determine whether the system permits setting Booelan values.
+## </p>
+## </desc>
+gen_bool(secure_mode_setbool,false)
 
 attribute boolean_type;
 attribute can_load_policy;
@@ -91,12 +97,22 @@ dev_search_sysfs(can_setsecparam)
 allow selinux_unconfined_type security_t:dir list_dir_perms;
 allow selinux_unconfined_type security_t:file rw_file_perms;
 allow selinux_unconfined_type boolean_type:file read_file_perms;
-allow selinux_unconfined_type { boolean_type -secure_mode_policyload_t }:file write_file_perms;
 
 # Access the security API.
-allow selinux_unconfined_type security_t:security { compute_av compute_create compute_member check_context compute_relabel compute_user setbool setsecparam setcheckreqprot read_policy validate_trans };
+allow selinux_unconfined_type security_t:security { compute_av compute_create compute_member check_context compute_relabel compute_user setsecparam setcheckreqprot read_policy validate_trans };
 
-if(!secure_mode_policyload) {
+if (!secure_mode_policyload) {
 	allow selinux_unconfined_type security_t:security { load_policy setenforce };
-	allow selinux_unconfined_type secure_mode_policyload_t:file write_file_perms;
+}
+
+if (!secure_mode_setbool) {
+	allow selinux_unconfined_type security_t:security setbool;
+}
+
+if (secure_mode_policyload && !secure_mode_setbool) {
+	allow selinux_unconfined_type { boolean_type -secure_mode_policyload_t }:file write_file_perms;
+}
+
+if (!secure_mode_policyload && !secure_mode_setbool) {
+	allow selinux_unconfined_type boolean_type:file write_file_perms;
 }

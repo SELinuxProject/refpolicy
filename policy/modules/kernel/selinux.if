@@ -392,14 +392,18 @@ interface(`selinux_read_policy',`
 interface(`selinux_set_generic_booleans',`
 	gen_require(`
 		type security_t;
+		bool secure_mode_setbool;
 	')
 
 	dev_search_sysfs($1)
 
 	allow $1 security_t:dir list_dir_perms;
-	allow $1 security_t:file rw_file_perms;
+	allow $1 security_t:file read_file_perms;
 
-	allow $1 security_t:security setbool;
+	if(!secure_mode_setbool) {
+		allow $1 security_t:file write_file_perms;
+		allow $1 security_t:security setbool;
+	}
 ')
 
 ########################################
@@ -428,18 +432,21 @@ interface(`selinux_set_all_booleans',`
 	gen_require(`
 		type security_t, secure_mode_policyload_t;
 		attribute boolean_type;
-		bool secure_mode_policyload;
+		bool secure_mode_policyload, secure_mode_setbool;
 	')
 
 	dev_search_sysfs($1)
 
 	allow $1 security_t:dir list_dir_perms;
-	allow $1 { boolean_type -secure_mode_policyload_t }:file rw_file_perms;
+	allow $1 boolean_type:file read_file_perms;
 	allow $1 secure_mode_policyload_t:file read_file_perms;
 
-	allow $1 security_t:security setbool;
+	if (!secure_mode_setbool) {
+		allow $1 security_t:security setbool;
+		allow $1 { boolean_type -secure_mode_policyload_t }:file write_file_perms;
+	}
 
-	if(!secure_mode_policyload) {
+	if(!secure_mode_policyload && !secure_mode_setbool) {
 		allow $1 secure_mode_policyload_t:file write_file_perms;
 	}
 ')
