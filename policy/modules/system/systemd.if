@@ -28,8 +28,11 @@
 template(`systemd_role_template',`
 	gen_require(`
 		attribute systemd_user_session_type, systemd_log_parse_env_type;
-		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
+		attribute systemd_user_activated_sock_file_type, systemd_user_unix_stream_activated_socket_type;
 		type systemd_run_exec_t, systemd_analyze_exec_t;
+		type systemd_conf_home_t, systemd_data_home_t;
+		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
+		type systemd_user_unit_t, systemd_user_runtime_unit_t;
 	')
 
 	#################################
@@ -47,39 +50,534 @@ template(`systemd_role_template',`
 	# Local policy
 	#
 
+	# This domain is per-role because of the below transitions.
+	# See the systemd --user section of systemd.te for the
+	# remainder of the rules.
+	allow $1_systemd_t self:process { getsched signal };
+	allow $1_systemd_t self:netlink_kobject_uevent_socket create_socket_perms;
+	allow $1_systemd_t self:unix_stream_socket create_stream_socket_perms;
+	allow $1_systemd_t $3:process { setsched rlimitinh signal_perms };
+	corecmd_shell_domtrans($1_systemd_t, $3)
+	corecmd_bin_domtrans($1_systemd_t, $3)
+
+	# systemctl --user rules
+	allow $1_systemd_t systemd_user_unix_stream_activated_socket_type:unix_stream_socket { create_socket_perms listen };
+	allow $1_systemd_t systemd_user_activated_sock_file_type:dir manage_dir_perms;
+	allow $1_systemd_t systemd_user_activated_sock_file_type:sock_file manage_sock_file_perms;
+
+	allow $1_systemd_t systemd_user_runtime_t:blk_file manage_blk_file_perms;
+	allow $1_systemd_t systemd_user_runtime_t:chr_file manage_chr_file_perms;
+	allow $1_systemd_t systemd_user_runtime_t:dir manage_dir_perms;
+	allow $1_systemd_t systemd_user_runtime_t:file manage_file_perms;
+	allow $1_systemd_t systemd_user_runtime_t:fifo_file manage_fifo_file_perms;
+	allow $1_systemd_t systemd_user_runtime_t:lnk_file manage_lnk_file_perms;
+	allow $1_systemd_t systemd_user_runtime_t:sock_file manage_sock_file_perms;
+
+	allow $1_systemd_t systemd_user_runtime_unit_t:dir manage_dir_perms;
+	allow $1_systemd_t systemd_user_runtime_unit_t:file manage_file_perms;
+	allow $1_systemd_t systemd_user_runtime_unit_t:lnk_file manage_lnk_file_perms;
+
+	allow $1_systemd_t $3:dir search_dir_perms;
+	allow $1_systemd_t $3:file read_file_perms;
+	allow $1_systemd_t $3:lnk_file read_lnk_file_perms;
+
+	filetrans_pattern(systemd_user_session_type, systemd_user_runtime_t, systemd_user_runtime_unit_t, dir, "generator.early")
+	filetrans_pattern(systemd_user_session_type, systemd_user_runtime_t, systemd_user_runtime_unit_t, dir, "generator.late")
+	filetrans_pattern(systemd_user_session_type, systemd_user_runtime_t, systemd_user_runtime_unit_t, dir, "transient")
+	filetrans_pattern(systemd_user_session_type, systemd_user_runtime_t, systemd_user_runtime_unit_t, dir, "user")
+
+	dev_read_urand($1_systemd_t)
+
+	files_search_home($1_systemd_t)
+
+	fs_manage_cgroup_files($1_systemd_t)
+	fs_watch_cgroup_files($1_systemd_t)
+
+	kernel_dontaudit_getattr_proc($1_systemd_t)
+
+	selinux_use_status_page($1_systemd_t)
+
+	init_linkable_keyring($1_systemd_t)
+	init_list_unit_dirs($1_systemd_t)
+	init_read_generic_units_files($1_systemd_t)
+
+	miscfiles_watch_localization($1_systemd_t)
+
+	mount_read_runtime_files($1_systemd_t)
+	mount_watch_runtime_files($1_systemd_t)
+	mount_watch_reads_runtime_files($1_systemd_t)
+
+	seutil_search_default_contexts($1_systemd_t)
+	seutil_read_file_contexts($1_systemd_t)
+
+	systemd_manage_conf_home_content($1_systemd_t)
+	systemd_manage_data_home_content($1_systemd_t)
+
+	systemd_search_user_runtime_unit_dirs($1_systemd_t)
+
+	systemd_search_user_runtime_unit_dirs($1_systemd_t)
+	systemd_read_user_unit_files($1_systemd_t)
+
+	dbus_system_bus_client($1_systemd_t)
+	dbus_spec_session_bus_client($1, $1_systemd_t)
+
+	# userdomain rules
+	allow $3 $1_systemd_t:process signal;
+	allow $3 $1_systemd_t:unix_stream_socket rw_stream_socket_perms;
+	# Allow using file descriptors for user environment generators
+	allow $3 $1_systemd_t:fd use;
+	allow $3 $1_systemd_t:fifo_file rw_inherited_fifo_file_perms;
+	stream_connect_pattern($3, systemd_user_runtime_t, systemd_user_runtime_t, $1_systemd_t)
+
+	allow $3 $1_systemd_t:system { disable enable reload start stop status };
+
 	allow $3 systemd_user_runtime_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $3 systemd_user_runtime_t:file { manage_file_perms relabel_file_perms };
-	allow $3 systemd_user_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	allow $3 systemd_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $3 systemd_user_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	allow $3 systemd_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
 	allow $3 systemd_user_runtime_notify_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
-	# This domain is per-role because of the below transitions.
-	# See the systemd --user section of systemd.te for the
-	# remainder of the rules.
-	allow $1_systemd_t $3:process { setsched rlimitinh };
-	corecmd_shell_domtrans($1_systemd_t, $3)
-	corecmd_bin_domtrans($1_systemd_t, $3)
-	allow $1_systemd_t self:process signal;
-
-	files_search_home($1_systemd_t)
-
-	# Allow using file descriptors for user environment generators
-	allow $3 $1_systemd_t:fd use;
-	allow $3 $1_systemd_t:fifo_file rw_inherited_fifo_file_perms;
-
-	# systemctl --user
-	stream_connect_pattern($3, systemd_user_runtime_t, systemd_user_runtime_t, $1_systemd_t)
+	allow $3 systemd_user_unit_t:service { reload start status stop };
+	allow $3 systemd_conf_home_t:service { reload start status stop };
 
 	can_exec($3, { systemd_run_exec_t systemd_analyze_exec_t })
 
-	dbus_system_bus_client($1_systemd_t)
+	init_dbus_chat($3)
 
-	selinux_use_status_page($1_systemd_t)
+	systemd_list_journal_dirs($3)
+	systemd_read_journal_files($3)
 
-	seutil_read_file_contexts($1_systemd_t)
-	seutil_search_default_contexts($1_systemd_t)
+	systemd_manage_conf_home_content($3)
+	systemd_relabel_conf_home_content($3)
+
+	systemd_manage_data_home_content($3)
+	systemd_relabel_data_home_content($3)
+
+	systemd_read_user_unit_files($3)
+	systemd_list_user_runtime_unit_dirs($3)
+	systemd_read_user_runtime_units($3)
+
+	systemd_reload_user_runtime_units($3)
+	systemd_start_user_runtime_units($3)
+	systemd_status_user_runtime_units($3)
+	systemd_stop_user_runtime_units($3)
+
+	optional_policy(`
+		xdg_config_filetrans($1_systemd_t, systemd_conf_home_t, dir, "systemd")
+		xdg_data_filetrans($1_systemd_t, systemd_data_home_t, dir, "systemd")
+		xdg_read_config_files($1_systemd_t)
+		xdg_read_data_files($1_systemd_t)
+	')
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to be started as a daemon by the
+##   specified systemd user instance.
+## </summary>
+## <param name="prefix">
+##   <summary>
+##     Prefix for the user domain.
+##   </summary>
+## </param>
+## <param name="entry_point">
+##   <summary>
+##     Entry point file type for the domain.
+##   </summary>
+## </param>
+## <param name="domain">
+##   <summary>
+##     Domain to allow the systemd user domain to run.
+##   </summary>
+## </param>
+#
+template(`systemd_user_daemon_domain',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	domtrans_pattern($1_systemd_t, $2, $3)
+
+	allow $1_systemd_t $3:process signal_perms;
+	allow $3 $1_systemd_t:unix_stream_socket rw_socket_perms;
+')
+
+######################################
+## <summary>
+##   Associate the specified file type to be a type whose sock files
+##   can be managed by systemd user instances for socket activation.
+## </summary>
+## <param name="file_type">
+##   <summary>
+##     File type to be associated.
+##   </summary>
+## </param>
+#
+interface(`systemd_user_activated_sock_file',`
+	gen_require(`
+		attribute systemd_user_activated_sock_file_type;
+	')
+
+	typeattribute $1 systemd_user_activated_sock_file_type;
+')
+
+######################################
+## <summary>
+##   Associate the specified domain to be a domain whose unix stream
+##   sockets and sock files can be managed by systemd user instances
+##   for socket activation.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain to be associated.
+##   </summary>
+## </param>
+## <param name="sock_file_type">
+##   <summary>
+##     File type of the domain's sock files to be associated.
+##   </summary>
+## </param>
+#
+interface(`systemd_user_unix_stream_activated_socket',`
+	gen_require(`
+		attribute systemd_user_unix_stream_activated_socket_type;
+	')
+
+	typeattribute $1 systemd_user_unix_stream_activated_socket_type;
+	systemd_user_activated_sock_file($2)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to search systemd config home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_search_conf_home_content',`
+	gen_require(`
+		type systemd_conf_home_t;
+	')
+
+	search_dirs_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to manage systemd config home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_manage_conf_home_content',`
+	gen_require(`
+		type systemd_conf_home_t;
+	')
+
+	manage_dirs_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+	manage_files_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+	manage_lnk_files_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to relabel systemd config home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_relabel_conf_home_content',`
+	gen_require(`
+		type systemd_conf_home_t;
+	')
+
+	relabel_dirs_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+	relabel_files_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+	relabel_lnk_files_pattern($1, systemd_conf_home_t, systemd_conf_home_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to search systemd data home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_search_data_home_content',`
+	gen_require(`
+		type systemd_data_home_t;
+	')
+
+	search_dirs_pattern($1, systemd_data_home_t, systemd_data_home_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to manage systemd data home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_manage_data_home_content',`
+	gen_require(`
+		type systemd_data_home_t;
+	')
+
+	allow $1 systemd_data_home_t:dir manage_dir_perms;
+	allow $1 systemd_data_home_t:file manage_file_perms;
+	allow $1 systemd_data_home_t:lnk_file manage_lnk_file_perms;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to relabel systemd data home
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_relabel_data_home_content',`
+	gen_require(`
+		type systemd_data_home_t;
+	')
+
+	relabel_dirs_pattern($1, systemd_data_home_t, systemd_data_home_t)
+	relabel_files_pattern($1, systemd_data_home_t, systemd_data_home_t)
+	relabel_lnk_files_pattern($1, systemd_data_home_t, systemd_data_home_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to search systemd user runtime
+##   content.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_search_user_runtime',`
+	gen_require(`
+		type systemd_user_runtime_t;
+	')
+
+	search_dirs_pattern($1, systemd_user_runtime_t, systemd_user_runtime_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to read systemd user runtime files.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_read_user_runtime_files',`
+	gen_require(`
+		type systemd_user_runtime_t;
+	')
+
+	read_files_pattern($1, systemd_user_runtime_t, systemd_user_runtime_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to read systemd user runtime lnk files.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_read_user_runtime_lnk_files',`
+	gen_require(`
+		type systemd_user_runtime_t;
+	')
+
+	read_lnk_files_pattern($1, systemd_user_runtime_t, systemd_user_runtime_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to read system-wide systemd
+##   user unit files.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_read_user_unit_files',`
+	gen_require(`
+		type systemd_user_unit_t;
+	')
+
+	allow $1 systemd_user_unit_t:dir list_dir_perms;
+	allow $1 systemd_user_unit_t:file read_file_perms;
+	allow $1 systemd_user_unit_t:lnk_file read_lnk_file_perms;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to read systemd user runtime unit files.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_read_user_runtime_units',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+	')
+
+	read_files_pattern($1, systemd_user_runtime_unit_t, systemd_user_runtime_unit_t)
+	read_lnk_files_pattern($1, systemd_user_runtime_unit_t, systemd_user_runtime_unit_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to search systemd user runtime unit
+##   directories.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_search_user_runtime_unit_dirs',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+	')
+
+	search_dirs_pattern($1, systemd_user_runtime_unit_t, systemd_user_runtime_unit_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to list the contents of systemd
+##   user runtime unit directories.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_list_user_runtime_unit_dirs',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+	')
+
+	list_dirs_pattern($1, systemd_user_runtime_unit_t, systemd_user_runtime_unit_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to get the status of systemd user runtime units.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_status_user_runtime_units',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+		class service status;
+	')
+
+	allow $1 systemd_user_runtime_unit_t:service status;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to start systemd user runtime units.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_start_user_runtime_units',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+		class service start;
+	')
+
+	allow $1 systemd_user_runtime_unit_t:service start;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to stop systemd user runtime units.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_stop_user_runtime_units',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+		class service stop;
+	')
+
+	allow $1 systemd_user_runtime_unit_t:service stop;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to reload systemd user runtime units.
+## </summary>
+## <param name="domain">
+##   <summary>
+##     Domain allowed access.
+##   </summary>
+## </param>
+#
+interface(`systemd_reload_user_runtime_units',`
+	gen_require(`
+		type systemd_user_runtime_unit_t;
+		class service reload;
+	')
+
+	allow $1 systemd_user_runtime_unit_t:service reload;
 ')
 
 ######################################
@@ -678,6 +1176,24 @@ interface(`systemd_manage_passwd_runtime_symlinks',`
 interface(`systemd_manage_all_units',`
 	refpolicywarn(`$0() has been deprecated, use init_manage_all_unit_files() instead.')
 	init_manage_all_unit_files($1)
+')
+
+########################################
+## <summary>
+##      Allow domain to list the contents of systemd_journal_t dirs
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain allowed access.
+##      </summary>
+## </param>
+#
+interface(`systemd_list_journal_dirs',`
+	gen_require(`
+		type systemd_journal_t;
+	')
+
+	list_dirs_pattern($1, systemd_journal_t, systemd_journal_t)
 ')
 
 ########################################
