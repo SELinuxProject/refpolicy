@@ -13,9 +13,29 @@ policy_module(smartmon, 1.18.0)
 ## </desc>
 gen_tunable(smartmon_3ware, false)
 
+## <desc>
+##	<p>
+##	Determine whether smartmon can update
+##	the drive database from the network.
+##	</p>
+## </desc>
+gen_tunable(smartmon_can_update, true)
+
+attribute_role fsdaemon_update_roles;
+
 type fsdaemon_t;
 type fsdaemon_exec_t;
 init_daemon_domain(fsdaemon_t, fsdaemon_exec_t)
+
+type fsdaemon_update_t;
+type fsdaemon_update_exec_t;
+application_domain(fsdaemon_update_t, fsdaemon_update_exec_t)
+role fsdaemon_update_roles types fsdaemon_update_t;
+
+type fsdaemon_update_gpg_t;
+typealias fsdaemon_update_gpg_t alias fsdaemon_gpg_t;
+domain_type(fsdaemon_update_gpg_t)
+role system_r types fsdaemon_update_gpg_t;
 
 type fsdaemon_initrc_exec_t;
 init_script_file(fsdaemon_initrc_exec_t)
@@ -28,6 +48,9 @@ files_type(fsdaemon_var_lib_t)
 
 type fsdaemon_tmp_t;
 files_tmp_file(fsdaemon_tmp_t)
+
+type fsdaemon_update_tmp_t;
+files_tmp_file(fsdaemon_update_tmp_t)
 
 ifdef(`enable_mls',`
 	init_ranged_daemon_domain(fsdaemon_t, fsdaemon_exec_t, mls_systemhigh)
@@ -113,6 +136,10 @@ tunable_policy(`smartmon_3ware',`
 ')
 
 optional_policy(`
+	gpg_spec_domtrans(fsdaemon_t, fsdaemon_gpg_t)
+')
+
+optional_policy(`
 	mta_send_mail(fsdaemon_t)
 ')
 
@@ -120,3 +147,109 @@ optional_policy(`
 	seutil_sigchld_newrole(fsdaemon_t)
 ')
 
+
+########################################
+#
+# Update local policy
+#
+
+allow fsdaemon_update_t self:capability dac_override;
+allow fsdaemon_update_t self:fifo_file manage_fifo_file_perms;
+allow fsdaemon_update_t self:unix_stream_socket create_stream_socket_perms;
+
+manage_dirs_pattern(fsdaemon_update_t, fsdaemon_update_tmp_t, fsdaemon_update_tmp_t)
+manage_files_pattern(fsdaemon_update_t, fsdaemon_update_tmp_t, fsdaemon_update_tmp_t)
+files_tmp_filetrans(fsdaemon_update_t, fsdaemon_update_tmp_t, { file dir })
+
+manage_dirs_pattern(fsdaemon_update_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+manage_files_pattern(fsdaemon_update_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+manage_sock_files_pattern(fsdaemon_update_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+manage_lnk_files_pattern(fsdaemon_update_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+files_usr_filetrans(fsdaemon_update_t, fsdaemon_var_lib_t, { file dir })
+files_var_lib_filetrans(fsdaemon_update_t, fsdaemon_var_lib_t, { file dir })
+
+kernel_dontaudit_search_sysctl(fsdaemon_update_t)
+
+fs_getattr_all_fs(fsdaemon_update_t)
+
+corecmd_exec_bin(fsdaemon_update_t)
+corecmd_exec_shell(fsdaemon_update_t)
+
+domain_use_interactive_fds(fsdaemon_update_t)
+
+files_read_usr_files(fsdaemon_update_t)
+
+auth_use_nsswitch(fsdaemon_update_t)
+auth_dontaudit_read_shadow(fsdaemon_update_t)
+
+miscfiles_read_generic_certs(fsdaemon_update_t)
+miscfiles_read_localization(fsdaemon_update_t)
+
+userdom_use_user_terminals(fsdaemon_update_t)
+userdom_search_user_home_content(fsdaemon_update_t)
+
+tunable_policy(`smartmon_can_update',`
+	corenet_all_recvfrom_netlabel(fsdaemon_update_t)
+	corenet_tcp_sendrecv_generic_if(fsdaemon_update_t)
+	corenet_tcp_sendrecv_generic_node(fsdaemon_update_t)
+	corenet_tcp_bind_generic_node(fsdaemon_update_t)
+	corenet_udp_bind_generic_node(fsdaemon_update_t)
+	corenet_sendrecv_http_client_packets(fsdaemon_update_t)
+	corenet_tcp_connect_http_port(fsdaemon_update_t)
+')
+
+optional_policy(`
+	cron_system_entry(fsdaemon_update_t, fsdaemon_update_exec_t)
+')
+
+optional_policy(`
+	fstools_exec(fsdaemon_update_t)
+')
+
+optional_policy(`
+	gpg_spec_domtrans(fsdaemon_update_t, fsdaemon_update_gpg_t)
+')
+
+########################################
+#
+# GPG local policy
+#
+
+allow fsdaemon_update_gpg_t self:process setrlimit;
+allow fsdaemon_update_gpg_t self:unix_stream_socket connectto;
+
+allow fsdaemon_update_gpg_t fsdaemon_update_t:fd use;
+allow fsdaemon_update_gpg_t fsdaemon_update_t:fifo_file rw_fifo_file_perms;
+allow fsdaemon_update_gpg_t fsdaemon_update_t:process sigchld;
+
+kernel_dontaudit_search_sysctl(fsdaemon_update_gpg_t)
+
+manage_dirs_pattern(fsdaemon_update_gpg_t, fsdaemon_update_tmp_t, fsdaemon_update_tmp_t)
+manage_files_pattern(fsdaemon_update_gpg_t, fsdaemon_update_tmp_t, fsdaemon_update_tmp_t)
+files_tmp_filetrans(fsdaemon_update_gpg_t, fsdaemon_update_tmp_t, { file dir })
+
+manage_dirs_pattern(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+manage_files_pattern(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+allow fsdaemon_update_gpg_t fsdaemon_var_lib_t:dir watch;
+manage_sock_files_pattern(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+manage_lnk_files_pattern(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, fsdaemon_var_lib_t)
+files_usr_filetrans(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, { file dir })
+files_var_lib_filetrans(fsdaemon_update_gpg_t, fsdaemon_var_lib_t, { file dir })
+
+files_read_usr_files(fsdaemon_update_gpg_t)
+
+miscfiles_read_localization(fsdaemon_update_gpg_t)
+
+userdom_use_unpriv_users_fds(fsdaemon_update_gpg_t)
+userdom_use_user_terminals(fsdaemon_update_gpg_t)
+userdom_search_user_runtime(fsdaemon_update_gpg_t)
+userdom_dontaudit_search_user_home_content(fsdaemon_update_gpg_t)
+
+optional_policy(`
+	gpg_entry_type(fsdaemon_update_gpg_t)
+	gpg_exec(fsdaemon_update_gpg_t)
+	gpg_dontaudit_getattr_gpg_runtime_dirs(fsdaemon_update_gpg_t)
+	gpg_dontaudit_search_user_secrets_dirs(fsdaemon_update_gpg_t)
+	gpg_agent_entry_type(fsdaemon_update_gpg_t)
+	gpg_agent_exec(fsdaemon_update_gpg_t)
+')
