@@ -19,15 +19,18 @@ interface(`spamassassin_role',`
 	gen_require(`
 		type spamc_t, spamc_exec_t, spamc_tmp_t;
 		type spamassassin_t, spamassassin_exec_t, spamd_home_t;
+		type spamd_update_t, spamd_update_exec_t;
+		type spamd_update_gpg_t;
 		type spamassassin_home_t, spamassassin_tmp_t;
 	')
 
-	role $1 types { spamc_t spamassassin_t };
+	role $1 types { spamc_t spamassassin_t spamd_update_t spamd_update_gpg_t };
 
 	domtrans_pattern($2, spamassassin_exec_t, spamassassin_t)
 	domtrans_pattern($2, spamc_exec_t, spamc_t)
+	domtrans_pattern($2, spamd_update_exec_t, spamd_update_t)
 
-	admin_process_pattern($2, { spamc_t spamassassin_t })
+	admin_process_pattern($2, { spamc_t spamassassin_t spamd_update_t })
 
 	allow $2 { spamc_tmp_t spamd_home_t spamassassin_home_t spamassassin_tmp_t }:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { spamc_tmp_t spamd_home_t spamassassin_home_t spamassassin_tmp_t }:file { manage_file_perms relabel_file_perms };
@@ -158,6 +161,70 @@ interface(`spamassassin_exec_spamd',`
 
 	corecmd_search_bin($1)
 	can_exec($1, spamd_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute spamd update in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`spamassassin_exec_spamd_update',`
+	gen_require(`
+		type spamd_update_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, spamd_update_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute spamd update in the spamd update domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`spamassassin_domtrans_spamd_update',`
+	gen_require(`
+		type spamd_update_t, spamd_update_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, spamd_update_exec_t, spamd_update_t)
+')
+
+########################################
+## <summary>
+##	Execute spamd_update in the spamd_update domain, and
+##	allow the specified role the spamd_update domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`spamassassin_run_spamd_update',`
+	gen_require(`
+		attribute_role spamd_update_roles;
+	')
+
+	spamassassin_domtrans_spamd_update($1)
+	roleattribute $2 spamd_update_roles;
 ')
 
 ########################################
@@ -460,7 +527,7 @@ interface(`spamassassin_admin',`
 		type spamd_t, spamd_tmp_t, spamd_log_t;
 		type spamd_spool_t, spamd_var_lib_t, spamd_runtime_t;
 		type spamd_initrc_exec_t, spamassassin_unit_t;
-		type spamd_gpg_t, spamd_update_t, spamd_update_tmp_t;
+		type spamd_gpg_t, spamd_update_t;
 	')
 
 	admin_process_pattern($1, { spamd_t spamd_gpg_t spamd_update_t })
@@ -468,7 +535,7 @@ interface(`spamassassin_admin',`
 	init_startstop_service($1, $2, spamd_t, spamd_initrc_exec_t, spamassassin_unit_t)
 
 	files_list_tmp($1)
-	admin_pattern($1, { spamd_tmp_t spamd_update_tmp_t })
+	admin_pattern($1, spamd_tmp_t)
 
 	logging_list_logs($1)
 	admin_pattern($1, spamd_log_t)

@@ -23,19 +23,22 @@ gen_tunable(spamd_enable_home_dirs, false)
 
 ## <desc>
 ##	<p>
+##	Determine whether spamassassin
+##	can update the rules using the
+##	network.
+##	</p>
+## </desc>
+gen_tunable(spamassassin_network_update, true)
+
+## <desc>
+##	<p>
 ##	Determine whether extra rules should
 ##	be enabled to support rspamd.
 ##	</p>
 ## </desc>
 gen_tunable(rspamd_spamd, false)
 
-type spamd_update_t;
-typealias spamd_update_t alias spamd_gpg_t;
-type spamd_update_exec_t;
-init_system_domain(spamd_update_t, spamd_update_exec_t)
-
-type spamd_update_tmp_t;
-files_tmp_file(spamd_update_tmp_t)
+attribute_role spamd_update_roles;
 
 type spamassassin_t;
 type spamassassin_exec_t;
@@ -94,6 +97,16 @@ files_tmpfs_file(spamd_tmpfs_t)
 
 type spamd_var_lib_t;
 files_type(spamd_var_lib_t)
+
+type spamd_update_t;
+type spamd_update_exec_t;
+application_domain(spamd_update_t, spamd_update_exec_t)
+role spamd_update_roles types spamd_update_t;
+
+type spamd_update_gpg_t;
+typealias spamd_update_gpg_t alias spamd_gpg_t;
+domain_type(spamd_update_gpg_t)
+role system_r types spamd_update_gpg_t;
 
 ########################################
 #
@@ -500,33 +513,24 @@ optional_policy(`
 # Update local policy
 #
 
-allow spamd_update_t self:capability dac_read_search;
+allow spamd_update_t self:capability { dac_override dac_read_search };
 allow spamd_update_t self:process signal;
 allow spamd_update_t self:fifo_file manage_fifo_file_perms;
 allow spamd_update_t self:unix_stream_socket create_stream_socket_perms;
 
-manage_dirs_pattern(spamd_update_t, spamd_update_tmp_t, spamd_update_tmp_t)
-manage_files_pattern(spamd_update_t, spamd_update_tmp_t, spamd_update_tmp_t)
-files_tmp_filetrans(spamd_update_t, spamd_update_tmp_t, { file dir })
+manage_dirs_pattern(spamd_update_t, spamd_tmp_t, spamd_tmp_t)
+manage_files_pattern(spamd_update_t, spamd_tmp_t, spamd_tmp_t)
+files_tmp_filetrans(spamd_update_t, spamd_tmp_t, { file dir })
 
 manage_dirs_pattern(spamd_update_t, spamd_var_lib_t, spamd_var_lib_t)
 manage_files_pattern(spamd_update_t, spamd_var_lib_t, spamd_var_lib_t)
 manage_lnk_files_pattern(spamd_update_t, spamd_var_lib_t, spamd_var_lib_t)
+files_var_lib_filetrans(spamd_update_t, spamd_var_lib_t, { file dir })
 
-kernel_read_crypto_sysctls(spamd_update_t)
-kernel_search_fs_sysctls(spamd_update_t)
-kernel_read_system_state(spamd_update_t)
+kernel_dontaudit_search_sysctl(spamd_update_t)
 
 corecmd_exec_bin(spamd_update_t)
 corecmd_exec_shell(spamd_update_t)
-
-corenet_all_recvfrom_netlabel(spamd_update_t)
-corenet_tcp_sendrecv_generic_if(spamd_update_t)
-corenet_tcp_sendrecv_generic_node(spamd_update_t)
-corenet_sendrecv_http_client_packets(spamd_update_t)
-corenet_tcp_connect_http_port(spamd_update_t)
-corenet_tcp_bind_generic_node(spamd_update_t)
-corenet_udp_bind_generic_node(spamd_update_t)
 
 dev_read_urand(spamd_update_t)
 
@@ -546,10 +550,61 @@ userdom_use_inherited_user_terminals(spamd_update_t)
 userdom_dontaudit_search_user_home_dirs(spamd_update_t)
 userdom_dontaudit_search_user_home_content(spamd_update_t)
 
+tunable_policy(`spamassassin_network_update',`
+	corenet_all_recvfrom_netlabel(spamd_update_t)
+	corenet_tcp_sendrecv_generic_if(spamd_update_t)
+	corenet_tcp_sendrecv_generic_node(spamd_update_t)
+	corenet_tcp_bind_generic_node(spamd_update_t)
+	corenet_udp_bind_generic_node(spamd_update_t)
+	corenet_sendrecv_http_client_packets(spamd_update_t)
+	corenet_tcp_connect_http_port(spamd_update_t)
+')
+
 optional_policy(`
 	cron_system_entry(spamd_update_t, spamd_update_exec_t)
 ')
 
 optional_policy(`
-	gpg_exec(spamd_update_t)
+	gpg_spec_domtrans(spamd_update_t, spamd_update_gpg_t)
+')
+
+optional_policy(`
+	mta_read_config(spamd_update_t)
+')
+
+########################################
+#
+# GPG local policy
+#
+
+allow spamd_update_gpg_t self:process setrlimit;
+
+allow spamd_update_gpg_t spamd_update_t:fd use;
+allow spamd_update_gpg_t spamd_update_t:fifo_file rw_fifo_file_perms;
+allow spamd_update_gpg_t spamd_update_t:process sigchld;
+
+manage_dirs_pattern(spamd_update_gpg_t, spamd_tmp_t, spamd_tmp_t)
+manage_files_pattern(spamd_update_gpg_t, spamd_tmp_t, spamd_tmp_t)
+files_tmp_filetrans(spamd_update_gpg_t, spamd_tmp_t, { file dir })
+
+kernel_dontaudit_search_sysctl(spamd_update_gpg_t)
+
+files_read_usr_files(spamd_update_gpg_t)
+
+miscfiles_read_localization(spamd_update_gpg_t)
+
+userdom_use_unpriv_users_fds(spamd_update_gpg_t)
+userdom_use_inherited_user_terminals(spamd_update_gpg_t)
+
+optional_policy(`
+	gpg_entry_type(spamd_update_gpg_t)
+	gpg_exec(spamd_update_gpg_t)
+	gpg_dontaudit_getattr_gpg_runtime_dirs(spamd_update_gpg_t)
+	gpg_dontaudit_search_user_secrets_dirs(spamd_update_gpg_t)
+	gpg_agent_entry_type(spamd_update_gpg_t)
+	gpg_agent_exec(spamd_update_gpg_t)
+')
+
+optional_policy(`
+	mta_manage_config(spamd_update_gpg_t)
 ')
