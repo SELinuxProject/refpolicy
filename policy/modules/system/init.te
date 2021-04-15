@@ -251,6 +251,7 @@ ifdef(`init_systemd',`
 	allow init_t self:capability2 audit_read;
 	allow init_t self:key { search setattr write };
 	allow init_t self:bpf { map_create map_read map_write prog_load prog_run };
+	dontaudit init_t self:process { dyntransition setcurrent };
 
 	allow init_t init_mountpoint_type:dir_file_class_set { getattr mounton };
 
@@ -267,7 +268,7 @@ ifdef(`init_systemd',`
 
 	# setexec and setkeycreate for systemd --user
 	allow init_t self:process { getcap getsched setsched setpgid setfscreate setsockcreate setexec setkeycreate setcap setrlimit };
-	allow init_t self:capability2 { audit_read block_suspend };
+	allow init_t self:capability2 { audit_read block_suspend bpf perfmon };
 	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
 	allow init_t self:unix_dgram_socket lock;
 
@@ -294,6 +295,11 @@ ifdef(`init_systemd',`
 	# /memfd:systemd-state
 	fs_tmpfs_filetrans(init_t, init_runtime_t, file)
 
+	# mounton is required for systemd-timesyncd
+	allow init_t init_var_lib_t:dir { manage_dir_perms mounton };
+	allow init_t init_var_lib_t:file manage_file_perms;
+	allow init_t init_var_lib_t:lnk_file manage_lnk_file_perms;
+
 	manage_files_pattern(init_t, systemd_unit_t, systemdunit)
 
 	manage_dirs_pattern(init_t, systemd_unit_t, systemd_unit_t)
@@ -307,6 +313,8 @@ ifdef(`init_systemd',`
 	kernel_read_fs_sysctls(init_t)
 	kernel_list_unlabeled(init_t)
 	kernel_load_module(init_t)
+	kernel_request_load_module(init_t)
+	kernel_rw_fs_sysctls(init_t)
 	kernel_rw_kernel_sysctl(init_t)
 	kernel_rw_net_sysctls(init_t)
 	kernel_read_all_sysctls(init_t)
@@ -390,6 +398,8 @@ ifdef(`init_systemd',`
 	files_list_spool(init_t)
 	files_manage_all_runtime_dirs(init_t)
 	files_manage_generic_tmp_dirs(init_t)
+	files_relabel_generic_tmp_dirs(init_t)
+	files_mounton_tmp(init_t)
 	files_manage_urandom_seed(init_t)
 	files_read_boot_files(initrc_t)
 	files_relabel_all_lock_dirs(init_t)
@@ -398,6 +408,7 @@ ifdef(`init_systemd',`
 	# If /etc/localtime is missing, a watch on /etc is added.
 	files_watch_etc_dirs(init_t)
 	files_watch_etc_symlinks(init_t)
+	files_dontaudit_write_var_dirs(init_t)
 
 	fs_relabel_cgroup_dirs(init_t)
 	fs_list_auto_mountpoints(init_t)
@@ -421,6 +432,7 @@ ifdef(`init_systemd',`
 	fs_relabel_tmpfs_blk_files(init_t)
 	fs_relabel_tmpfs_chr_files(init_t)
 	fs_relabel_tmpfs_fifo_files(init_t)
+	fs_read_efivarfs_files(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
 	fs_relabel_tmpfs_files(init_t)
@@ -429,6 +441,7 @@ ifdef(`init_systemd',`
 	# mount-setup
 	fs_unmount_autofs(init_t)
 	fs_getattr_pstore_dirs(init_t)
+	fs_create_pstore_dirs(init_t)
 	# for network namespaces
 	fs_read_nsfs_files(init_t)
 
@@ -437,7 +450,11 @@ ifdef(`init_systemd',`
 
 	miscfiles_watch_localization(init_t)
 
+	# systemd watches utab in order to mount the
+	# local filesystem at boot
 	mount_watch_runtime_dirs(init_t)
+	mount_watch_runtime_files(init_t)
+	mount_watch_reads_runtime_files(init_t)
 
 	# systemd_socket_activated policy
 	mls_socket_write_all_levels(init_t)
@@ -460,6 +477,8 @@ ifdef(`init_systemd',`
 	auth_relabel_login_records(init_t)
 	auth_relabel_pam_console_data_dirs(init_t)
 	auth_domtrans_chk_passwd(init_t)
+	# for systemd dynamic users
+	auth_rw_shadow_lock(init_t)
 
 	logging_manage_runtime_sockets(init_t)
 	logging_relabelto_devlog_sock_files(init_t)
@@ -494,6 +513,9 @@ ifdef(`init_systemd',`
 
 	# for systemd to read udev status
 	udev_read_runtime_files(init_t)
+
+	udev_relabel_rules_dirs(init_t)
+	udev_relabel_rules_files(init_t)
 
 	userdom_relabel_user_runtime_root_dirs(init_t)
 

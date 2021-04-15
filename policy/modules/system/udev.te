@@ -41,7 +41,6 @@ ifdef(`enable_mcs',`
 #
 
 allow udev_t self:capability { chown dac_override dac_read_search fowner fsetid mknod net_admin net_raw setgid setuid sys_admin sys_nice sys_ptrace sys_rawio sys_resource };
-dontaudit udev_t self:capability sys_tty_config;
 allow udev_t self:capability2 { wake_alarm block_suspend };
 allow udev_t self:process { transition signal_perms ptrace getsched setsched getsession getpgid setpgid getcap setcap share getattr setfscreate noatsecure siginh rlimitinh dyntransition execmem setkeycreate setsockcreate getrlimit };
 allow udev_t self:fd use;
@@ -57,6 +56,13 @@ allow udev_t self:unix_stream_socket connectto;
 allow udev_t self:netlink_kobject_uevent_socket create_socket_perms;
 allow udev_t self:netlink_generic_socket create_socket_perms;
 allow udev_t self:rawip_socket create_socket_perms;
+
+ifdef(`init_systemd',`
+	# systemd-vconsole-setup will be called by udev during virtual terminal initialization
+	allow udev_t self:capability sys_tty_config;
+',`
+	dontaudit udev_t self:capability sys_tty_config;
+')
 
 # for systemd-udevd to rename interfaces
 allow udev_t self:netlink_route_socket nlmsg_write;
@@ -124,6 +130,10 @@ files_mmap_read_kernel_modules(udev_t)
 files_exec_etc_files(udev_t)
 files_getattr_generic_locks(udev_t)
 files_search_mnt(udev_t)
+files_dontaudit_getattr_default_files(udev_t)
+files_dontaudit_getattr_home_dir(udev_t)
+files_dontaudit_getattr_lost_found_dirs(udev_t)
+files_dontaudit_getattr_tmp_dirs(udev_t)
 
 fs_getattr_all_fs(udev_t)
 fs_list_inotifyfs(udev_t)
@@ -145,6 +155,7 @@ selinux_compute_access_vector(udev_t)
 selinux_compute_create_context(udev_t)
 selinux_compute_relabel_context(udev_t)
 selinux_compute_user_contexts(udev_t)
+selinux_use_status_page(udev_t)
 
 storage_watch_fixed_disk(udev_t)
 
@@ -189,6 +200,7 @@ sysnet_signal_dhcpc(udev_t)
 sysnet_manage_config(udev_t)
 sysnet_etc_filetrans_config(udev_t)
 
+userdom_dontaudit_getattr_user_home_dirs(udev_t)
 userdom_dontaudit_search_user_home_content(udev_t)
 
 ifdef(`distro_debian',`
@@ -329,6 +341,7 @@ optional_policy(`
 
 optional_policy(`
 	raid_domtrans_mdadm(udev_t)
+	raid_read_mdadm_runtime_files(udev_t)
 ')
 
 optional_policy(`

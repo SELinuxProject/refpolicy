@@ -260,6 +260,10 @@ corenet_port(systemd_socket_proxyd_port_t)
 type systemd_socket_proxyd_unit_file_t;
 init_unit_file(systemd_socket_proxyd_unit_file_t)
 
+type systemd_sysctl_t;
+type systemd_sysctl_exec_t;
+init_daemon_domain(systemd_sysctl_t, systemd_sysctl_exec_t)
+
 type systemd_sysusers_t;
 type systemd_sysusers_exec_t;
 init_system_domain(systemd_sysusers_t, systemd_sysusers_exec_t)
@@ -331,6 +335,8 @@ systemd_log_parse_environment(systemd_backlight_t)
 
 # Allow systemd-backlight to write to /sys/class/backlight/*/brightness
 dev_rw_sysfs(systemd_backlight_t)
+
+kernel_dontaudit_search_kernel_sysctl(systemd_backlight_t)
 
 # for udev.conf
 files_read_etc_files(systemd_backlight_t)
@@ -432,6 +438,7 @@ allow systemd_generator_t self:fifo_file rw_fifo_file_perms;
 allow systemd_generator_t self:capability dac_override;
 allow systemd_generator_t self:process setfscreate;
 
+corecmd_exec_shell(systemd_generator_t)
 corecmd_getattr_bin_files(systemd_generator_t)
 
 dev_read_sysfs(systemd_generator_t)
@@ -446,6 +453,7 @@ files_search_all_mountpoints(systemd_generator_t)
 files_list_usr(systemd_generator_t)
 
 fs_list_efivars(systemd_generator_t)
+fs_getattr_cgroup(systemd_generator_t)
 fs_getattr_xattr_fs(systemd_generator_t)
 
 init_create_runtime_files(systemd_generator_t)
@@ -464,6 +472,7 @@ init_read_script_files(systemd_generator_t)
 kernel_use_fds(systemd_generator_t)
 kernel_read_system_state(systemd_generator_t)
 kernel_read_kernel_sysctls(systemd_generator_t)
+kernel_dontaudit_getattr_proc(systemd_generator_t)
 
 storage_raw_read_fixed_disk(systemd_generator_t)
 
@@ -494,6 +503,7 @@ optional_policy(`
 allow systemd_hostnamed_t self:capability sys_admin;
 
 kernel_read_kernel_sysctls(systemd_hostnamed_t)
+kernel_dontaudit_getattr_proc(systemd_hostnamed_t)
 
 dev_read_sysfs(systemd_hostnamed_t)
 
@@ -592,6 +602,7 @@ allow systemd_logind_t self:unix_dgram_socket create_socket_perms;
 allow systemd_logind_t self:fifo_file rw_fifo_file_perms;
 
 allow systemd_logind_t systemd_logind_var_lib_t:dir manage_dir_perms;
+allow systemd_logind_t systemd_logind_var_lib_t:file manage_file_perms;
 init_var_lib_filetrans(systemd_logind_t, systemd_logind_var_lib_t, dir)
 
 manage_fifo_files_pattern(systemd_logind_t, systemd_logind_runtime_t, systemd_logind_runtime_t)
@@ -610,6 +621,7 @@ allow systemd_logind_t systemd_sessions_runtime_t:dir manage_dir_perms;
 allow systemd_logind_t systemd_sessions_runtime_t:file manage_file_perms;
 allow systemd_logind_t systemd_sessions_runtime_t:fifo_file manage_fifo_file_perms;
 
+kernel_dontaudit_getattr_proc(systemd_logind_t)
 kernel_read_kernel_sysctls(systemd_logind_t)
 
 dev_getattr_dri_dev(systemd_logind_t)
@@ -660,6 +672,7 @@ init_dbus_send_script(systemd_logind_t)
 init_get_all_units_status(systemd_logind_t)
 init_get_system_status(systemd_logind_t)
 init_read_utmp(systemd_logind_t)
+init_watch_utmp(systemd_logind_t)
 init_service_start(systemd_logind_t)
 init_service_status(systemd_logind_t)
 init_start_all_units(systemd_logind_t)
@@ -713,8 +726,11 @@ ifdef(`distro_redhat',`
 
 tunable_policy(`systemd_logind_get_bootloader',`
 	fs_getattr_dos_fs(systemd_logind_t)
+	fs_getattr_xattr_fs(systemd_logind_t)
 	fs_list_dos(systemd_logind_t)
 	fs_read_dos_files(systemd_logind_t)
+
+	files_search_boot(systemd_logind_t)
 ')
 # systemd-logind uses util-linux's blkid in order to find the ESP (EFI System Partition).
 # This reads the first sectors of fixed disk devices.
@@ -814,6 +830,7 @@ optional_policy(`
 kernel_load_module(systemd_modules_load_t)
 kernel_read_kernel_sysctls(systemd_modules_load_t)
 kernel_request_load_module(systemd_modules_load_t)
+kernel_dontaudit_getattr_proc(systemd_modules_load_t)
 
 dev_read_sysfs(systemd_modules_load_t)
 
@@ -850,6 +867,7 @@ kernel_read_kernel_sysctls(systemd_networkd_t)
 kernel_read_network_state(systemd_networkd_t)
 kernel_request_load_module(systemd_networkd_t)
 kernel_rw_net_sysctls(systemd_networkd_t)
+kernel_dontaudit_getattr_proc(systemd_networkd_t)
 
 corecmd_bin_entry_type(systemd_networkd_t)
 corecmd_exec_bin(systemd_networkd_t)
@@ -1180,6 +1198,7 @@ allow systemd_resolved_t systemd_networkd_runtime_t:dir watch;
 
 manage_dirs_pattern(systemd_resolved_t, systemd_resolved_runtime_t, systemd_resolved_runtime_t)
 manage_files_pattern(systemd_resolved_t, systemd_resolved_runtime_t, systemd_resolved_runtime_t)
+manage_sock_files_pattern(systemd_resolved_t, systemd_resolved_runtime_t, systemd_resolved_runtime_t)
 init_runtime_filetrans(systemd_resolved_t, systemd_resolved_runtime_t, dir)
 
 dev_read_sysfs(systemd_resolved_t)
@@ -1187,6 +1206,7 @@ dev_read_sysfs(systemd_resolved_t)
 kernel_read_crypto_sysctls(systemd_resolved_t)
 kernel_read_kernel_sysctls(systemd_resolved_t)
 kernel_read_net_sysctls(systemd_resolved_t)
+kernel_dontaudit_getattr_proc(systemd_resolved_t)
 
 corenet_tcp_bind_generic_node(systemd_resolved_t)
 corenet_tcp_bind_dns_port(systemd_resolved_t)
@@ -1254,6 +1274,7 @@ allow systemd_sessions_t systemd_sessions_runtime_t:file manage_file_perms;
 files_runtime_filetrans(systemd_sessions_t, systemd_sessions_runtime_t, file)
 
 kernel_read_kernel_sysctls(systemd_sessions_t)
+kernel_dontaudit_getattr_proc(systemd_sessions_t)
 
 selinux_get_fs_mount(systemd_sessions_t)
 selinux_use_status_page(systemd_sessions_t)
@@ -1264,6 +1285,21 @@ seutil_read_file_contexts(systemd_sessions_t)
 
 systemd_log_parse_environment(systemd_sessions_t)
 
+########################################
+#
+# sysctl local policy
+#
+
+dontaudit systemd_sysctl_t self:capability sys_ptrace;
+
+kernel_read_kernel_sysctls(systemd_sysctl_t)
+kernel_request_load_module(systemd_sysctl_t)
+kernel_rw_all_sysctls(systemd_sysctl_t)
+kernel_dontaudit_getattr_proc(systemd_sysctl_t)
+
+files_read_etc_files(systemd_sysctl_t)
+
+systemd_log_parse_environment(systemd_sysctl_t)
 
 #########################################
 #
@@ -1557,6 +1593,7 @@ fs_unmount_tmpfs(systemd_user_runtime_dir_t)
 fs_relabelfrom_tmpfs_dirs(systemd_user_runtime_dir_t)
 
 kernel_read_kernel_sysctls(systemd_user_runtime_dir_t)
+kernel_dontaudit_getattr_proc(systemd_user_runtime_dir_t)
 
 selinux_use_status_page(systemd_user_runtime_dir_t)
 
