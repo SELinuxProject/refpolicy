@@ -5,6 +5,12 @@ policy_module(authlogin, 2.18.2)
 # Declarations
 #
 
+## <desc>
+## <p>
+## Allow PAM usage.  If disabled, /etc/shadow is provided on systems that do not support PAM.
+## </p>
+## </desc>
+gen_tunable(authlogin_pam, true)
 
 ## <desc>
 ## <p>
@@ -17,6 +23,7 @@ attribute can_read_shadow_passwords;
 attribute can_write_shadow_passwords;
 attribute can_relabelto_shadow_passwords;
 attribute nsswitch_domain;
+attribute pam_domain;
 
 type auth_cache_t;
 logging_log_file(auth_cache_t)
@@ -213,6 +220,41 @@ ifdef(`distro_ubuntu',`
 
 optional_policy(`
 	locallogin_use_fds(pam_t)
+')
+
+########################################
+#
+# PAM users local policy
+#
+
+# other access in auth_use_pam() due to nested typeattributes
+
+# for SSP/ProPolice
+dev_read_urand(pam_domain)
+# for encrypted homedir
+dev_read_sysfs(pam_domain)
+
+auth_create_faillog_files(pam_domain)
+auth_domtrans_upd_passwd(pam_domain)
+auth_rw_lastlog(pam_domain)
+auth_rw_faillog(pam_domain)
+auth_rw_login_records(pam_domain)
+auth_setattr_faillog_files(pam_domain)
+auth_exec_pam(pam_domain)
+
+files_read_etc_files(pam_domain)
+
+logging_send_audit_msgs(pam_domain)
+logging_send_syslog_msg(pam_domain)
+
+tunable_policy(`authlogin_pam',`
+	dontaudit pam_domain shadow_t:file read_file_perms;
+',`
+	allow pam_domain shadow_t:file read_file_perms;
+')
+
+optional_policy(`
+	nis_authenticate(pam_domain)
 ')
 
 ########################################
