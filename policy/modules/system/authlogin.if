@@ -41,41 +41,27 @@ interface(`auth_role',`
 ## </param>
 #
 interface(`auth_use_pam',`
+	gen_require(`
+		attribute can_read_shadow_passwords, nsswitch_domain, pam_domain;
+	')
 
-	# for SSP/ProPolice
-	dev_read_urand($1)
-	# for encrypted homedir
-	dev_read_sysfs($1)
+	typeattribute $1 can_read_shadow_passwords, nsswitch_domain, pam_domain;
 
-	auth_create_faillog_files($1)
+	#
+	# due to the nested typeattributes:
+	#
+
 	auth_domtrans_chk_passwd($1)
-	auth_domtrans_upd_passwd($1)
-	auth_dontaudit_read_shadow($1)
-	auth_rw_lastlog($1)
-	auth_rw_faillog($1)
-	auth_rw_login_records($1)
-	auth_setattr_faillog_files($1)
-	auth_exec_pam($1)
-	auth_use_nsswitch($1)
-
-	logging_send_audit_msgs($1)
-	logging_send_syslog_msg($1)
 
 	optional_policy(`
 		dbus_system_bus_client($1)
 
-		optional_policy(`
-			fprintd_dbus_chat($1)
-		')
+		fprintd_dbus_chat($1)
 	')
 
 	optional_policy(`
 		kerberos_manage_host_rcache($1)
 		kerberos_read_config($1)
-	')
-
-	optional_policy(`
-		nis_authenticate($1)
 	')
 ')
 
@@ -419,10 +405,6 @@ interface(`auth_domtrans_chk_passwd',`
 		pcscd_read_runtime_files($1)
 		pcscd_stream_connect($1)
 	')
-
-	optional_policy(`
-		samba_stream_connect_winbind($1)
-	')
 ')
 
 ########################################
@@ -437,13 +419,9 @@ interface(`auth_domtrans_chk_passwd',`
 ## </param>
 #
 interface(`auth_domtrans_chkpwd',`
-	gen_require(`
-		type chkpwd_t, chkpwd_exec_t, shadow_t;
-	')
+	refpolicywarn(`$0($*) has been deprecated, please use auth_domtrans_chk_passwd($1); auth_domtrans_upd_passwd($1) instead.')
 
-	corecmd_search_bin($1)
-	domtrans_pattern($1, chkpwd_exec_t, chkpwd_t)
-	dontaudit $1 shadow_t:file { getattr read };
+	auth_domtrans_chk_passwd($1)
 	auth_domtrans_upd_passwd($1)
 ')
 
