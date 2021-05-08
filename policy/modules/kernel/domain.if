@@ -76,10 +76,57 @@ interface(`domain_type',`
 	# start with basic domain
 	domain_base_type($1)
 
+	# read /proc/(pid|self) entries
+	allow $1 self:dir list_dir_perms;
+	allow $1 self:lnk_file { read_lnk_file_perms lock ioctl };
+	allow $1 self:file rw_file_perms;
+	kernel_read_proc_symlinks($1)
+	# Every $1 gets the key ring, so we should default
+	# to no one allowed to look at it; afs kernel support creates
+	# a keyring
+	kernel_dontaudit_search_key($1)
+	kernel_dontaudit_link_key($1)
+
+	# create child processes in the $1
+	allow $1 self:process { fork sigchld };
+
+	# glibc get_nprocs requires read access to /sys/devices/system/cpu/online
+	dev_read_cpu_online($1)
+
+	# Use trusted objects in /dev
+	dev_rw_null($1)
+	dev_rw_zero($1)
+	term_use_controlling_term($1)
+
+	# list the root directory
+	files_list_root($1)
+
+	ifdef(`hide_broken_symptoms',`
+		# This check is in the general socket
+		# listen code, before protocol-specific
+		# listen function is called, so bad calls
+		# to listen on UDP sockets should be silenced
+		dontaudit $1 self:udp_socket listen;
+	')
+
 	ifdef(`distro_redhat',`
 		optional_policy(`
 			unconfined_use_fds($1)
 		')
+	')
+
+	ifdef(`init_systemd',`
+		optional_policy(`
+			shutdown_sigchld($1)
+		')
+	')
+
+	tunable_policy(`global_ssp',`
+		# enable reading of urandom for all domains:
+		# this should be enabled when all programs
+		# are compiled with ProPolice/SSP
+		# stack smashing protection.
+		dev_read_urand($1)
 	')
 
 	# send init a sigchld and signull
@@ -88,7 +135,10 @@ interface(`domain_type',`
 		init_signull($1)
 	')
 
-	# these seem questionable:
+	optional_policy(`
+		libs_use_ld_so($1)
+		libs_use_shared_libs($1)
+	')
 
 	optional_policy(`
 		rpm_use_fds($1)
@@ -101,8 +151,20 @@ interface(`domain_type',`
 	')
 
 	optional_policy(`
+		setrans_translate_context($1)
+	')
+
+	optional_policy(`
 		seutil_dontaudit_read_config($1)
 	')
+
+	# xdm passes an open file descriptor to xsession-errors.log which is then audited
+	# by all confined domains.
+	optional_policy(`
+		xserver_dontaudit_use_xdm_fds($1)
+		xserver_dontaudit_rw_xdm_pipes($1)
+	')
+
 ')
 
 ########################################
