@@ -10,14 +10,19 @@
 ##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
 ## <param name="user_domain">
 ##	<summary>
 ##	The type of the user domain.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
 ##	</summary>
 ## </param>
 #
@@ -39,7 +44,7 @@ template(`screen_role_template',`
 	domain_interactive_fd($1_screen_t)
 	role screen_roles types $1_screen_t;
 
-	roleattribute $2 screen_roles;
+	roleattribute $4 screen_roles;
 
 	########################################
 	#
@@ -56,38 +61,42 @@ template(`screen_role_template',`
 	dontaudit $3 $1_screen_t:unix_stream_socket { read write };
 	allow $1_screen_t $3:process signal;
 
-	allow $3 screen_tmp_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $3 screen_tmp_t:file { manage_file_perms relabel_file_perms };
-	allow $3 screen_tmp_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 screen_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 screen_tmp_t:file { manage_file_perms relabel_file_perms };
+	allow $2 screen_tmp_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
 
-	allow $3 screen_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $3 screen_home_t:file { manage_file_perms relabel_file_perms };
-	allow $3 screen_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
-	allow $3 screen_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 screen_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 screen_home_t:file { manage_file_perms relabel_file_perms };
+	allow $2 screen_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 screen_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 
-	userdom_user_home_dir_filetrans($3, screen_home_t, dir, ".screen")
-	userdom_user_home_dir_filetrans($3, screen_home_t, file, ".screenrc")
-	userdom_user_home_dir_filetrans($3, screen_home_t, file, ".tmux.conf")
+	userdom_user_home_dir_filetrans($2, screen_home_t, dir, ".screen")
+	userdom_user_home_dir_filetrans($2, screen_home_t, file, ".screenrc")
+	userdom_user_home_dir_filetrans($2, screen_home_t, file, ".tmux.conf")
 
-	manage_dirs_pattern($3, screen_runtime_t, screen_runtime_t)
-	manage_files_pattern($3, screen_runtime_t, screen_runtime_t)
-	manage_lnk_files_pattern($3, screen_runtime_t, screen_runtime_t)
-	manage_fifo_files_pattern($3, screen_runtime_t, screen_runtime_t)
+	manage_dirs_pattern($2, screen_runtime_t, screen_runtime_t)
+	manage_files_pattern($2, screen_runtime_t, screen_runtime_t)
+	manage_lnk_files_pattern($2, screen_runtime_t, screen_runtime_t)
+	manage_fifo_files_pattern($2, screen_runtime_t, screen_runtime_t)
 
-	corecmd_bin_domtrans($1_screen_t, $3)
-	corecmd_shell_domtrans($1_screen_t, $3)
+	corecmd_bin_domtrans($1_screen_t, $2)
+	corecmd_shell_domtrans($1_screen_t, $2)
 
 	auth_domtrans_chk_passwd($1_screen_t)
 	auth_use_nsswitch($1_screen_t)
 
-	userdom_user_home_domtrans($1_screen_t, $3)
+	userdom_user_home_domtrans($1_screen_t, $2)
 
 	tunable_policy(`use_samba_home_dirs',`
-		fs_cifs_domtrans($1_screen_t, $3)
+		fs_cifs_domtrans($1_screen_t, $2)
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`
-		fs_nfs_domtrans($1_screen_t, $3)
+		fs_nfs_domtrans($1_screen_t, $2)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, $1_screen_t)
 	')
 ')
 
