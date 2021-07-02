@@ -162,15 +162,23 @@ reload: $(all_packages)
 #
 # Build module packages
 #
+tmp/m4support.m4f: | tmp
+tmp/m4support.m4f: $(m4support)
+	$(verbose) $(M4) $(M4PARAM) -F $@ $^ > /dev/null
+
+tmp/m4support_all.m4f: | tmp
+tmp/m4support_all.m4f: $(m4support) tmp/all_interfaces.conf
+	$(verbose) $(M4) $(M4PARAM) -F $@ $^ > /dev/null
+
 tmp/%.mod: | tmp
-tmp/%.mod: $(m4support) tmp/all_interfaces.conf %.te
+tmp/%.mod: tmp/m4support_all.m4f %.te
 	@$(EINFO) "Compiling $(NAME) $(basename $(@F)) module"
-	$(verbose) $(M4) $(M4PARAM) -s $^ > $(@:.mod=.tmp)
+	$(verbose) $(M4) $(M4PARAM) -s -R $^ > $(@:.mod=.tmp)
 	$(verbose) $(CHECKMODULE) -m $(@:.mod=.tmp) -o $@
 
 tmp/%.mod.fc: | tmp
-tmp/%.mod.fc: $(m4support) %.fc
-	$(verbose) $(M4) $(M4PARAM) $^ > $@
+tmp/%.mod.fc: tmp/m4support.m4f %.fc
+	$(verbose) $(M4) $(M4PARAM) -R $^ > $@
 
 %.pp: tmp/%.mod tmp/%.mod.fc
 	@echo "Creating $(NAME) $(@F) policy package"
@@ -182,7 +190,7 @@ tmp/iferror.m4:
 tmp/all_interfaces.conf: | tmp
 tmp/all_interfaces.conf: tmp/m4support.m4f $(header_interfaces) $(detected_ifs) tmp/iferror.m4
 	@echo "divert(-1)" > $@
-	$(verbose) $(M4) $^ | sed -e s/dollarsstar/\$$\*/g >> $@
+	$(verbose) $(M4) -R $^ | sed -e s/dollarsstar/\$$\*/g >> $@
 	@echo "divert" >> $@
 
 # so users dont have to make empty .fc and .if files
