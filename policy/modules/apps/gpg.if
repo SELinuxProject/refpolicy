@@ -4,18 +4,29 @@
 ## <summary>
 ##	Role access for gpg.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`gpg_role',`
+template(`gpg_role',`
 	gen_require(`
 		attribute_role gpg_roles, gpg_agent_roles, gpg_helper_roles, gpg_pinentry_roles;
 		type gpg_t, gpg_exec_t, gpg_agent_t;
@@ -23,21 +34,21 @@ interface(`gpg_role',`
 		type gpg_pinentry_t, gpg_pinentry_tmp_t, gpg_secret_t;
 	')
 
-	roleattribute $1 gpg_roles;
-	roleattribute $1 gpg_agent_roles;
-	roleattribute $1 gpg_helper_roles;
-	roleattribute $1 gpg_pinentry_roles;
+	roleattribute $4 gpg_roles;
+	roleattribute $4 gpg_agent_roles;
+	roleattribute $4 gpg_helper_roles;
+	roleattribute $4 gpg_pinentry_roles;
 
-	domtrans_pattern($2, gpg_exec_t, gpg_t)
-	domtrans_pattern($2, gpg_agent_exec_t, gpg_agent_t)
+	domtrans_pattern($3, gpg_exec_t, gpg_t)
+	domtrans_pattern($3, gpg_agent_exec_t, gpg_agent_t)
 
-	allow $2 self:process setrlimit;
-	allow $2 { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t }:process { ptrace signal_perms };
-	ps_process_pattern($2, { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t })
+	allow $3 self:process setrlimit;
+	allow $3 { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t }:process { ptrace signal_perms };
+	ps_process_pattern($3, { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t })
 
-	allow gpg_pinentry_t $2:process signull;
-	allow gpg_helper_t $2:fd use;
-	allow { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t } $2:fifo_file rw_inherited_fifo_file_perms;
+	allow gpg_pinentry_t $3:process signull;
+	allow gpg_helper_t $3:fd use;
+	allow { gpg_t gpg_agent_t gpg_helper_t gpg_pinentry_t } $3:fifo_file rw_inherited_fifo_file_perms;
 
 	allow $2 { gpg_agent_tmp_t gpg_secret_t }:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { gpg_agent_tmp_t gpg_secret_t }:file { manage_file_perms relabel_file_perms };
@@ -47,7 +58,12 @@ interface(`gpg_role',`
 	userdom_user_home_dir_filetrans($2, gpg_secret_t, dir, ".gnupg")
 
 	optional_policy(`
-		gpg_pinentry_dbus_chat($2)
+		gpg_pinentry_dbus_chat($3)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, gpg_t)
+		systemd_user_app_status($1, gpg_agent_t)
 	')
 ')
 
