@@ -5,18 +5,29 @@
 ##	Rules required for using the X Windows server
 ##	and environment, for restricted users.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
-##	Domain allowed access.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 #
-interface(`xserver_restricted_role',`
+template(`xserver_restricted_role',`
 	gen_require(`
 		type xserver_t, xserver_tmp_t, xserver_tmpfs_t;
 		type user_fonts_t, user_fonts_cache_t, user_fonts_config_t;
@@ -25,7 +36,7 @@ interface(`xserver_restricted_role',`
 		type xdm_t, xdm_tmp_t;
 	')
 
-	role $1 types { xserver_t xauth_t iceauth_t };
+	role $4 types { xserver_t xauth_t iceauth_t };
 
 	# Xserver read/write client shm
 	allow xserver_t $2:fd use;
@@ -119,6 +130,12 @@ interface(`xserver_restricted_role',`
 	tunable_policy(`xserver_allow_dri',`
 		dev_rw_dri($2)
 	')
+
+	optional_policy(`
+		systemd_user_app_status($1, iceauth_t)
+		systemd_user_app_status($1, xauth_t)
+		systemd_user_app_status($1, xserver_t)
+	')
 ')
 
 ########################################
@@ -126,25 +143,36 @@ interface(`xserver_restricted_role',`
 ##	Rules required for using the X Windows server
 ##	and environment.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
-##	Domain allowed access.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 #
-interface(`xserver_role',`
+template(`xserver_role',`
 	gen_require(`
 		type iceauth_home_t, xserver_t, xserver_tmp_t, xserver_tmpfs_t, xauth_home_t;
 		type user_fonts_t, user_fonts_cache_t, user_fonts_config_t;
 		type mesa_shader_cache_t;
 	')
 
-	xserver_restricted_role($1, $2)
+	xserver_restricted_role($1, $2, $3, $4)
 
 	# Communicate via System V shared memory.
 	allow $2 xserver_t:shm rw_shm_perms;
@@ -183,6 +211,10 @@ interface(`xserver_role',`
 	xserver_user_home_dir_filetrans_user_iceauth($2, ".ICEauthority")
 
 	xserver_read_xkb_libs($2)
+
+	optional_policy(`
+		systemd_user_app_status($1, xserver_t)
+	')
 
 	optional_policy(`
 		xdg_cache_filetrans($2, mesa_shader_cache_t, dir, "mesa_shader_cache")
