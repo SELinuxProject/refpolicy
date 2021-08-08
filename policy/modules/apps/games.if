@@ -4,39 +4,54 @@
 ## <summary>
 ##	Role access for games.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`games_role',`
+template(`games_role',`
 	gen_require(`
 		attribute_role games_roles;
 		type games_t, games_exec_t, games_tmp_t;
 		type games_tmpfs_t;
 	')
 
-	roleattribute $1 games_roles;
+	roleattribute $4 games_roles;
 
-	domtrans_pattern($2, games_exec_t, games_t)
+	domtrans_pattern($3, games_exec_t, games_t)
 
 	allow $2 games_tmp_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { games_tmp_t games_tmpfs_t }:file { manage_file_perms relabel_file_perms };
 	allow $2 games_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
 	allow $2 games_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
-	allow $2 games_t:process { ptrace signal_perms };
-	ps_process_pattern($2, games_t)
+	allow $3 games_t:process { ptrace signal_perms };
+	ps_process_pattern($3, games_t)
 
-	stream_connect_pattern($2, games_tmpfs_t, games_tmpfs_t, games_t)
+	stream_connect_pattern($3, games_tmpfs_t, games_tmpfs_t, games_t)
 
-	allow games_t $2:unix_stream_socket connectto;
+	allow games_t $3:unix_stream_socket connectto;
+
+	optional_policy(`
+		systemd_user_app_status($1, games_t)
+	')
 ')
 
 ########################################
