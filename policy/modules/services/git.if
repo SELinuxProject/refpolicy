@@ -4,18 +4,29 @@
 ## <summary>
 ##	Role access for Git session.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`git_role',`
+template(`git_role',`
 	gen_require(`
 		attribute_role git_session_roles;
 		type git_session_t, gitd_exec_t, git_user_content_t;
@@ -26,7 +37,7 @@ interface(`git_role',`
 	# Declarations
 	#
 
-	roleattribute $1 git_session_roles;
+	roleattribute $4 git_session_roles;
 
 	########################################
 	#
@@ -37,13 +48,17 @@ interface(`git_role',`
 	allow $2 git_user_content_t:file { exec_file_perms manage_file_perms relabel_file_perms };
 	userdom_user_home_dir_filetrans($2, git_user_content_t, dir, "public_git")
 
-	allow $2 git_session_t:process { ptrace signal_perms };
-	ps_process_pattern($2, git_session_t)
+	allow $3 git_session_t:process { ptrace signal_perms };
+	ps_process_pattern($3, git_session_t)
 
 	tunable_policy(`git_session_users',`
-		domtrans_pattern($2, gitd_exec_t, git_session_t)
+		domtrans_pattern($3, gitd_exec_t, git_session_t)
 	',`
-		can_exec($2, gitd_exec_t)
+		can_exec($3, gitd_exec_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, git_session_t)
 	')
 ')
 
@@ -57,14 +72,19 @@ interface(`git_role',`
 ##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
 ## <param name="user_domain">
 ##	<summary>
-##	The type of the user domain.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 #
@@ -81,7 +101,7 @@ template(`git_client_role_template',`
 
 	type $1_git_t, git_client_domain;
 	userdom_user_application_domain($1_git_t, git_exec_t)
-	role $2 types $1_git_t;
+	role $4 types $1_git_t;
 
 	########################################
 	#
@@ -90,13 +110,13 @@ template(`git_client_role_template',`
 	
 	domtrans_pattern($3, git_exec_t, $1_git_t)
 
-	allow $3 git_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $3 git_home_t:file { manage_file_perms relabel_file_perms };
-	userdom_user_home_dir_filetrans($3, git_home_t, dir, ".git")
+	allow $2 git_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 git_home_t:file { manage_file_perms relabel_file_perms };
+	userdom_user_home_dir_filetrans($2, git_home_t, dir, ".git")
 
-	allow $3 git_home_hook_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $3 git_home_hook_t:file { exec_file_perms manage_file_perms relabel_file_perms };
-	filetrans_pattern($3, git_home_t, git_home_hook_t, dir, "hooks")
+	allow $2 git_home_hook_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 git_home_hook_t:file { exec_file_perms manage_file_perms relabel_file_perms };
+	filetrans_pattern($2, git_home_t, git_home_hook_t, dir, "hooks")
 
 	allow $3 $1_git_t:process { ptrace signal_perms };
 	ps_process_pattern($3, $1_git_t)
@@ -106,11 +126,15 @@ template(`git_client_role_template',`
 	# allow userdomains to exec git hooks
 	exec_files_pattern($3, git_home_t, git_home_t)
 	# transition back to the user domain when executing git hooks
-	domtrans_pattern($1_git_t, git_home_t, $3)
+	domtrans_pattern($1_git_t, git_home_t, $2)
 
 	# transition to ssh client domain when performing ssh operations
 	optional_policy(`
 		ssh_client_domtrans($1_git_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, $1_git_t)
 	')
 ')
 
