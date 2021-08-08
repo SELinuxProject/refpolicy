@@ -63,18 +63,29 @@ template(`mta_base_mail_template',`
 ## <summary>
 ##	Role access for mta.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`mta_role',`
+template(`mta_role',`
 	gen_require(`
 		attribute mta_user_agent;
 		attribute_role user_mail_roles;
@@ -82,18 +93,18 @@ interface(`mta_role',`
 		type user_mail_tmp_t, mail_home_rw_t;
 	')
 
-	roleattribute $1 user_mail_roles;
+	roleattribute $4 user_mail_roles;
 
 	# this is something i need to fix
 	# i dont know if and why it is needed
 	# will role attribute work?
-	role $1 types mta_user_agent;
+	role $4 types mta_user_agent;
 
-	domtrans_pattern($2, sendmail_exec_t, user_mail_t)
-	allow $2 sendmail_exec_t:lnk_file read_lnk_file_perms;
+	domtrans_pattern($3, sendmail_exec_t, user_mail_t)
+	allow $3 sendmail_exec_t:lnk_file read_lnk_file_perms;
 
-	allow $2 { user_mail_t mta_user_agent }:process { ptrace signal_perms };
-	ps_process_pattern($2, { user_mail_t mta_user_agent })
+	allow $3 { user_mail_t mta_user_agent }:process { ptrace signal_perms };
+	ps_process_pattern($3, { user_mail_t mta_user_agent })
 
 	allow $2 mail_home_t:file { manage_file_perms relabel_file_perms };
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".esmtp_queue")
@@ -111,11 +122,15 @@ interface(`mta_role',`
 	allow $2 user_mail_tmp_t:file { manage_file_perms relabel_file_perms };
 
 	optional_policy(`
-		exim_run($2, $1)
+		exim_run($3, $4)
 	')
 
 	optional_policy(`
-		mailman_run($2, $1)
+		mailman_run($3, $4)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, user_mail_t)
 	')
 ')
 
