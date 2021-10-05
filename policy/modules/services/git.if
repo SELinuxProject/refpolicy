@@ -49,6 +49,73 @@ interface(`git_role',`
 
 ########################################
 ## <summary>
+##	Role access for Git client.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_role">
+##	<summary>
+##	The role associated with the user domain.
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	The type of the user domain.
+##	</summary>
+## </param>
+#
+template(`git_client_role_template',`
+	gen_require(`
+		attribute git_client_domain;
+		type git_exec_t, git_home_t, git_home_hook_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_git_t, git_client_domain;
+	userdom_user_application_domain($1_git_t, git_exec_t)
+	role $2 types $1_git_t;
+
+	########################################
+	#
+	# Policy
+	#
+	
+	domtrans_pattern($3, git_exec_t, $1_git_t)
+
+	allow $3 git_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $3 git_home_t:file { manage_file_perms relabel_file_perms };
+	userdom_user_home_dir_filetrans($3, git_home_t, dir, ".git")
+
+	allow $3 git_home_hook_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $3 git_home_hook_t:file { exec_file_perms manage_file_perms relabel_file_perms };
+	filetrans_pattern($3, git_home_t, git_home_hook_t, dir, "hooks")
+
+	allow $3 $1_git_t:process { ptrace signal_perms };
+	ps_process_pattern($3, $1_git_t)
+
+	auth_use_nsswitch($1_git_t)
+
+	# allow userdomains to exec git hooks
+	exec_files_pattern($3, git_home_t, git_home_t)
+	# transition back to the user domain when executing git hooks
+	domtrans_pattern($1_git_t, git_home_t, $3)
+
+	# transition to ssh client domain when performing ssh operations
+	optional_policy(`
+		ssh_client_domtrans($1_git_t)
+	')
+')
+
+########################################
+## <summary>
 ##	Read generic system content files.
 ## </summary>
 ## <param name="domain">

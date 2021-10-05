@@ -79,6 +79,15 @@ gen_tunable(git_system_use_cifs, false)
 ## </desc>
 gen_tunable(git_system_use_nfs, false)
 
+## <desc>
+##	<p>
+##	Determine whether Git client domains
+##	can manage all user home content,
+##	including application-specific data.
+##	</p>
+## </desc>
+gen_tunable(git_client_manage_all_user_home_content, false)
+
 attribute git_daemon;
 attribute_role git_session_roles;
 
@@ -92,11 +101,24 @@ type git_session_t, git_daemon;
 userdom_user_application_domain(git_session_t, gitd_exec_t)
 role git_session_roles types git_session_t;
 
+attribute git_client_domain;
+type git_exec_t;
+application_executable_file(git_exec_t)
+
 type git_sys_content_t;
 files_type(git_sys_content_t)
 
 type git_user_content_t;
 userdom_user_home_content(git_user_content_t)
+
+type git_home_t;
+userdom_user_home_content(git_home_t)
+
+type git_home_hook_t;
+userdom_user_home_content(git_home_hook_t)
+
+type git_xdg_config_t;
+xdg_config_content(git_xdg_config_t)
 
 ########################################
 #
@@ -273,3 +295,55 @@ files_read_usr_files(git_daemon)
 fs_search_auto_mountpoints(git_daemon)
 
 miscfiles_read_localization(git_daemon)
+
+########################################
+#
+# Git client policy
+#
+
+allow git_client_domain self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(git_client_domain, git_home_t, git_home_t)
+manage_files_pattern(git_client_domain, git_home_t, git_home_t)
+manage_lnk_files_pattern(git_client_domain, git_home_t, git_home_t)
+
+list_dirs_pattern(git_client_domain, git_home_hook_t, git_home_hook_t)
+exec_files_pattern(git_client_domain, git_home_hook_t, git_home_hook_t)
+
+manage_dirs_pattern(git_client_domain, git_xdg_config_t, git_xdg_config_t)
+manage_files_pattern(git_client_domain, git_xdg_config_t, git_xdg_config_t)
+xdg_config_filetrans(git_client_domain, git_xdg_config_t, dir, "git")
+
+exec_files_pattern(git_client_domain, git_exec_t, git_exec_t)
+
+corecmd_exec_bin(git_client_domain)
+
+corenet_tcp_connect_git_port(git_client_domain)
+corenet_tcp_connect_http_port(git_client_domain)
+
+domain_use_interactive_fds(git_client_domain)
+
+files_read_usr_files(git_client_domain)
+
+miscfiles_read_generic_certs(git_client_domain)
+miscfiles_read_localization(git_client_domain)
+
+userdom_manage_user_tmp_dirs(git_client_domain)
+userdom_manage_user_tmp_files(git_client_domain)
+userdom_manage_user_tmp_symlinks(git_client_domain)
+userdom_manage_user_home_content_dirs(git_client_domain)
+userdom_manage_user_home_content_files(git_client_domain)
+userdom_manage_user_home_content_symlinks(git_client_domain)
+userdom_user_home_content_filetrans(git_client_domain, git_home_t, dir, ".git")
+userdom_use_user_terminals(git_client_domain)
+
+allow git_client_domain git_home_t:file map;
+userdom_map_user_home_content_files(git_client_domain)
+
+xdg_search_cache_dirs(git_client_domain)
+xdg_search_config_dirs(git_client_domain)
+
+tunable_policy(`git_client_manage_all_user_home_content',`
+	userdom_manage_all_user_home_content(git_client_domain)
+	userdom_map_all_user_home_content_files(git_client_domain)
+')
