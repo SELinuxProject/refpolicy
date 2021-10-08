@@ -28,13 +28,23 @@
 #
 template(`shutdown_role',`
 	gen_require(`
+		attribute_role shutdown_roles;
 		type shutdown_t;
 	')
 
-	shutdown_run($3, $4)
+	roleattribute $4 shutdown_roles;
 
-	allow $3 shutdown_t:process { ptrace signal_perms };
-	ps_process_pattern($3, shutdown_t)
+	tunable_policy(`shutdown_allow_user_exec_domains',`
+		shutdown_domtrans($3)
+
+		allow $3 shutdown_t:process { ptrace signal_perms };
+		ps_process_pattern($3, shutdown_t)
+	',`
+		shutdown_domtrans($2)
+
+		allow $2 shutdown_t:process { ptrace signal_perms };
+		ps_process_pattern($2, shutdown_t)
+	')
 
 	optional_policy(`
 		systemd_user_app_status($1, shutdown_t)
