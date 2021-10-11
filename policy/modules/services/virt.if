@@ -84,30 +84,6 @@ template(`virt_domain_template',`
 	')
 ')
 
-#######################################
-## <summary>
-##	The template to define a virt lxc domain.
-## </summary>
-## <param name="domain_prefix">
-##	<summary>
-##	Domain prefix to be used.
-##	</summary>
-## </param>
-#
-template(`virt_lxc_domain_template',`
-	gen_require(`
-		attribute_role svirt_lxc_domain_roles;
-		attribute svirt_lxc_domain;
-	')
-
-	type $1_t, svirt_lxc_domain;
-	domain_type($1_t)
-	domain_user_exemption_target($1_t)
-	mls_rangetrans_target($1_t)
-	mcs_constrained($1_t)
-	role svirt_lxc_domain_roles types $1_t;
-')
-
 ########################################
 ## <summary>
 ##	Make the specified type virt image type.
@@ -297,37 +273,6 @@ interface(`virt_kill_all_virt_domains',`
 	')
 
 	allow $1 virt_domain:process sigkill;
-')
-
-########################################
-## <summary>
-##	Execute svirt lxc domains in their
-##	domain, and allow the specified
-##	role that svirt lxc domain.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed to transition.
-##	</summary>
-## </param>
-## <param name="role">
-##	<summary>
-##	Role allowed access.
-##	</summary>
-## </param>
-#
-interface(`virt_run_svirt_lxc_domain',`
-	gen_require(`
-		attribute svirt_lxc_domain;
-		attribute_role svirt_lxc_domain_roles;
-	')
-
-	allow $1 svirt_lxc_domain:process { signal transition };
-	roleattribute $2 svirt_lxc_domain_roles;
-
-	allow svirt_lxc_domain $1:fd use;
-	allow svirt_lxc_domain $1:fifo_file rw_fifo_file_perms;
-	allow svirt_lxc_domain $1:process sigchld;
 ')
 
 #######################################
@@ -1160,6 +1105,173 @@ interface(`virt_manage_images',`
 
 ########################################
 ## <summary>
+##	Inherit and use virtd lxc
+##	file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_use_fds',`
+	gen_require(`
+		type virtd_lxc_t;
+	')
+
+	allow $1 virtd_lxc_t:fd use;
+')
+
+########################################
+## <summary>
+##	Send a SIGCHLD to virtd lxc.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_sigchld',`
+	gen_require(`
+		type virtd_lxc_t;
+	')
+
+	allow $1 virtd_lxc_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read and write virtd lxc unamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_rw_pipes',`
+	gen_require(`
+		type virtd_lxc_t;
+	')
+
+	allow $1 virtd_lxc_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to virtd lxc over
+##	a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_stream_connect',`
+	gen_require(`
+		type virtd_lxc_t;
+	')
+
+	files_search_runtime($1)
+	allow $1 virtd_lxc_t:unix_stream_socket { connectto rw_socket_perms };
+')
+
+########################################
+## <summary>
+##	List the contents of virtd lxc
+##	directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_list_runtime',`
+	gen_require(`
+		type virtd_lxc_runtime_t;
+	')
+
+	allow $1 virtd_lxc_runtime_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Read virtd lxc runtime files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_lxc_read_runtime',`
+	gen_require(`
+		type virtd_lxc_runtime_t;
+	')
+
+	allow $1 virtd_lxc_runtime_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Inherit and use virsh file
+##	descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_virsh_use_fds',`
+	gen_require(`
+		type virsh_t;
+	')
+
+	allow $1 virsh_t:fd use;
+')
+
+########################################
+## <summary>
+##	Send a SIGCHLD to virsh.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_virsh_sigchld',`
+	gen_require(`
+		type virsh_t;
+	')
+
+	allow $1 virsh_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read and write virsh unamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`virt_virsh_rw_pipes',`
+	gen_require(`
+		type virsh_t;
+	')
+
+	allow $1 virsh_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
 ##	All of the rules required to
 ##	administrate an virt environment.
 ## </summary>
@@ -1178,18 +1290,18 @@ interface(`virt_manage_images',`
 interface(`virt_admin',`
 	gen_require(`
 		attribute virt_domain, virt_image_type, virt_tmpfs_type;
-		attribute virt_ptynode, svirt_lxc_domain, virt_tmp_type;
+		attribute virt_ptynode, virt_tmp_type;
 		type virtd_t, virtd_initrc_exec_t, virtd_lxc_t;
-		type virsh_t, virtd_lxc_runtime_t, svirt_lxc_file_t;
+		type virsh_t, virtd_lxc_runtime_t;
 		type virt_bridgehelper_t, virt_qmf_t, virt_var_lib_t;
 		type virt_runtime_t, virt_tmp_t, virt_log_t;
 		type virt_lock_t, svirt_runtime_t, virt_etc_rw_t;
 		type virt_etc_t, svirt_cache_t, virtd_keytab_t;
 	')
 
-	allow $1 { virt_domain svirt_lxc_domain virtd_t }:process { ptrace signal_perms };
+	allow $1 { virt_domain virtd_t }:process { ptrace signal_perms };
 	allow $1 { virtd_lxc_t virsh_t virt_bridgehelper_t virt_qmf_t }:process { ptrace signal_perms };
-	ps_process_pattern($1, { virt_domain svirt_lxc_domain virtd_t })
+	ps_process_pattern($1, { virt_domain virtd_t })
 	ps_process_pattern($1, { virtd_lxc_t virsh_t virt_bridgehelper_t virt_qmf_t })
 
 	init_startstop_service($1, $2, virtd_t, virtd_initrc_exec_t)
@@ -1213,7 +1325,7 @@ interface(`virt_admin',`
 	admin_pattern($1, svirt_cache_t)
 
 	files_search_var_lib($1)
-	admin_pattern($1, { virt_image_type virt_var_lib_t svirt_lxc_file_t })
+	admin_pattern($1, { virt_image_type virt_var_lib_t })
 
 	files_search_locks($1)
 	admin_pattern($1, virt_lock_t)
