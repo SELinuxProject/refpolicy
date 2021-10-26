@@ -242,7 +242,7 @@ def analyze_fc_file(fc_path):
                 reduced_path = new_reduced_path
 
             # * Remove optional characters like c?
-            reduced_path = re.sub(r'[-0-9A-Za-z_·]\?', '', reduced_path)
+            reduced_path = re.sub(r'[-0-9A-Za-z_@·]\?', '', reduced_path)
 
             # If the reduced path still ends with a special character, something went wrong.
             # Instead of guessing the possible buggy characters, list the allowed ones.
