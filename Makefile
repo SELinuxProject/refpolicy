@@ -532,17 +532,19 @@ $(appdir)/%: $(appconf)/%
 # Install policy headers
 #
 install-headers: $(layerxml) $(tunxml) $(boolxml)
-	@mkdir -p $(headerdir)
+	$(verbose) $(INSTALL) -d -m 755 $(headerdir)
 	@echo "Installing $(NAME) policy headers."
 	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
-	$(verbose) mkdir -p $(headerdir)/support
+	$(verbose) $(INSTALL) -d -m 755 $(headerdir)/support
 	$(verbose) $(INSTALL) -m 644 $(m4support) $(xmldtd) $(headerdir)/support
 	$(verbose) $(INSTALL) -m 755 $(word $(words $(genxml)),$(genxml)) $(headerdir)/support
+	$(verbose) $(INSTALL) -m 644 /dev/null $(headerdir)/support/all_perms.spt
 	$(verbose) $(genperm) $(avs) $(secclass) > $(headerdir)/support/all_perms.spt
 	$(verbose) for i in $(notdir $(all_layers)); do \
-		mkdir -p $(headerdir)/$$i ;\
+		$(INSTALL) -d -m 755 $(headerdir)/$$i ;\
 		$(INSTALL) -m 644 $(moddir)/$$i/*.if $(headerdir)/$$i ;\
 	done
+	$(verbose) $(INSTALL) -m 644 /dev/null $(headerdir)/build.conf
 	$(verbose) echo "TYPE ?= $(TYPE)" > $(headerdir)/build.conf
 	$(verbose) echo "NAME ?= $(NAME)" >> $(headerdir)/build.conf
 ifneq "$(DISTRO)" ""
