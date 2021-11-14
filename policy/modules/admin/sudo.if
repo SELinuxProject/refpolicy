@@ -17,14 +17,19 @@
 ##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="user_role">
-##	<summary>
-##	The user role.
-##	</summary>
-## </param>
 ## <param name="user_domain">
 ##	<summary>
-##	The user domain associated with the role.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 #
@@ -44,7 +49,7 @@ template(`sudo_role_template',`
 	userdom_user_application_domain($1_sudo_t, sudo_exec_t)
 	domain_interactive_fd($1_sudo_t)
 	domain_role_change_exemption($1_sudo_t)
-	role $2 types $1_sudo_t;
+	role $4 types $1_sudo_t;
 
 	##############################
 	#
@@ -68,20 +73,9 @@ template(`sudo_role_template',`
 	allow $1_sudo_t self:key manage_key_perms;
 	dontaudit $1_sudo_t self:capability { dac_read_search sys_ptrace };
 
-	allow $1_sudo_t $3:key search;
-
-	# Transmit SIGWINCH to children
-	allow $1_sudo_t $3:process signal;
-
-	# Enter this derived domain from the user domain
-	domtrans_pattern($3, sudo_exec_t, $1_sudo_t)
-
 	# By default, revert to the calling domain when a shell is executed.
-	corecmd_shell_domtrans($1_sudo_t, $3)
-	corecmd_bin_domtrans($1_sudo_t, $3)
-	allow $3 $1_sudo_t:fd use;
-	allow $3 $1_sudo_t:fifo_file rw_fifo_file_perms;
-	allow $3 $1_sudo_t:process signal_perms;
+	corecmd_shell_domtrans($1_sudo_t, $2)
+	corecmd_bin_domtrans($1_sudo_t, $2)
 
 	kernel_read_kernel_sysctls($1_sudo_t)
 	kernel_read_system_state($1_sudo_t)
@@ -118,7 +112,7 @@ template(`sudo_role_template',`
 	term_relabel_all_ttys($1_sudo_t)
 	term_relabel_all_ptys($1_sudo_t)
 
-	auth_run_chk_passwd($1_sudo_t, $2)
+	auth_run_chk_passwd($1_sudo_t, $4)
 	# sudo stores a token in the pam runtime directory
 	auth_manage_pam_runtime_dirs($1_sudo_t)
 	auth_manage_pam_runtime_files($1_sudo_t)
@@ -151,6 +145,32 @@ template(`sudo_role_template',`
 
 	ifdef(`hide_broken_symptoms', `
 		dontaudit $1_sudo_t $3:socket_class_set { read write };
+	')
+
+	tunable_policy(`sudo_allow_user_exec_domains',`
+		allow $1_sudo_t $3:key search;
+
+		# Transmit SIGWINCH to children
+		allow $1_sudo_t $3:process signal;
+
+		# Enter this derived domain from the user domain
+		domtrans_pattern($3, sudo_exec_t, $1_sudo_t)
+
+		allow $3 $1_sudo_t:fd use;
+		allow $3 $1_sudo_t:fifo_file rw_fifo_file_perms;
+		allow $3 $1_sudo_t:process signal_perms;
+	',`
+		allow $1_sudo_t $2:key search;
+
+		# Transmit SIGWINCH to children
+		allow $1_sudo_t $2:process signal;
+
+		# Enter this derived domain from the user domain
+		domtrans_pattern($2, sudo_exec_t, $1_sudo_t)
+
+		allow $2 $1_sudo_t:fd use;
+		allow $2 $1_sudo_t:fifo_file rw_fifo_file_perms;
+		allow $2 $1_sudo_t:process signal_perms;
 	')
 
 	tunable_policy(`use_nfs_home_dirs',`

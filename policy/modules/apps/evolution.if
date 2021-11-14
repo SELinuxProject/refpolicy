@@ -4,18 +4,29 @@
 ## <summary>
 ##	Role access for evolution.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`evolution_role',`
+template(`evolution_role',`
 	gen_require(`
 		attribute_role evolution_roles;
 		type evolution_t, evolution_exec_t, evolution_home_t;
@@ -27,21 +38,21 @@ interface(`evolution_role',`
 		type evolution_tmpfs_t, evolution_webcal_tmpfs_t;
 	')
 
-	roleattribute $1 evolution_roles;
+	roleattribute $4 evolution_roles;
 
-	domtrans_pattern($2, evolution_exec_t, evolution_t)
-	domtrans_pattern($2, evolution_alarm_exec_t, evolution_alarm_t)
-	domtrans_pattern($2, evolution_exchange_exec_t, evolution_exchange_t)
-	domtrans_pattern($2, evolution_server_exec_t, evolution_server_t)
-	domtrans_pattern($2, evolution_webcal_exec_t, evolution_webcal_t)
+	domtrans_pattern($3, evolution_exec_t, evolution_t)
+	domtrans_pattern($3, evolution_alarm_exec_t, evolution_alarm_t)
+	domtrans_pattern($3, evolution_exchange_exec_t, evolution_exchange_t)
+	domtrans_pattern($3, evolution_server_exec_t, evolution_server_t)
+	domtrans_pattern($3, evolution_webcal_exec_t, evolution_webcal_t)
 
-	allow $2 { evolution_t evolution_alarm_t evolution_exchange_t evolution_server_t evolution_webcal_t }:process { noatsecure ptrace signal_perms };
-	ps_process_pattern($2, { evolution_t evolution_alarm_t evolution_exchange_t })
-	ps_process_pattern($2, { evolution_server_t evolution_webcal_t })
+	allow $3 { evolution_t evolution_alarm_t evolution_exchange_t evolution_server_t evolution_webcal_t }:process { noatsecure ptrace signal_perms };
+	ps_process_pattern($3, { evolution_t evolution_alarm_t evolution_exchange_t })
+	ps_process_pattern($3, { evolution_server_t evolution_webcal_t })
 
-	allow evolution_t $2:dir search_dir_perms;
-	allow evolution_t $2:file read_file_perms;
-	allow evolution_t $2:lnk_file read_lnk_file_perms;
+	allow evolution_t $3:dir search_dir_perms;
+	allow evolution_t $3:file read_file_perms;
+	allow evolution_t $3:lnk_file read_lnk_file_perms;
 
 	allow $2 evolution_home_t:dir { relabel_dir_perms manage_dir_perms };
 	allow $2 evolution_home_t:file { relabel_file_perms manage_file_perms };
@@ -59,14 +70,22 @@ interface(`evolution_role',`
 	allow $2 { evolution_alarm_tmpfs_t evolution_exchange_tmpfs_t evolution_tmpfs_t evolution_webcal_tmpfs_t }:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 	allow $2 { evolution_alarm_tmpfs_t evolution_exchange_tmpfs_t evolution_tmpfs_t evolution_webcal_tmpfs_t }:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
 
-	allow { evolution_t evolution_exchange_t } $2:unix_stream_socket connectto;
+	allow { evolution_t evolution_exchange_t } $3:unix_stream_socket connectto;
 
-	stream_connect_pattern($2, evolution_orbit_tmp_t, evolution_orbit_tmp_t, evolution_t)
-	stream_connect_pattern($2, evolution_exchange_orbit_tmp_t, evolution_exchange_orbit_tmp_t, evolution_exchange_t)
+	stream_connect_pattern($3, evolution_orbit_tmp_t, evolution_orbit_tmp_t, evolution_t)
+	stream_connect_pattern($3, evolution_exchange_orbit_tmp_t, evolution_exchange_orbit_tmp_t, evolution_exchange_t)
 
 	optional_policy(`
-		evolution_dbus_chat($2)
-		evolution_alarm_dbus_chat($2)
+		evolution_dbus_chat($3)
+		evolution_alarm_dbus_chat($3)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, evolution_t)
+		systemd_user_app_status($1, evolution_alarm_t)
+		systemd_user_app_status($1, evolution_exchange_t)
+		systemd_user_app_status($1, evolution_server_t)
+		systemd_user_app_status($1, evolution_webcal_t)
 	')
 ')
 

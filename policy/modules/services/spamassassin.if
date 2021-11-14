@@ -4,36 +4,52 @@
 ## <summary>
 ##	Role access for spamassassin.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`spamassassin_role',`
+template(`spamassassin_role',`
 	gen_require(`
 		type spamc_t, spamc_exec_t, spamc_tmp_t;
 		type spamassassin_t, spamassassin_exec_t, spamd_home_t;
 		type spamassassin_home_t, spamassassin_tmp_t;
 	')
 
-	role $1 types { spamc_t spamassassin_t };
+	role $4 types { spamc_t spamassassin_t };
 
-	domtrans_pattern($2, spamassassin_exec_t, spamassassin_t)
-	domtrans_pattern($2, spamc_exec_t, spamc_t)
+	domtrans_pattern($3, spamassassin_exec_t, spamassassin_t)
+	domtrans_pattern($3, spamc_exec_t, spamc_t)
 
-	admin_process_pattern($2, { spamc_t spamassassin_t })
+	admin_process_pattern($3, { spamc_t spamassassin_t })
 
 	allow $2 { spamc_tmp_t spamd_home_t spamassassin_home_t spamassassin_tmp_t }:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { spamc_tmp_t spamd_home_t spamassassin_home_t spamassassin_tmp_t }:file { manage_file_perms relabel_file_perms };
 	allow $2 { spamc_tmp_t spamd_home_t spamassassin_home_t spamassassin_tmp_t }:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	userdom_user_home_dir_filetrans($2, spamassassin_home_t, dir, ".spamassassin")
 	userdom_user_home_dir_filetrans($2, spamd_home_t, dir, ".spamd")
+
+	optional_policy(`
+		systemd_user_app_status($1, spamassassin_t)
+		systemd_user_app_status($1, spamc_t)
+	')
 ')
 
 ########################################

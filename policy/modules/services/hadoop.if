@@ -94,37 +94,53 @@ template(`hadoop_domain_template',`
 ## <summary>
 ##	Role access for hadoop.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
-##	Domain allowed access.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 ## <rolecap/>
 #
-interface(`hadoop_role',`
+template(`hadoop_role',`
 	gen_require(`
 		attribute_role hadoop_roles, zookeeper_roles;
 		type hadoop_t, zookeeper_t, hadoop_home_t;
 		type hadoop_tmp_t, hadoop_hsperfdata_t, zookeeper_tmp_t;
 	')
 
-	hadoop_domtrans($2)
-	roleattribute $1 hadoop_roles;
+	hadoop_domtrans($3)
+	roleattribute $4 hadoop_roles;
 
-	hadoop_domtrans_zookeeper_client($2)
-	roleattribute $1 zookeeper_roles;
+	hadoop_domtrans_zookeeper_client($3)
+	roleattribute $4 zookeeper_roles;
 
-	allow $2 { hadoop_t zookeeper_t }:process { ptrace signal_perms };
-	ps_process_pattern($2, { hadoop_t zookeeper_t })
+	allow $3 { hadoop_t zookeeper_t }:process { ptrace signal_perms };
+	ps_process_pattern($3, { hadoop_t zookeeper_t })
 
 	allow $2 { hadoop_home_t hadoop_tmp_t hadoop_hsperfdata_t }:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { hadoop_home_t hadoop_tmp_t zookeeper_tmp_t }:file { manage_file_perms relabel_file_perms };
 	allow $2 hadoop_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+
+	optional_policy(`
+		systemd_user_app_status($1, hadoop_t)
+		systemd_user_app_status($1, zookeeper_t)
+	')
 ')
 
 ########################################

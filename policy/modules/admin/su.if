@@ -124,14 +124,19 @@ template(`su_restricted_domain_template', `
 ##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="user_role">
-##	<summary>
-##	The role associated with the user domain.
-##	</summary>
-## </param>
 ## <param name="user_domain">
 ##	<summary>
-##	The type of the user domain.
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
 ##	</summary>
 ## </param>
 #
@@ -143,9 +148,7 @@ template(`su_role_template',`
 	type $1_su_t;
 	userdom_user_application_domain($1_su_t, su_exec_t)
 	domain_interactive_fd($1_su_t)
-	role $2 types $1_su_t;
-
-	allow $3 $1_su_t:process signal;
+	role $4 types $1_su_t;
 
 	allow $1_su_t self:capability { audit_control audit_write chown dac_override fowner net_bind_service setgid setuid sys_nice sys_resource };
 	dontaudit $1_su_t self:capability { net_admin sys_tty_config };
@@ -154,18 +157,8 @@ template(`su_role_template',`
 	allow $1_su_t self:netlink_audit_socket { nlmsg_relay create_netlink_socket_perms };
 	allow $1_su_t self:key { search write };
 
-	allow $1_su_t $3:key search;
-
-	# Transition from the user domain to this domain.
-	domtrans_pattern($3, su_exec_t, $1_su_t)
-
-	ps_process_pattern($3, $1_su_t)
-
 	# By default, revert to the calling domain when a shell is executed.
-	corecmd_shell_domtrans($1_su_t, $3)
-	allow $3 $1_su_t:fd use;
-	allow $3 $1_su_t:fifo_file rw_inherited_fifo_file_perms;
-	allow $3 $1_su_t:process sigchld;
+	corecmd_shell_domtrans($1_su_t, $2)
 
 	kernel_read_system_state($1_su_t)
 	kernel_read_kernel_sysctls($1_su_t)
@@ -222,6 +215,34 @@ template(`su_role_template',`
 
 	optional_policy(`
 		auth_use_pam_systemd($1_su_t)
+	')
+
+	tunable_policy(`su_allow_user_exec_domains',`
+		allow $3 $1_su_t:process signal;
+
+		allow $1_su_t $3:key search;
+
+		# Transition from the user domain to this domain.
+		domtrans_pattern($3, su_exec_t, $1_su_t)
+
+		ps_process_pattern($3, $1_su_t)
+
+		allow $3 $1_su_t:fd use;
+		allow $3 $1_su_t:fifo_file rw_inherited_fifo_file_perms;
+		allow $3 $1_su_t:process sigchld;
+	',`
+		allow $2 $1_su_t:process signal;
+
+		allow $1_su_t $2:key search;
+
+		# Transition from the user domain to this domain.
+		domtrans_pattern($2, su_exec_t, $1_su_t)
+
+		ps_process_pattern($2, $1_su_t)
+
+		allow $2 $1_su_t:fd use;
+		allow $2 $1_su_t:fifo_file rw_inherited_fifo_file_perms;
+		allow $2 $1_su_t:process sigchld;
 	')
 
 	tunable_policy(`allow_polyinstantiation',`

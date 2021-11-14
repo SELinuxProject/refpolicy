@@ -4,18 +4,29 @@
 ## <summary>
 ##	Role access for mozilla.
 ## </summary>
-## <param name="role">
+## <param name="role_prefix">
 ##	<summary>
-##	Role allowed access.
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
 ##	</summary>
 ## </param>
-## <param name="domain">
+## <param name="user_domain">
 ##	<summary>
 ##	User domain for the role.
 ##	</summary>
 ## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
 #
-interface(`mozilla_role',`
+template(`mozilla_role',`
 	gen_require(`
 		type mozilla_t, mozilla_exec_t, mozilla_home_t;
 		type mozilla_tmp_t, mozilla_tmpfs_t, mozilla_plugin_tmp_t;
@@ -28,25 +39,25 @@ interface(`mozilla_role',`
 	# Declarations
 	#
 
-	roleattribute $1 mozilla_roles;
+	roleattribute $4 mozilla_roles;
 
 	########################################
 	#
 	# Policy
 	#
 
-	domtrans_pattern($2, mozilla_exec_t, mozilla_t)
+	domtrans_pattern($3, mozilla_exec_t, mozilla_t)
 
-	allow $2 mozilla_t:process { noatsecure siginh rlimitinh ptrace signal_perms };
-	ps_process_pattern($2, mozilla_t)
+	allow $3 mozilla_t:process { noatsecure siginh rlimitinh ptrace signal_perms };
+	ps_process_pattern($3, mozilla_t)
 
-	allow mozilla_t $2:process signull;
-	allow mozilla_t $2:unix_stream_socket connectto;
+	allow mozilla_t $3:process signull;
+	allow mozilla_t $3:unix_stream_socket connectto;
 
-	allow $2 mozilla_t:fd use;
-	allow $2 mozilla_t:shm rw_shm_perms;
+	allow $3 mozilla_t:fd use;
+	allow $3 mozilla_t:shm rw_shm_perms;
 
-	stream_connect_pattern($2, mozilla_tmpfs_t, mozilla_tmpfs_t, mozilla_t)
+	stream_connect_pattern($3, mozilla_tmpfs_t, mozilla_tmpfs_t, mozilla_t)
 
 	allow $2 { mozilla_home_t mozilla_plugin_home_t }:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 { mozilla_home_t mozilla_plugin_home_t }:file { manage_file_perms relabel_file_perms };
@@ -68,7 +79,11 @@ interface(`mozilla_role',`
 	allow $2 { mozilla_tmpfs_t mozilla_plugin_tmpfs_t }:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
 	optional_policy(`
-		mozilla_dbus_chat($2)
+		mozilla_dbus_chat($3)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, mozilla_t)
 	')
 ')
 
