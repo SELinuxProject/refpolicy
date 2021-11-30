@@ -18,6 +18,23 @@ gen_require(`
 ## </desc>
 gen_tunable(dbus_pass_tuntap_fd, false)
 
+## <desc>
+## <p>
+## Allow dbus-daemon system bus to to run systemd transient
+## units. This is used by dbus-broker for dbus-activated
+## services when the unit file for the service does not exist.
+## </p>
+## </desc>
+gen_tunable(dbus_broker_run_transient_units, false)
+
+## <desc>
+## <p>
+## Enable additional rules to support using dbus-broker
+## as the dbus-daemon system bus.
+## </p>
+## </desc>
+gen_tunable(dbus_broker_system_bus, false)
+
 attribute dbusd_unconfined;
 attribute session_bus_type;
 
@@ -181,10 +198,37 @@ ifdef(`init_systemd', `
 
 	# Recent versions of dbus are started as Type=notify
 	init_write_runtime_socket(system_dbusd_t)
+
+	tunable_policy(`dbus_broker_system_bus',`
+		init_get_system_status(system_dbusd_t)
+	')
 ')
 
 tunable_policy(`dbus_pass_tuntap_fd',`
         corenet_rw_tun_tap_dev(system_dbusd_t)
+')
+
+tunable_policy(`dbus_broker_run_transient_units',`
+	init_start_transient_units(system_dbusd_t)
+	init_stop_transient_units(system_dbusd_t)
+')
+
+# the below duplicated tunable blocks are due to
+# optionals within tunables not being supported
+optional_policy(`
+	tunable_policy(`dbus_broker_system_bus',`
+		policykit_get_unit_status(system_dbusd_t)
+		policykit_start_unit(system_dbusd_t)
+		policykit_stop_unit(system_dbusd_t)
+		policykit_reload_unit(system_dbusd_t)
+	')
+')
+
+optional_policy(`
+	tunable_policy(`dbus_broker_system_bus',`
+		networkmanager_startstop(system_dbusd_t)
+		networkmanager_status(system_dbusd_t)
+	')
 ')
 
 optional_policy(`
