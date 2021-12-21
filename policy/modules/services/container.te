@@ -5,7 +5,22 @@ policy_module(container)
 # Declarations
 #
 
+# common attribute for all containers
 attribute container_domain;
+
+# common attribute for all container engines
+attribute container_engine_domain;
+
+# system container engines can only interact with
+# system containers, and user container engines
+# can only interact with user containers.
+attribute container_system_domain;
+attribute container_user_domain;
+attribute container_engine_system_domain;
+attribute container_engine_user_domain;
+
+# containers which require network access
+attribute container_net_domain;
 
 attribute container_mountpoint_type;
 
@@ -14,6 +29,7 @@ roleattribute system_r container_roles;
 
 container_domain_template(container)
 typealias container_t alias svirt_lxc_net_t;
+typeattribute container_t container_system_domain, container_user_domain, container_net_domain;
 
 type container_file_t alias svirt_lxc_file_t;
 files_mountpoint(container_file_t)
@@ -116,41 +132,51 @@ optional_policy(`
 
 ########################################
 #
+# Common container net domain local policy
+#
+
+allow container_net_domain self:capability { net_admin net_raw };
+allow container_net_domain self:tcp_socket create_stream_socket_perms;
+allow container_net_domain self:udp_socket create_socket_perms;
+allow container_net_domain self:tun_socket create_socket_perms;
+allow container_net_domain self:packet_socket create_socket_perms;
+allow container_net_domain self:socket create_socket_perms;
+allow container_net_domain self:icmp_socket create_socket_perms;
+allow container_net_domain self:rawip_socket create_socket_perms;
+allow container_net_domain self:netlink_route_socket create_netlink_socket_perms;
+allow container_net_domain self:netlink_socket create_socket_perms;
+allow container_net_domain self:netlink_tcpdiag_socket create_socket_perms;
+allow container_net_domain self:netlink_kobject_uevent_socket create_socket_perms;
+
+corenet_all_recvfrom_netlabel(container_net_domain)
+corenet_tcp_sendrecv_generic_if(container_net_domain)
+corenet_udp_sendrecv_generic_if(container_net_domain)
+corenet_tcp_sendrecv_generic_node(container_net_domain)
+corenet_udp_sendrecv_generic_node(container_net_domain)
+corenet_tcp_bind_generic_node(container_net_domain)
+corenet_udp_bind_generic_node(container_net_domain)
+
+corenet_sendrecv_all_server_packets(container_net_domain)
+corenet_tcp_bind_all_ports(container_net_domain)
+corenet_udp_bind_all_ports(container_net_domain)
+
+corenet_sendrecv_all_client_packets(container_net_domain)
+corenet_tcp_connect_all_ports(container_net_domain)
+
+########################################
+#
 # Container local policy
 #
 
-allow container_t self:capability { chown dac_override dac_read_search fowner fsetid net_admin net_raw setpcap sys_admin sys_nice sys_ptrace sys_resource };
+allow container_t self:capability { chown dac_override dac_read_search fowner fsetid setpcap sys_admin sys_nice sys_ptrace sys_resource };
 dontaudit container_t self:capability2 block_suspend;
 allow container_t self:process setrlimit;
-allow container_t self:tcp_socket { accept listen };
-allow container_t self:netlink_route_socket nlmsg_write;
-allow container_t self:packet_socket create_socket_perms;
-allow container_t self:socket create_socket_perms;
-allow container_t self:rawip_socket create_socket_perms;
-allow container_t self:netlink_socket create_socket_perms;
-allow container_t self:netlink_tcpdiag_socket create_socket_perms;
-allow container_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 allow container_t container_file_t:file entrypoint;
 allow container_t container_file_t:filesystem getattr;
 
 kernel_read_network_state(container_t)
 kernel_read_irq_sysctls(container_t)
-
-corenet_all_recvfrom_netlabel(container_t)
-corenet_tcp_sendrecv_generic_if(container_t)
-corenet_udp_sendrecv_generic_if(container_t)
-corenet_tcp_sendrecv_generic_node(container_t)
-corenet_udp_sendrecv_generic_node(container_t)
-corenet_tcp_bind_generic_node(container_t)
-corenet_udp_bind_generic_node(container_t)
-
-corenet_sendrecv_all_server_packets(container_t)
-corenet_udp_bind_all_ports(container_t)
-corenet_tcp_bind_all_ports(container_t)
-
-corenet_sendrecv_all_client_packets(container_t)
-corenet_tcp_connect_all_ports(container_t)
 
 dev_getattr_mtrr_dev(container_t)
 dev_read_rand(container_t)
