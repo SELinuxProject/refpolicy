@@ -22,6 +22,8 @@ attribute container_engine_user_domain;
 # containers which require network access
 attribute container_net_domain;
 
+attribute container_engine_exec_type;
+
 attribute container_mountpoint_type;
 
 attribute_role container_roles;
@@ -31,11 +33,75 @@ container_domain_template(container)
 typealias container_t alias svirt_lxc_net_t;
 typeattribute container_t container_system_domain, container_user_domain, container_net_domain;
 
+container_engine_domain_template(container_engine)
+typeattribute container_engine_t container_engine_system_domain;
+type container_engine_exec_t, container_engine_exec_type;
+application_domain(container_engine_t, container_engine_exec_t)
+init_daemon_domain(container_engine_t, container_engine_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(container_engine_t, container_engine_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(container_engine_t)
+
+type container_unit_t;
+init_unit_file(container_unit_t)
+
+type container_config_t;
+files_config_file(container_config_t)
+
+type container_var_lib_t;
+files_type(container_var_lib_t)
+container_mountpoint(container_var_lib_t)
+
+type container_engine_tmp_t;
+files_tmp_file(container_engine_tmp_t)
+container_mountpoint(container_engine_tmp_t)
+
+type container_engine_tmpfs_t;
+files_tmpfs_file(container_engine_tmpfs_t)
+container_mountpoint(container_engine_tmpfs_t)
+
+type container_runtime_t;
+files_runtime_file(container_runtime_t)
+container_mountpoint(container_runtime_t)
+
+type container_log_t;
+logging_log_file(container_log_t)
+
+type container_devpts_t;
+term_pty(container_devpts_t)
+
 type container_file_t alias svirt_lxc_file_t;
+dev_node(container_file_t)
 files_mountpoint(container_file_t)
 files_associate_rootfs(container_file_t)
-fs_noxattr_type(container_file_t)
 term_pty(container_file_t)
+container_mountpoint(container_file_t)
+
+type container_ro_file_t;
+files_mountpoint(container_ro_file_t)
+container_mountpoint(container_ro_file_t)
+
+type container_engine_cache_t;
+files_type(container_engine_cache_t)
+
+type container_cache_home_t;
+xdg_cache_content(container_cache_home_t)
+
+type container_conf_home_t;
+xdg_config_content(container_conf_home_t)
+
+type container_data_home_t;
+xdg_data_content(container_data_home_t)
+container_mountpoint(container_data_home_t)
+
+type container_user_runtime_t;
+files_runtime_file(container_user_runtime_t)
+userdom_user_runtime_content(container_user_runtime_t)
+container_mountpoint(container_user_runtime_t)
+
+type container_port_t;
+corenet_port(container_port_t)
 
 ########################################
 #
@@ -198,3 +264,279 @@ userdom_use_user_ptys(container_t)
 optional_policy(`
 	rpm_read_db(container_t)
 ')
+
+########################################
+#
+# Common container engine local policy
+#
+
+allow container_engine_domain self:process { getcap setcap getsched setsched getrlimit setrlimit rlimitinh noatsecure setexec setkeycreate setpgid siginh transition fork signal_perms };
+allow container_engine_domain self:capability { chown dac_override dac_read_search fowner fsetid kill mknod net_admin net_raw setfcap setpcap setgid setuid sys_admin sys_chroot sys_ptrace sys_resource };
+allow container_engine_domain self:capability2 { bpf perfmon };
+allow container_engine_domain self:bpf { map_create map_read map_write prog_load prog_run };
+allow container_engine_domain self:cap_userns { audit_write chown dac_override dac_read_search fowner fsetid ipc_lock ipc_owner kill lease linux_immutable mknod net_admin net_bind_service net_raw setfcap setgid setpcap setuid sys_admin sys_boot sys_chroot sys_nice sys_pacct sys_ptrace sys_rawio sys_resource sys_time sys_tty_config };
+allow container_engine_domain self:cap2_userns { audit_read bpf block_suspend perfmon syslog wake_alarm };
+allow container_engine_domain self:bpf { map_create map_read map_write prog_load prog_run };
+allow container_engine_domain self:fd use;
+allow container_engine_domain self:fifo_file manage_fifo_file_perms;
+allow container_engine_domain self:tcp_socket create_stream_socket_perms;
+allow container_engine_domain self:udp_socket create_socket_perms;
+allow container_engine_domain self:unix_stream_socket { create_stream_socket_perms connectto };
+allow container_engine_domain self:unix_dgram_socket { create_socket_perms sendto };
+allow container_engine_domain self:icmp_socket create_socket_perms;
+allow container_engine_domain self:netlink_route_socket create_netlink_socket_perms;
+allow container_engine_domain self:packet_socket create_socket_perms;
+
+allow container_engine_domain container_port_t:tcp_socket name_bind;
+
+dontaudit container_engine_domain container_domain:process { noatsecure rlimitinh siginh };
+allow container_engine_domain container_domain:process2 { nnp_transition nosuid_transition };
+
+allow container_engine_domain container_mountpoint_type:dir_file_class_set mounton;
+
+corecmd_bin_entry_type(container_engine_domain)
+corecmd_exec_bin(container_engine_domain)
+# needed when spawning interactive shells inside containers
+corecmd_exec_shell(container_engine_domain)
+corecmd_search_bin(container_engine_domain)
+
+corenet_tcp_bind_generic_node(container_engine_domain)
+corenet_tcp_connect_http_port(container_engine_domain)
+corenet_tcp_bind_all_ports(container_engine_domain)
+corenet_udp_bind_all_ports(container_engine_domain)
+corenet_rw_tun_tap_dev(container_engine_domain)
+
+dev_getattr_all_blk_files(container_engine_domain)
+dev_getattr_all_chr_files(container_engine_domain)
+dev_setattr_null_dev(container_engine_domain)
+dev_getattr_fs(container_engine_domain)
+dev_remount_fs(container_engine_domain)
+dev_list_sysfs(container_engine_domain)
+# required by crun
+dev_read_sysfs(container_engine_domain)
+dev_mount_sysfs(container_engine_domain)
+dev_remount_sysfs(container_engine_domain)
+dev_mounton_sysfs_dirs(container_engine_domain)
+
+domain_use_interactive_fds(container_engine_domain)
+
+files_read_etc_files(container_engine_domain)
+files_read_usr_files(container_engine_domain)
+files_mounton_root(container_engine_domain)
+files_mounton_tmp(container_engine_domain)
+files_dontaudit_getattr_all_dirs(container_engine_domain)
+files_dontaudit_getattr_all_files(container_engine_domain)
+
+fs_getattr_nsfs(container_engine_domain)
+fs_read_nsfs_files(container_engine_domain)
+fs_unmount_nsfs(container_engine_domain)
+
+fs_getattr_tmpfs(container_engine_domain)
+fs_mount_tmpfs(container_engine_domain)
+fs_remount_tmpfs(container_engine_domain)
+fs_unmount_tmpfs(container_engine_domain)
+fs_relabelfrom_tmpfs(container_engine_domain)
+
+fs_getattr_xattr_fs(container_engine_domain)
+fs_mount_xattr_fs(container_engine_domain)
+fs_remount_xattr_fs(container_engine_domain)
+fs_unmount_xattr_fs(container_engine_domain)
+fs_relabelfrom_xattr_fs(container_engine_domain)
+
+fs_getattr_cgroup(container_engine_domain)
+fs_manage_cgroup_dirs(container_engine_domain)
+fs_manage_cgroup_files(container_engine_domain)
+fs_watch_cgroup_files(container_engine_domain)
+fs_mount_cgroup(container_engine_domain)
+fs_remount_cgroup(container_engine_domain)
+fs_mounton_cgroup(container_engine_domain)
+
+fs_list_hugetlbfs(container_engine_domain)
+
+kernel_getattr_proc(container_engine_domain)
+kernel_mount_proc(container_engine_domain)
+kernel_remount_proc(container_engine_domain)
+kernel_read_kernel_sysctls(container_engine_domain)
+kernel_read_network_state(container_engine_domain)
+kernel_read_system_state(container_engine_domain)
+kernel_rw_net_sysctls(container_engine_domain)
+kernel_dontaudit_search_kernel_sysctl(container_engine_domain)
+
+selinux_get_fs_mount(container_engine_domain)
+selinux_mount_fs(container_engine_domain)
+selinux_remount_fs(container_engine_domain)
+selinux_unmount_fs(container_engine_domain)
+seutil_read_config(container_engine_domain)
+seutil_read_default_contexts(container_engine_domain)
+
+term_create_pty(container_engine_domain, container_devpts_t)
+term_mount_devpts(container_engine_domain)
+term_relabel_pty_fs(container_engine_domain)
+
+init_read_state(container_engine_domain)
+
+miscfiles_read_generic_certs(container_engine_domain)
+miscfiles_read_localization(container_engine_domain)
+miscfiles_dontaudit_setattr_fonts_cache_dirs(container_engine_domain)
+
+modutils_domtrans(container_engine_domain)
+
+sysnet_exec_ifconfig(container_engine_domain)
+sysnet_create_netns_dirs(container_engine_domain)
+# nsfs mountpoints get created in /run/netns, which
+# will be labeled nsfs_t once bind-mounted
+sysnet_netns_filetrans(container_engine_domain, container_runtime_t, file)
+
+userdom_use_user_ptys(container_engine_domain)
+
+can_exec(container_engine_domain, container_engine_exec_type)
+
+list_dirs_pattern(container_engine_domain, container_config_t, container_config_t)
+read_files_pattern(container_engine_domain, container_config_t, container_config_t)
+read_lnk_files_pattern(container_engine_domain, container_config_t, container_config_t)
+
+allow container_engine_domain container_engine_tmp_t:dir manage_dir_perms;
+allow container_engine_domain container_engine_tmp_t:file manage_file_perms;
+allow container_engine_domain container_engine_tmp_t:fifo_file manage_fifo_file_perms;
+# needed when manually spawning processes inside containers
+allow container_engine_domain container_engine_tmp_t:sock_file manage_sock_file_perms;
+files_tmp_filetrans(container_engine_domain, container_engine_tmp_t, { dir file sock_file })
+
+allow container_engine_domain container_engine_tmpfs_t:dir { manage_dir_perms relabel_dir_perms };
+allow container_engine_domain container_engine_tmpfs_t:file { manage_file_perms relabel_file_perms exec_file_perms };
+allow container_engine_domain container_engine_tmpfs_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+allow container_engine_domain container_engine_tmpfs_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+allow container_engine_domain container_engine_tmpfs_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_domain container_engine_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+fs_tmpfs_filetrans(container_engine_domain, container_engine_tmpfs_t, { dir file })
+
+allow container_engine_domain container_file_t:dir { manage_dir_perms relabel_dir_perms };
+allow container_engine_domain container_file_t:file { manage_file_perms relabel_file_perms exec_file_perms };
+allow container_engine_domain container_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+allow container_engine_domain container_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+allow container_engine_domain container_file_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_domain container_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_domain container_file_t:filesystem { getattr relabelfrom relabelto mount unmount remount };
+
+allow container_engine_domain container_ro_file_t:dir { manage_dir_perms relabel_dir_perms };
+allow container_engine_domain container_ro_file_t:file { manage_file_perms relabel_file_perms exec_file_perms };
+allow container_engine_domain container_ro_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+allow container_engine_domain container_ro_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+allow container_engine_domain container_ro_file_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_domain container_ro_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_domain container_ro_file_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+ifdef(`init_systemd',`
+	# needed by runc, which is also invoked by other engines
+	init_bpf_run(container_engine_domain)
+')
+
+optional_policy(`
+	iptables_domtrans(container_engine_domain)
+')
+
+########################################
+#
+# Common system container engine local policy
+#
+
+allow container_engine_system_domain container_domain:process { sigkill signal signull transition };
+allow container_engine_system_domain container_domain:key { create search setattr view };
+
+ps_process_pattern(container_engine_system_domain, container_system_domain)
+allow container_system_domain container_engine_system_domain:fd use;
+allow container_system_domain container_engine_system_domain:fifo_file rw_fifo_file_perms;
+
+create_dirs_pattern(container_engine_system_domain, container_config_t, container_config_t)
+files_etc_filetrans(container_engine_system_domain, container_config_t, dir)
+
+manage_dirs_pattern(container_engine_system_domain, container_log_t, container_log_t)
+manage_files_pattern(container_engine_system_domain, container_log_t, container_log_t)
+logging_log_filetrans(container_engine_system_domain, container_log_t, { dir file })
+
+allow container_engine_system_domain container_var_lib_t:dir { manage_dir_perms relabel_dir_perms watch };
+allow container_engine_system_domain container_var_lib_t:file { manage_file_perms relabel_file_perms exec_file_perms };
+allow container_engine_system_domain container_var_lib_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+allow container_engine_system_domain container_var_lib_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+allow container_engine_system_domain container_var_lib_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_system_domain container_var_lib_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_system_domain container_var_lib_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+files_var_lib_filetrans(container_engine_system_domain, container_var_lib_t, dir)
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, file, "config.env")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, file, "hosts")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, file, "hostname")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, file, "resolv.conf")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "init")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay-images")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay-layers")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay2")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay2-images")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_ro_file_t, dir, "overlay2-layers")
+filetrans_pattern(container_engine_system_domain, container_var_lib_t, container_file_t, dir, "volumes")
+
+allow container_engine_system_domain container_runtime_t:dir { manage_dir_perms relabel_dir_perms watch };
+allow container_engine_system_domain container_runtime_t:file { manage_file_perms relabel_file_perms watch };
+allow container_engine_system_domain container_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_system_domain container_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_system_domain container_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+files_runtime_filetrans(container_engine_system_domain, container_runtime_t, { dir file })
+
+allow container_engine_system_domain container_engine_cache_t:dir manage_dir_perms;
+allow container_engine_system_domain container_engine_cache_t:file manage_file_perms;
+files_var_filetrans(container_engine_system_domain, container_engine_cache_t, { dir file })
+
+########################################
+#
+# Common user container engine local policy
+#
+
+allow container_engine_user_domain self:tun_socket create_socket_perms;
+
+allow container_engine_user_domain container_user_domain:process { sigkill signal signull transition };
+allow container_engine_user_domain container_user_domain:key { create search setattr view };
+
+ps_process_pattern(container_engine_user_domain, container_user_domain)
+allow container_user_domain container_engine_user_domain:fd use;
+allow container_user_domain container_engine_user_domain:fifo_file rw_fifo_file_perms;
+
+userdom_list_user_home_content(container_engine_user_domain)
+
+xdg_search_config_dirs(container_engine_user_domain)
+
+allow container_engine_user_domain container_user_runtime_t:dir { manage_dir_perms relabel_dir_perms watch };
+allow container_engine_user_domain container_user_runtime_t:file { manage_file_perms relabel_file_perms watch };
+allow container_engine_user_domain container_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_user_domain container_user_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_user_domain container_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+# file and sock_file filetrans to support rootless docker
+userdom_user_runtime_filetrans(container_engine_user_domain, container_user_runtime_t, { dir file sock_file })
+
+allow container_engine_user_domain container_cache_home_t:dir manage_dir_perms;
+allow container_engine_user_domain container_cache_home_t:file manage_file_perms;
+xdg_cache_filetrans(container_engine_user_domain, container_cache_home_t, dir)
+
+allow container_engine_user_domain container_conf_home_t:dir manage_dir_perms;
+allow container_engine_user_domain container_conf_home_t:file manage_file_perms;
+xdg_config_filetrans(container_engine_user_domain, container_conf_home_t, dir)
+
+allow container_engine_user_domain container_data_home_t:dir { manage_dir_perms relabel_dir_perms watch };
+allow container_engine_user_domain container_data_home_t:file { manage_file_perms relabel_file_perms exec_file_perms };
+allow container_engine_user_domain container_data_home_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+allow container_engine_user_domain container_data_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+allow container_engine_user_domain container_data_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+allow container_engine_user_domain container_data_home_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+xdg_data_filetrans(container_engine_user_domain, container_data_home_t, dir)
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, file, "config.env")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, file, "hosts")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, file, "resolv.conf")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, file, "hostname")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "init")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "fuse-overlayfs")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay-images")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay-layers")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay2")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay2-images")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay2-layers")
+filetrans_pattern(container_engine_user_domain, container_data_home_t, container_file_t, dir, "volumes")

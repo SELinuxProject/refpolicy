@@ -26,33 +26,166 @@ template(`container_domain_template',`
 
 ########################################
 ## <summary>
-##	Execute container domains in their
-##	domain, and allow the specified
-##	role that container domain.
+##	The template to define a container
+##	engine domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`container_engine_domain_template',`
+	gen_require(`
+		attribute_role container_roles;
+		attribute container_engine_domain;
+	')
+
+	type $1_t, container_engine_domain;
+	role container_roles types $1_t;
+	domain_type($1_t)
+	domain_subj_id_change_exemption($1_t)
+	domain_obj_id_change_exemption($1_t)
+	domain_role_change_exemption($1_t)
+
+	mls_file_read_to_clearance($1_t)
+	mls_file_write_to_clearance($1_t)
+
+	auth_use_nsswitch($1_t)
+	storage_raw_rw_fixed_disk($1_t)
+
+	optional_policy(`
+		dbus_list_system_bus_runtime($1_t)
+		dbus_system_bus_client($1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Allow the specified container engine
+##	domain all the rules required to
+##	function as a system container engine.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_system_engine',`
+	gen_require(`
+		attribute container_engine_system_domain;
+	')
+
+	typeattribute $1 container_engine_system_domain;
+')
+
+#######################################
+## <summary>
+##	Allow the specified container engine
+##	domain all the rules required to
+##	function as a user container engine.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_user_engine',`
+	gen_require(`
+		attribute container_engine_user_domain;
+	')
+
+	typeattribute $1 container_engine_user_domain;
+')
+
+########################################
+## <summary>
+##	Execute generic container engines in the
+##	container engine domain.
+## </summary>
+## <param name="domain">
+## <summary>
 ##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`container_domtrans_generic_engine',`
+	gen_require(`
+		type container_engine_t, container_engine_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, container_engine_exec_t, container_engine_t)
+')
+
+########################################
+## <summary>
+##	Execute generic container engines in the
+##	container engine domain, and allow the
+##	specified role the container domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition
 ##	</summary>
 ## </param>
 ## <param name="role">
 ##	<summary>
-##	Role allowed access.
+##	The role to be allowed the container domain.
 ##	</summary>
 ## </param>
 #
-interface(`container_run_container_domain',`
+interface(`container_run_generic_engine',`
 	gen_require(`
-		attribute container_domain;
 		attribute_role container_roles;
 	')
 
-	allow $1 container_domain:process { signal transition };
+	container_domtrans_generic_engine($1)
 	roleattribute $2 container_roles;
+')
 
-	allow container_domain $1:fd use;
-	allow container_domain $1:fifo_file rw_fifo_file_perms;
-	allow container_domain $1:process sigchld;
+########################################
+## <summary>
+##	Make the specified type usable for files
+##	that are executables for container engines.
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used for files.
+##	</summary>
+## </param>
+#
+interface(`container_engine_executable_file',`
+	gen_require(`
+		attribute container_engine_exec_type;
+	')
+
+	typeattribute $1 container_engine_exec_type;
+
+	application_executable_file($1)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	container engines over dbus.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed access.
+## </summary>
+## </param>
+#
+interface(`container_engine_dbus_chat',`
+	gen_require(`
+		attribute container_engine_domain;
+		class dbus send_msg;
+	')
+
+	allow $1 container_engine_domain:dbus send_msg;
+	allow container_engine_domain $1:dbus send_msg;
 ')
 
 ########################################
