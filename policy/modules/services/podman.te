@@ -1,0 +1,50 @@
+policy_module(podman)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(podman)
+container_system_engine(podman_t)
+type podman_exec_t;
+container_engine_executable_file(podman_exec_t)
+application_domain(podman_t, podman_exec_t)
+init_daemon_domain(podman_t, podman_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(podman_t, podman_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(podman_t)
+
+########################################
+#
+# Podman local policy
+#
+
+logging_send_syslog_msg(podman_t)
+
+userdom_list_user_home_content(podman_t)
+# allow podman to relabel content mounted inside containers
+# when run in rootless mode
+userdom_relabel_generic_user_home_dirs(podman_t)
+userdom_relabel_generic_user_home_files(podman_t)
+
+# when run by root, podman will fail to start if
+# /root/.config/containers is not readable
+container_config_home_filetrans(podman_t, dir)
+container_manage_home_config(podman_t)
+
+ifdef(`init_systemd',`
+	init_dbus_chat(podman_t)
+	init_setsched(podman_t)
+	init_get_generic_units_status(podman_t)
+	init_start_generic_units(podman_t)
+	init_start_system(podman_t)
+	init_stop_system(podman_t)
+
+	# podman can read logs from containers which are
+	# sent to the system journal
+	logging_search_logs(podman_t)
+	systemd_list_journal_dirs(podman_t)
+	systemd_read_journal_files(podman_t)
+')
