@@ -16,6 +16,10 @@ ifdef(`enable_mls',`
 ')
 mls_trusted_object(podman_t)
 
+container_engine_domain_template(podman_user)
+application_domain(podman_user_t, podman_exec_t)
+mls_trusted_object(podman_user_t)
+
 ########################################
 #
 # Podman local policy
@@ -47,4 +51,62 @@ ifdef(`init_systemd',`
 	logging_search_logs(podman_t)
 	systemd_list_journal_dirs(podman_t)
 	systemd_read_journal_files(podman_t)
+')
+
+########################################
+#
+# Rootless Podman local policy
+#
+
+# required by slirp4netns
+files_mounton_etc_dirs(podman_user_t)
+# required by slirp4netns
+files_mounton_runtime_dirs(podman_user_t)
+
+# FUSE access is required for rootless containers
+fs_getattr_fusefs(podman_user_t)
+fs_mount_fusefs(podman_user_t)
+fs_unmount_fusefs(podman_user_t)
+fs_remount_fusefs(podman_user_t)
+fs_manage_fusefs_dirs(podman_user_t)
+fs_manage_fusefs_files(podman_user_t)
+fs_manage_fusefs_symlinks(podman_user_t)
+fs_exec_fusefs_files(podman_user_t)
+fs_mounton_fusefs(podman_user_t)
+
+kernel_read_fs_sysctls(podman_user_t)
+# to read kernel.unprivileged_userns_clone, if present
+kernel_read_sysctl(podman_user_t)
+
+logging_send_syslog_msg(podman_user_t)
+
+init_write_runtime_socket(podman_user_t)
+
+mount_exec(podman_user_t)
+
+storage_rw_fuse(podman_user_t)
+
+# allow podman to relabel content mounted inside containers
+# when run in rootless mode
+userdom_relabel_generic_user_home_dirs(podman_user_t)
+userdom_relabel_generic_user_home_files(podman_user_t)
+
+ifdef(`init_systemd',`
+	# podman queries the cgroup manager (systemd) over the session bus socket
+	dbus_getattr_session_runtime_socket(podman_user_t)
+	dbus_write_session_runtime_socket(podman_user_t)
+
+	# rootless podman must be able to get login state of the user
+	systemd_dbus_chat_logind(podman_user_t)
+
+	# containers are created as transient user units
+	systemd_start_user_runtime_units(podman_user_t)
+	systemd_stop_user_runtime_units(podman_user_t)
+	systemd_status_user_runtime_units(podman_user_t)
+
+	# podman can read logs from containers which are
+	# sent to the user journal
+	logging_search_logs(podman_user_t)
+	systemd_list_journal_dirs(podman_user_t)
+	systemd_read_journal_files(podman_user_t)
 ')

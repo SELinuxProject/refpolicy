@@ -96,6 +96,14 @@ template(`systemd_role_template',`
 	init_linkable_keyring($1_systemd_t)
 	init_list_unit_dirs($1_systemd_t)
 	init_read_generic_units_files($1_systemd_t)
+	# container engines will move container processes to different slices
+	init_dbus_chat($1_systemd_t)
+
+	# the user@.service unit is restarted when containers are created
+	systemd_start_user_manager_units($1_systemd_t)
+	systemd_stop_user_manager_units($1_systemd_t)
+	systemd_reload_user_manager_units($1_systemd_t)
+	systemd_status_user_manager_units($1_systemd_t)
 
 	miscfiles_watch_localization($1_systemd_t)
 
@@ -116,6 +124,7 @@ template(`systemd_role_template',`
 
 	dbus_system_bus_client($1_systemd_t)
 	dbus_spec_session_bus_client($1, $1_systemd_t)
+	dbus_connect_spec_session_bus($1, $1_systemd_t)
 
 	# userdomain rules
 	allow $3 $1_systemd_t:process signal;
@@ -284,6 +293,128 @@ template(`systemd_user_app_status',`
 	# state of the systemd --user instance
 	ps_process_pattern($2, $1_systemd_t)
 	allow $2 $1_systemd_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid) of
+##	the specified systemd user instance.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_read_user_manager_state',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	ps_process_pattern($2, $1_systemd_t)
+')
+
+########################################
+## <summary>
+##	Send a start request to the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_start',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system start;
+')
+
+########################################
+## <summary>
+##	Send a stop request to the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_stop',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system stop;
+')
+
+########################################
+## <summary>
+##	Get the status of the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_status',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system status;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from the
+##	specified systemd user instance over dbus.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_dbus_chat',`
+	gen_require(`
+		type $1_systemd_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_systemd_t:dbus send_msg;
+	allow $1_systemd_t $2:dbus send_msg;
 ')
 
 ######################################

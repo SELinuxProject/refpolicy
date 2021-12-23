@@ -48,6 +48,97 @@ interface(`podman_run',`
 
 ########################################
 ## <summary>
+##	Execute podman in the podman user
+##	domain (rootless podman).
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`podman_domtrans_user',`
+	gen_require(`
+		type podman_user_t, podman_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, podman_exec_t, podman_user_t)
+')
+
+########################################
+## <summary>
+##	Execute podman in the podman user
+##	domain, and allow the specified role
+##	the podman user domain (rootless
+##	podman).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the podman domain.
+##	</summary>
+## </param>
+#
+interface(`podman_run_user',`
+	gen_require(`
+		type podman_user_t;
+	')
+
+	role $2 types podman_user_t;
+
+	podman_domtrans_user($1)
+')
+
+########################################
+## <summary>
+##	Role access for rootless podman.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+template(`podman_user_role',`
+	gen_require(`
+		type podman_user_t;
+	')
+
+	podman_run_user($3, $4)
+
+	optional_policy(`
+		dbus_spec_session_bus_client($1, podman_user_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, podman_user_t)
+	')
+')
+
+########################################
+## <summary>
 ##	All of the rules required to
 ##	administrate a podman
 ##	environment.
