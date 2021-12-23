@@ -757,13 +757,44 @@ interface(`container_getattr_fs',`
 #
 interface(`container_admin',`
 	gen_require(`
-		attribute container_domain;
-		type container_file_t;
+		attribute container_domain, container_engine_domain;
+		type container_file_t, container_ro_file_t;
+		type container_var_lib_t, container_runtime_t;
+		type container_config_t, container_engine_cache_t;
+		type container_engine_tmp_t, container_engine_tmpfs_t;
 	')
+
+	container_run_generic_engine($1, $2)
 
 	allow $1 container_domain:process { ptrace signal_perms };
 	ps_process_pattern($1, container_domain)
 
+	allow $1 container_engine_domain:process { ptrace signal_perms };
+	ps_process_pattern($1, container_engine_domain)
+
+	allow $1 self:cap_userns { kill sys_ptrace };
+
 	files_search_var_lib($1)
+	admin_pattern($1, container_var_lib_t)
 	admin_pattern($1, container_file_t)
+	admin_pattern($1, container_ro_file_t)
+
+	allow $1 container_var_lib_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	allow $1 container_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	allow $1 container_ro_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+
+	files_search_var($1)
+	admin_pattern($1, container_engine_cache_t)
+
+	files_search_runtime($1)
+	admin_pattern($1, container_runtime_t)
+
+	files_search_etc($1)
+	admin_pattern($1, container_config_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, container_engine_tmp_t)
+
+	fs_search_tmpfs($1)
+	admin_pattern($1, container_engine_tmpfs_t)
 ')
