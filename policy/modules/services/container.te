@@ -22,6 +22,9 @@ attribute container_engine_user_domain;
 # containers which require network access
 attribute container_net_domain;
 
+# containers considered privileged
+attribute privileged_container_domain;
+
 attribute container_engine_exec_type;
 
 attribute container_mountpoint_type;
@@ -42,6 +45,13 @@ ifdef(`enable_mls',`
 	init_ranged_daemon_domain(container_engine_t, container_engine_exec_t, s0 - mls_systemhigh)
 ')
 mls_trusted_object(container_engine_t)
+
+type spc_t, container_domain, container_net_domain, container_system_domain, privileged_container_domain;
+domain_type(spc_t)
+role system_r types spc_t;
+
+type spc_user_t, container_domain, container_net_domain, container_user_domain, privileged_container_domain;
+domain_type(spc_user_t)
 
 type container_unit_t;
 init_unit_file(container_unit_t)
@@ -562,3 +572,79 @@ filetrans_pattern(container_engine_user_domain, container_data_home_t, container
 filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay2-images")
 filetrans_pattern(container_engine_user_domain, container_data_home_t, container_ro_file_t, dir, "overlay2-layers")
 filetrans_pattern(container_engine_user_domain, container_data_home_t, container_file_t, dir, "volumes")
+
+########################################
+#
+# Common privileged container local policy
+#
+
+allow privileged_container_domain container_file_t:file entrypoint;
+allow privileged_container_domain container_ro_file_t:file entrypoint;
+allow privileged_container_domain container_var_lib_t:file entrypoint;
+
+optional_policy(`
+	systemd_dbus_chat_machined(privileged_container_domain)
+	systemd_dbus_chat_logind(privileged_container_domain)
+')
+
+########################################
+#
+# spc local policy
+#
+# spc_t is the default type for containers created
+# with the --privileged (or similar) argument
+#
+
+# Containers run from an engine with the --privileged argument are not
+# restricted by the engine. One of these restrictions is a manual
+# transition to the default context for containers, usually container_t.
+# Instead of performing a manual transition when creating a restricted
+# container (default), we do an automatic transition to spc_t when
+# restrictions are disabled.
+domtrans_pattern(container_engine_system_domain, container_file_t, spc_t)
+domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
+domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
+
+allow container_engine_system_domain spc_t:process { setsched signal_perms };
+
+allow spc_t container_engine_system_domain:fifo_file rw_fifo_file_perms;
+
+init_dbus_chat(spc_t)
+
+optional_policy(`
+	dbus_system_bus_client(spc_t)
+	dbus_all_session_bus_client(spc_t)
+')
+
+optional_policy(`
+# If unconfined domains are enabled, spc is also unconfined
+	unconfined_domain_noaudit(spc_t)
+	domain_ptrace_all_domains(spc_t)
+')
+
+########################################
+#
+# spc user local policy
+#
+
+# Similar to above, automatically transition to spc_user_t when a
+# container engine runs a container with the --privileged argument
+domtrans_pattern(container_engine_user_domain, container_file_t, spc_user_t)
+domtrans_pattern(container_engine_user_domain, container_ro_file_t, spc_user_t)
+domtrans_pattern(container_engine_user_domain, container_var_lib_t, spc_user_t)
+fs_fusefs_domtrans(container_engine_user_domain, spc_user_t)
+
+allow container_engine_user_domain spc_user_t:process { setsched signal_perms };
+
+allow spc_user_t container_engine_user_domain:fifo_file rw_fifo_file_perms;
+
+optional_policy(`
+       dbus_system_bus_client(spc_user_t)
+       dbus_all_session_bus_client(spc_user_t)
+')
+
+optional_policy(`
+       # If unconfined domains are enabled, spc is also unconfined
+       unconfined_domain_noaudit(spc_user_t)
+       domain_ptrace_all_domains(spc_user_t)
+')
