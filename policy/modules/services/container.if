@@ -425,6 +425,27 @@ interface(`container_engine_dbus_chat',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to be started
+##	by systemd socket activation using a
+##	named socket labeled the container
+##	runtime type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_runtime_named_socket_activation',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	init_named_socket_activation($1, container_runtime_t)
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to manage
 ##	container engine temporary files.
 ## </summary>
@@ -574,6 +595,28 @@ interface(`container_domtrans',`
 
 ########################################
 ## <summary>
+##	Connect to a system container domain
+##	over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_stream_connect_system_containers',`
+	gen_require(`
+		attribute container_system_domain;
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, container_runtime_t, container_runtime_t, container_system_domain)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
 ##	Connect to a container domain
 ##	over a unix stream socket.
 ## </summary>
@@ -591,6 +634,7 @@ interface(`container_stream_connect_all_containers',`
 
 	files_search_runtime($1)
 	stream_connect_pattern($1, container_runtime_t, container_runtime_t, container_domain)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
 ')
 
 ########################################
@@ -648,6 +692,25 @@ interface(`container_mountpoint',`
 	')
 
 	typeattribute $1 container_mountpoint_type;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_config_files',`
+	gen_require(`
+		type container_config_t;
+	')
+
+	manage_files_pattern($1, container_config_t, container_config_t)
 ')
 
 ########################################
@@ -1164,6 +1227,39 @@ interface(`container_manage_var_lib_sock_files',`
 	')
 
 	manage_sock_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in unlabeled directories with
+##	an automatic type transition to the
+##	container var lib type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_unlabeled_var_lib_filetrans',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	# This access is to workaround an issue in Docker
+	# See: https://github.com/moby/moby/issues/43088
+	kernel_unlabeled_filetrans($1, container_var_lib_t, $2, $3)
 ')
 
 ########################################
