@@ -376,7 +376,8 @@ interface(`userdom_ro_home_role',`
 #
 interface(`userdom_manage_home_role',`
 	gen_require(`
-		type user_home_t, user_home_dir_t, user_cert_t;
+		type user_home_t, user_home_dir_t;
+		type user_bin_t, user_cert_t;
 	')
 
 	##############################
@@ -410,6 +411,10 @@ interface(`userdom_manage_home_role',`
 	allow $2 user_home_t:sock_file { watch watch_mount watch_sb watch_with_perm watch_reads };
 	allow $2 user_home_t:fifo_file { watch watch_mount watch_sb watch_with_perm watch_reads };
 
+	userdom_manage_user_bin($2)
+	userdom_exec_user_bin_files($2)
+	userdom_user_home_dir_filetrans($2, user_bin_t, dir, "bin")
+
 	userdom_manage_user_certs($2)
 	userdom_user_home_dir_filetrans($2, user_cert_t, dir, ".pki")
 
@@ -433,6 +438,10 @@ interface(`userdom_manage_home_role',`
 	',`
 		fs_dontaudit_manage_cifs_dirs($2)
 		fs_dontaudit_manage_cifs_files($2)
+	')
+
+	optional_policy(`
+		xdg_data_filetrans($2, user_bin_t, dir, "bin")
 	')
 ')
 
@@ -2736,6 +2745,47 @@ interface(`userdom_user_home_dir_filetrans_user_home_content',`
 	')
 
 	filetrans_pattern($1, user_home_dir_t, user_home_t, $2, $3)
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Execute user executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_exec_user_bin_files',`
+	gen_require(`
+		type user_bin_t;
+	')
+
+	exec_files_pattern($1, user_bin_t, user_bin_t)
+	read_lnk_files_pattern($1, user_bin_t, user_bin_t)
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Manage user executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_manage_user_bin',`
+	gen_require(`
+		type user_bin_t;
+	')
+
+	allow $1 user_bin_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $1 user_bin_t:file { manage_file_perms relabel_file_perms };
+	allow $1 user_bin_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	files_search_home($1)
 ')
 
