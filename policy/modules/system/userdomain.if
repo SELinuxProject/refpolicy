@@ -376,7 +376,8 @@ interface(`userdom_ro_home_role',`
 #
 interface(`userdom_manage_home_role',`
 	gen_require(`
-		type user_home_t, user_home_dir_t, user_cert_t;
+		type user_home_t, user_home_dir_t;
+		type user_bin_t, user_cert_t;
 	')
 
 	##############################
@@ -410,6 +411,10 @@ interface(`userdom_manage_home_role',`
 	allow $2 user_home_t:sock_file { watch watch_mount watch_sb watch_with_perm watch_reads };
 	allow $2 user_home_t:fifo_file { watch watch_mount watch_sb watch_with_perm watch_reads };
 
+	userdom_manage_user_bin($2)
+	userdom_exec_user_bin_files($2)
+	userdom_user_home_dir_filetrans($2, user_bin_t, dir, "bin")
+
 	userdom_manage_user_certs($2)
 	userdom_user_home_dir_filetrans($2, user_cert_t, dir, ".pki")
 
@@ -433,6 +438,10 @@ interface(`userdom_manage_home_role',`
 	',`
 		fs_dontaudit_manage_cifs_dirs($2)
 		fs_dontaudit_manage_cifs_files($2)
+	')
+
+	optional_policy(`
+		xdg_data_filetrans($2, user_bin_t, dir, "bin")
 	')
 ')
 
@@ -1327,6 +1336,7 @@ template(`userdom_admin_user_template',`
 	#
 
 	allow $1_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_admin sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease setfcap };
+	allow $1_t self:cap_userns sys_ptrace;
 	allow $1_t self:process { setexec setfscreate };
 	allow $1_t self:netlink_audit_socket nlmsg_readpriv;
 	allow $1_t self:tun_socket create;
@@ -2346,6 +2356,42 @@ interface(`userdom_delete_user_home_content_files',`
 
 ########################################
 ## <summary>
+##	Relabel generic user home dirs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_relabel_generic_user_home_dirs',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	allow $1 user_home_t:dir relabel_dir_perms;
+')
+
+########################################
+## <summary>
+##	Relabel generic user home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_relabel_generic_user_home_files',`
+	gen_require(`
+		type user_home_t;
+	')
+
+	allow $1 user_home_t:file relabel_file_perms;
+')
+
+########################################
+## <summary>
 ##	Do not audit attempts to relabel user home files.
 ## </summary>
 ## <param name="domain">
@@ -2699,6 +2745,47 @@ interface(`userdom_user_home_dir_filetrans_user_home_content',`
 	')
 
 	filetrans_pattern($1, user_home_dir_t, user_home_t, $2, $3)
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Execute user executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_exec_user_bin_files',`
+	gen_require(`
+		type user_bin_t;
+	')
+
+	exec_files_pattern($1, user_bin_t, user_bin_t)
+	read_lnk_files_pattern($1, user_bin_t, user_bin_t)
+	files_search_home($1)
+')
+
+########################################
+## <summary>
+##	Manage user executable files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`userdom_manage_user_bin',`
+	gen_require(`
+		type user_bin_t;
+	')
+
+	allow $1 user_bin_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $1 user_bin_t:file { manage_file_perms relabel_file_perms };
+	allow $1 user_bin_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	files_search_home($1)
 ')
 
@@ -3419,6 +3506,25 @@ interface(`userdom_search_user_runtime_root',`
 
 	allow $1 user_runtime_root_t:dir search_dir_perms;
 	files_search_runtime($1)
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to search
+##	user runtime root directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to not audit.
+##	</summary>
+## </param>
+#
+interface(`userdom_dontaudit_search_user_runtime_root',`
+	gen_require(`
+		type user_runtime_root_t;
+	')
+
+	dontaudit $1 user_runtime_root_t:dir search;
 ')
 
 ########################################

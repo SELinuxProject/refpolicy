@@ -1,0 +1,1396 @@
+## <summary>Policy for containers</summary>
+
+#######################################
+## <summary>
+##	The template to define a container domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`container_domain_template',`
+	gen_require(`
+		attribute_role container_roles;
+		attribute container_domain;
+	')
+
+	type $1_t, container_domain;
+	domain_type($1_t)
+	domain_user_exemption_target($1_t)
+	mls_rangetrans_target($1_t)
+	mcs_constrained($1_t)
+	role container_roles types $1_t;
+')
+
+########################################
+## <summary>
+##	The template to define a container
+##	engine domain.
+## </summary>
+## <param name="domain_prefix">
+##	<summary>
+##	Domain prefix to be used.
+##	</summary>
+## </param>
+#
+template(`container_engine_domain_template',`
+	gen_require(`
+		attribute_role container_roles;
+		attribute container_engine_domain;
+	')
+
+	type $1_t, container_engine_domain;
+	role container_roles types $1_t;
+	domain_type($1_t)
+	domain_subj_id_change_exemption($1_t)
+	domain_obj_id_change_exemption($1_t)
+	domain_role_change_exemption($1_t)
+
+	mls_file_read_to_clearance($1_t)
+	mls_file_write_to_clearance($1_t)
+
+	auth_use_nsswitch($1_t)
+	storage_raw_rw_fixed_disk($1_t)
+
+	optional_policy(`
+		dbus_list_system_bus_runtime($1_t)
+		dbus_system_bus_client($1_t)
+	')
+')
+
+#######################################
+## <summary>
+##	Allow the specified container engine
+##	domain all the rules required to
+##	function as a system container engine.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_system_engine',`
+	gen_require(`
+		attribute container_engine_system_domain;
+	')
+
+	typeattribute $1 container_engine_system_domain;
+')
+
+#######################################
+## <summary>
+##	Allow the specified container engine
+##	domain all the rules required to
+##	function as a user container engine.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_user_engine',`
+	gen_require(`
+		attribute container_engine_user_domain;
+	')
+
+	typeattribute $1 container_engine_user_domain;
+')
+
+########################################
+## <summary>
+##	Base role access for containers. This
+##	grants all the rules necessary for
+##	common container usage.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+template(`container_base_role',`
+	gen_require(`
+		type container_file_t, container_ro_file_t;
+		type container_config_t;
+	')
+
+	container_run_generic_engine($3, $4)
+
+	container_engine_dbus_chat($2)
+
+	allow $3 self:cap_userns { kill sys_ptrace };
+
+	files_search_etc($2)
+	read_files_pattern($2, container_config_t, container_config_t)
+
+	allow $2 container_file_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_file_t:file { manage_file_perms relabel_file_perms };
+	allow $2 container_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 container_file_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	allow $2 container_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+	allow $2 container_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+
+	allow $2 container_ro_file_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_ro_file_t:file { manage_file_perms relabel_file_perms };
+	allow $2 container_ro_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 container_ro_file_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	allow $2 container_ro_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+	allow $2 container_ro_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+')
+
+########################################
+## <summary>
+##	Role access for system containers.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+template(`container_system_role',`
+	gen_require(`
+		attribute container_system_domain;
+		attribute container_engine_system_domain;
+	')
+
+	role $4 types container_engine_system_domain;
+
+	container_base_role($1, $2, $3, $4)
+
+	allow container_system_domain $3:unix_stream_socket rw_stream_socket_perms;
+
+	allow $3 container_engine_system_domain:process { ptrace signal_perms };
+	ps_process_pattern($3, container_engine_system_domain)
+')
+
+########################################
+## <summary>
+##	Role access for user containers.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+template(`container_user_role',`
+	gen_require(`
+		attribute container_user_domain;
+		attribute container_engine_user_domain;
+		type container_file_t, container_ro_file_t;
+		type container_user_runtime_t;
+		type container_cache_home_t, container_conf_home_t;
+		type container_data_home_t;
+	')
+
+	role $4 types container_user_domain;
+
+	container_base_role($1, $2, $3, $4)
+
+	allow container_user_domain $3:unix_stream_socket rw_stream_socket_perms;
+
+	allow $3 container_user_domain:process { ptrace signal_perms };
+	ps_process_pattern($3, container_user_domain)
+
+	allow $2 container_user_runtime_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_user_runtime_t:file { manage_file_perms relabel_file_perms };
+	allow $2 container_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 container_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	allow $2 container_cache_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_cache_home_t:file { manage_file_perms relabel_file_perms };
+	xdg_cache_filetrans($2, container_cache_home_t, dir, "containers")
+
+	allow $2 container_conf_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_conf_home_t:file { manage_file_perms relabel_file_perms };
+	xdg_config_filetrans($2, container_conf_home_t, dir, "containers")
+
+	allow $2 container_data_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 container_data_home_t:file { manage_file_perms relabel_file_perms };
+	allow $2 container_data_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $2 container_data_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 container_data_home_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	allow $2 container_data_home_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+	allow $2 container_data_home_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	xdg_data_filetrans($2, container_data_home_t, dir, "containers")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay-images")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay-layers")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2-images")
+	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2-layers")
+	filetrans_pattern($2, container_data_home_t, container_file_t, dir, "volumes")
+
+	optional_policy(`
+		systemd_read_user_manager_state($1, container_engine_user_domain)
+		systemd_user_manager_system_start($1, container_engine_user_domain)
+		systemd_user_manager_system_stop($1, container_engine_user_domain)
+		systemd_user_manager_system_status($1, container_engine_user_domain)
+		systemd_user_manager_dbus_chat($1, container_engine_user_domain)
+
+		systemd_user_app_status($1, container_user_domain)
+	')
+
+	optional_policy(`
+		docker_user_role($1, $2, $3, $4)
+	')
+
+	optional_policy(`
+		podman_user_role($1, $2, $3, $4)
+	')
+')
+
+########################################
+## <summary>
+##	Execute generic container engines in the
+##	container engine domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`container_domtrans_generic_engine',`
+	gen_require(`
+		type container_engine_t, container_engine_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, container_engine_exec_t, container_engine_t)
+')
+
+########################################
+## <summary>
+##	Execute generic container engines in the
+##	container engine domain, and allow the
+##	specified role the container domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the container domain.
+##	</summary>
+## </param>
+#
+interface(`container_run_generic_engine',`
+	gen_require(`
+		attribute_role container_roles;
+	')
+
+	container_domtrans_generic_engine($1)
+	roleattribute $2 container_roles;
+')
+
+########################################
+## <summary>
+##	Make the specified type usable for files
+##	that are executables for container engines.
+## </summary>
+## <param name="type">
+##	<summary>
+##	Type to be used for files.
+##	</summary>
+## </param>
+#
+interface(`container_engine_executable_file',`
+	gen_require(`
+		attribute container_engine_exec_type;
+	')
+
+	typeattribute $1 container_engine_exec_type;
+
+	application_executable_file($1)
+')
+
+########################################
+## <summary>
+##	Execute a generic container engine
+##	executable with an automatic transition
+##	to a private type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="target_domain">
+##	<summary>
+##	The type of the new process.
+##	</summary>
+## </param>
+#
+interface(`container_generic_engine_domtrans',`
+	gen_require(`
+		type container_engine_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, container_engine_exec_t, $2)
+')
+
+########################################
+## <summary>
+##	Allow the generic container engine
+##	executables to be an entrypoint
+##	for the specified domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_engine_executable_entrypoint',`
+	gen_require(`
+		type container_engine_exec_t;
+	')
+
+	allow $1 container_engine_exec_t:file entrypoint;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	container engines over dbus.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed access.
+## </summary>
+## </param>
+#
+interface(`container_engine_dbus_chat',`
+	gen_require(`
+		attribute container_engine_domain;
+		class dbus send_msg;
+	')
+
+	allow $1 container_engine_domain:dbus send_msg;
+	allow container_engine_domain $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to be started
+##	by systemd socket activation using a
+##	named socket labeled the container
+##	runtime type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_runtime_named_socket_activation',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	init_named_socket_activation($1, container_runtime_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	container engine temporary files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_engine_tmp_files',`
+	gen_require(`
+		type container_engine_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 container_engine_tmp_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	container engine temporary named sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_engine_tmp_sock_files',`
+	gen_require(`
+		type container_engine_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 container_engine_tmp_t:sock_file manage_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in generic temporary directories
+##	with an automatic type transition to
+##	the container engine temporary file type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_engine_tmp_filetrans',`
+	gen_require(`
+		type container_engine_tmp_t;
+	')
+
+	files_tmp_filetrans($1, container_engine_tmp_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid)
+##	of all system containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_read_system_container_state',`
+	gen_require(`
+		attribute container_system_domain;
+	')
+
+	ps_process_pattern($1, container_system_domain)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid)
+##	of all user containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_read_user_container_state',`
+	gen_require(`
+		attribute container_user_domain;
+	')
+
+	ps_process_pattern($1, container_user_domain)
+')
+
+########################################
+## <summary>
+##	All of the permissions necessary
+##	for a container engine to manage
+##	container processes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_all_containers',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	allow $1 container_domain:process { getattr getsched setsched transition signal signull sigkill };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	perform a type transition to
+##	container domains.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`container_domtrans',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	allow $1 container_domain:process transition;
+')
+
+########################################
+## <summary>
+##	Connect to a system container domain
+##	over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_stream_connect_system_containers',`
+	gen_require(`
+		attribute container_system_domain;
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, container_runtime_t, container_runtime_t, container_system_domain)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to a user container domain
+##	over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_stream_connect_user_containers',`
+	gen_require(`
+		attribute container_user_domain;
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, container_runtime_t, container_runtime_t, container_user_domain)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Connect to a container domain
+##	over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_stream_connect_all_containers',`
+	gen_require(`
+		attribute container_domain;
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, container_runtime_t, container_runtime_t, container_domain)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	send all signals to a container
+##	domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`container_signal_all_containers',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	allow $1 container_domain:process signal_perms;
+')
+
+########################################
+## <summary>
+##	Set the attributes of container ptys.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_setattr_container_ptys',`
+	gen_require(`
+		type container_devpts_t;
+	')
+
+	allow $1 container_devpts_t:chr_file setattr;
+')
+
+########################################
+## <summary>
+##	Read and write container ptys.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_use_container_ptys',`
+	gen_require(`
+		type container_devpts_t;
+	')
+
+	allow $1 container_devpts_t:chr_file rw_term_perms;
+')
+
+########################################
+## <summary>
+##	Make the specified type usable as a mountpoint
+##	for containers.
+## </summary>
+## <param name="file_type">
+##	<summary>
+##	Type to be used as a mountpoint.
+##	</summary>
+## </param>
+#
+interface(`container_mountpoint',`
+	gen_require(`
+		attribute container_mountpoint_type;
+	')
+
+	typeattribute $1 container_mountpoint_type;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_config_files',`
+	gen_require(`
+		type container_config_t;
+	')
+
+	manage_files_pattern($1, container_config_t, container_config_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	create container files in the
+##	root directory with a type
+##	transition.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_file_root_filetrans',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	files_root_filetrans($1, container_file_t, dir_file_class_set)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container file directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_dirs',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_dirs_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container lnk files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_lnk_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_lnk_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container fifo files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_fifo_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_fifo_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container sock files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_sock_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_sock_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	and write container chr files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_rw_chr_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	allow $1 container_file_t:chr_file rw_chr_file_perms;
+')
+
+########################################
+## <summary>
+##	Do not audit attempts to read
+##	and write container chr files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_dontaudit_rw_chr_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	dontaudit $1 container_file_t:chr_file rw_chr_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container chr files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_chr_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	manage_chr_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container config home content.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_home_config',`
+	gen_require(`
+		type container_conf_home_t;
+	')
+
+	allow $1 container_conf_home_t:dir manage_dir_perms;
+	allow $1 container_conf_home_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in an xdg_config directory
+##	with an automatic type transition to
+##	the container config home type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_config_home_filetrans',`
+	gen_require(`
+		type container_conf_home_t;
+	')
+
+	xdg_search_config_dirs($1)
+	xdg_config_filetrans($1, container_conf_home_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container data home files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_home_data_files',`
+	gen_require(`
+		type container_data_home_t;
+	')
+
+	manage_files_pattern($1, container_data_home_t, container_data_home_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container data home named
+##	pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_home_data_fifo_files',`
+	gen_require(`
+		type container_data_home_t;
+	')
+
+	manage_fifo_files_pattern($1, container_data_home_t, container_data_home_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	manage container data home named
+##	sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_home_data_sock_files',`
+	gen_require(`
+		type container_data_home_t;
+	')
+
+	manage_sock_files_pattern($1, container_data_home_t, container_data_home_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	relabel container files and
+##	directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_relabel_all_content',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	allow $1 container_file_t:dir_file_class_set { relabelfrom relabelto };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	relabel container filesystems.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_relabel_fs',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	allow $1 container_file_t:filesystem { relabelfrom relabelto };
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	get the attributes of container
+##	filesystems.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_getattr_fs',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	allow $1 container_file_t:filesystem getattr;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to search
+##	runtime container directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_search_runtime',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	allow $1 container_runtime_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	runtime container files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_runtime_files',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	manage_files_pattern($1, container_runtime_t, container_runtime_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	runtime container named pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_runtime_fifo_files',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	manage_fifo_files_pattern($1, container_runtime_t, container_runtime_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	runtime container named sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_runtime_sock_files',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	manage_sock_files_pattern($1, container_runtime_t, container_runtime_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	user runtime container files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_user_runtime_files',`
+	gen_require(`
+		type container_user_runtime_t;
+	')
+
+	manage_files_pattern($1, container_user_runtime_t, container_user_runtime_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read and
+##	write user runtime container named sockets.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_rw_user_runtime_sock_files',`
+	gen_require(`
+		type container_user_runtime_t;
+	')
+
+	allow $1 container_user_runtime_t:sock_file rw_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to search
+##	container directories in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_search_var_lib',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 container_var_lib_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	container files in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_var_lib_files',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	manage_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	container named pipes in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_var_lib_fifo_files',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	manage_fifo_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	container named sockets in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_var_lib_sock_files',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	manage_sock_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in unlabeled directories with
+##	an automatic type transition to the
+##	container var lib type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_unlabeled_var_lib_filetrans',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	# This access is to workaround an issue in Docker
+	# See: https://github.com/moby/moby/issues/43088
+	kernel_unlabeled_filetrans($1, container_var_lib_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate a container
+##	environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`container_admin',`
+	gen_require(`
+		attribute container_domain, container_engine_domain;
+		type container_file_t, container_ro_file_t;
+		type container_var_lib_t, container_runtime_t;
+		type container_config_t, container_engine_cache_t;
+		type container_engine_tmp_t, container_engine_tmpfs_t;
+	')
+
+	container_run_generic_engine($1, $2)
+
+	allow $1 container_domain:process { ptrace signal_perms };
+	ps_process_pattern($1, container_domain)
+
+	allow $1 container_engine_domain:process { ptrace signal_perms };
+	ps_process_pattern($1, container_engine_domain)
+
+	allow $1 self:cap_userns { kill sys_ptrace };
+
+	files_search_var_lib($1)
+	admin_pattern($1, container_var_lib_t)
+	admin_pattern($1, container_file_t)
+	admin_pattern($1, container_ro_file_t)
+
+	allow $1 container_var_lib_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	allow $1 container_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	allow $1 container_ro_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+
+	files_search_var($1)
+	admin_pattern($1, container_engine_cache_t)
+
+	files_search_runtime($1)
+	admin_pattern($1, container_runtime_t)
+
+	files_search_etc($1)
+	admin_pattern($1, container_config_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, container_engine_tmp_t)
+
+	fs_search_tmpfs($1)
+	admin_pattern($1, container_engine_tmpfs_t)
+
+	optional_policy(`
+		docker_admin($1, $2)
+	')
+
+	optional_policy(`
+		podman_admin($1, $2)
+	')
+')

@@ -96,6 +96,14 @@ template(`systemd_role_template',`
 	init_linkable_keyring($1_systemd_t)
 	init_list_unit_dirs($1_systemd_t)
 	init_read_generic_units_files($1_systemd_t)
+	# container engines will move container processes to different slices
+	init_dbus_chat($1_systemd_t)
+
+	# the user@.service unit is restarted when containers are created
+	systemd_start_user_manager_units($1_systemd_t)
+	systemd_stop_user_manager_units($1_systemd_t)
+	systemd_reload_user_manager_units($1_systemd_t)
+	systemd_status_user_manager_units($1_systemd_t)
 
 	miscfiles_watch_localization($1_systemd_t)
 
@@ -116,6 +124,9 @@ template(`systemd_role_template',`
 
 	dbus_system_bus_client($1_systemd_t)
 	dbus_spec_session_bus_client($1, $1_systemd_t)
+	dbus_connect_spec_session_bus($1, $1_systemd_t)
+
+	userdom_exec_user_bin_files($1_systemd_t)
 
 	# userdomain rules
 	allow $3 $1_systemd_t:process signal;
@@ -248,6 +259,35 @@ interface(`systemd_user_unix_stream_activated_socket',`
 
 ######################################
 ## <summary>
+##	Allow the target domain the permissions necessary
+##	to use systemd notify when started by the specified
+##	systemd user instance.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain to be allowed systemd notify permissions.
+##	</summary>
+## </param>
+#
+template(`systemd_user_send_systemd_notify',`
+	gen_require(`
+		type $1_systemd_t;
+		type systemd_user_runtime_notify_t;
+	')
+
+	systemd_search_user_runtime($2)
+	allow $2 systemd_user_runtime_notify_t:sock_file rw_sock_file_perms;
+
+	allow $2 $1_systemd_t:unix_dgram_socket sendto;
+')
+
+######################################
+## <summary>
 ##   Allow the target domain to be monitored and have its output
 ##   captured by the specified systemd user instance domain.
 ## </summary>
@@ -278,12 +318,134 @@ template(`systemd_user_app_status',`
 	ps_process_pattern($1_systemd_t, $2)
 	allow $1_systemd_t $2:process signal_perms;
 	allow $2 $1_systemd_t:fd use;
-	allow $2 $1_systemd_t:unix_stream_socket rw_socket_perms;
+	allow $2 $1_systemd_t:unix_stream_socket rw_stream_socket_perms;
 
 	# apps run by systemd --user instances need to be able to read the
 	# state of the systemd --user instance
 	ps_process_pattern($2, $1_systemd_t)
 	allow $2 $1_systemd_t:process sigchld;
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid) of
+##	the specified systemd user instance.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_read_user_manager_state',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	ps_process_pattern($2, $1_systemd_t)
+')
+
+########################################
+## <summary>
+##	Send a start request to the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_start',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system start;
+')
+
+########################################
+## <summary>
+##	Send a stop request to the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_stop',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system stop;
+')
+
+########################################
+## <summary>
+##	Get the status of the specified
+##	systemd user instance system object.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_system_status',`
+	gen_require(`
+		type $1_systemd_t;
+	')
+
+	allow $2 $1_systemd_t:system status;
+')
+
+########################################
+## <summary>
+##	Send and receive messages from the
+##	specified systemd user instance over dbus.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for the user domain.
+##	</summary>
+## </param>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+template(`systemd_user_manager_dbus_chat',`
+	gen_require(`
+		type $1_systemd_t;
+		class dbus send_msg;
+	')
+
+	allow $2 $1_systemd_t:dbus send_msg;
+	allow $1_systemd_t $2:dbus send_msg;
 ')
 
 ######################################
@@ -461,6 +623,25 @@ interface(`systemd_read_user_runtime_lnk_files',`
 	')
 
 	read_lnk_files_pattern($1, systemd_user_runtime_t, systemd_user_runtime_t)
+')
+
+######################################
+## <summary>
+##	Allow the specified domain to write to
+##	the systemd user runtime named socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_write_user_runtime_socket',`
+	gen_require(`
+		type systemd_user_runtime_t;
+	')
+
+	allow $1 systemd_user_runtime_t:sock_file write;
 ')
 
 ######################################
@@ -1095,6 +1276,27 @@ interface(`systemd_connect_machined',`
 ########################################
 ## <summary>
 ##   Send and receive messages from
+##   systemd machined over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_dbus_chat_machined',`
+	gen_require(`
+		type systemd_machined_t;
+		class dbus send_msg;
+	')
+
+	allow $1 systemd_machined_t:dbus send_msg;
+	allow systemd_machined_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##   Send and receive messages from
 ##   systemd hostnamed over dbus.
 ## </summary>
 ## <param name="domain">
@@ -1613,6 +1815,86 @@ interface(`systemd_read_logind_state',`
 
 	allow systemd_logind_t $1:dir list_dir_perms;
 	allow systemd_logind_t $1:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to start systemd
+##	user manager units (systemd --user).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_start_user_manager_units',`
+	gen_require(`
+		type systemd_user_manager_unit_t;
+		class service start;
+	')
+
+	allow $1 systemd_user_manager_unit_t:service start;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to stop systemd
+##	user manager units (systemd --user).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_stop_user_manager_units',`
+	gen_require(`
+		type systemd_user_manager_unit_t;
+		class service stop;
+	')
+
+	allow $1 systemd_user_manager_unit_t:service stop;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to reload systemd
+##	user manager units (systemd --user).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_reload_user_manager_units',`
+	gen_require(`
+		type systemd_user_manager_unit_t;
+		class service reload;
+	')
+
+	allow $1 systemd_user_manager_unit_t:service reload;
+')
+
+########################################
+## <summary>
+##	Get the status of systemd user manager
+##	units (systemd --user).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_status_user_manager_units',`
+	gen_require(`
+		type systemd_user_manager_unit_t;
+		class service status;
+	')
+
+	allow $1 systemd_user_manager_unit_t:service status;
 ')
 
 ########################################

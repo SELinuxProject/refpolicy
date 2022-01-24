@@ -1,0 +1,167 @@
+policy_module(docker)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(dockerd)
+container_system_engine(dockerd_t)
+type dockerd_exec_t;
+container_engine_executable_file(dockerd_exec_t)
+application_domain(dockerd_t, dockerd_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(dockerd_t, dockerd_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(dockerd_t)
+
+type dockerc_t;
+type dockerc_exec_t;
+container_engine_executable_file(dockerc_t)
+application_domain(dockerc_t, dockerc_exec_t)
+
+container_engine_domain_template(dockerd_user)
+container_user_engine(dockerd_user_t)
+application_domain(dockerd_user_t, dockerd_exec_t)
+mls_trusted_object(dockerd_user_t)
+
+type dockerc_user_t;
+application_domain(dockerc_user_t, dockerc_exec_t)
+
+########################################
+#
+# Docker daemon local policy
+#
+
+allow dockerd_t self:netlink_netfilter_socket create_socket_perms;
+allow dockerd_t self:netlink_xfrm_socket create_socket_perms;
+
+init_write_runtime_socket(dockerd_t)
+container_runtime_named_socket_activation(dockerd_t)
+
+# docker fails to start if /proc/kallsyms is unreadable,
+# but only when btrfs support is disabled
+files_read_kernel_symbol_table(dockerd_t)
+files_dontaudit_write_usr_dirs(dockerd_t)
+
+kernel_relabelfrom_unlabeled_dirs(dockerd_t)
+# docker wants to load binfmt_misc
+kernel_request_load_module(dockerd_t)
+kernel_dontaudit_search_fs_sysctls(dockerd_t)
+
+logging_send_syslog_msg(dockerd_t)
+
+container_stream_connect_system_containers(dockerd_t)
+
+# docker manages key.json in /etc/docker
+container_manage_config_files(dockerd_t)
+
+# In btrfs mode, docker creates subvolumes which are unlabeled
+# in /var/lib/docker/btrfs/subvolumes. The files inside will
+# become labeled with a file transition, but the subvolume
+# root will always be unlabeled.
+container_unlabeled_var_lib_filetrans(dockerd_t, dir)
+
+ifdef(`init_systemd',`
+	init_dbus_chat(dockerd_t)
+	init_get_generic_units_status(dockerd_t)
+	init_start_generic_units(dockerd_t)
+	init_start_system(dockerd_t)
+	init_stop_system(dockerd_t)
+')
+
+########################################
+#
+# Docker CLI local policy
+#
+
+allow dockerc_t self:process { getsched signal };
+allow dockerc_t self:fifo_file rw_fifo_file_perms;
+
+allow dockerc_t dockerd_t:unix_stream_socket connectto;
+
+corecmd_dontaudit_search_bin(dockerc_t)
+
+domain_use_interactive_fds(dockerc_t)
+
+auth_use_nsswitch(dockerc_t)
+
+miscfiles_read_localization(dockerc_t)
+
+userdom_use_user_ptys(dockerc_t)
+
+container_stream_connect_system_containers(dockerc_t)
+
+########################################
+#
+# Rootless Docker daemon local policy
+#
+
+# rootless docker is really just docker running as root, but in a user namespace
+
+allow dockerd_user_t self:netlink_netfilter_socket create_socket_perms;
+allow dockerd_user_t self:netlink_xfrm_socket create_socket_perms;
+
+fs_getattr_fusefs(dockerd_user_t)
+fs_mount_fusefs(dockerd_user_t)
+fs_unmount_fusefs(dockerd_user_t)
+fs_remount_fusefs(dockerd_user_t)
+fs_manage_fusefs_dirs(dockerd_user_t)
+fs_manage_fusefs_files(dockerd_user_t)
+fs_manage_fusefs_symlinks(dockerd_user_t)
+fs_exec_fusefs_files(dockerd_user_t)
+fs_mounton_fusefs(dockerd_user_t)
+
+kernel_dontaudit_request_load_module(dockerd_user_t)
+
+storage_rw_fuse(dockerd_user_t)
+
+init_write_runtime_socket(dockerd_user_t)
+
+logging_send_syslog_msg(dockerd_user_t)
+
+mount_exec(dockerd_user_t)
+
+container_setattr_container_ptys(dockerd_user_t)
+container_use_container_ptys(dockerd_user_t)
+
+rootlesskit_exec(dockerd_user_t)
+
+ifdef(`init_systemd',`
+	systemd_search_user_runtime(dockerd_user_t)
+	systemd_write_user_runtime_socket(dockerd_user_t)
+	systemd_start_user_runtime_units(dockerd_user_t)
+	systemd_stop_user_runtime_units(dockerd_user_t)
+	systemd_status_user_runtime_units(dockerd_user_t)
+')
+
+optional_policy(`
+	dbus_getattr_session_runtime_socket(dockerd_user_t)
+	dbus_write_session_runtime_socket(dockerd_user_t)
+')
+
+########################################
+#
+# Rootless Docker CLI local policy
+#
+
+allow dockerc_user_t self:process { getsched signal };
+allow dockerc_user_t self:fifo_file rw_fifo_file_perms;
+
+allow dockerc_user_t dockerd_user_t:unix_stream_socket connectto;
+
+corecmd_search_bin(dockerc_user_t)
+
+domain_use_interactive_fds(dockerc_user_t)
+
+auth_use_nsswitch(dockerc_user_t)
+
+miscfiles_read_localization(dockerc_user_t)
+
+userdom_use_user_ptys(dockerc_user_t)
+userdom_search_user_home_dirs(dockerc_user_t)
+userdom_search_user_runtime(dockerc_user_t)
+
+xdg_search_data_dirs(dockerc_user_t)
+
+container_stream_connect_user_containers(dockerc_user_t)

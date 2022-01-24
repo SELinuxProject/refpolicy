@@ -1,0 +1,106 @@
+## <summary>Policy for RootlessKit</summary>
+
+########################################
+## <summary>
+##	Execute rootlesskit in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rootlesskit_exec',`
+	gen_require(`
+		type rootlesskit_exec_t;
+	')
+
+	can_exec($1, rootlesskit_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute rootlesskit in the rootlesskit domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`rootlesskit_domtrans',`
+	gen_require(`
+		type rootlesskit_t, rootlesskit_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, rootlesskit_exec_t, rootlesskit_t)
+')
+
+########################################
+## <summary>
+##	Execute rootlesskit in the rootlesskit
+##	domain, and allow the specified role
+##	the rootlesskit domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the rootlesskit domain.
+##	</summary>
+## </param>
+#
+interface(`rootlesskit_run',`
+	gen_require(`
+		type rootlesskit_t;
+	')
+
+	role $2 types rootlesskit_t;
+
+	rootlesskit_domtrans($1)
+')
+
+########################################
+## <summary>
+##	Role access for rootlesskit.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+template(`rootlesskit_role',`
+	gen_require(`
+		type rootlesskit_t;
+		type rootlesskit_exec_t;
+	')
+
+	rootlesskit_run($3, $4)
+
+	optional_policy(`
+		systemd_user_daemon_domain($1, rootlesskit_exec_t, rootlesskit_t)
+	')
+')
+

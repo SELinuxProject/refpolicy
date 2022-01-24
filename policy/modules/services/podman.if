@@ -1,0 +1,258 @@
+## <summary>Policy for podman</summary>
+
+########################################
+## <summary>
+##	Execute podman in the podman domain.
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`podman_domtrans',`
+	gen_require(`
+		type podman_t, podman_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, podman_exec_t, podman_t)
+')
+
+########################################
+## <summary>
+##	Execute podman in the podman domain,
+##	and allow the specified role the
+##	podman domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the podman domain.
+##	</summary>
+## </param>
+#
+interface(`podman_run',`
+	gen_require(`
+		type podman_t;
+	')
+
+	role $2 types podman_t;
+
+	podman_domtrans($1)
+')
+
+########################################
+## <summary>
+##	Execute podman in the podman user
+##	domain (rootless podman).
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`podman_domtrans_user',`
+	gen_require(`
+		type podman_user_t, podman_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, podman_exec_t, podman_user_t)
+')
+
+########################################
+## <summary>
+##	Execute podman in the podman user
+##	domain, and allow the specified role
+##	the podman user domain (rootless
+##	podman).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the podman domain.
+##	</summary>
+## </param>
+#
+interface(`podman_run_user',`
+	gen_require(`
+		type podman_user_t;
+	')
+
+	role $2 types podman_user_t;
+
+	podman_domtrans_user($1)
+')
+
+########################################
+## <summary>
+##	Execute conmon in the conmon domain.
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`podman_domtrans_conmon',`
+	gen_require(`
+		type podman_conmon_t, podman_conmon_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, podman_conmon_exec_t, podman_conmon_t)
+')
+
+########################################
+## <summary>
+##	Execute conmon in the conmon domain,
+##	and allow the specified role the
+##	conmon domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the conmon domain.
+##	</summary>
+## </param>
+#
+interface(`podman_run_conmon',`
+	gen_require(`
+		type podman_conmon_t;
+	')
+
+	role $2 types podman_conmon_t;
+
+	podman_domtrans_conmon($1)
+')
+
+########################################
+## <summary>
+##	Execute conmon in the conmon user
+##	domain (rootless podman).
+## </summary>
+## <param name="domain">
+## 	<summary>
+##	Domain allowed to transition.
+## 	</summary>
+## </param>
+#
+interface(`podman_domtrans_conmon_user',`
+	gen_require(`
+		type podman_conmon_user_t, podman_conmon_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, podman_conmon_exec_t, podman_conmon_user_t)
+')
+
+########################################
+## <summary>
+##	Execute conmon in the conmon user
+##	domain, and allow the specified role
+##	the conmon user domain (rootless
+##	podman).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the conmon domain.
+##	</summary>
+## </param>
+#
+interface(`podman_run_conmon_user',`
+	gen_require(`
+		type podman_conmon_user_t;
+	')
+
+	role $2 types podman_conmon_user_t;
+
+	podman_domtrans_conmon_user($1)
+')
+
+########################################
+## <summary>
+##	Role access for rootless podman.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+template(`podman_user_role',`
+	gen_require(`
+		type podman_user_t;
+		type podman_conmon_user_t;
+	')
+
+	podman_run_user($3, $4)
+	podman_run_conmon_user($3, $4)
+
+	optional_policy(`
+		dbus_spec_session_bus_client($1, podman_user_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, podman_user_t)
+		systemd_user_app_status($1, podman_conmon_user_t)
+	')
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate a podman
+##	environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`podman_admin',`
+	podman_run($1, $2)
+	podman_run_conmon($1, $2)
+')

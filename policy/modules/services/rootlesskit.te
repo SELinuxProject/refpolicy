@@ -1,0 +1,46 @@
+policy_module(rootlesskit)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(rootlesskit)
+type rootlesskit_exec_t;
+container_user_engine(rootlesskit_t)
+application_domain(rootlesskit_t, rootlesskit_exec_t)
+mls_trusted_object(rootlesskit_t)
+
+########################################
+#
+# Rootlesskit local policy
+#
+
+# rootlesskit fails without this access
+allow rootlesskit_t self:tun_socket { relabelfrom relabelto };
+
+can_exec(rootlesskit_t, rootlesskit_exec_t)
+
+domain_use_interactive_fds(rootlesskit_t)
+
+# any dir not readable or file not stat-able causes rootlesskit to hang
+# when --copy-up would access it; the below rules cover at least the
+# access needed for rootless docker (copying /etc and /run)
+files_list_all(rootlesskit_t)
+files_getattr_all_files(rootlesskit_t)
+files_getattr_all_pipes(rootlesskit_t)
+files_getattr_all_sockets(rootlesskit_t)
+
+kernel_read_sysctl(rootlesskit_t)
+
+auth_use_nsswitch(rootlesskit_t)
+
+userdom_exec_user_bin_files(rootlesskit_t)
+
+docker_domtrans_user_daemon(rootlesskit_t)
+docker_signal_user_daemon(rootlesskit_t)
+
+optional_policy(`
+	dbus_list_system_bus_runtime(rootlesskit_t)
+	dbus_system_bus_client(rootlesskit_t)
+')

@@ -1,0 +1,270 @@
+policy_module(podman)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(podman)
+container_system_engine(podman_t)
+type podman_exec_t;
+container_engine_executable_file(podman_exec_t)
+application_domain(podman_t, podman_exec_t)
+init_daemon_domain(podman_t, podman_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(podman_t, podman_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(podman_t)
+
+container_engine_domain_template(podman_user)
+container_user_engine(podman_user_t)
+application_domain(podman_user_t, podman_exec_t)
+mls_trusted_object(podman_user_t)
+
+type podman_conmon_t;
+type podman_conmon_exec_t;
+application_domain(podman_conmon_t, podman_conmon_exec_t)
+
+type podman_conmon_user_t;
+application_domain(podman_conmon_user_t, podman_conmon_exec_t)
+
+########################################
+#
+# Podman local policy
+#
+
+allow podman_t podman_conmon_t:process { setsched signull };
+allow podman_t podman_conmon_t:fifo_file setattr;
+allow podman_t podman_conmon_t:unix_stream_socket { connectto rw_stream_socket_perms };
+
+container_engine_executable_entrypoint(podman_t)
+
+domtrans_pattern(podman_t, podman_conmon_exec_t, podman_conmon_t)
+
+logging_send_syslog_msg(podman_t)
+
+userdom_list_user_home_content(podman_t)
+# allow podman to relabel content mounted inside containers
+# when run in rootless mode
+userdom_relabel_generic_user_home_dirs(podman_t)
+userdom_relabel_generic_user_home_files(podman_t)
+
+# when run by root, podman will fail to start if
+# /root/.config/containers is not readable
+container_config_home_filetrans(podman_t, dir)
+container_manage_home_config(podman_t)
+
+container_manage_sock_files(podman_t)
+
+ifdef(`init_systemd',`
+	init_dbus_chat(podman_t)
+	init_setsched(podman_t)
+	init_start_system(podman_t)
+	init_stop_system(podman_t)
+
+	# podman can read logs from containers which are
+	# sent to the system journal
+	logging_search_logs(podman_t)
+	systemd_list_journal_dirs(podman_t)
+	systemd_read_journal_files(podman_t)
+')
+
+########################################
+#
+# Rootless Podman local policy
+#
+
+allow podman_user_t podman_conmon_user_t:process signull;
+allow podman_user_t podman_conmon_user_t:fifo_file setattr;
+allow podman_user_t podman_conmon_user_t:unix_stream_socket { connectto rw_stream_socket_perms };
+
+container_engine_executable_entrypoint(podman_user_t)
+
+domtrans_pattern(podman_user_t, podman_conmon_exec_t, podman_conmon_user_t)
+
+# required by slirp4netns
+files_mounton_etc_dirs(podman_user_t)
+# required by slirp4netns
+files_mounton_runtime_dirs(podman_user_t)
+
+# FUSE access is required for rootless containers
+fs_getattr_fusefs(podman_user_t)
+fs_mount_fusefs(podman_user_t)
+fs_unmount_fusefs(podman_user_t)
+fs_remount_fusefs(podman_user_t)
+fs_manage_fusefs_dirs(podman_user_t)
+fs_manage_fusefs_files(podman_user_t)
+fs_manage_fusefs_symlinks(podman_user_t)
+fs_exec_fusefs_files(podman_user_t)
+fs_mounton_fusefs(podman_user_t)
+
+kernel_read_fs_sysctls(podman_user_t)
+# to read kernel.unprivileged_userns_clone, if present
+kernel_read_sysctl(podman_user_t)
+
+logging_send_syslog_msg(podman_user_t)
+
+init_write_runtime_socket(podman_user_t)
+
+mount_exec(podman_user_t)
+
+storage_rw_fuse(podman_user_t)
+
+# allow podman to relabel content mounted inside containers
+# when run in rootless mode
+userdom_relabel_generic_user_home_dirs(podman_user_t)
+userdom_relabel_generic_user_home_files(podman_user_t)
+
+ifdef(`init_systemd',`
+	# podman queries the cgroup manager (systemd) over the session bus socket
+	dbus_getattr_session_runtime_socket(podman_user_t)
+	dbus_write_session_runtime_socket(podman_user_t)
+
+	# rootless podman must be able to get login state of the user
+	systemd_dbus_chat_logind(podman_user_t)
+
+	# containers are created as transient user units
+	systemd_start_user_runtime_units(podman_user_t)
+	systemd_stop_user_runtime_units(podman_user_t)
+	systemd_status_user_runtime_units(podman_user_t)
+
+	# podman can read logs from containers which are
+	# sent to the user journal
+	logging_search_logs(podman_user_t)
+	systemd_list_journal_dirs(podman_user_t)
+	systemd_read_journal_files(podman_user_t)
+')
+
+########################################
+#
+# conmon local policy
+#
+
+allow podman_conmon_t self:process signal;
+allow podman_conmon_t self:capability { dac_override dac_read_search sys_ptrace sys_resource };
+allow podman_conmon_t self:cap_userns sys_ptrace;
+allow podman_conmon_t self:fifo_file { rw_fifo_file_perms setattr };
+allow podman_conmon_t self:unix_dgram_socket create_socket_perms;
+dontaudit podman_conmon_t self:capability net_admin;
+
+# conmon will execute crun/runc to create the container
+container_generic_engine_domtrans(podman_conmon_t, podman_t)
+podman_domtrans(podman_conmon_t)
+
+allow podman_conmon_t podman_t:tcp_socket rw_stream_socket_perms;
+allow podman_conmon_t podman_t:unix_stream_socket rw_stream_socket_perms;
+allow podman_conmon_t podman_t:unix_dgram_socket rw_socket_perms;
+ps_process_pattern(podman_conmon_t, podman_t)
+
+domain_use_interactive_fds(podman_conmon_t)
+
+fs_getattr_cgroup(podman_conmon_t)
+fs_search_cgroup_dirs(podman_conmon_t)
+fs_read_cgroup_files(podman_conmon_t)
+fs_watch_cgroup_files(podman_conmon_t)
+
+fs_getattr_tmpfs(podman_conmon_t)
+fs_getattr_xattr_fs(podman_conmon_t)
+
+logging_send_syslog_msg(podman_conmon_t)
+
+miscfiles_read_localization(podman_conmon_t)
+
+userdom_use_user_ptys(podman_conmon_t)
+
+container_read_system_container_state(podman_conmon_t)
+
+# to send/receive data from container ttys
+container_rw_chr_files(podman_conmon_t)
+
+container_manage_runtime_files(podman_conmon_t)
+container_manage_runtime_fifo_files(podman_conmon_t)
+container_manage_runtime_sock_files(podman_conmon_t)
+
+container_search_var_lib(podman_conmon_t)
+container_manage_var_lib_files(podman_conmon_t)
+container_manage_var_lib_fifo_files(podman_conmon_t)
+container_manage_var_lib_sock_files(podman_conmon_t)
+
+container_engine_tmp_filetrans(podman_conmon_t, { file sock_file })
+container_manage_engine_tmp_files(podman_conmon_t)
+container_manage_engine_tmp_sock_files(podman_conmon_t)
+
+ifdef(`init_systemd',`
+	init_get_generic_units_status(podman_conmon_t)
+	init_start_generic_units(podman_conmon_t)
+	init_start_system(podman_conmon_t)
+	init_stop_system(podman_conmon_t)
+
+	# conmon can read logs from containers which are
+	# sent to the system journal
+	logging_search_logs(podman_conmon_t)
+	systemd_list_journal_dirs(podman_conmon_t)
+	systemd_read_journal_files(podman_conmon_t)
+')
+
+optional_policy(`
+	iptables_domtrans(podman_conmon_t)
+')
+
+########################################
+#
+# Rootless conmon local policy
+#
+
+allow podman_conmon_user_t self:process signal;
+allow podman_conmon_user_t self:cap_userns sys_ptrace;
+allow podman_conmon_user_t self:fifo_file { rw_fifo_file_perms setattr };
+allow podman_conmon_user_t self:unix_dgram_socket create_socket_perms;
+
+ps_process_pattern(podman_conmon_user_t, podman_user_t)
+allow podman_conmon_user_t podman_user_t:process signal;
+allow podman_conmon_user_t podman_user_t:unix_stream_socket rw_stream_socket_perms;
+allow podman_conmon_user_t podman_user_t:unix_dgram_socket rw_socket_perms;
+
+# conmon will execute crun/runc to create the container
+container_generic_engine_domtrans(podman_conmon_user_t, podman_user_t)
+podman_domtrans_user(podman_conmon_user_t)
+
+domain_use_interactive_fds(podman_conmon_user_t)
+
+fs_getattr_cgroup(podman_conmon_user_t)
+fs_search_cgroup_dirs(podman_conmon_user_t)
+fs_read_cgroup_files(podman_conmon_user_t)
+fs_watch_cgroup_files(podman_conmon_user_t)
+
+fs_getattr_tmpfs(podman_conmon_user_t)
+fs_getattr_xattr_fs(podman_conmon_user_t)
+
+logging_send_syslog_msg(podman_conmon_user_t)
+
+miscfiles_read_localization(podman_conmon_user_t)
+
+userdom_use_user_ptys(podman_conmon_user_t)
+
+container_read_user_container_state(podman_conmon_user_t)
+
+# to send/receive data from container ttys
+container_rw_chr_files(podman_conmon_user_t)
+
+userdom_search_user_home_dirs(podman_conmon_user_t)
+xdg_search_data_dirs(podman_conmon_user_t)
+container_manage_home_data_files(podman_conmon_user_t)
+container_manage_home_data_fifo_files(podman_conmon_user_t)
+container_manage_home_data_sock_files(podman_conmon_user_t)
+
+userdom_search_user_runtime_root(podman_conmon_user_t)
+userdom_search_user_runtime(podman_conmon_user_t)
+container_manage_user_runtime_files(podman_conmon_user_t)
+
+container_engine_tmp_filetrans(podman_conmon_user_t, { file sock_file })
+container_manage_engine_tmp_files(podman_conmon_user_t)
+container_manage_engine_tmp_sock_files(podman_conmon_user_t)
+
+ifdef(`init_systemd',`
+	# conmon can read logs from containers which are
+	# sent to the system journal
+	logging_search_logs(podman_conmon_user_t)
+	systemd_list_journal_dirs(podman_conmon_user_t)
+	systemd_read_journal_files(podman_conmon_user_t)
+')
