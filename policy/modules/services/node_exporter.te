@@ -1,0 +1,73 @@
+policy_module(node_exporter)
+
+########################################
+#
+# Declarations
+#
+
+type node_exporter_t;
+type node_exporter_exec_t;
+init_daemon_domain(node_exporter_t, node_exporter_exec_t)
+
+type node_exporter_runtime_t;
+files_runtime_file(node_exporter_runtime_t)
+
+type node_exporter_var_lib_t;
+files_type(node_exporter_var_lib_t)
+
+type node_exporter_log_t;
+logging_log_file(node_exporter_log_t)
+
+########################################
+#
+# Local policy
+#
+
+allow node_exporter_t self:fifo_file rw_fifo_file_perms;
+allow node_exporter_t self:process { getsched signal };
+allow node_exporter_t self:netlink_route_socket r_netlink_socket_perms;
+allow node_exporter_t self:tcp_socket create_stream_socket_perms;
+allow node_exporter_t self:udp_socket create_socket_perms;
+
+manage_files_pattern(node_exporter_t, node_exporter_runtime_t, node_exporter_runtime_t)
+files_runtime_filetrans(node_exporter_t, node_exporter_runtime_t, file)
+
+manage_dirs_pattern(node_exporter_t, node_exporter_var_lib_t, node_exporter_var_lib_t)
+manage_files_pattern(node_exporter_t, node_exporter_var_lib_t, node_exporter_var_lib_t)
+files_var_lib_filetrans(node_exporter_t, node_exporter_var_lib_t, { dir file })
+
+append_files_pattern(node_exporter_t, node_exporter_log_t, node_exporter_log_t)
+create_files_pattern(node_exporter_t, node_exporter_log_t, node_exporter_log_t)
+setattr_files_pattern(node_exporter_t, node_exporter_log_t, node_exporter_log_t)
+logging_log_filetrans(node_exporter_t, node_exporter_log_t, { dir file })
+
+# Also uses port 9100
+corenet_tcp_bind_hplip_port(node_exporter_t)
+corenet_tcp_bind_generic_node(node_exporter_t)
+
+dev_read_sysfs(node_exporter_t)
+
+fs_getattr_all_fs(node_exporter_t)
+
+init_read_state(node_exporter_t)
+
+kernel_read_fs_sysctls(node_exporter_t)
+kernel_read_kernel_sysctls(node_exporter_t)
+kernel_read_net_sysctls(node_exporter_t)
+kernel_read_network_state(node_exporter_t)
+kernel_read_software_raid_state(node_exporter_t)
+kernel_read_system_state(node_exporter_t)
+
+ifdef(`init_systemd',`
+	dbus_system_bus_client(node_exporter_t)
+
+	init_dbus_chat(node_exporter_t)
+	init_get_all_units_status(node_exporter_t)
+	init_get_system_status(node_exporter_t)
+')
+
+optional_policy(`
+	kernel_read_rpc_sysctls(node_exporter_t)
+
+	rpc_search_nfs_state_data(node_exporter_t)
+')
