@@ -1,0 +1,126 @@
+policy_module(matrixd, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##  <p>
+##  Determine whether Matrixd is allowed to federate
+##  (bind all UDP ports and connect to all TCP ports).
+##  </p>
+## </desc>
+gen_tunable(matrix_allow_federation, true)
+
+## <desc>
+##  <p>
+##  Determine whether Matrixd can connect to the Postgres database.
+##  </p>
+## </desc>
+gen_tunable(matrix_postgresql_connect, false)
+
+
+type matrixd_t;
+type matrixd_exec_t;
+init_daemon_domain(matrixd_t, matrixd_exec_t)
+
+type matrixd_var_t;
+files_type(matrixd_var_t)
+
+type matrixd_log_t;
+logging_log_file(matrixd_log_t)
+
+type matrixd_conf_t;
+files_config_file(matrixd_conf_t)
+
+type matrixd_tmp_t;
+files_tmp_file(matrixd_tmp_t)
+
+########################################
+#
+# Local policy
+#
+
+allow matrixd_t self:fifo_file rw_file_perms;
+allow matrixd_t self:tcp_socket create_stream_socket_perms;
+allow matrixd_t self:netlink_route_socket r_netlink_socket_perms;
+
+allow matrixd_t self:udp_socket create_socket_perms;
+allow matrixd_t self:unix_dgram_socket create_socket_perms;
+# execmem is needed for Python callbacks
+# https://cffi.readthedocs.io/en/latest/using.html#callbacks
+allow matrixd_t self:process execmem;
+
+allow matrixd_t matrixd_tmp_t:file { manage_file_perms map };
+files_tmp_filetrans(matrixd_t, matrixd_tmp_t, file)
+fs_tmpfs_filetrans(matrixd_t, matrixd_tmp_t, file)
+
+manage_files_pattern(matrixd_t, matrixd_var_t, matrixd_var_t)
+files_search_var_lib(matrixd_t)
+allow matrixd_t matrixd_var_t:file map;
+allow matrixd_t matrixd_var_t:dir manage_dir_perms;
+
+logging_search_logs(matrixd_t)
+manage_files_pattern(matrixd_t, matrixd_log_t, matrixd_log_t)
+
+read_files_pattern(matrixd_t, matrixd_conf_t, matrixd_conf_t)
+allow matrixd_t matrixd_conf_t:dir list_dir_perms;
+
+kernel_read_system_state(matrixd_t)
+kernel_read_vm_overcommit_sysctl(matrixd_t)
+
+# The following in the systemd service file causes a domain transition when
+# running python3:
+# SELinuxContext=system_u:system_r:matrixd_t:s0
+corecmd_bin_entry_type(matrixd_t)
+corecmd_exec_bin(matrixd_t)
+corecmd_exec_shell(matrixd_t)
+
+corenet_tcp_bind_generic_node(matrixd_t)
+corenet_tcp_bind_http_port(matrixd_t)
+corenet_tcp_connect_http_cache_port(matrixd_t)
+corenet_tcp_connect_http_port(matrixd_t)
+
+corenet_udp_bind_generic_node(matrixd_t)
+corenet_udp_bind_generic_port(matrixd_t)
+corenet_udp_bind_reserved_port(matrixd_t)
+
+dev_read_urand(matrixd_t)
+
+files_read_etc_files(matrixd_t)
+files_read_etc_runtime_files(matrixd_t)
+files_read_etc_symlinks(matrixd_t)
+
+# for /usr/share/ca-certificates
+files_read_usr_files(matrixd_t)
+
+init_search_runtime(matrixd_t)
+logging_send_syslog_msg(matrixd_t)
+
+miscfiles_read_generic_tls_privkey(matrixd_t)
+miscfiles_read_generic_certs(matrixd_t)
+miscfiles_read_localization(matrixd_t)
+
+sysnet_read_config(matrixd_t)
+
+userdom_search_user_runtime_root(matrixd_t)
+
+optional_policy(`
+	apache_search_config(matrixd_t)
+')
+
+tunable_policy(`matrix_allow_federation',`
+	corenet_tcp_connect_all_unreserved_ports(matrixd_t)
+	corenet_tcp_connect_generic_port(matrixd_t)
+	corenet_udp_bind_all_ports(matrixd_t)
+', `
+	corenet_dontaudit_tcp_connect_all_ports(matrixd_t)
+	corenet_dontaudit_udp_bind_all_ports(matrixd_t)
+')
+
+tunable_policy(`matrix_postgresql_connect',`
+	postgresql_stream_connect(matrixd_t)
+	postgresql_tcp_connect(matrixd_t)
+')
+
