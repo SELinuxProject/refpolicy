@@ -10,6 +10,7 @@ attribute mailman_domain;
 attribute_role mailman_roles;
 
 mailman_domain_template(cgi)
+init_daemon_domain(mailman_cgi_t, mailman_cgi_exec_t)
 
 type mailman_data_t;
 files_type(mailman_data_t)
@@ -22,15 +23,25 @@ logging_log_file(mailman_log_t)
 
 type mailman_lock_t;
 files_lock_file(mailman_lock_t)
+optional_policy(`
+	systemd_tmpfilesd_managed(mailman_lock_t)
+')
 
 type mailman_runtime_t alias mailman_var_run_t;
 files_runtime_file(mailman_runtime_t)
+
+type mailman_cgi_tmpfs_t;
+files_tmpfs_file(mailman_cgi_tmpfs_t)
+
+type mailman_queue_tmpfs_t;
+files_tmpfs_file(mailman_queue_tmpfs_t)
 
 mailman_domain_template(mail)
 init_daemon_domain(mailman_mail_t, mailman_mail_exec_t)
 role mailman_roles types mailman_mail_t;
 
 mailman_domain_template(queue)
+init_daemon_domain(mailman_queue_t, mailman_queue_exec_t)
 
 ########################################
 #
@@ -89,13 +100,16 @@ miscfiles_read_localization(mailman_domain)
 # CGI local policy
 #
 
-allow mailman_cgi_t self:unix_dgram_socket { create connect };
+allow mailman_cgi_t self:process { signal signull sigkill };
+allow mailman_cgi_t self:fifo_file rw_fifo_file_perms;
+allow mailman_cgi_t self:capability { dac_override setgid setuid };
+allow mailman_cgi_t self:unix_dgram_socket create_socket_perms;
 
 allow mailman_cgi_t mailman_archive_t:dir search_dir_perms;
 allow mailman_cgi_t mailman_archive_t:file read_file_perms;
 
 allow mailman_cgi_t mailman_data_t:dir rw_dir_perms;
-allow mailman_cgi_t mailman_data_t:file manage_file_perms;
+allow mailman_cgi_t mailman_data_t:file { map manage_file_perms };
 allow mailman_cgi_t mailman_data_t:lnk_file read_lnk_file_perms;
 
 allow mailman_cgi_t mailman_lock_t:dir manage_dir_perms;
@@ -104,10 +118,26 @@ allow mailman_cgi_t mailman_lock_t:file manage_file_perms;
 allow mailman_cgi_t mailman_log_t:file { append_file_perms read_file_perms };
 allow mailman_cgi_t mailman_log_t:dir search_dir_perms;
 
-kernel_read_crypto_sysctls(mailman_cgi_t)
-kernel_read_system_state(mailman_cgi_t)
+allow mailman_cgi_t mailman_runtime_t:dir rw_dir_perms;
+allow mailman_cgi_t mailman_runtime_t:file read_file_perms;
+allow mailman_cgi_t mailman_runtime_t:sock_file manage_file_perms;
 
+fs_tmpfs_filetrans(mailman_cgi_t, mailman_cgi_tmpfs_t, file)
+allow mailman_cgi_t mailman_cgi_tmpfs_t:file { map manage_file_perms };
+
+kernel_read_crypto_sysctls(mailman_cgi_t)
+kernel_read_net_sysctls(mailman_cgi_t)
+kernel_read_system_state(mailman_cgi_t)
+kernel_read_vm_overcommit_sysctl(mailman_cgi_t)
+
+# need SELinuxContext=system_u:system_r:mailman_cgi_t:s0 in the systemd
+# service file for the correct context on running /usr/bin/uwsgi for
+# mailman3-web
+corecmd_bin_entry_type(mailman_cgi_t)
 corecmd_exec_bin(mailman_cgi_t)
+
+corenet_tcp_bind_generic_node(mailman_cgi_t)
+corenet_tcp_connect_all_unreserved_ports(mailman_cgi_t)
 
 dev_read_urand(mailman_cgi_t)
 
@@ -120,8 +150,8 @@ libs_dontaudit_write_lib_dirs(mailman_cgi_t)
 
 logging_search_logs(mailman_cgi_t)
 
+miscfiles_read_generic_certs(mailman_cgi_t)
 miscfiles_read_localization(mailman_cgi_t)
-
 
 optional_policy(`
 	apache_sigchld(mailman_cgi_t)
@@ -130,6 +160,15 @@ optional_policy(`
 	apache_search_sys_script_state(mailman_cgi_t)
 	apache_read_config(mailman_cgi_t)
 	apache_dontaudit_rw_stream_sockets(mailman_cgi_t)
+')
+
+optional_policy(`
+	cron_rw_inherited_tmp_files(mailman_cgi_t)
+	cron_system_entry(mailman_cgi_t, mailman_cgi_exec_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(mailman_cgi_t)
 ')
 
 optional_policy(`
@@ -142,7 +181,9 @@ optional_policy(`
 #
 
 allow mailman_mail_t self:capability { dac_override kill setgid setuid sys_tty_config };
-allow mailman_mail_t self:process { signal signull setsched };
+allow mailman_mail_t self:process { execmem signal signull setsched };
+allow mailman_mail_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
+allow mailman_mail_t self:fifo_file rw_file_perms;
 
 allow mailman_mail_t mailman_archive_t:dir manage_dir_perms;
 allow mailman_mail_t mailman_archive_t:file manage_file_perms;
@@ -167,8 +208,12 @@ manage_files_pattern(mailman_mail_t, mailman_runtime_t, mailman_runtime_t)
 manage_dirs_pattern(mailman_mail_t, mailman_runtime_t, mailman_runtime_t)
 files_runtime_filetrans(mailman_mail_t, mailman_runtime_t, { file dir })
 
+kernel_read_network_state(mailman_mail_t)
 kernel_read_system_state(mailman_mail_t)
 
+corenet_tcp_bind_all_unreserved_ports(mailman_mail_t)
+corenet_tcp_bind_generic_node(mailman_mail_t)
+corenet_tcp_connect_http_port(mailman_mail_t)
 corenet_tcp_connect_smtp_port(mailman_mail_t)
 corenet_sendrecv_spamd_client_packets(mailman_mail_t)
 corenet_sendrecv_innd_client_packets(mailman_mail_t)
@@ -193,6 +238,7 @@ libs_read_lib_files(mailman_mail_t)
 
 logging_search_logs(mailman_mail_t)
 
+miscfiles_read_generic_certs(mailman_mail_t)
 miscfiles_read_localization(mailman_mail_t)
 
 mta_use_mailserver_fds(mailman_mail_t)
@@ -200,14 +246,26 @@ mta_dontaudit_rw_delivery_tcp_sockets(mailman_mail_t)
 mta_dontaudit_rw_queue(mailman_mail_t)
 
 optional_policy(`
+	apache_search_config(mailman_mail_t)
+')
+
+optional_policy(`
 	courier_read_spool(mailman_mail_t)
 ')
 
 optional_policy(`
 	cron_read_pipes(mailman_mail_t)
+	cron_rw_inherited_tmp_files(mailman_mail_t)
+	cron_search_spool(mailman_mail_t)
+	cron_system_entry(mailman_mail_t, mailman_mail_exec_t)
 ')
 
 optional_policy(`
+	corenet_tcp_connect_mysqld_port(mailman_mail_t)
+')
+
+optional_policy(`
+	postfix_read_config(mailman_mail_t)
 	postfix_search_spool(mailman_mail_t)
 	postfix_rw_inherited_master_pipes(mailman_mail_t)
 ')
@@ -217,15 +275,18 @@ optional_policy(`
 # Queue local policy
 #
 
-allow mailman_queue_t self:capability { setgid setuid };
+allow mailman_queue_t self:capability { dac_override setgid setuid };
 allow mailman_queue_t self:process { setsched signal_perms };
 allow mailman_queue_t self:fifo_file rw_fifo_file_perms;
+
+allow mailman_queue_t mailman_runtime_t:dir rw_dir_perms;
+allow mailman_queue_t mailman_runtime_t:file manage_file_perms;
 
 allow mailman_queue_t mailman_archive_t:dir manage_dir_perms;
 allow mailman_queue_t mailman_archive_t:file manage_file_perms;
 
 allow mailman_queue_t mailman_data_t:dir rw_dir_perms;
-allow mailman_queue_t mailman_data_t:file manage_file_perms;
+allow mailman_queue_t mailman_data_t:file { map manage_file_perms };
 allow mailman_queue_t mailman_data_t:lnk_file read_lnk_file_perms;
 
 allow mailman_queue_t mailman_lock_t:dir rw_dir_perms;
@@ -234,15 +295,25 @@ allow mailman_queue_t mailman_lock_t:file manage_file_perms;
 allow mailman_queue_t mailman_log_t:dir list_dir_perms;
 allow mailman_queue_t mailman_log_t:file manage_file_perms;
 
+fs_tmpfs_filetrans(mailman_queue_t, mailman_queue_tmpfs_t, file)
+allow mailman_queue_t mailman_queue_tmpfs_t:file { map manage_file_perms };
+
+kernel_read_network_state(mailman_queue_t)
 kernel_read_system_state(mailman_queue_t)
+kernel_search_vm_sysctl(mailman_queue_t)
 
 auth_domtrans_chk_passwd(mailman_queue_t)
 
 corecmd_read_bin_files(mailman_queue_t)
 corenet_sendrecv_innd_client_packets(mailman_queue_t)
+corenet_tcp_bind_all_unreserved_ports(mailman_queue_t)
+corenet_tcp_bind_generic_node(mailman_queue_t)
+corenet_tcp_connect_generic_port(mailman_queue_t)
+corenet_tcp_connect_http_port(mailman_queue_t)
 corenet_tcp_connect_innd_port(mailman_queue_t)
 
 files_dontaudit_search_runtime(mailman_queue_t)
+files_read_usr_files(mailman_queue_t)
 files_search_locks(mailman_queue_t)
 
 miscfiles_read_localization(mailman_queue_t)
@@ -251,14 +322,24 @@ seutil_dontaudit_search_config(mailman_queue_t)
 
 userdom_search_user_home_dirs(mailman_queue_t)
 
-cron_rw_tmp_files(mailman_queue_t)
-
 optional_policy(`
 	apache_read_config(mailman_queue_t)
 ')
 
 optional_policy(`
+	cron_rw_tmp_files(mailman_queue_t)
+	cron_search_spool(mailman_queue_t)
 	cron_system_entry(mailman_queue_t, mailman_queue_exec_t)
+	cron_use_fds(mailman_queue_t)
+')
+
+optional_policy(`
+	mysql_stream_connect(mailman_queue_t)
+	mysql_tcp_connect(mailman_queue_t)
+')
+
+optional_policy(`
+	postfix_read_config(mailman_queue_t)
 ')
 
 optional_policy(`
