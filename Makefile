@@ -234,7 +234,7 @@ else
 	VERBOSE_FLAG = --verbose
 endif
 
-M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS) -D hide_broken_symptoms=true
+M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_cats=$(MCS_CATS)
 
 # we need exuberant ctags; unfortunately it is named
 # differently on different distros
