@@ -72,7 +72,7 @@ AWK ?= gawk
 GREP ?= egrep
 INSTALL ?= install
 M4 ?= m4 -E -E
-PYTHON ?= python3 -t -t -E -W error
+PYTHON ?= python3 -bb -t -t -E -W error
 SED ?= sed
 SORT ?= LC_ALL=C sort
 UMASK ?= umask
@@ -171,16 +171,16 @@ docsdir := $(prefix)/share/doc/$(PKGNAME)
 # enable MLS if requested.
 ifeq "$(TYPE)" "mls"
 	M4PARAM += -D enable_mls=true
-	CHECKPOLICY += -M
-	CHECKMODULE += -M
+	override CHECKPOLICY += -M
+	override CHECKMODULE += -M
 	gennetfilter += -m
 endif
 
 # enable MLS if MCS requested.
 ifeq "$(TYPE)" "mcs"
 	M4PARAM += -D enable_mcs=true
-	CHECKPOLICY += -M
-	CHECKMODULE += -M
+	override CHECKPOLICY += -M
+	override CHECKMODULE += -M
 	gennetfilter += -c
 endif
 
@@ -198,7 +198,7 @@ ifeq "$(SYSTEMD)" "y"
 endif
 
 ifneq ($(OUTPUT_POLICY),)
-	CHECKPOLICY += -c $(OUTPUT_POLICY)
+	override CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
 
 ifneq "$(CUSTOM_BUILDOPT)" ""
