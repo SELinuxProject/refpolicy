@@ -18,6 +18,20 @@ gen_tunable(container_mounton_non_security, false)
 
 ## <desc>
 ##	<p>
+##	Allow containers to manage all read-writable public content.
+##	</p>
+## </desc>
+gen_tunable(container_manage_public_content, false)
+
+## <desc>
+##	<p>
+##	Allow containers to read all public content.
+##	</p>
+## </desc>
+gen_tunable(container_read_public_content, false)
+
+## <desc>
+##	<p>
 ##	Allow containers to use NFS filesystems.
 ##	</p>
 ## </desc>
@@ -149,7 +163,7 @@ corenet_port(container_port_t)
 #
 
 allow container_domain self:capability { dac_override kill setgid setuid sys_boot sys_chroot };
-allow container_domain self:cap_userns { chown dac_override fowner setgid setuid };
+allow container_domain self:cap_userns { chown dac_override dac_read_search fowner kill setgid setuid };
 allow container_domain self:process { execstack execmem getattr getsched getsession setsched setcap setpgid signal_perms };
 allow container_domain self:fifo_file manage_fifo_file_perms;
 allow container_domain self:sem create_sem_perms;
@@ -232,6 +246,14 @@ tunable_policy(`container_manage_cgroup',`
 	fs_manage_cgroup_files(container_domain)
 ')
 
+tunable_policy(`container_manage_public_content',`
+	miscfiles_manage_public_files(container_domain)
+')
+
+tunable_policy(`container_read_public_content',`
+	miscfiles_read_public_files(container_domain)
+')
+
 tunable_policy(`container_use_nfs',`
 	fs_manage_nfs_dirs(container_domain)
 	fs_manage_nfs_files(container_domain)
@@ -246,6 +268,11 @@ tunable_policy(`container_use_samba',`
 	fs_manage_cifs_named_sockets(container_domain)
 	fs_read_cifs_symlinks(container_domain)
 	fs_exec_cifs_files(container_domain)
+')
+
+optional_policy(`
+	podman_rw_conmon_pipes(container_domain)
+	podman_use_conmon_fds(container_domain)
 ')
 
 optional_policy(`
@@ -275,7 +302,7 @@ optional_policy(`
 #
 
 allow container_net_domain self:capability { net_admin net_raw };
-allow container_net_domain self:cap_userns { net_admin net_raw };
+allow container_net_domain self:cap_userns { net_admin net_bind_service net_raw };
 allow container_net_domain self:tcp_socket create_stream_socket_perms;
 allow container_net_domain self:udp_socket create_socket_perms;
 allow container_net_domain self:tun_socket create_socket_perms;
@@ -327,6 +354,8 @@ files_read_kernel_modules(container_t)
 
 fs_mount_cgroup(container_t)
 fs_rw_cgroup_files(container_t)
+
+kernel_read_vm_overcommit_sysctl(container_t)
 
 auth_use_nsswitch(container_t)
 
@@ -506,6 +535,14 @@ allow container_engine_domain container_ro_file_t:sock_file { manage_sock_file_p
 ifdef(`init_systemd',`
 	# needed by runc, which is also invoked by other engines
 	init_run_bpf(container_engine_domain)
+')
+
+tunable_policy(`container_manage_public_content',`
+	miscfiles_read_public_files(container_engine_domain)
+')
+
+tunable_policy(`container_read_public_content',`
+	miscfiles_read_public_files(container_engine_domain)
 ')
 
 tunable_policy(`container_mounton_non_security',`

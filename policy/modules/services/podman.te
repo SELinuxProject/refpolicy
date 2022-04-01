@@ -18,15 +18,16 @@ mls_trusted_object(podman_t)
 
 container_engine_domain_template(podman_user)
 container_user_engine(podman_user_t)
-application_domain(podman_user_t, podman_exec_t)
+userdom_user_application_domain(podman_user_t, podman_exec_t)
 mls_trusted_object(podman_user_t)
 
 type podman_conmon_t;
 type podman_conmon_exec_t;
 application_domain(podman_conmon_t, podman_conmon_exec_t)
+role system_r types podman_conmon_t;
 
 type podman_conmon_user_t;
-application_domain(podman_conmon_user_t, podman_conmon_exec_t)
+userdom_user_application_domain(podman_conmon_user_t, podman_conmon_exec_t)
 
 ########################################
 #
@@ -38,6 +39,10 @@ allow podman_t podman_conmon_t:fifo_file setattr;
 allow podman_t podman_conmon_t:unix_stream_socket { connectto rw_stream_socket_perms };
 
 container_engine_executable_entrypoint(podman_t)
+
+# podman 4.0.0 now creates OCI networking configs
+container_create_config_files(podman_t)
+container_write_config_files(podman_t)
 
 domtrans_pattern(podman_t, podman_conmon_exec_t, podman_conmon_t)
 
@@ -61,6 +66,10 @@ ifdef(`init_systemd',`
 	init_setsched(podman_t)
 	init_start_system(podman_t)
 	init_stop_system(podman_t)
+
+	# containers get created as systemd transient units
+	init_get_transient_units_status(podman_t)
+	init_start_transient_units(podman_t)
 
 	# podman can read logs from containers which are
 	# sent to the system journal
@@ -165,6 +174,9 @@ fs_watch_cgroup_files(podman_conmon_t)
 
 fs_getattr_tmpfs(podman_conmon_t)
 fs_getattr_xattr_fs(podman_conmon_t)
+
+init_rw_inherited_stream_socket(podman_conmon_t)
+init_use_fds(podman_conmon_t)
 
 logging_send_syslog_msg(podman_conmon_t)
 
