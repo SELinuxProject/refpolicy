@@ -1,0 +1,115 @@
+policy_module(k3s)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(k3s)
+container_system_engine(k3s_t)
+type k3s_exec_t;
+container_engine_executable_file(k3s_exec_t)
+application_domain(k3s_t, k3s_exec_t)
+init_daemon_domain(k3s_t, k3s_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(k3s_t, k3s_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(k3s_t)
+
+type k3s_bin_t;
+corecmd_executable_file(k3s_bin_t)
+
+type k3s_data_t;
+files_type(k3s_data_t)
+
+type k3s_lock_t;
+files_lock_file(k3s_lock_t)
+
+########################################
+#
+# k3s local policy
+#
+
+allow k3s_t self:capability2 syslog;
+
+corenet_tcp_connect_all_ports(k3s_t)
+
+# watches /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+corecmd_watch_bin_dirs(k3s_t)
+# k3s tries to create a symlink for kubernetes to k3s
+corecmd_dontaudit_create_bin_symlinks(k3s_t)
+
+dev_read_kmsg(k3s_t)
+
+files_dontaudit_search_mnt(k3s_t)
+files_load_kernel_modules(k3s_t)
+
+fs_watch_cgroup_dirs(k3s_t)
+
+kernel_dgram_send(k3s_t)
+kernel_read_ring_buffer(k3s_t)
+kernel_read_fs_sysctls(k3s_t)
+# writes kernel.panic
+kernel_rw_kernel_sysctl(k3s_t)
+kernel_rw_vm_overcommit_sysctl(k3s_t)
+
+# read and write utab
+mount_exec(k3s_t)
+mount_list_runtime(k3s_t)
+mount_rw_runtime_files(k3s_t)
+
+userdom_dontaudit_search_user_runtime_root(k3s_t)
+
+container_manage_log_symlinks(k3s_t)
+# watches /var/lib/kubelet/plugins_registry
+container_watch_file_dirs(k3s_t)
+# watches certs in /var/lib/rancher/k3s/server/tls
+container_watch_var_lib_files(k3s_t)
+# creates /etc/rancher/k3s/k3s.yaml
+container_create_config_files(k3s_t)
+container_setattr_config_files(k3s_t)
+container_write_config_files(k3s_t)
+
+allow k3s_t k3s_data_t:dir manage_dir_perms;
+allow k3s_t k3s_data_t:file manage_file_perms;
+allow k3s_t k3s_data_t:lnk_file manage_lnk_file_perms;
+
+allow k3s_t k3s_bin_t:dir manage_dir_perms;
+allow k3s_t k3s_bin_t:file { manage_file_perms exec_file_perms };
+allow k3s_t k3s_bin_t:lnk_file manage_lnk_file_perms;
+
+allow k3s_t k3s_exec_t:file manage_file_perms;
+
+allow k3s_t k3s_lock_t:dir manage_dir_perms;
+allow k3s_t k3s_lock_t:file manage_file_perms;
+
+container_var_lib_filetrans(k3s_t, k3s_data_t, dir, "data")
+container_var_lib_filetrans_file(k3s_t, dir, "storage")
+container_var_lib_filetrans_file(k3s_t, dir, "pods")
+container_var_lib_filetrans_ro_file(k3s_t, dir, "snapshots")
+filetrans_pattern(k3s_t, k3s_data_t, k3s_lock_t, file, ".lock")
+filetrans_pattern(k3s_t, k3s_data_t, k3s_bin_t, dir, "bin")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_data_t, file, ".links")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_data_t, file, ".sha256sums")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "cni")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "containerd")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "containerd-shim")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "containerd-shim-runc-v1")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "containerd-shim-runc-v2")
+filetrans_pattern(k3s_t, k3s_bin_t, k3s_exec_t, file, "runc")
+container_log_filetrans(k3s_t, dir, "containers")
+container_log_filetrans(k3s_t, dir, "pods")
+
+files_lock_filetrans(k3s_t, k3s_lock_t, { dir file })
+container_var_lib_filetrans(k3s_t, k3s_lock_t, file, ".lock")
+
+container_user_home_dir_filetrans_cache(k3s_t, dir, ".kube")
+container_manage_cache_home_dirs(k3s_t)
+container_manage_cache_home_files(k3s_t)
+
+ifdef(`init_systemd',`
+	init_start_system(k3s_t)
+	init_get_transient_units_status(k3s_t)
+	init_start_transient_units(k3s_t)
+	systemd_exec_run(k3s_t)
+')
