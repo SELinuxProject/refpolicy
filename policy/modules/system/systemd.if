@@ -32,7 +32,8 @@ template(`systemd_role_template',`
 		type systemd_run_exec_t, systemd_analyze_exec_t;
 		type systemd_conf_home_t, systemd_data_home_t;
 		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
-		type systemd_user_unit_t, systemd_user_runtime_unit_t;
+		type systemd_user_unit_t;
+		type systemd_user_runtime_unit_t, systemd_user_transient_unit_t;
 	')
 
 	#################################
@@ -78,6 +79,10 @@ template(`systemd_role_template',`
 	allow $1_systemd_t systemd_user_runtime_unit_t:file manage_file_perms;
 	allow $1_systemd_t systemd_user_runtime_unit_t:lnk_file manage_lnk_file_perms;
 
+	allow $1_systemd_t systemd_user_transient_unit_t:dir manage_dir_perms;
+	allow $1_systemd_t systemd_user_transient_unit_t:file manage_file_perms;
+	allow $1_systemd_t systemd_user_transient_unit_t:lnk_file manage_lnk_file_perms;
+
 	allow $1_systemd_t $3:dir search_dir_perms;
 	allow $1_systemd_t $3:file read_file_perms;
 	allow $1_systemd_t $3:lnk_file read_lnk_file_perms;
@@ -118,8 +123,7 @@ template(`systemd_role_template',`
 	systemd_manage_data_home_content($1_systemd_t)
 
 	systemd_search_user_runtime_unit_dirs($1_systemd_t)
-
-	systemd_search_user_runtime_unit_dirs($1_systemd_t)
+	systemd_search_user_transient_unit_dirs($1_systemd_t)
 	systemd_read_user_unit_files($1_systemd_t)
 
 	dbus_system_bus_client($1_systemd_t)
@@ -165,11 +169,18 @@ template(`systemd_role_template',`
 	systemd_read_user_unit_files($3)
 	systemd_list_user_runtime_unit_dirs($3)
 	systemd_read_user_runtime_units($3)
+	systemd_list_user_transient_unit_dirs($3)
+	systemd_read_user_transient_units_files($3)
 
 	systemd_reload_user_runtime_units($3)
 	systemd_start_user_runtime_units($3)
 	systemd_status_user_runtime_units($3)
 	systemd_stop_user_runtime_units($3)
+
+	systemd_get_user_transient_units_status($3)
+	systemd_reload_user_transient_units($3)
+	systemd_start_user_transient_units($3)
+	systemd_stop_user_transient_units($3)
 
 	systemd_watch_passwd_runtime_dirs($3)
 
@@ -796,6 +807,139 @@ interface(`systemd_reload_user_runtime_units',`
 	')
 
 	allow $1 systemd_user_runtime_unit_t:service reload;
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to read systemd user transient unit files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_read_user_transient_units_files',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+	')
+
+	read_files_pattern($1, systemd_user_transient_unit_t, systemd_user_transient_unit_t)
+	read_lnk_files_pattern($1, systemd_user_transient_unit_t, systemd_user_transient_unit_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to search systemd user transient unit
+##   directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_search_user_transient_unit_dirs',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+	')
+
+	search_dirs_pattern($1, systemd_user_transient_unit_t, systemd_user_transient_unit_t)
+')
+
+######################################
+## <summary>
+##   Allow the specified domain to list the contents of systemd
+##   user transient unit directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_list_user_transient_unit_dirs',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+	')
+
+	list_dirs_pattern($1, systemd_user_transient_unit_t, systemd_user_transient_unit_t)
+')
+
+######################################
+## <summary>
+##	Allow the specified domain to get the status of systemd user transient units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_get_user_transient_units_status',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+		class service status;
+	')
+
+	allow $1 systemd_user_transient_unit_t:service status;
+')
+
+######################################
+## <summary>
+##	Allow the specified domain to start systemd user transient units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_start_user_transient_units',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+		class service start;
+	')
+
+	allow $1 systemd_user_transient_unit_t:service start;
+')
+
+######################################
+## <summary>
+##	Allow the specified domain to stop systemd user transient units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_stop_user_transient_units',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+		class service stop;
+	')
+
+	allow $1 systemd_user_transient_unit_t:service stop;
+')
+
+######################################
+## <summary>
+##	Allow the specified domain to reload systemd user transient units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_reload_user_transient_units',`
+	gen_require(`
+		type systemd_user_transient_unit_t;
+		class service reload;
+	')
+
+	allow $1 systemd_user_transient_unit_t:service reload;
 ')
 
 ######################################
