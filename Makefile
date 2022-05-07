@@ -133,6 +133,9 @@ htmldir := $(LOCAL_ROOT)/doc/html
 doctmpdir := $(LOCAL_ROOT)/doc/tmp
 endif
 
+# udica templates path
+udicatemplates := udica-templates
+
 # config file paths
 globaltun := $(poldir)/global_tunables
 globalbool := $(poldir)/global_booleans
@@ -167,6 +170,7 @@ sharedir := $(prefix)/share/selinux
 modpkgdir := $(sharedir)/$(strip $(NAME))
 headerdir := $(modpkgdir)/include
 docsdir := $(prefix)/share/doc/$(PKGNAME)
+udicatemplatesdir := $(prefix)/share/udica/templates
 
 # enable MLS if requested.
 ifeq "$(TYPE)" "mls"
@@ -592,6 +596,15 @@ install-src:
 
 ########################################
 #
+# Install udica templates
+#
+install-udica-templates:
+	@mkdir -p $(udicatemplatesdir)
+	@echo "Installing udica templates"
+	$(verbose) $(INSTALL) -m 644 $(wildcard $(udicatemplates)/*) $(udicatemplatesdir)
+
+########################################
+#
 # Generate tags file
 #
 ctags: $(tags)
@@ -671,4 +684,4 @@ ifneq ($(generated_fc),)
 endif
 endif
 
-.PHONY: install-src install-appconfig install-headers build-interface-db generate xml conf html bare tags
+.PHONY: install-src install-appconfig install-headers install-udica-templates build-interface-db generate xml conf html bare tags
