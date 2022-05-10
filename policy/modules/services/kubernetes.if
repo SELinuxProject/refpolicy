@@ -1,0 +1,238 @@
+## <summary>policy for kubernetes</summary>
+
+#######################################
+## <summary>
+##	Execute kubelet in the kubelet domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_domtrans_kubelet',`
+	gen_require(`
+		type kubelet_t, kubelet_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, kubelet_exec_t, kubelet_t)
+')
+
+########################################
+## <summary>
+##	Execute kubelet in the kubelet domain,
+##	and allow the specified role the
+##	kubelet domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the kubelet domain.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_run_kubelet',`
+	gen_require(`
+		type kubelet_t;
+	')
+
+	role $2 types kubelet_t;
+
+	kubernetes_domtrans_kubelet($1)
+')
+
+#######################################
+## <summary>
+##	Execute kubeadm in the kubeadm domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_domtrans_kubeadm',`
+	gen_require(`
+		type kubeadm_t, kubeadm_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, kubeadm_exec_t, kubeadm_t)
+')
+
+########################################
+## <summary>
+##	Execute kubeadm in the kubeadm domain,
+##	and allow the specified role the
+##	kubeadm domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the kubeadm domain.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_run_kubeadm',`
+	gen_require(`
+		type kubeadm_t;
+	')
+
+	role $2 types kubeadm_t;
+
+	kubernetes_domtrans_kubeadm($1)
+')
+
+########################################
+## <summary>
+##	Search kubernetes directories in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_search_var_lib',`
+	gen_require(`
+		type kubernetes_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	allow $1 kubernetes_var_lib_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Get the status of kubernetes systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_get_unit_status',`
+	gen_require(`
+		type kubernetes_unit_t;
+		class service status;
+	')
+
+	allow $1 kubernetes_unit_t:service status;
+')
+
+########################################
+## <summary>
+##	Start kubernetes systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_start_unit',`
+	gen_require(`
+		type kubernetes_unit_t;
+		class service start;
+	')
+
+	allow $1 kubernetes_unit_t:service start;
+')
+
+########################################
+## <summary>
+##	Stop kubernetes systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_stop_unit',`
+	gen_require(`
+		type kubernetes_unit_t;
+		class service stop;
+	')
+
+	allow $1 kubernetes_unit_t:service stop;
+')
+
+########################################
+## <summary>
+##	Reload kubernetes systemd units.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_reload_unit',`
+	gen_require(`
+		type kubernetes_unit_t;
+		class service reload;
+	')
+
+	allow $1 kubernetes_unit_t:service reload;
+')
+
+#######################################
+## <summary>
+##  All of the rules required to administrate
+##  a kubernetes environment.
+## </summary>
+## <param name="domain">
+##  <summary>
+##  Domain allowed access.
+##  </summary>
+## </param>
+## <param name="role">
+##  <summary>
+##  Role allowed access.
+##  </summary>
+## </param>
+## <rolecap/>
+#
+interface(`kubernetes_admin',`
+	gen_require(`
+		type kubeadm_t, kubelet_t;
+		type kubernetes_config_t, kubernetes_tmpfs_t;
+		type kubernetes_runtime_t, kubernetes_var_lib_t;
+		type kubernetes_log_t;
+	')
+
+	kubernetes_run_kubeadm($1, $2)
+	kubernetes_run_kubelet($1, $2)
+
+	allow $1 kubeadm_t:process { ptrace signal_perms };
+	ps_process_pattern($1, kubeadm_t)
+
+	allow $1 kubelet_t:process { ptrace signal_perms };
+	ps_process_pattern($1, kubelet_t)
+
+	files_search_etc($1)
+	admin_pattern($1, kubernetes_config_t)
+
+	fs_search_tmpfs($1)
+	admin_pattern($1, kubernetes_tmpfs_t)
+
+	files_search_runtime($1)
+	admin_pattern($1, kubernetes_runtime_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, kubernetes_var_lib_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, kubernetes_log_t)
+')
