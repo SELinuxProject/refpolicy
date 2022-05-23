@@ -2,6 +2,48 @@
 
 ########################################
 ## <summary>
+##	Template for conmon domains.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	Prefix for generated types.
+##	</summary>
+## </param>
+## <param name="source_domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+template(`podman_conmon_domain_template',`
+	gen_require(`
+		attribute conmon_domain;
+		type conmon_exec_t;
+	')
+
+	type $1_conmon_t, conmon_domain;
+	application_domain($1_conmon_t, conmon_exec_t)
+
+	domtrans_pattern($2, conmon_exec_t, $1_conmon_t)
+
+	allow $2 $1_conmon_t:process signull;
+	allow $2 $1_conmon_t:fifo_file setattr;
+	allow $2 $1_conmon_t:unix_stream_socket { connectto rw_stream_socket_perms };
+
+	allow $1_conmon_t $2:tcp_socket rw_stream_socket_perms;
+	allow $1_conmon_t $2:unix_stream_socket rw_stream_socket_perms;
+	allow $1_conmon_t $2:unix_dgram_socket rw_socket_perms;
+	ps_process_pattern($1_conmon_t, $2)
+
+	corecmd_search_bin($1_conmon_t)
+	# conmon will execute crun/runc to create the container,
+	# so transition back to the source domain when creating it
+	container_generic_engine_domtrans($1_conmon_t, $2)
+	container_engine_executable_entrypoint($2)
+')
+
+########################################
+## <summary>
 ##	Execute podman in the podman domain.
 ## </summary>
 ## <param name="domain">
@@ -96,7 +138,7 @@ interface(`podman_run_user',`
 
 ########################################
 ## <summary>
-##	Execute conmon in the conmon domain.
+##	Execute conmon in the podman conmon domain.
 ## </summary>
 ## <param name="domain">
 ## 	<summary>
@@ -106,18 +148,18 @@ interface(`podman_run_user',`
 #
 interface(`podman_domtrans_conmon',`
 	gen_require(`
-		type podman_conmon_t, podman_conmon_exec_t;
+		type podman_conmon_t, conmon_exec_t;
 	')
 
 	corecmd_search_bin($1)
-	domtrans_pattern($1, podman_conmon_exec_t, podman_conmon_t)
+	domtrans_pattern($1, conmon_exec_t, podman_conmon_t)
 ')
 
 ########################################
 ## <summary>
-##	Execute conmon in the conmon domain,
-##	and allow the specified role the
-##	conmon domain.
+##	Execute conmon in the podman conmon
+##	domain, and allow the specified role
+##	the podman conmon domain.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -142,8 +184,8 @@ interface(`podman_run_conmon',`
 
 ########################################
 ## <summary>
-##	Execute conmon in the conmon user
-##	domain (rootless podman).
+##	Execute conmon in the podman conmon
+##	user domain (rootless podman).
 ## </summary>
 ## <param name="domain">
 ## 	<summary>
@@ -153,19 +195,19 @@ interface(`podman_run_conmon',`
 #
 interface(`podman_domtrans_conmon_user',`
 	gen_require(`
-		type podman_conmon_user_t, podman_conmon_exec_t;
+		type podman_user_conmon_t, conmon_exec_t;
 	')
 
 	corecmd_search_bin($1)
-	domtrans_pattern($1, podman_conmon_exec_t, podman_conmon_user_t)
+	domtrans_pattern($1, conmon_exec_t, podman_user_conmon_t)
 ')
 
 ########################################
 ## <summary>
-##	Execute conmon in the conmon user
-##	domain, and allow the specified role
-##	the conmon user domain (rootless
-##	podman).
+##	Execute conmon in the podman conmon
+##	user domain, and allow the specified
+##	role the podman conmon user domain
+##	(rootless podman).
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -180,17 +222,46 @@ interface(`podman_domtrans_conmon_user',`
 #
 interface(`podman_run_conmon_user',`
 	gen_require(`
-		type podman_conmon_user_t;
+		type podman_user_conmon_t;
 	')
 
-	role $2 types podman_conmon_user_t;
+	role $2 types podman_user_conmon_t;
 
 	podman_domtrans_conmon_user($1)
 ')
 
 ########################################
 ## <summary>
-##	Read and write conmon unnamed pipes.
+##	Make the specified domain perform a
+##	range transition when executing conmon.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to transition ranges.
+##	</summary>
+## </param>
+## <param name="range">
+##	<summary>
+##	MLS range to transition to.
+##	</summary>
+## </param>
+#
+interface(`podman_spec_rangetrans_conmon',`
+	gen_require(`
+		type conmon_exec_t;
+	')
+
+	ifdef(`enable_mcs',`
+		range_transition $1 conmon_exec_t:process $2;
+	')
+	ifdef(`enable_mls',`
+		range_transition $1 conmon_exec_t:process $2;
+	')
+')
+
+########################################
+## <summary>
+##	Read and write podman conmon unnamed pipes.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -201,17 +272,17 @@ interface(`podman_run_conmon_user',`
 interface(`podman_rw_conmon_pipes',`
 	gen_require(`
 		type podman_conmon_t;
-		type podman_conmon_user_t;
+		type podman_user_conmon_t;
 	')
 
 	allow $1 podman_conmon_t:fifo_file rw_fifo_file_perms;
-	allow $1 podman_conmon_user_t:fifo_file rw_fifo_file_perms;
+	allow $1 podman_user_conmon_t:fifo_file rw_fifo_file_perms;
 ')
 
 ########################################
 ## <summary>
 ##	Allow the specified domain to inherit
-##	file descriptors from conmon.
+##	file descriptors from podman conmon.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -222,11 +293,11 @@ interface(`podman_rw_conmon_pipes',`
 interface(`podman_use_conmon_fds',`
 	gen_require(`
 		type podman_conmon_t;
-		type podman_conmon_user_t;
+		type podman_user_conmon_t;
 	')
 
 	allow $1 podman_conmon_t:fd use;
-	allow $1 podman_conmon_user_t:fd use;
+	allow $1 podman_user_conmon_t:fd use;
 ')
 
 ########################################
@@ -259,7 +330,7 @@ interface(`podman_use_conmon_fds',`
 template(`podman_user_role',`
 	gen_require(`
 		type podman_user_t;
-		type podman_conmon_user_t;
+		type podman_user_conmon_t;
 	')
 
 	podman_run_user($3, $4)
@@ -271,7 +342,7 @@ template(`podman_user_role',`
 
 	optional_policy(`
 		systemd_user_app_status($1, podman_user_t)
-		systemd_user_app_status($1, podman_conmon_user_t)
+		systemd_user_app_status($1, podman_user_conmon_t)
 	')
 ')
 
