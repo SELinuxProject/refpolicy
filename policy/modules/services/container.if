@@ -130,7 +130,6 @@ interface(`container_user_engine',`
 #
 template(`container_base_role',`
 	gen_require(`
-		type container_file_t, container_ro_file_t;
 		type container_config_t;
 	')
 
@@ -143,19 +142,8 @@ template(`container_base_role',`
 	files_search_etc($2)
 	read_files_pattern($2, container_config_t, container_config_t)
 
-	allow $2 container_file_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_file_t:file { manage_file_perms relabel_file_perms };
-	allow $2 container_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
-	allow $2 container_file_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
-	allow $2 container_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
-	allow $2 container_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
-
-	allow $2 container_ro_file_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_ro_file_t:file { manage_file_perms relabel_file_perms };
-	allow $2 container_ro_file_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
-	allow $2 container_ro_file_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
-	allow $2 container_ro_file_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
-	allow $2 container_ro_file_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	container_admin_all_files($2)
+	container_admin_all_ro_files($2)
 ')
 
 ########################################
@@ -230,10 +218,6 @@ template(`container_user_role',`
 	gen_require(`
 		attribute container_user_domain;
 		attribute container_engine_user_domain;
-		type container_file_t, container_ro_file_t;
-		type container_user_runtime_t;
-		type container_cache_home_t, container_conf_home_t;
-		type container_data_home_t;
 	')
 
 	role $4 types container_user_domain;
@@ -245,34 +229,8 @@ template(`container_user_role',`
 	allow $3 container_user_domain:process { ptrace signal_perms };
 	ps_process_pattern($3, container_user_domain)
 
-	allow $2 container_user_runtime_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_user_runtime_t:file { manage_file_perms relabel_file_perms };
-	allow $2 container_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
-	allow $2 container_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
-
-	allow $2 container_cache_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_cache_home_t:file { manage_file_perms relabel_file_perms };
-	xdg_cache_filetrans($2, container_cache_home_t, dir, "containers")
-
-	allow $2 container_conf_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_conf_home_t:file { manage_file_perms relabel_file_perms };
-	xdg_config_filetrans($2, container_conf_home_t, dir, "containers")
-
-	allow $2 container_data_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 container_data_home_t:file { manage_file_perms relabel_file_perms };
-	allow $2 container_data_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
-	allow $2 container_data_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
-	allow $2 container_data_home_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
-	allow $2 container_data_home_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
-	allow $2 container_data_home_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
-	xdg_data_filetrans($2, container_data_home_t, dir, "containers")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay-images")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay-layers")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2-images")
-	filetrans_pattern($2, container_data_home_t, container_ro_file_t, dir, "overlay2-layers")
-	filetrans_pattern($2, container_data_home_t, container_file_t, dir, "volumes")
+	container_admin_all_user_runtime_content($2)
+	container_manage_all_home_content($2)
 
 	optional_policy(`
 		systemd_read_user_manager_state($1, container_engine_user_domain)
@@ -291,6 +249,60 @@ template(`container_user_role',`
 	optional_policy(`
 		podman_user_role($1, $2, $3, $4)
 	')
+')
+
+########################################
+## <summary>
+##	Unconfined role access for containers.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+template(`container_unconfined_role',`
+	gen_require(`
+		attribute container_domain;
+		type container_config_t;
+	')
+
+	role $4 types container_domain;
+
+	allow $3 container_domain:process transition;
+	allow $3 container_domain:process2 { nnp_transition nosuid_transition };
+	allow container_domain $3:fd use;
+	allow container_domain $3:unix_stream_socket rw_stream_socket_perms;
+
+	allow $3 self:cap_userns { kill sys_ptrace };
+
+	allow $3 container_domain:process { ptrace signal_perms };
+	ps_process_pattern($3, container_domain)
+
+	files_search_etc($2)
+	read_files_pattern($2, container_config_t, container_config_t)
+
+	container_admin_all_files($2)
+	container_admin_all_ro_files($2)
+
+	container_admin_all_user_runtime_content($2)
+	container_manage_all_home_content($2)
 ')
 
 ########################################
@@ -1077,6 +1089,110 @@ interface(`container_manage_home_data_sock_files',`
 	')
 
 	manage_sock_files_pattern($1, container_data_home_t, container_data_home_t)
+')
+
+########################################
+## <summary>
+##	Administrate all container files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_admin_all_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	admin_pattern($1, container_file_t, container_file_t)
+	allow $1 container_file_t:chr_file manage_chr_file_perms;
+	allow $1 container_file_t:blk_file manage_blk_file_perms;
+')
+
+########################################
+## <summary>
+##	Administrate all container read-only files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_admin_all_ro_files',`
+	gen_require(`
+		type container_ro_file_t;
+	')
+
+	admin_pattern($1, container_ro_file_t, container_ro_file_t)
+	allow $1 container_ro_file_t:chr_file manage_chr_file_perms;
+	allow $1 container_ro_file_t:blk_file manage_blk_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules necessary for a user
+##	to manage user container runtime data
+##	in their user runtime directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_admin_all_user_runtime_content',`
+	gen_require(`
+		type container_user_runtime_t;
+	')
+
+	admin_pattern($1, container_user_runtime_t, container_user_runtime_t)
+')
+
+########################################
+## <summary>
+##	All of the rules necessary for a user
+##	to manage container data in their home
+##	directory.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_all_home_content',`
+	gen_require(`
+		type container_file_t, container_ro_file_t;
+		type container_cache_home_t, container_conf_home_t;
+		type container_data_home_t;
+	')
+
+	allow $1 container_cache_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $1 container_cache_home_t:file { manage_file_perms relabel_file_perms };
+	xdg_cache_filetrans($1, container_cache_home_t, dir, "containers")
+
+	allow $1 container_conf_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $1 container_conf_home_t:file { manage_file_perms relabel_file_perms };
+	xdg_config_filetrans($1, container_conf_home_t, dir, "containers")
+
+	allow $1 container_data_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $1 container_data_home_t:file { manage_file_perms relabel_file_perms };
+	allow $1 container_data_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $1 container_data_home_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $1 container_data_home_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+	allow $1 container_data_home_t:chr_file { manage_chr_file_perms relabel_chr_file_perms };
+	allow $1 container_data_home_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+	xdg_data_filetrans($1, container_data_home_t, dir, "containers")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay-images")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay-layers")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay2")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay2-images")
+	filetrans_pattern($1, container_data_home_t, container_ro_file_t, dir, "overlay2-layers")
+	filetrans_pattern($1, container_data_home_t, container_file_t, dir, "volumes")
 ')
 
 ########################################
