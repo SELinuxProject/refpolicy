@@ -91,10 +91,14 @@ template(`systemd_role_template',`
 
 	files_search_home($1_systemd_t)
 
+	fs_getattr_xattr_fs($1_systemd_t)
 	fs_manage_cgroup_files($1_systemd_t)
 	fs_watch_cgroup_files($1_systemd_t)
 
 	kernel_dontaudit_getattr_proc($1_systemd_t)
+	# if systemd exists in the initrd, the journal socket stays labeled kernel_t
+	# without this access, user services cannot log to the journal
+	kernel_stream_connect($1_systemd_t)
 
 	selinux_use_status_page($1_systemd_t)
 
@@ -156,6 +160,7 @@ template(`systemd_role_template',`
 	can_exec($3, { systemd_run_exec_t systemd_analyze_exec_t })
 
 	init_dbus_chat($3)
+	init_search_var_lib_dirs($3)
 
 	systemd_list_journal_dirs($3)
 	systemd_read_journal_files($3)
@@ -2317,6 +2322,27 @@ interface(`systemd_tmpfilesd_managed',`
 		refpolicywarn(`$0($*) second parameter is deprecated.')
 		allow systemd_tmpfiles_t $1:$2 { setattr relabelfrom relabelto create };
 	')
+')
+
+#######################################
+## <summary>
+##	Connect to systemd resolved over
+##	/run/systemd/resolve/io.systemd.Resolve .
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`systemd_stream_connect_resolved',`
+	gen_require(`
+		type systemd_resolved_t;
+		type systemd_resolved_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, systemd_resolved_runtime_t, systemd_resolved_runtime_t, systemd_resolved_t)
 ')
 
 ########################################
