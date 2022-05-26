@@ -109,10 +109,6 @@ init_system_domain(systemd_coredump_t, systemd_coredump_exec_t)
 type systemd_coredump_var_lib_t;
 files_type(systemd_coredump_var_lib_t)
 
-type systemd_detect_virt_t;
-type systemd_detect_virt_exec_t;
-init_daemon_domain(systemd_detect_virt_t, systemd_detect_virt_exec_t)
-
 type systemd_factory_conf_t;
 systemd_tmpfiles_conf_file(systemd_factory_conf_t)
 
@@ -232,10 +228,6 @@ init_system_domain(systemd_resolved_t, systemd_resolved_exec_t)
 
 type systemd_resolved_runtime_t alias systemd_resolved_var_run_t;
 files_runtime_file(systemd_resolved_runtime_t)
-
-type systemd_run_t;
-type systemd_run_exec_t;
-init_daemon_domain(systemd_run_t, systemd_run_exec_t)
 
 type systemd_stdio_bridge_t;
 type systemd_stdio_bridge_exec_t;
@@ -427,29 +419,39 @@ ifdef(`enable_mls',`
 # coredump local policy
 #
 
-allow systemd_coredump_t self:unix_dgram_socket { create write connect getopt setopt };
-allow systemd_coredump_t self:capability { setgid setuid setpcap };
-allow systemd_coredump_t self:cap_userns sys_ptrace;
+allow systemd_coredump_t self:capability { setgid setuid setpcap sys_ptrace };
+allow systemd_coredump_t self:cap_userns { sys_admin sys_ptrace };
 allow systemd_coredump_t self:process { getcap setcap setfscreate };
+allow systemd_coredump_t self:unix_dgram_socket { create write connect getopt setopt };
+allow systemd_coredump_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow systemd_coredump_t self:fifo_file rw_inherited_fifo_file_perms;
+dontaudit systemd_coredump_t self:capability net_admin;
 
-manage_files_pattern(systemd_coredump_t, systemd_coredump_var_lib_t, systemd_coredump_var_lib_t)
+mmap_manage_files_pattern(systemd_coredump_t, systemd_coredump_var_lib_t, systemd_coredump_var_lib_t)
 
 kernel_domtrans_to(systemd_coredump_t, systemd_coredump_exec_t)
 kernel_read_kernel_sysctls(systemd_coredump_t)
 kernel_read_system_state(systemd_coredump_t)
 kernel_rw_pipes(systemd_coredump_t)
 kernel_use_fds(systemd_coredump_t)
+kernel_read_crypto_sysctls(systemd_coredump_t)
 
 corecmd_exec_bin(systemd_coredump_t)
 corecmd_read_all_executables(systemd_coredump_t)
 
 dev_write_kmsg(systemd_coredump_t)
 
+domain_read_all_domains_state(systemd_coredump_t)
+
 files_getattr_all_mountpoints(systemd_coredump_t)
 files_read_etc_files(systemd_coredump_t)
 files_search_var_lib(systemd_coredump_t)
+files_mounton_root(systemd_coredump_t)
 
 fs_getattr_xattr_fs(systemd_coredump_t)
+fs_getattr_nsfs_files(systemd_coredump_t)
+fs_search_cgroup_dirs(systemd_coredump_t)
+fs_getattr_cgroup(systemd_coredump_t)
 
 selinux_getattr_fs(systemd_coredump_t)
 
@@ -500,6 +502,7 @@ init_search_runtime(systemd_generator_t)
 init_setattr_runtime_files(systemd_generator_t)
 init_write_runtime_files(systemd_generator_t)
 init_list_unit_dirs(systemd_generator_t)
+init_getattr_generic_units_files(systemd_generator_t)
 init_read_generic_units_symlinks(systemd_generator_t)
 init_read_script_files(systemd_generator_t)
 
@@ -511,6 +514,7 @@ kernel_dontaudit_getattr_proc(systemd_generator_t)
 kernel_dontaudit_search_unlabeled(systemd_generator_t)
 
 storage_raw_read_fixed_disk(systemd_generator_t)
+storage_raw_read_removable_device(systemd_generator_t)
 
 systemd_log_parse_environment(systemd_generator_t)
 
@@ -658,6 +662,7 @@ udev_read_runtime_files(systemd_homework_t)
 #
 
 allow systemd_hostnamed_t self:capability sys_admin;
+allow systemd_hostnamed_t self:process setfscreate;
 
 fs_getattr_cgroup(systemd_hostnamed_t)
 fs_getattr_xattr_fs(systemd_hostnamed_t)
@@ -668,6 +673,8 @@ kernel_dontaudit_getattr_proc(systemd_hostnamed_t)
 dev_read_sysfs(systemd_hostnamed_t)
 
 files_read_etc_files(systemd_hostnamed_t)
+
+fs_getattr_all_fs(systemd_hostnamed_t)
 
 selinux_use_status_page(systemd_hostnamed_t)
 
@@ -815,6 +822,9 @@ dev_setattr_video_dev(systemd_logind_t)
 domain_obj_id_change_exemption(systemd_logind_t)
 
 files_search_runtime(systemd_logind_t)
+# Getattr all shm segments as part of cleaning up the
+# segments of deleted ephemeral users.
+files_getattr_all_tmpfs_files(systemd_logind_t)
 
 fs_getattr_cgroup(systemd_logind_t)
 fs_getattr_tmpfs(systemd_logind_t)
@@ -1013,6 +1023,9 @@ dev_read_sysfs(systemd_modules_load_t)
 
 files_mmap_read_kernel_modules(systemd_modules_load_t)
 files_read_etc_files(systemd_modules_load_t)
+
+fs_getattr_all_fs(systemd_modules_load_t)
+fs_search_all(systemd_modules_load_t)
 
 modutils_read_module_config(systemd_modules_load_t)
 modutils_read_module_deps(systemd_modules_load_t)
@@ -1382,8 +1395,8 @@ systemd_log_parse_environment(systemd_rfkill_t)
 
 allow systemd_resolved_t self:capability { chown net_raw setgid setpcap setuid };
 allow systemd_resolved_t self:process { getcap setcap setfscreate signal };
-
-allow systemd_resolved_t self:tcp_socket { accept listen };
+allow systemd_resolved_t self:unix_stream_socket create_stream_socket_perms;
+allow systemd_resolved_t self:tcp_socket create_stream_socket_perms;
 
 allow systemd_resolved_t systemd_networkd_runtime_t:dir watch;
 
@@ -1492,8 +1505,8 @@ systemd_log_parse_environment(systemd_sessions_t)
 
 # sys_admin for sysctls such as kernel.kptr_restrict and kernel.dmesg_restrict
 # sys_ptrace for kernel.yama.ptrace_scope
-allow systemd_sysctl_t self:capability { sys_admin sys_ptrace };
-dontaudit systemd_sysctl_t self:capability net_admin;
+# net_admin for network sysctls
+allow systemd_sysctl_t self:capability { net_admin sys_admin sys_ptrace };
 
 kernel_read_kernel_sysctls(systemd_sysctl_t)
 kernel_request_load_module(systemd_sysctl_t)
@@ -1512,14 +1525,14 @@ systemd_log_parse_environment(systemd_sysctl_t)
 # Sysusers local policy
 #
 
-allow systemd_sysusers_t self:capability { chown fsetid };
+allow systemd_sysusers_t self:capability { dac_read_search chown fsetid };
 allow systemd_sysusers_t self:process setfscreate;
 allow systemd_sysusers_t self:unix_dgram_socket sendto;
 
 files_manage_etc_files(systemd_sysusers_t)
 
 fs_getattr_all_fs(systemd_sysusers_t)
-fs_search_cgroup_dirs(systemd_sysusers_t)
+fs_search_all(systemd_sysusers_t)
 
 kernel_read_kernel_sysctls(systemd_sysusers_t)
 
@@ -1633,8 +1646,6 @@ init_relabel_utmp(systemd_tmpfiles_t)
 init_relabel_var_lib_dirs(systemd_tmpfiles_t)
 init_read_runtime_files(systemd_tmpfiles_t)
 
-logging_manage_generic_logs(systemd_tmpfiles_t)
-logging_manage_generic_log_dirs(systemd_tmpfiles_t)
 logging_relabel_generic_log_dirs(systemd_tmpfiles_t)
 logging_relabel_syslogd_tmp_files(systemd_tmpfiles_t)
 logging_relabel_syslogd_tmp_dirs(systemd_tmpfiles_t)
@@ -1790,6 +1801,7 @@ seutil_libselinux_linked(systemd_user_session_type)
 
 allow systemd_userdbd_t self:capability dac_read_search;
 allow systemd_userdbd_t self:process signal;
+allow systemd_userdbd_t self:unix_stream_socket create_stream_socket_perms;
 
 stream_connect_pattern(systemd_userdbd_t, systemd_homed_runtime_t, systemd_homed_runtime_t, systemd_homed_t)
 
