@@ -462,6 +462,26 @@ interface(`container_runtime_named_socket_activation',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to search
+##	container engine temporary directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_search_engine_tmp',`
+	gen_require(`
+		type container_engine_tmp_t;
+	')
+
+	files_search_tmp($1)
+	allow $1 container_engine_tmp_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to manage
 ##	container engine temporary files.
 ## </summary>
@@ -476,7 +496,7 @@ interface(`container_manage_engine_tmp_files',`
 		type container_engine_tmp_t;
 	')
 
-	files_search_tmp($1)
+	container_search_engine_tmp($1)
 	allow $1 container_engine_tmp_t:file manage_file_perms;
 ')
 
@@ -496,7 +516,7 @@ interface(`container_manage_engine_tmp_sock_files',`
 		type container_engine_tmp_t;
 	')
 
-	files_search_tmp($1)
+	container_search_engine_tmp($1)
 	allow $1 container_engine_tmp_t:sock_file manage_sock_file_perms;
 ')
 
@@ -529,6 +549,25 @@ interface(`container_engine_tmp_filetrans',`
 	')
 
 	files_tmp_filetrans($1, container_engine_tmp_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid)
+##	of all containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_read_all_container_state',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	ps_process_pattern($1, container_domain)
 ')
 
 ########################################
@@ -567,6 +606,25 @@ interface(`container_read_user_container_state',`
 	')
 
 	ps_process_pattern($1, container_user_domain)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid)
+##	of all container engines.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_read_all_container_engine_state',`
+	gen_require(`
+		attribute container_engine_domain;
+	')
+
+	ps_process_pattern($1, container_engine_domain)
 ')
 
 ########################################
@@ -699,6 +757,46 @@ interface(`container_stream_connect_all_containers',`
 
 ########################################
 ## <summary>
+##	Connect to the specified container
+##	domain over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_stream_connect_spec_container',`
+	gen_require(`
+		type container_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, container_runtime_t, container_runtime_t, $2)
+	allow $1 container_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	send a kill signal to all containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`container_kill_all_containers',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	allow $1 container_domain:process sigkill;
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to
 ##	send all signals to a container
 ##	domain.
@@ -715,6 +813,26 @@ interface(`container_signal_all_containers',`
 	')
 
 	allow $1 container_domain:process signal_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	get the process group ID of all
+##	containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`container_getpgid_all_containers',`
+	gen_require(`
+		attribute container_domain;
+	')
+
+	allow $1 container_domain:process getpgid;
 ')
 
 ########################################
@@ -808,7 +926,7 @@ interface(`container_manage_plugin_files',`
 		type container_plugin_t;
 	')
 
-	allow $1 container_plugin_t:file manage_file_perms;
+	manage_files_pattern($1, container_plugin_t, container_plugin_t)
 ')
 
 ########################################
@@ -887,6 +1005,25 @@ interface(`container_create_config_files',`
 	')
 
 	create_files_pattern($1, container_config_t, container_config_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	and write container config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_rw_config_files',`
+	gen_require(`
+		type container_config_t;
+	')
+
+	rw_files_pattern($1, container_config_t, container_config_t)
 ')
 
 ########################################
@@ -1060,6 +1197,25 @@ interface(`container_manage_lnk_files',`
 	')
 
 	manage_lnk_files_pattern($1, container_file_t, container_file_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	read and write container fifo files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_rw_fifo_files',`
+	gen_require(`
+		type container_file_t;
+	')
+
+	rw_fifo_files_pattern($1, container_file_t, container_file_t)
 ')
 
 ########################################
@@ -1742,6 +1898,25 @@ interface(`container_manage_var_lib_dirs',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to read
+##	container files in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_read_var_lib_files',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	read_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to manage
 ##	container files in /var/lib.
 ## </summary>
@@ -1781,6 +1956,25 @@ interface(`container_manage_var_lib_fifo_files',`
 ########################################
 ## <summary>
 ##	Allow the specified domain to manage
+##	container symlinks in /var/lib.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_manage_var_lib_lnk_files',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	manage_lnk_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
 ##	container named sockets in /var/lib.
 ## </summary>
 ## <param name="domain">
@@ -1795,6 +1989,68 @@ interface(`container_manage_var_lib_sock_files',`
 	')
 
 	manage_sock_files_pattern($1, container_var_lib_t, container_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in /var/lib with an automatic
+##	transition to the container var lib type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_var_lib_filetrans',`
+	gen_require(`
+		type container_var_lib_t;
+	')
+
+	files_var_lib_filetrans($1, container_var_lib_t, $2, $3)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in container /var/lib directories
+##	with an automatic transition to the
+##	container file type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_filetrans_var_lib_file',`
+	gen_require(`
+		type container_var_lib_t;
+		type container_file_t;
+	')
+
+	filetrans_pattern($1, container_var_lib_t, container_file_t, $2, $3)
 ')
 
 ########################################
@@ -1832,6 +2088,64 @@ interface(`container_unlabeled_var_lib_filetrans',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to search
+##	container log file directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_search_logs',`
+	gen_require(`
+		type container_log_t;
+	')
+
+	logging_search_logs($1)
+	allow $1 container_log_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to list
+##	the contents of container log directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_list_log_dirs',`
+	gen_require(`
+		type container_log_t;
+	')
+
+	allow $1 container_log_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	container log file directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_create_log_dirs',`
+	gen_require(`
+		type container_log_t;
+	')
+
+	allow $1 container_log_t:dir create_dir_perms;
+')
+
+########################################
+## <summary>
 ##	Allow the specified domain to manage
 ##	container log file directories.
 ## </summary>
@@ -1847,6 +2161,25 @@ interface(`container_manage_log_dirs',`
 	')
 
 	allow $1 container_log_t:dir manage_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to watch
+##	container log file directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`container_watch_log_dirs',`
+	gen_require(`
+		type container_log_t;
+	')
+
+	allow $1 container_log_t:dir watch;
 ')
 
 ########################################
@@ -1904,6 +2237,38 @@ interface(`container_manage_log_files',`
 	')
 
 	manage_files_pattern($1, container_log_t, container_log_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to create
+##	objects in log directories with an
+##	automatic transition to the container
+##	log type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="object">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`container_log_filetrans',`
+	gen_require(`
+		type container_log_t;
+	')
+
+	logging_search_logs($1)
+	logging_log_filetrans($1, container_log_t, $2, $3)
 ')
 
 ########################################

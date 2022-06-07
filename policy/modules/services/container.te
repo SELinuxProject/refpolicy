@@ -112,6 +112,9 @@ init_unit_file(container_unit_t)
 
 type container_config_t;
 files_config_file(container_config_t)
+optional_policy(`
+	kubernetes_mountpoint(container_config_t)
+')
 
 type container_var_lib_t;
 files_type(container_var_lib_t)
@@ -131,6 +134,9 @@ container_mountpoint(container_runtime_t)
 
 type container_log_t;
 logging_log_file(container_log_t)
+optional_policy(`
+	kubernetes_mountpoint(container_log_t)
+')
 
 type container_devpts_t;
 term_pty(container_devpts_t)
@@ -297,6 +303,14 @@ tunable_policy(`container_use_samba',`
 	fs_manage_cifs_named_sockets(container_domain)
 	fs_read_cifs_symlinks(container_domain)
 	fs_exec_cifs_files(container_domain)
+')
+
+optional_policy(`
+	kubernetes_list_tmpfs(container_domain)
+	kubernetes_watch_tmpfs_dirs(container_domain)
+	kubernetes_watch_tmpfs_files(container_domain)
+	kubernetes_read_tmpfs_files(container_domain)
+	kubernetes_read_tmpfs_symlinks(container_domain)
 ')
 
 optional_policy(`
@@ -756,11 +770,58 @@ domtrans_pattern(container_engine_system_domain, container_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
 
+allow spc_t self:process setrlimit;
+allow spc_t self:capability { sys_admin sys_resource };
+allow spc_t self:capability2 { bpf perfmon };
+allow spc_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow spc_t self:netlink_generic_socket create_socket_perms;
+allow spc_t self:netlink_netfilter_socket create_socket_perms;
+allow spc_t self:netlink_xfrm_socket create_socket_perms;
+
 allow container_engine_system_domain spc_t:process { setsched signal_perms };
 
 allow spc_t container_engine_system_domain:fifo_file rw_fifo_file_perms;
 
+allow spc_t container_runtime_t:dir { manage_dir_perms mounton };
+allow spc_t container_runtime_t:file manage_file_perms;
+allow spc_t container_runtime_t:sock_file manage_sock_file_perms;
+
+dev_mounton_sysfs_dirs(spc_t)
+dev_read_sysfs(spc_t)
+
+fs_read_nsfs_files(spc_t)
+fs_mount_cgroup(spc_t)
+fs_list_cgroup_dirs(spc_t)
+fs_mount_bpf(spc_t)
+fs_create_bpf_dirs(spc_t)
+fs_manage_bpf_files(spc_t)
+fs_list_tmpfs(spc_t)
+fs_watch_tmpfs_dirs(spc_t)
+
+kernel_load_module(spc_t)
+kernel_request_load_module(spc_t)
+kernel_read_network_state(spc_t)
+
 init_dbus_chat(spc_t)
+init_run_bpf(spc_t)
+
+iptables_read_runtime_files(spc_t)
+
+modutils_read_module_deps(spc_t)
+
+container_list_plugins(spc_t)
+container_manage_plugin_files(spc_t)
+
+container_create_config_files(spc_t)
+container_rw_config_files(spc_t)
+
+container_list_log_dirs(spc_t)
+container_create_log_dirs(spc_t)
+container_manage_log_files(spc_t)
+
+container_manage_var_lib_dirs(spc_t)
+container_manage_var_lib_files(spc_t)
+allow spc_t container_var_lib_t:file map;
 
 optional_policy(`
 	dbus_system_bus_client(spc_t)
@@ -768,7 +829,18 @@ optional_policy(`
 ')
 
 optional_policy(`
-# If unconfined domains are enabled, spc is also unconfined
+	# various kubernetes control plane pods run as privileged containers
+	kubernetes_watch_config_dirs(spc_t)
+	kubernetes_watch_config_files(spc_t)
+	kubernetes_list_plugins(spc_t)
+	kubernetes_watch_plugin_dirs(spc_t)
+	kubernetes_manage_plugin_files(spc_t)
+
+	kubernetes_run_engine_bpf(spc_t)
+')
+
+optional_policy(`
+	# If unconfined domains are enabled, spc is also unconfined
 	unconfined_domain_noaudit(spc_t)
 	domain_ptrace_all_domains(spc_t)
 ')

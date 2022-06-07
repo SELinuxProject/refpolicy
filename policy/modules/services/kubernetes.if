@@ -48,6 +48,25 @@ interface(`kubernetes_run_kubelet',`
 
 #######################################
 ## <summary>
+##	Read the process state (/proc/pid)
+##	of kubelet.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_read_kubelet_state',`
+	gen_require(`
+		type kubelet_t;
+	')
+
+	ps_process_pattern($1, kubelet_t)
+')
+
+#######################################
+## <summary>
 ##	Execute kubeadm in the kubeadm domain.
 ## </summary>
 ## <param name="domain">
@@ -94,6 +113,65 @@ interface(`kubernetes_run_kubeadm',`
 
 ########################################
 ## <summary>
+##	Associated the specified domain to
+##	be a domain which is capable of
+##	operating as a kubernetes container
+##	engine.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_container_engine',`
+	gen_require(`
+		attribute kubernetes_container_engine_domain;
+	')
+
+	typeattribute $1 kubernetes_container_engine_domain;
+')
+
+########################################
+## <summary>
+##	Allow the specified file type to be
+##	mounted on by kubernetes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_mountpoint',`
+	gen_require(`
+		attribute kubernetes_mountpoint_type;
+	')
+
+	typeattribute $1 kubernetes_mountpoint_type;
+')
+
+########################################
+## <summary>
+##	Run kubernetes container engine bpf
+##	programs.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_run_engine_bpf',`
+	gen_require(`
+		attribute kubernetes_container_engine_domain;
+	')
+
+	allow $1 kubernetes_container_engine_domain:bpf prog_run;
+')
+
+########################################
+## <summary>
 ##	Search kubernetes config directories.
 ## </summary>
 ## <param name="domain">
@@ -109,6 +187,26 @@ interface(`kubernetes_search_config',`
 
 	files_search_etc($1)
 	allow $1 kubernetes_config_t:dir search_dir_perms;
+')
+
+########################################
+## <summary>
+##	Read kubernetes config files and symlinks.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_read_config',`
+	gen_require(`
+		type kubernetes_config_t;
+	')
+
+	kubernetes_search_config($1)
+	allow $1 kubernetes_config_t:file read_file_perms;
+	allow $1 kubernetes_config_t:lnk_file read_lnk_file_perms;
 ')
 
 ########################################
@@ -131,6 +229,25 @@ interface(`kubernetes_mounton_config_dirs',`
 
 ########################################
 ## <summary>
+##	Allow the specified domain to watch
+##	kubernetes config directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_watch_config_dirs',`
+	gen_require(`
+		type kubernetes_config_t;
+	')
+
+	allow $1 kubernetes_config_t:dir watch;
+')
+
+########################################
+## <summary>
 ##	Mount on kubernetes config files.
 ## </summary>
 ## <param name="domain">
@@ -149,7 +266,8 @@ interface(`kubernetes_mounton_config_files',`
 
 ########################################
 ## <summary>
-##	Search kubernetes directories in /var/lib.
+##	Allow the specified domain to watch
+##	kubernetes config files.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -157,18 +275,19 @@ interface(`kubernetes_mounton_config_files',`
 ##	</summary>
 ## </param>
 #
-interface(`kubernetes_search_var_lib',`
+interface(`kubernetes_watch_config_files',`
 	gen_require(`
-		type kubernetes_var_lib_t;
+		type kubernetes_config_t;
 	')
 
-	files_search_var_lib($1)
-	allow $1 kubernetes_var_lib_t:dir search_dir_perms;
+	allow $1 kubernetes_config_t:file watch;
 ')
 
 ########################################
 ## <summary>
-##	Mount on kubernetes directories in /var/lib.
+##	Allow the specified domain to list
+##	the contents of kubernetes plugin
+##	directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -176,18 +295,55 @@ interface(`kubernetes_search_var_lib',`
 ##	</summary>
 ## </param>
 #
-interface(`kubernetes_mounton_var_lib_dirs',`
+interface(`kubernetes_list_plugins',`
 	gen_require(`
-		type kubernetes_var_lib_t;
+		type kubernetes_plugin_t;
 	')
 
-	allow $1 kubernetes_var_lib_t:dir mounton;
+	allow $1 kubernetes_plugin_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to watch
+##	kubernetes plugin directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_watch_plugin_dirs',`
+	gen_require(`
+		type kubernetes_plugin_t;
+	')
+
+	allow $1 kubernetes_plugin_t:dir watch;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	kubernetes plugin files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_manage_plugin_files',`
+	gen_require(`
+		type kubernetes_plugin_t;
+	')
+
+	manage_files_pattern($1, kubernetes_plugin_t, kubernetes_plugin_t)
 ')
 
 ########################################
 ## <summary>
 ##	List the contents of kubernetes tmpfs
-##	directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -201,6 +357,132 @@ interface(`kubernetes_list_tmpfs',`
 	')
 
 	allow $1 kubernetes_tmpfs_t:dir list_dir_perms;
+')
+
+########################################
+## <summary>
+##	Manage kubernetes tmpfs directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_manage_tmpfs_dirs',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:dir manage_dir_perms;
+')
+
+########################################
+## <summary>
+##	Watch kubernetes tmpfs directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_watch_tmpfs_dirs',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:dir watch;
+')
+
+########################################
+## <summary>
+##	Read kubernetes tmpfs files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_read_tmpfs_files',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Manage kubernetes tmpfs files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_manage_tmpfs_files',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:file manage_file_perms;
+')
+
+########################################
+## <summary>
+##	Watch kubernetes tmpfs files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_watch_tmpfs_files',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:file watch;
+')
+
+########################################
+## <summary>
+##	Read kubernetes tmpfs symlinks.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_read_tmpfs_symlinks',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:lnk_file read_lnk_file_perms;
+')
+
+########################################
+## <summary>
+##	Manage kubernetes tmpfs symlinks.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_manage_tmpfs_symlinks',`
+	gen_require(`
+		type kubernetes_tmpfs_t;
+	')
+
+	allow $1 kubernetes_tmpfs_t:lnk_file manage_lnk_file_perms;
 ')
 
 ########################################
@@ -355,9 +637,10 @@ interface(`kubernetes_admin',`
 	gen_require(`
 		type kubeadm_t, kubelet_t;
 		type kubernetes_config_t, kubernetes_tmpfs_t;
-		type kubernetes_runtime_t, kubernetes_var_lib_t;
-		type kubernetes_log_t;
+		type kubernetes_runtime_t;
 	')
+
+	container_admin($1, $2)
 
 	kubernetes_run_kubeadm($1, $2)
 	kubernetes_run_kubelet($1, $2)
@@ -376,12 +659,6 @@ interface(`kubernetes_admin',`
 
 	files_search_runtime($1)
 	admin_pattern($1, kubernetes_runtime_t)
-
-	files_search_var_lib($1)
-	admin_pattern($1, kubernetes_var_lib_t)
-
-	logging_search_logs($1)
-	admin_pattern($1, kubernetes_log_t)
 
 	optional_policy(`
 		crio_admin($1, $2)

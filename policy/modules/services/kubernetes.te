@@ -8,6 +8,18 @@ policy_module(kubernetes)
 attribute_role kubernetes_roles;
 roleattribute system_r kubernetes_roles;
 
+# common attribute for all container engines
+# that may be used with kubernetes
+attribute kubernetes_container_engine_domain;
+
+# common attribute for all container domains
+# that may be used with kubernetes
+attribute kubernetes_container_domain;
+
+# attribute for all objects that may be mounted
+# on by kubernetes containers
+attribute kubernetes_mountpoint_type;
+
 type kubelet_t;
 type kubelet_exec_t;
 domain_type(kubelet_t)
@@ -20,20 +32,20 @@ type kubeadm_exec_t;
 application_domain(kubeadm_t, kubeadm_exec_t)
 role kubernetes_roles types kubeadm_t;
 
+type kubernetes_plugin_t;
+corecmd_executable_file(kubernetes_plugin_t)
+kubernetes_mountpoint(kubernetes_plugin_t)
+
 type kubernetes_config_t;
 files_config_file(kubernetes_config_t)
-
-type kubernetes_tmpfs_t;
-files_tmpfs_file(kubernetes_tmpfs_t)
+kubernetes_mountpoint(kubernetes_config_t)
 
 type kubernetes_runtime_t;
 files_runtime_file(kubernetes_runtime_t)
+kubernetes_mountpoint(kubernetes_runtime_t)
 
-type kubernetes_var_lib_t;
-files_type(kubernetes_var_lib_t)
-
-type kubernetes_log_t;
-logging_log_file(kubernetes_log_t)
+type kubernetes_tmpfs_t;
+files_type(kubernetes_tmpfs_t)
 
 type kubernetes_unit_t;
 init_unit_file(kubernetes_unit_t)
@@ -43,18 +55,61 @@ xdg_config_content(kubernetes_home_t)
 
 ########################################
 #
+# common kubernetes container engine policy
+#
+
+allow kubernetes_container_engine_domain kubernetes_mountpoint_type:dir_file_class_set { getattr mounton };
+
+files_getattr_kernel_modules(kubernetes_container_engine_domain)
+
+fs_mounton_tmpfs(kubernetes_container_engine_domain)
+
+iptables_getattr_runtime_files(kubernetes_container_engine_domain)
+
+corecmd_search_bin(kubernetes_container_engine_domain)
+allow kubernetes_container_engine_domain kubernetes_plugin_t:dir search_dir_perms;
+
+container_use_container_ptys(kubernetes_container_engine_domain)
+
+container_exec_plugins(kubernetes_container_engine_domain)
+
+container_search_logs(kubernetes_container_engine_domain)
+container_watch_log_dirs(kubernetes_container_engine_domain)
+
+container_filetrans_var_lib_file(kubernetes_container_engine_domain, dir, "calico")
+container_filetrans_var_lib_file(kubernetes_container_engine_domain, dir, "etcd")
+
+ifdef(`init_systemd',`
+	init_dbus_chat(kubernetes_container_engine_domain)
+
+	init_get_system_status(kubernetes_container_engine_domain)
+	init_start_system(kubernetes_container_engine_domain)
+	init_stop_system(kubernetes_container_engine_domain)
+
+	init_get_transient_units_status(kubernetes_container_engine_domain)
+	init_start_transient_units(kubernetes_container_engine_domain)
+	init_stop_transient_units(kubernetes_container_engine_domain)
+')
+
+########################################
+#
 # kubelet local policy
 #
 
 allow kubelet_t self:process { getattr getsched setrlimit signal };
-allow kubelet_t self:capability { chown dac_read_search net_raw sys_ptrace sys_resource };
-dontaudit kubelet_t self:capability net_admin;
+allow kubelet_t self:capability { chown dac_override dac_read_search net_admin net_raw sys_ptrace sys_resource };
 allow kubelet_t self:cap_userns sys_ptrace;
 allow kubelet_t self:fifo_file rw_fifo_file_perms;
 allow kubelet_t self:rawip_socket create_socket_perms;
 allow kubelet_t self:tcp_socket create_stream_socket_perms;
 allow kubelet_t self:unix_dgram_socket create_socket_perms;
 allow kubelet_t self:unix_stream_socket { connectto create_stream_socket_perms };
+
+allow kubelet_t kubernetes_plugin_t:dir { create_dir_perms list_dir_perms watch };
+allow kubelet_t kubernetes_plugin_t:file { create_file_perms rw_file_perms };
+can_exec(kubelet_t, kubernetes_plugin_t)
+# kubelet drops plugins in /usr/libexec/kubernetes
+corecmd_bin_filetrans(kubelet_t, kubernetes_plugin_t, dir, "kubernetes")
 
 allow kubelet_t kubernetes_config_t:dir { list_dir_perms watch };
 allow kubelet_t kubernetes_config_t:file { read_file_perms watch };
@@ -71,22 +126,17 @@ allow kubelet_t kubernetes_runtime_t:file manage_file_perms;
 allow kubelet_t kubernetes_runtime_t:sock_file manage_sock_file_perms;
 files_runtime_filetrans(kubelet_t, kubernetes_runtime_t, { dir file sock_file })
 
-allow kubelet_t kubernetes_var_lib_t:dir manage_dir_perms;
-allow kubelet_t kubernetes_var_lib_t:file manage_file_perms;
-allow kubelet_t kubernetes_var_lib_t:lnk_file manage_lnk_file_perms;
-allow kubelet_t kubernetes_var_lib_t:sock_file manage_sock_file_perms;
-files_var_lib_filetrans(kubelet_t, kubernetes_var_lib_t, dir)
-container_spec_filetrans_file(kubelet_t, kubernetes_var_lib_t, dir, "device-plugins")
-container_spec_filetrans_file(kubelet_t, kubernetes_var_lib_t, dir, "pods")
-container_spec_filetrans_file(kubelet_t, kubernetes_var_lib_t, dir, "plugins")
-container_spec_filetrans_file(kubelet_t, kubernetes_var_lib_t, dir, "plugins_registry")
-
-logging_log_filetrans(kubelet_t, kubernetes_log_t, { dir file })
+kubernetes_manage_tmpfs_dirs(kubelet_t)
+kubernetes_manage_tmpfs_files(kubelet_t)
+kubernetes_manage_tmpfs_symlinks(kubelet_t)
+fs_tmpfs_filetrans(kubelet_t, kubernetes_tmpfs_t, { dir file lnk_file })
 
 corenet_tcp_bind_generic_node(kubelet_t)
 
+corenet_tcp_connect_http_port(kubelet_t)
 corenet_tcp_bind_kubernetes_port(kubelet_t)
 corenet_tcp_connect_kubernetes_port(kubelet_t)
+corenet_tcp_connect_all_unreserved_ports(kubelet_t)
 
 corecmd_search_bin(kubelet_t)
 corecmd_watch_bin_dirs(kubelet_t)
@@ -102,6 +152,7 @@ domain_setpriority_all_domains(kubelet_t)
 files_dontaudit_getattr_all_dirs(kubelet_t)
 files_dontaudit_search_mnt(kubelet_t)
 files_dontaudit_search_tmp(kubelet_t)
+files_search_tmp(kubelet_t)
 files_read_kernel_symbol_table(kubelet_t)
 # read /usr/share/mime/globs2
 files_read_usr_files(kubelet_t)
@@ -123,17 +174,22 @@ kernel_rw_kernel_sysctl(kubelet_t)
 kernel_rw_net_sysctls(kubelet_t)
 kernel_rw_vm_overcommit_sysctl(kubelet_t)
 kernel_dontaudit_getattr_proc(kubelet_t)
+kernel_read_state(kubelet_t)
 
-storage_getattr_fixed_disk_dev(kubelet_t)
+storage_dontaudit_getattr_fixed_disk_dev(kubelet_t)
 
 auth_use_nsswitch(kubelet_t)
 
+init_read_state(kubelet_t)
+
 iptables_domtrans(kubelet_t)
 iptables_getattr_runtime_files(kubelet_t)
-
-miscfiles_read_localization(kubelet_t)
+iptables_read_state(kubelet_t)
 
 logging_send_syslog_msg(kubelet_t)
+
+miscfiles_read_generic_certs(kubelet_t)
+miscfiles_read_localization(kubelet_t)
 
 modutils_domtrans(kubelet_t)
 
@@ -142,6 +198,7 @@ mount_domtrans(kubelet_t)
 seutil_read_default_contexts(kubelet_t)
 
 userdom_dontaudit_search_user_runtime_root(kubelet_t)
+userdom_use_user_terminals(kubelet_t)
 
 dbus_list_system_bus_runtime(kubelet_t)
 dbus_system_bus_client(kubelet_t)
@@ -152,12 +209,19 @@ container_getattr_fs(kubelet_t)
 container_read_runtime_files(kubelet_t)
 # connect to docker, podman, etc.
 container_stream_connect_system_engine(kubelet_t)
+# connect to privileged static pods
+container_stream_connect_spec_container(kubelet_t, kubernetes_container_domain)
+
+# kubelet monitors open fds in its cgroups
+container_read_all_container_state(kubelet_t)
+container_read_all_container_engine_state(kubelet_t)
 
 container_list_var_lib(kubelet_t)
 container_manage_dirs(kubelet_t)
 container_manage_files(kubelet_t)
 container_manage_lnk_files(kubelet_t)
 container_manage_sock_files(kubelet_t)
+container_rw_fifo_files(kubelet_t)
 container_watch_dirs(kubelet_t)
 container_list_ro_dirs(kubelet_t)
 
@@ -171,10 +235,23 @@ container_manage_log_symlinks(kubelet_t)
 container_dontaudit_relabel_dirs(kubelet_t)
 container_dontaudit_relabel_files(kubelet_t)
 
+container_log_filetrans(kubelet_t, { dir file })
+
+container_manage_var_lib_dirs(kubelet_t)
+container_manage_var_lib_files(kubelet_t)
+container_manage_var_lib_lnk_files(kubelet_t)
+container_manage_var_lib_sock_files(kubelet_t)
+container_var_lib_filetrans(kubelet_t, dir)
+container_filetrans_var_lib_file(kubelet_t, dir, "device-plugins")
+container_filetrans_var_lib_file(kubelet_t, dir, "pods")
+container_filetrans_var_lib_file(kubelet_t, dir, "plugins")
+container_filetrans_var_lib_file(kubelet_t, dir, "plugins_registry")
+
 ifdef(`init_systemd',`
 	init_dbus_chat(kubelet_t)
 
 	init_start_system(kubelet_t)
+	init_stop_system(kubelet_t)
 	init_get_transient_units_status(kubelet_t)
 	init_start_transient_units(kubelet_t)
 	init_stop_transient_units(kubelet_t)
@@ -189,13 +266,18 @@ optional_policy(`
 	docker_write_state(kubelet_t)
 ')
 
+optional_policy(`
+	crio_read_conmon_state(kubelet_t)
+')
+
 ########################################
 #
 # kubeadm local policy
 #
 
 allow kubeadm_t self:process { getsched signal };
-dontaudit kubeadm_t self:capability net_admin;
+# cap_sysadmin is required to unmount volumes in /var/lib/kubelet
+allow kubeadm_t self:capability { dac_override dac_read_search net_admin sys_admin };
 allow kubeadm_t self:fifo_file rw_fifo_file_perms;
 allow kubeadm_t self:netlink_route_socket create_netlink_socket_perms;
 allow kubeadm_t self:tcp_socket create_stream_socket_perms;
@@ -208,12 +290,6 @@ ps_process_pattern(kubeadm_t, kubelet_t)
 manage_dirs_pattern(kubeadm_t, kubernetes_config_t, kubernetes_config_t)
 manage_files_pattern(kubeadm_t, kubernetes_config_t, kubernetes_config_t)
 manage_lnk_files_pattern(kubeadm_t, kubernetes_config_t, kubernetes_config_t)
-
-allow kubeadm_t kubernetes_var_lib_t:dir manage_dir_perms;
-allow kubeadm_t kubernetes_var_lib_t:file manage_file_perms;
-allow kubeadm_t kubernetes_var_lib_t:lnk_file manage_lnk_file_perms;
-allow kubeadm_t kubernetes_var_lib_t:sock_file manage_sock_file_perms;
-files_var_lib_filetrans(kubeadm_t, kubernetes_var_lib_t, dir)
 
 allow kubeadm_t kubernetes_home_t:dir search_dir_perms;
 allow kubeadm_t kubernetes_home_t:file read_file_perms;
@@ -232,8 +308,14 @@ domain_use_interactive_fds(kubeadm_t)
 
 files_read_boot_files(kubeadm_t)
 files_read_etc_files(kubeadm_t)
+files_search_kernel_modules(kubeadm_t)
+files_search_src(kubeadm_t)
+files_read_usr_files(kubeadm_t)
+files_read_usr_src_files(kubeadm_t)
 
 fs_getattr_tmpfs(kubeadm_t)
+fs_list_tmpfs(kubeadm_t)
+fs_unmount_tmpfs(kubeadm_t)
 fs_getattr_xattr_fs(kubeadm_t)
 fs_getattr_cgroup(kubeadm_t)
 fs_search_cgroup_dirs(kubeadm_t)
@@ -255,6 +337,10 @@ logging_search_logs(kubeadm_t)
 miscfiles_read_generic_certs(kubeadm_t)
 miscfiles_read_localization(kubeadm_t)
 
+modutils_exec(kubeadm_t)
+modutils_read_module_config(kubeadm_t)
+modutils_read_module_deps(kubeadm_t)
+
 userdom_search_user_home_content(kubeadm_t)
 userdom_use_user_terminals(kubeadm_t)
 userdom_lock_user_terminals(kubeadm_t)
@@ -267,10 +353,18 @@ container_stream_connect_system_engine(kubeadm_t)
 container_list_var_lib(kubeadm_t)
 container_manage_var_lib_dirs(kubeadm_t)
 container_manage_var_lib_files(kubeadm_t)
+container_filetrans_var_lib_file(kubeadm_t, dir, "etcd")
+
 container_manage_dirs(kubeadm_t)
 container_manage_files(kubeadm_t)
 container_manage_lnk_files(kubeadm_t)
 container_manage_sock_files(kubeadm_t)
+
+container_manage_var_lib_dirs(kubeadm_t)
+container_manage_var_lib_files(kubeadm_t)
+container_manage_var_lib_lnk_files(kubeadm_t)
+container_manage_var_lib_sock_files(kubeadm_t)
+container_var_lib_filetrans(kubeadm_t, dir)
 
 ifdef(`init_systemd',`
 	init_get_system_status(kubeadm_t)
