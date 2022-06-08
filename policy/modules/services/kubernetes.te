@@ -20,6 +20,9 @@ attribute kubernetes_container_domain;
 # on by kubernetes containers
 attribute kubernetes_mountpoint_type;
 
+# common attribute for all kubectl domains
+attribute kubectl_domain;
+
 type kubelet_t;
 type kubelet_exec_t;
 domain_type(kubelet_t)
@@ -32,6 +35,10 @@ type kubeadm_exec_t;
 application_domain(kubeadm_t, kubeadm_exec_t)
 role kubernetes_roles types kubeadm_t;
 
+type kubectl_t, kubectl_domain;
+type kubectl_exec_t;
+application_domain(kubectl_t, kubectl_exec_t)
+
 type kubernetes_plugin_t;
 corecmd_executable_file(kubernetes_plugin_t)
 kubernetes_mountpoint(kubernetes_plugin_t)
@@ -43,6 +50,10 @@ kubernetes_mountpoint(kubernetes_config_t)
 type kubernetes_runtime_t;
 files_runtime_file(kubernetes_runtime_t)
 kubernetes_mountpoint(kubernetes_runtime_t)
+
+# files created in /tmp by kubectl for editing
+type kubernetes_tmp_t;
+files_tmp_file(kubernetes_tmp_t)
 
 type kubernetes_tmpfs_t;
 files_type(kubernetes_tmpfs_t)
@@ -384,3 +395,45 @@ optional_policy(`
 	docker_domtrans_cli(kubeadm_t)
 	docker_read_state(kubeadm_t)
 ')
+
+########################################
+#
+# common kubectl local policy
+#
+
+allow kubectl_domain self:process { getsched signal };
+allow kubectl_domain self:fifo_file rw_fifo_file_perms;
+allow kubectl_domain self:tcp_socket create_stream_socket_perms;
+
+manage_dirs_pattern(kubectl_domain, kubernetes_conf_home_t, kubernetes_conf_home_t)
+manage_files_pattern(kubectl_domain, kubernetes_conf_home_t, kubernetes_conf_home_t)
+read_lnk_files_pattern(kubectl_domain, kubernetes_conf_home_t, kubernetes_conf_home_t)
+
+files_search_tmp(kubectl_domain)
+manage_files_pattern(kubectl_domain, kubernetes_tmp_t, kubernetes_tmp_t)
+files_tmp_filetrans(kubectl_domain, kubernetes_tmp_t, file)
+
+# binds to 8001 for proxy
+corenet_tcp_bind_all_unreserved_ports(kubectl_domain)
+corenet_tcp_bind_generic_node(kubectl_domain)
+corenet_tcp_connect_http_port(kubectl_domain)
+corenet_tcp_connect_kubernetes_port(kubectl_domain)
+
+domain_use_interactive_fds(kubectl_domain)
+
+files_read_etc_files(kubectl_domain)
+files_read_usr_files(kubectl_domain)
+
+kernel_dontaudit_search_network_sysctl(kubectl_domain)
+
+miscfiles_read_generic_certs(kubectl_domain)
+miscfiles_read_localization(kubectl_domain)
+
+userdom_use_user_terminals(kubectl_domain)
+
+########################################
+#
+# kubectl local policy
+#
+
+auth_use_nsswitch(kubectl_t)

@@ -1,5 +1,73 @@
 ## <summary>policy for kubernetes</summary>
 
+########################################
+## <summary>
+##	Role access for kubectl.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`kubernetes_kubectl_role',`
+	gen_require(`
+		attribute kubectl_domain;
+		type kubectl_exec_t;
+		type kubernetes_conf_home_t;
+	')
+
+	########################################
+	#
+	# Declarations
+	#
+
+	type $1_kubectl_t, kubectl_domain;
+	userdom_user_application_domain($1_kubectl_t, kubectl_exec_t)
+	role $4 types $1_kubectl_t;
+
+	########################################
+	#
+	# Policy
+	#
+
+	domtrans_pattern($3, kubectl_exec_t, $1_kubectl_t)
+
+	allow $2 kubernetes_conf_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 kubernetes_conf_home_t:file { manage_file_perms relabel_file_perms };
+	allow $2 kubernetes_conf_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	userdom_user_home_dir_filetrans($2, kubernetes_conf_home_t, dir, ".kube")
+
+	allow $3 $1_kubectl_t:process { ptrace signal_perms };
+	ps_process_pattern($3, $1_kubectl_t)
+
+	auth_use_nsswitch($1_kubectl_t)
+
+	# kubectl executes an editor when editing files
+	# transition back to the user domain when running them
+	corecmd_bin_domtrans($1_kubectl_t, $2)
+
+	optional_policy(`
+		systemd_user_app_status($1, $1_kubectl_t)
+	')
+')
+
 #######################################
 ## <summary>
 ##	Execute kubelet in the kubelet domain.
@@ -635,9 +703,11 @@ interface(`kubernetes_reload_unit',`
 #
 interface(`kubernetes_admin',`
 	gen_require(`
-		type kubeadm_t, kubelet_t;
-		type kubernetes_config_t, kubernetes_tmpfs_t;
-		type kubernetes_runtime_t;
+		type kubeadm_t, kubelet_t, kubectl_t;
+		type kubectl_exec_t;
+		type kubernetes_config_t, kubernetes_tmp_t;
+		type kubernetes_tmpfs_t, kubernetes_runtime_t;
+		type kubernetes_conf_home_t;
 	')
 
 	container_admin($1, $2)
@@ -645,20 +715,36 @@ interface(`kubernetes_admin',`
 	kubernetes_run_kubeadm($1, $2)
 	kubernetes_run_kubelet($1, $2)
 
+	role $2 types kubectl_t;
+	domtrans_pattern($1, kubectl_exec_t, kubectl_t)
+
+	# kubectl executes an editor when editing files
+	# transition back to the user domain when running them
+	corecmd_bin_domtrans(kubectl_t, $1)
+
 	allow $1 kubeadm_t:process { ptrace signal_perms };
 	ps_process_pattern($1, kubeadm_t)
 
 	allow $1 kubelet_t:process { ptrace signal_perms };
 	ps_process_pattern($1, kubelet_t)
 
+	allow $1 kubectl_t:process { ptrace signal_perms };
+	ps_process_pattern($1, kubectl_t)
+
 	files_search_etc($1)
 	admin_pattern($1, kubernetes_config_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, kubernetes_tmp_t)
 
 	fs_search_tmpfs($1)
 	admin_pattern($1, kubernetes_tmpfs_t)
 
 	files_search_runtime($1)
 	admin_pattern($1, kubernetes_runtime_t)
+
+	admin_pattern($1, kubernetes_conf_home_t)
+	userdom_user_home_dir_filetrans($1, kubernetes_conf_home_t, dir, ".kube")
 
 	optional_policy(`
 		crio_admin($1, $2)
