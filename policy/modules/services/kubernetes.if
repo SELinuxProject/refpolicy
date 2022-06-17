@@ -30,7 +30,7 @@ template(`kubernetes_kubectl_role',`
 	gen_require(`
 		attribute kubectl_domain;
 		type kubectl_exec_t;
-		type kubernetes_conf_home_t;
+		type kubernetes_home_t;
 	')
 
 	########################################
@@ -49,17 +49,17 @@ template(`kubernetes_kubectl_role',`
 
 	domtrans_pattern($3, kubectl_exec_t, $1_kubectl_t)
 
-	allow $2 kubernetes_conf_home_t:dir { manage_dir_perms relabel_dir_perms };
-	allow $2 kubernetes_conf_home_t:file { manage_file_perms relabel_file_perms };
-	allow $2 kubernetes_conf_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
-	userdom_user_home_dir_filetrans($2, kubernetes_conf_home_t, dir, ".kube")
+	allow $2 kubernetes_home_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 kubernetes_home_t:file { manage_file_perms relabel_file_perms };
+	allow $2 kubernetes_home_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	userdom_user_home_dir_filetrans($2, kubernetes_home_t, dir, ".kube")
 
 	allow $3 $1_kubectl_t:process { ptrace signal_perms };
 	ps_process_pattern($3, $1_kubectl_t)
 
 	auth_use_nsswitch($1_kubectl_t)
 
-	# kubectl executes an editor when editing files
+	# kubectl executes an editor when editing files.
 	# transition back to the user domain when running them
 	corecmd_bin_domtrans($1_kubectl_t, $2)
 
@@ -135,6 +135,44 @@ interface(`kubernetes_read_kubelet_state',`
 
 #######################################
 ## <summary>
+##	Inherit and use file descriptors from
+##	kubelet.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_use_kubelet_fds',`
+	gen_require(`
+		type kubelet_t;
+	')
+
+	allow $1 kubelet_t:fd use;
+')
+
+#######################################
+## <summary>
+##	Allow kubelet to send a kill signal
+##	to the specified domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_kubelet_kill',`
+	gen_require(`
+		type kubelet_t;
+	')
+
+	allow kubelet_t $1:process sigkill;
+')
+
+#######################################
+## <summary>
 ##	Execute kubeadm in the kubeadm domain.
 ## </summary>
 ## <param name="domain">
@@ -202,6 +240,28 @@ interface(`kubernetes_container_engine',`
 
 ########################################
 ## <summary>
+##	Associated the specified domain to
+##	be a domain which is capable of
+##	operating as a container domain
+##	which can be spawned by kubernetes.
+##	engine.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_container',`
+	gen_require(`
+		attribute kubernetes_container_domain;
+	')
+
+	typeattribute $1 kubernetes_container_domain;
+')
+
+########################################
+## <summary>
 ##	Allow the specified file type to be
 ##	mounted on by kubernetes.
 ## </summary>
@@ -217,6 +277,26 @@ interface(`kubernetes_mountpoint',`
 	')
 
 	typeattribute $1 kubernetes_mountpoint_type;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to
+##	get the process group ID of all
+##	kubernetes containers.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_getpgid_containers',`
+	gen_require(`
+		attribute kubernetes_container_domain;
+	')
+
+	allow $1 kubernetes_container_domain:process getpgid;
 ')
 
 ########################################
@@ -316,6 +396,24 @@ interface(`kubernetes_watch_config_dirs',`
 
 ########################################
 ## <summary>
+##	Manage kubernetes config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_manage_config_files',`
+	gen_require(`
+		type kubernetes_config_t;
+	')
+
+	manage_files_pattern($1, kubernetes_config_t, kubernetes_config_t)
+')
+
+########################################
+## <summary>
 ##	Mount on kubernetes config files.
 ## </summary>
 ## <param name="domain">
@@ -349,6 +447,27 @@ interface(`kubernetes_watch_config_files',`
 	')
 
 	allow $1 kubernetes_config_t:file watch;
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to search
+##	through the contents of kubernetes plugin
+##	directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`kubernetes_search_plugin_dirs',`
+	gen_require(`
+		type kubernetes_plugin_t;
+	')
+
+	corecmd_search_bin($1)
+	allow $1 kubernetes_plugin_t:dir search_dir_perms;
 ')
 
 ########################################
@@ -412,6 +531,7 @@ interface(`kubernetes_manage_plugin_files',`
 ########################################
 ## <summary>
 ##	List the contents of kubernetes tmpfs
+##	directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -707,7 +827,7 @@ interface(`kubernetes_admin',`
 		type kubectl_exec_t;
 		type kubernetes_config_t, kubernetes_tmp_t;
 		type kubernetes_tmpfs_t, kubernetes_runtime_t;
-		type kubernetes_conf_home_t;
+		type kubernetes_home_t;
 	')
 
 	container_admin($1, $2)
@@ -721,6 +841,8 @@ interface(`kubernetes_admin',`
 	# kubectl executes an editor when editing files
 	# transition back to the user domain when running them
 	corecmd_bin_domtrans(kubectl_t, $1)
+	allow $1 kubectl_t:fd use;
+	allow $1 kubectl_t:fifo_file rw_inherited_fifo_file_perms;
 
 	allow $1 kubeadm_t:process { ptrace signal_perms };
 	ps_process_pattern($1, kubeadm_t)
@@ -734,17 +856,17 @@ interface(`kubernetes_admin',`
 	files_search_etc($1)
 	admin_pattern($1, kubernetes_config_t)
 
+	files_search_runtime($1)
+	admin_pattern($1, kubernetes_runtime_t)
+
 	files_search_tmp($1)
 	admin_pattern($1, kubernetes_tmp_t)
 
 	fs_search_tmpfs($1)
 	admin_pattern($1, kubernetes_tmpfs_t)
 
-	files_search_runtime($1)
-	admin_pattern($1, kubernetes_runtime_t)
-
-	admin_pattern($1, kubernetes_conf_home_t)
-	userdom_user_home_dir_filetrans($1, kubernetes_conf_home_t, dir, ".kube")
+	admin_pattern($1, kubernetes_home_t)
+	userdom_user_home_dir_filetrans($1, kubernetes_home_t, dir, ".kube")
 
 	optional_policy(`
 		crio_admin($1, $2)

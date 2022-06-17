@@ -86,6 +86,9 @@ roleattribute system_r container_roles;
 container_domain_template(container)
 typealias container_t alias svirt_lxc_net_t;
 typeattribute container_t container_system_domain, container_user_domain, container_net_domain;
+optional_policy(`
+	kubernetes_container(container_t)
+')
 
 container_engine_domain_template(container_engine)
 typeattribute container_engine_t container_engine_system_domain;
@@ -100,6 +103,9 @@ mls_trusted_object(container_engine_t)
 type spc_t, container_domain, container_net_domain, container_system_domain, privileged_container_domain;
 domain_type(spc_t)
 role system_r types spc_t;
+optional_policy(`
+	kubernetes_container(spc_t)
+')
 
 type spc_user_t, container_domain, container_net_domain, container_user_domain, privileged_container_domain;
 domain_type(spc_user_t)
@@ -153,6 +159,9 @@ files_mountpoint(container_file_t)
 files_associate_rootfs(container_file_t)
 term_pty(container_file_t)
 container_mountpoint(container_file_t)
+optional_policy(`
+	kubernetes_mountpoint(container_file_t)
+')
 
 type container_ro_file_t;
 files_mountpoint(container_ro_file_t)
@@ -204,6 +213,7 @@ manage_fifo_files_pattern(container_domain, container_file_t, container_file_t)
 rw_chr_files_pattern(container_domain, container_file_t, container_file_t)
 rw_blk_files_pattern(container_domain, container_file_t, container_file_t)
 allow container_domain container_file_t:dir_file_class_set watch;
+allow container_domain container_file_t:file { entrypoint map };
 
 allow container_domain container_ro_file_t:blk_file read_blk_file_perms;
 allow container_domain container_ro_file_t:dir list_dir_perms;
@@ -283,10 +293,10 @@ tunable_policy(`container_read_public_content',`
 ')
 
 tunable_policy(`container_use_ecryptfs',`
-        fs_manage_ecryptfs_dirs(container_domain)
-        fs_manage_ecryptfs_files(container_domain)
-        fs_manage_ecryptfs_named_sockets(container_domain)
-        fs_list_ecryptfs(container_domain)
+	fs_manage_ecryptfs_dirs(container_domain)
+	fs_manage_ecryptfs_files(container_domain)
+	fs_manage_ecryptfs_named_sockets(container_domain)
+	fs_list_ecryptfs(container_domain)
 ')
 
 tunable_policy(`container_use_nfs',`
@@ -307,10 +317,10 @@ tunable_policy(`container_use_samba',`
 
 optional_policy(`
 	kubernetes_list_tmpfs(container_domain)
-	kubernetes_watch_tmpfs_dirs(container_domain)
-	kubernetes_watch_tmpfs_files(container_domain)
 	kubernetes_read_tmpfs_files(container_domain)
 	kubernetes_read_tmpfs_symlinks(container_domain)
+	kubernetes_watch_tmpfs_dirs(container_domain)
+	kubernetes_watch_tmpfs_files(container_domain)
 ')
 
 optional_policy(`
@@ -382,7 +392,6 @@ allow container_t self:capability { chown dac_override dac_read_search fowner fs
 dontaudit container_t self:capability2 block_suspend;
 allow container_t self:process setrlimit;
 
-allow container_t container_file_t:file entrypoint;
 allow container_t container_file_t:filesystem getattr;
 
 kernel_read_network_state(container_t)
@@ -437,7 +446,8 @@ allow container_engine_domain container_port_t:tcp_socket name_bind;
 dontaudit container_engine_domain container_domain:process { noatsecure rlimitinh siginh };
 allow container_engine_domain container_domain:process2 { nnp_transition nosuid_transition };
 
-allow container_engine_domain container_mountpoint_type:dir_file_class_set mounton;
+allow container_engine_domain container_mountpoint_type:dir search_dir_perms;
+allow container_engine_domain container_mountpoint_type:dir_file_class_set { getattr mounton };
 
 corecmd_bin_entry_type(container_engine_domain)
 corecmd_exec_bin(container_engine_domain)
@@ -644,6 +654,11 @@ ps_process_pattern(container_engine_system_domain, container_system_domain)
 allow container_system_domain container_engine_system_domain:fd use;
 allow container_system_domain container_engine_system_domain:fifo_file rw_fifo_file_perms;
 
+# for managing container storage on ZFS volumes
+fstools_exec(container_engine_system_domain)
+
+logging_send_syslog_msg(container_engine_system_domain)
+
 create_dirs_pattern(container_engine_system_domain, container_config_t, container_config_t)
 files_etc_filetrans(container_engine_system_domain, container_config_t, dir)
 
@@ -682,6 +697,13 @@ files_runtime_filetrans(container_engine_system_domain, container_runtime_t, { d
 allow container_engine_system_domain container_engine_cache_t:dir manage_dir_perms;
 allow container_engine_system_domain container_engine_cache_t:file manage_file_perms;
 files_var_filetrans(container_engine_system_domain, container_engine_cache_t, { dir file })
+
+container_exec_plugins(container_engine_system_domain)
+container_watch_plugin_dirs(container_engine_system_domain)
+
+optional_policy(`
+	zfs_domtrans(container_engine_system_domain)
+')
 
 ########################################
 #
@@ -770,10 +792,11 @@ domtrans_pattern(container_engine_system_domain, container_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
 
-allow spc_t self:process setrlimit;
-allow spc_t self:capability { sys_admin sys_resource };
+allow spc_t self:process { getcap setrlimit };
+allow spc_t self:capability { audit_write chown dac_read_search fowner fsetid sys_admin sys_ptrace sys_rawio sys_resource };
 allow spc_t self:capability2 { bpf perfmon };
 allow spc_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow spc_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow spc_t self:netlink_generic_socket create_socket_perms;
 allow spc_t self:netlink_netfilter_socket create_socket_perms;
 allow spc_t self:netlink_xfrm_socket create_socket_perms;
@@ -781,6 +804,19 @@ allow spc_t self:netlink_xfrm_socket create_socket_perms;
 allow container_engine_system_domain spc_t:process { setsched signal_perms };
 
 allow spc_t container_engine_system_domain:fifo_file rw_fifo_file_perms;
+
+# for kubernetes debug pods - for some reason,
+# cri-o does not relabel the container's /dev
+# when a debug pod is created, so the user will
+# be unable to attach to its terminal unless
+# this is allowed
+allow spc_t container_engine_tmpfs_t:dir list_dir_perms;
+allow spc_t container_engine_tmpfs_t:chr_file rw_chr_file_perms;
+allow spc_t container_engine_tmpfs_t:lnk_file read_lnk_file_perms;
+
+# for kubernetes storage class providers
+allow spc_t container_file_t:{ dir file } mounton;
+allow spc_t container_file_t:dir_file_class_set { relabelfrom relabelto };
 
 allow spc_t container_runtime_t:dir { manage_dir_perms mounton };
 allow spc_t container_runtime_t:file manage_file_perms;
@@ -790,7 +826,10 @@ dev_mounton_sysfs_dirs(spc_t)
 dev_read_sysfs(spc_t)
 
 fs_read_nsfs_files(spc_t)
+fs_mount_xattr_fs(spc_t)
+fs_unmount_xattr_fs(spc_t)
 fs_mount_cgroup(spc_t)
+fs_mounton_cgroup(spc_t)
 fs_list_cgroup_dirs(spc_t)
 fs_mount_bpf(spc_t)
 fs_create_bpf_dirs(spc_t)
@@ -801,15 +840,21 @@ fs_watch_tmpfs_dirs(spc_t)
 kernel_load_module(spc_t)
 kernel_request_load_module(spc_t)
 kernel_read_network_state(spc_t)
+kernel_read_vm_overcommit_sysctl(spc_t)
+kernel_dontaudit_list_unlabeled(spc_t)
 
-init_dbus_chat(spc_t)
-init_run_bpf(spc_t)
+storage_raw_rw_fixed_disk(spc_t)
+
+init_read_state(spc_t)
 
 iptables_read_runtime_files(spc_t)
 
 modutils_read_module_deps(spc_t)
 
-container_list_plugins(spc_t)
+# for kubernetes debug pods
+term_use_generic_ptys(spc_t)
+
+container_list_plugin_dirs(spc_t)
 container_manage_plugin_files(spc_t)
 
 container_create_config_files(spc_t)
@@ -821,7 +866,12 @@ container_manage_log_files(spc_t)
 
 container_manage_var_lib_dirs(spc_t)
 container_manage_var_lib_files(spc_t)
-allow spc_t container_var_lib_t:file map;
+container_map_var_lib_files(spc_t)
+
+ifdef(`init_systemd',`
+	init_dbus_chat(spc_t)
+	init_run_bpf(spc_t)
+')
 
 optional_policy(`
 	dbus_system_bus_client(spc_t)
@@ -836,6 +886,7 @@ optional_policy(`
 	kubernetes_watch_plugin_dirs(spc_t)
 	kubernetes_manage_plugin_files(spc_t)
 
+	# Calico runs as a privileged container
 	kubernetes_run_engine_bpf(spc_t)
 ')
 
