@@ -66,27 +66,14 @@ gen_levels(1,mcs_num_cats)
 #
 # Note:
 #  - getattr on dirs/files is not constrained.
-#  - /proc/pid operations are not constrained.
 
-mlsconstrain file { read ioctl lock execute execute_no_trans }
+mlsconstrain dir_file_class_set { open read ioctl lock write setattr append create unlink link rename relabelfrom relabelto }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
-mlsconstrain file { write setattr append unlink link rename }
+mlsconstrain file { execute execute_no_trans }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
-mlsconstrain dir { search read ioctl lock }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain dir { write setattr append unlink link rename add_name remove_name }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain fifo_file { open }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain { lnk_file chr_file blk_file sock_file } { getattr read ioctl }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain { lnk_file chr_file blk_file sock_file } { write setattr }
+mlsconstrain dir { search add_name remove_name rmdir }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
 # New filesystem object labels must be dominated by the relabeling subject
@@ -95,32 +82,38 @@ mlsconstrain { file lnk_file fifo_file } { create relabelto }
 	((( h1 dom h2 ) and ( l2 eq h2 )) or
 	 ( t1 != mcs_constrained_type ));
 
-# new file labels must be dominated by the relabeling subject clearance
-mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } { relabelfrom }
+
+mlsconstrain process { transition dyntransition ptrace sigkill sigstop signal }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
-mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file } { create relabelto }
+mlsconstrain socket_class_set { create ioctl read write setattr append bind connect getopt setopt shutdown }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
-mlsconstrain process { transition dyntransition }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain process { ptrace }
-	(( h1 dom h2) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain process { sigkill sigstop }
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain process { signal }
+mlsconstrain stream_socket_class_set { listen accept }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
 mlsconstrain { tcp_socket udp_socket rawip_socket sctp_socket } node_bind
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
+mlsconstrain unix_stream_socket connectto
+	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
+
+mlsconstrain unix_dgram_socket sendto
+	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
+
 mlsconstrain key { create link read search setattr view write }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
-mlsconstrain { ipc sem msgq shm } { create destroy setattr write unix_write }
+mlsconstrain { ipc sem msgq shm } { create destroy setattr read unix_read write unix_write }
+	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
+
+mlsconstrain msg { send receive }
+	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
+
+mlsconstrain msgq enqueue
+	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
+
+mlsconstrain shm lock
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
 mlsconstrain context contains
