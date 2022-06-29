@@ -82,10 +82,15 @@ mlsconstrain { file lnk_file fifo_file } { create relabelto }
 	((( h1 dom h2 ) and ( l2 eq h2 )) or
 	 ( t1 != mcs_constrained_type ));
 
-
-mlsconstrain process { transition dyntransition ptrace sigkill sigstop signal }
+#
+# MCS policy for process classes
+#
+mlsconstrain process { transition dyntransition ptrace sigkill sigstop signal getsession getattr getsched setsched getrlimit setrlimit getpgid setpgid getcap setcap share setexec setfscreate setcurrent setsockcreate }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
+#
+# MCS policy for socket classes
+#
 mlsconstrain socket_class_set { create ioctl read write setattr append bind connect getopt setopt shutdown }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
@@ -101,9 +106,16 @@ mlsconstrain unix_stream_socket connectto
 mlsconstrain unix_dgram_socket sendto
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
+
+#
+# MCS policy for key class
+#
 mlsconstrain key { create link read search setattr view write }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
+#
+# MCS policy for SysV IPC
+#
 mlsconstrain { ipc sem msgq shm } { create destroy setattr read unix_read write unix_write }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
@@ -116,8 +128,31 @@ mlsconstrain msgq enqueue
 mlsconstrain shm lock
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
 
+#
+# MCS policy for context class
+#
 mlsconstrain context contains
 	((( h1 dom h2 ) and ( l1 domby l2 )) or ( t1 != mcs_constrained_type ));
+
+#
+# MCS policy for network classes
+#
+
+# The node recvfrom/sendto ops, the recvfrom permission is a "write" operation
+# because the subject in this particular case is the remote domain which is
+# writing data out the network node which is acting as the object
+mlsconstrain { node } { recvfrom sendto }
+	(( l1 dom l2 ) or ( t1 != mcs_constrained_type ));
+
+mlsconstrain { packet peer } { recv }
+	(( l1 dom l2 ) or
+	 (( t1 != mcs_constrained_type ) and ( t2 != mcs_constrained_type )));
+
+# The netif ingress/egress ops, the ingress permission is a "write" operation
+# because the subject in this particular case is the remote domain which is
+# writing data out the network interface which is acting as the object
+mlsconstrain { netif } { egress ingress }
+	(( l1 dom l2 ) or ( t1 != mcs_constrained_type ));
 
 #
 # MCS policy for SELinux-enabled databases
@@ -161,24 +196,5 @@ mlsconstrain db_language { drop getattr setattr relabelfrom execute }
 
 mlsconstrain db_blob { drop getattr setattr relabelfrom read write import export }
 	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain { tcp_socket udp_socket rawip_socket } node_bind
-	(( h1 dom h2 ) or ( t1 != mcs_constrained_type ));
-
-# The node recvfrom/sendto ops, the recvfrom permission is a "write" operation
-# because the subject in this particular case is the remote domain which is
-# writing data out the network node which is acting as the object
-mlsconstrain { node } { recvfrom sendto }
-	(( l1 dom l2 ) or ( t1 != mcs_constrained_type ));
-
-mlsconstrain { packet peer } { recv }
-	(( l1 dom l2 ) or
-	 (( t1 != mcs_constrained_type ) and ( t2 != mcs_constrained_type )));
-
-# The netif ingress/egress ops, the ingress permission is a "write" operation
-# because the subject in this particular case is the remote domain which is
-# writing data out the network interface which is acting as the object
-mlsconstrain { netif } { egress ingress }
-	(( l1 dom l2 ) or ( t1 != mcs_constrained_type ));
 
 ') dnl end enable_mcs
