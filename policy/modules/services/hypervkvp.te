@@ -1,28 +1,172 @@
-policy_module(hypervkvp)
+policy_module(hypervkvp, 1.0.0)
 
 ########################################
 #
 # Declarations
 #
 
-type hypervkvpd_t;
+attribute hyperv_domain;
+
+type hypervkvpd_t, hyperv_domain;
 type hypervkvpd_exec_t;
 init_daemon_domain(hypervkvpd_t, hypervkvpd_exec_t)
 
 type hypervkvpd_initrc_exec_t;
 init_script_file(hypervkvpd_initrc_exec_t)
 
+type hypervkvpd_unit_t;
+init_unit_file(hypervkvpd_unit_t)
+
+type hypervkvpd_var_lib_t;
+files_type(hypervkvpd_var_lib_t)
+
+type hypervkvpd_tmp_t;
+files_tmpfs_file(hypervkvpd_tmp_t)
+
+type hypervvssd_t, hyperv_domain;
+type hypervvssd_exec_t;
+init_daemon_domain(hypervvssd_t, hypervvssd_exec_t)
+
+type hypervvssd_unit_t;
+init_unit_file(hypervvssd_unit_t)
+
 ########################################
 #
-# Local policy
-#
+# hyperv domain local policy
 #
 
-allow hypervkvpd_t self:fifo_file rw_fifo_file_perms;
-allow hypervkvpd_t self:unix_stream_socket create_stream_socket_perms;
+allow hyperv_domain self:capability net_admin;
+allow hyperv_domain self:netlink_socket create_socket_perms;
+
+allow hyperv_domain self:fifo_file rw_fifo_file_perms;
+allow hyperv_domain self:unix_stream_socket create_stream_socket_perms;
+
+corecmd_exec_shell(hyperv_domain)
+corecmd_exec_bin(hyperv_domain)
+
+dev_read_sysfs(hyperv_domain)
+
+########################################
+#
+# hypervkvp local policy
+#
+
+allow hypervkvpd_t self:capability sys_ptrace;
+allow hypervkvpd_t self:process setfscreate;
+allow hypervkvpd_t self:netlink_route_socket rw_netlink_socket_perms;
+
+manage_dirs_pattern(hypervkvpd_t, hypervkvpd_var_lib_t, hypervkvpd_var_lib_t)
+manage_files_pattern(hypervkvpd_t, hypervkvpd_var_lib_t, hypervkvpd_var_lib_t)
+files_var_lib_filetrans(hypervkvpd_t, hypervkvpd_var_lib_t, dir)
+
+manage_files_pattern(hypervkvpd_t, hypervkvpd_tmp_t, hypervkvpd_tmp_t)
+manage_dirs_pattern(hypervkvpd_t, hypervkvpd_tmp_t, hypervkvpd_tmp_t)
+files_tmp_filetrans(hypervkvpd_t, hypervkvpd_tmp_t, { file dir })
+
+kernel_read_system_state(hypervkvpd_t)
+kernel_read_network_state(hypervkvpd_t)
+kernel_request_load_module(hypervkvpd_t)
+kernel_rw_net_sysctls(hypervkvpd_t)
+
+corecmd_getattr_all_executables(hypervkvpd_t)
+
+dev_rw_hyperv_kvp(hypervkvpd_t)
+
+domain_read_all_domains_state(hypervkvpd_t)
+
+seutil_exec_setfiles(hypervkvpd_t)
+seutil_read_file_contexts(hypervkvpd_t)
+
+domain_read_all_domains_state(hypervkvpd_t)
+
+dev_read_urand(hypervkvpd_t)
+
+files_dontaudit_search_home(hypervkvpd_t)
+files_dontaudit_getattr_non_security_files(hypervkvpd_t)
+
+fs_getattr_all_fs(hypervkvpd_t)
+fs_list_hugetlbfs(hypervkvpd_t)
+
+auth_use_nsswitch(hypervkvpd_t)
 
 logging_send_syslog_msg(hypervkvpd_t)
+logging_read_syslog_config(hypervkvpd_t)
+
+libs_exec_ldconfig(hypervkvpd_t)
 
 miscfiles_read_localization(hypervkvpd_t)
 
+modutils_domtrans(hypervkvpd_t)
+
+seutil_domtrans_setfiles(hypervkvpd_t)
+
 sysnet_dns_name_resolve(hypervkvpd_t)
+sysnet_domtrans_dhcpc(hypervkvpd_t)
+sysnet_domtrans_ifconfig(hypervkvpd_t)
+
+sysnet_manage_dhcpc_runtime_files(hypervkvpd_t)
+sysnet_signal_dhcpc(hypervkvpd_t)
+sysnet_manage_config(hypervkvpd_t)
+sysnet_read_dhcpc_state(hypervkvpd_t)
+sysnet_read_dhcp_config(hypervkvpd_t)
+sysnet_etc_filetrans_config(hypervkvpd_t)
+
+systemd_exec_systemctl(hypervkvpd_t)
+
+userdom_dontaudit_search_user_home_dirs(hypervkvpd_t)
+
+optional_policy(`
+	brctl_domtrans(hypervkvpd_t)
+')
+
+optional_policy(`
+	dbus_read_system_bus_runtime_files(hypervkvpd_t)
+	dbus_system_bus_client(hypervkvpd_t)
+
+	optional_policy(`
+		firewalld_dbus_chat(hypervkvpd_t)
+	')
+
+	optional_policy(`
+		networkmanager_read_runtime_files(hypervkvpd_t)
+		networkmanager_dbus_chat(hypervkvpd_t)
+	')
+')
+
+optional_policy(`
+	hostname_exec(hypervkvpd_t)
+')
+
+optional_policy(`
+	netutils_domtrans_ping(hypervkvpd_t)
+	netutils_domtrans(hypervkvpd_t)
+')
+
+optional_policy(`
+	sysnet_exec_ifconfig(hypervkvpd_t)
+')
+
+optional_policy(`
+	rpm_exec(hypervkvpd_t)
+')
+
+########################################
+#
+# hypervvssd local policy
+#
+
+allow hypervvssd_t self:capability { dac_read_search dac_override sys_admin };
+
+dev_rw_hyperv_vss(hypervvssd_t)
+
+files_list_boot(hypervvssd_t)
+
+files_list_all_mountpoints(hypervvssd_t)
+files_write_all_mountpoints(hypervvssd_t)
+files_list_non_auth_dirs(hypervvssd_t)
+
+logging_send_syslog_msg(hypervvssd_t)
+
+miscfiles_read_localization(hypervvssd_t)
+
+storage_raw_read_fixed_disk(hypervvssd_t)
