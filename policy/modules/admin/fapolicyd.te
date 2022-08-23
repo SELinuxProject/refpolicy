@@ -1,0 +1,170 @@
+policy_module(fapolicyd)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role fapolicyc_roles;
+attribute_role fagenrules_roles;
+
+# for the fapolicyd daemon - long running process
+type fapolicyd_t;
+type fapolicyd_exec_t;
+init_daemon_domain(fapolicyd_t, fapolicyd_exec_t)
+
+# for the fapolicyd-cli process - interact with daemon
+type fapolicyc_t;
+type fapolicyc_exec_t;
+application_domain(fapolicyc_t, fapolicyc_exec_t)
+role fapolicyc_roles types fapolicyc_t;
+
+# for the fagenrules script - compile rules
+type fagenrules_t;
+type fagenrules_exec_t;
+application_domain(fagenrules_t, fagenrules_exec_t)
+init_script_domain(fagenrules_t, fagenrules_exec_t)
+role fagenrules_roles types fagenrules_t;
+
+type fapolicyd_config_t;
+files_config_file(fapolicyd_config_t)
+
+type fapolicyd_compiled_rules_t;
+files_security_file(fapolicyd_compiled_rules_t)
+
+type fapolicyd_log_t;
+logging_log_file(fapolicyd_log_t)
+
+type fapolicyd_runtime_t;
+files_runtime_file(fapolicyd_runtime_t)
+
+type fagenrules_tmp_t;
+files_tmp_file(fagenrules_tmp_t)
+
+type fapolicyd_unit_t;
+init_unit_file(fapolicyd_unit_t)
+
+type fapolicyd_var_lib_t;
+files_type(fapolicyd_var_lib_t)
+
+########################################
+#
+# fapolicyd (daemon) local policy
+#
+
+allow fapolicyd_t self:capability { audit_write chown dac_override setgid setuid sys_admin sys_nice sys_ptrace };
+allow fapolicyd_t self:process { setcap setsched };
+
+allow fapolicyd_t fapolicyd_log_t:file { create_file_perms write_file_perms };
+
+manage_fifo_files_pattern(fapolicyd_t, fapolicyd_runtime_t, fapolicyd_runtime_t)
+manage_files_pattern(fapolicyd_t, fapolicyd_runtime_t, fapolicyd_runtime_t)
+
+# compiled rules, compiled by /sbin/fagenrules and copied into place, then restorecon
+read_files_pattern(fapolicyd_t, fapolicyd_config_t, fapolicyd_compiled_rules_t)
+
+mmap_manage_files_pattern(fapolicyd_t, fapolicyd_var_lib_t, fapolicyd_var_lib_t)
+
+kernel_getattr_proc(fapolicyd_t)
+kernel_read_kernel_sysctls(fapolicyd_t)
+
+domain_read_all_domains_state(fapolicyd_t)
+
+files_read_all_files(fapolicyd_t)
+files_read_all_symlinks(fapolicyd_t)
+files_runtime_filetrans(fapolicyd_t, fapolicyd_runtime_t, { file fifo_file })
+files_map_usr_files(fapolicyd_t)
+files_watch_all_mountpoints(fapolicyd_t)
+files_watch_all_mount_perm(fapolicyd_t)
+
+fs_getattr_xattr_fs(fapolicyd_t)
+
+logging_log_filetrans(fapolicyd_t, fapolicyd_log_t, file)
+logging_send_syslog_msg(fapolicyd_t)
+
+fapolicyd_mmap_read_config_files(fapolicyd_t)
+
+optional_policy(`
+	rpm_manage_db(fapolicyd_t)
+')
+
+########################################
+#
+# fagenrules local policy
+#
+
+allow fagenrules_t self:capability { fsetid kill };
+allow fagenrules_t self:fifo_file rw_inherited_fifo_file_perms;
+
+
+# fagenpolicy finds running fapolicyd and sighup after generating rules
+allow fagenrules_t fapolicyd_t:process signal;
+ps_process_pattern(fagenrules_t, fapolicyd_t)
+
+# /sbin/fagenrules copies compiled rules into /etc/faplicyd then calls restorecon
+# on new /etc/fapolicy/compiled.rules
+allow fagenrules_t fapolicyd_compiled_rules_t:file { relabelfrom relabelto };
+filetrans_pattern(fagenrules_t, fapolicyd_config_t, fapolicyd_compiled_rules_t, file)
+manage_files_pattern(fagenrules_t, fapolicyd_config_t, fapolicyd_compiled_rules_t)
+
+manage_files_pattern(fagenrules_t, fapolicyd_var_lib_t, fapolicyd_var_lib_t)
+
+kernel_getattr_proc(fagenrules_t)
+kernel_read_kernel_sysctls(fagenrules_t)
+kernel_read_system_state(fagenrules_t)
+
+corecmd_exec_bin(fagenrules_t)
+corecmd_exec_shell(fagenrules_t)
+
+# fagenpolicy uses 'pidof' to find running fapolicyd
+domain_dontaudit_read_all_domains_state(fagenrules_t)
+domain_use_interactive_fds(fagenrules_t)
+
+files_list_runtime(fagenrules_t)
+files_read_etc_files(fagenrules_t)
+files_read_usr_files(fagenrules_t)
+files_search_var_lib(fagenrules_t)
+
+files_tmp_filetrans(fagenrules_t, fagenrules_tmp_t, { dir file })
+manage_files_pattern(fagenrules_t, fagenrules_tmp_t, fagenrules_tmp_t)
+
+init_rw_stream_sockets(fagenrules_t)
+
+logging_send_syslog_msg(fagenrules_t)
+
+miscfiles_read_localization(fagenrules_t)
+
+seutil_exec_setfiles(fagenrules_t)
+seutil_read_file_contexts(fagenrules_t)
+
+userdom_use_inherited_user_terminals(fagenrules_t)
+
+fapolicyd_mmap_read_config_files(fagenrules_t)
+
+########################################
+#
+# fapolicyc (fapolicyd-cli) local policy
+#
+
+allow fapolicyc_t fapolicyd_runtime_t:fifo_file write_fifo_file_perms;
+mmap_manage_files_pattern(fapolicyc_t, fapolicyd_var_lib_t, fapolicyd_var_lib_t)
+mmap_read_files_pattern(fapolicyc_t, fapolicyd_config_t, fapolicyd_compiled_rules_t)
+
+kernel_getattr_proc(fapolicyc_t)
+kernel_list_proc(fapolicyc_t)
+kernel_read_kernel_sysctls(fapolicyc_t)
+
+corecmd_search_bin(fapolicyc_t)
+
+domain_use_interactive_fds(fapolicyc_t)
+
+files_list_runtime(fapolicyc_t)
+files_read_all_files(fapolicyc_t)
+files_read_etc_files(fapolicyc_t)
+
+logging_send_syslog_msg(fapolicyc_t)
+
+userdom_use_inherited_user_terminals(fapolicyc_t)
+
+fapolicyd_mmap_read_config_files(fapolicyc_t)
+
