@@ -274,3 +274,100 @@ refresh			Attempts to reinsert all modules that are currently
 xml			Build a policy.xml from the XML included with the
 			base policy headers and any XML in the modules in
 			the current directory.
+
+
+## How to work with SELinux
+### Introduction
+
+Each process or resource (file, dir etc.) has a label (type) that describes what can be accessed.
+
+SELinux considers subject-access-object rule set. On a Linux system, subjects are processes, and object is the resource
+on which an action is applied.
+
+Refpolicy contains the following file types:
+1. **te** - (type enforcement) the file contains rules describing what the domain can do (labels of the subjects or objects). This file
+does not say that this process can run another file, it just says that the process labeled A can read the file
+labeled B.
+2. **fc** - (file context) describes the security context (labels) on a file, directory, etc., which will be applied when the policy
+is installed. By default, directories or files inherit the context of their parents, but the desired context could
+be manually set using this file.
+3. **if** - (interface file) creates the macros that other modules will use to gain access to the resources.
+
+SELinux can run in one of three modes: **disabled**, **permissive**, or **enforcing**.
+Using the **disabled** mode means that no rules from the SELinux policy are applied and system is not protected.
+Therefore, the disabled mode is not recommended.
+In the **permissive** mode, SELinux is active, the security policy is loaded, the file system is labeled and access
+denial entries are logged. However, the policy is not enforced and thus no access is actually denied.
+In the **enforced** mode, the security policy is applied. Each access that is not explicitly allowed by the policy
+is denied.
+
+To be able to check SELinux for possible access denials, set the **permissive** mode in the **meta-aos-vm**
+for **refpolicy-aos** recipe to the **DEFAULT_ENFORCING** variable. This will make it possible to use SELinux,
+but in logging mode.
+
+To diagnose denials security policies, use the following command `journalctl | grep avc`, if the log contains
+**avc: denied** that means it is an SELinux policy denial. This log will include a line like this:
+
+```
+AVC avc:  denied  { write } for  pid=1248 comm="dnsmasq" name="dev-log" dev="tmpfs" ino=20945
+scontext=system_u:system_r:dnsmasq_t:s0 tcontext=system_u:object_r:syslogd_runtime_t:s0 tclass=sock_file permissive=0
+```
+
+- **scontext** - SELinux context of the process (source) that attempted the denied action
+- **tcontext** - SELinux context of the object (target) the process attempted to access
+- **comm** - name of the command that was used to access the target context name
+- **tclass** - target object class
+- **dev** - device on which the target resides
+- **name** - name of the target
+- can contained **path** -  path to the object (target) the process attempted to access.
+
+The next step is to analyze the received log and find the corresponding **te** file by **scontext**, for example,
+for **dnsmasq_t** there is a corresponding **dnsmasq.te** file and in this file a rule that allows
+**scontext** to access **tcontext** has to be added.
+
+### Recommended steps for editing refpolicy
+
+To find the required **te** file where to add the rule, find a line declaring the **scontext** type
+(label) as in example `type dnsmasq_t;`. Next, after the **Local policy comment**, add the desired rule.
+Sometimes the rules are logically grouped, for example, there are rules for working with the `/etc` directory, etc.
+
+**It is important** that before adding a rule, look for a possible macro for **tcontext** declared in a
+file with the **if** extension. To find the necessary file **if**, first find the corresponding **te** file
+in which the label will be declared and then take the **if** file with the same name. For example, the
+`syslogd_runtime_t` label is declared in the `logging.te` file, then the macro should be looked for in the
+`logging.if` file.
+
+If some file or directory is marked with an incorrect label or `unlabeled_t`, then find the **te**
+file where the label of interest is declared and take the file with the **fc** extension and declare the context for
+the label of interest there. For example:
+
+```
+/usr/bin/aos_vis  --  gen_context(system_u:object_r:aos_exec_t,s0)
+```
+
+which means that the `aos_vis` file will be labeled `aos_exec_t`, this is an executable process.
+
+To see what would be the correct or possible label in the `unlabeled_t`, run the `fixfiles -F -f relabel`
+command or another command `restorecon`. After that the resource or process's will be labeled with proper context.
+
+**It is important** If a new label needs to be created, it is important to create three files **te, fc, if** with the name
+of the label that with which is created. The **te** file that declares (or in which the new label is declared) should not
+be empty whereas **fc**, **if** files can be empty.
+
+Sometimes, logs may contain denials security policies that are not very critical, for example, reading
+file attribute or read a file that may not affect the system, or when login into the system being created
+policies to denial write to the system log:
+
+```
+avc:  denied  { write } for  pid=1034 comm="login" name="dev-log" dev="tmpfs" ino=20945
+scontext=system_u:system_r:local_login_t:s0-s0:c0.c1023
+tcontext=system_u:object_r:syslogd_runtime_t:s0 tclass=sock_file permissive=0
+```
+
+For these denials **rules may not be added** to the refpolicy if it is not necessary.
+
+After the corresponding security policy is added, it is necessary to build the refpolicy again through yocto.
+
+**It is important** not to add a rule to the `unlabled_t` label, unless the `scontext` is one of the labeling utilities
+like `fixfiles`. In this case, find the reason why this resource or process was not marked up and add the
+appropriate label through the `fc` file or in another way.
