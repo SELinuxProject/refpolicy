@@ -74,7 +74,13 @@ template(`sudo_role_template',`
 	allow $1_sudo_t self:key manage_key_perms;
 	dontaudit $1_sudo_t self:capability { dac_read_search sys_ptrace };
 
-        dontaudit $1_sudo_t $3:socket_class_set { read write };
+	# allow getting the process group of the parent process
+	allow $1_sudo_t $2:process getpgid;
+
+	# allow accessing /proc/pid/stat of the calling domain
+	ps_process_pattern($1_sudo_t, $2)
+
+	dontaudit $1_sudo_t $3:socket_class_set { read write };
 
 	# By default, revert to the calling domain when a shell is executed.
 	corecmd_shell_domtrans($1_sudo_t, $2)
@@ -122,6 +128,7 @@ template(`sudo_role_template',`
 	auth_use_pam($1_sudo_t)
 	auth_runtime_filetrans_pam_runtime($1_sudo_t, dir, "sudo")
 
+	init_getpgid($1_sudo_t)
 	init_rw_utmp($1_sudo_t)
 
 	logging_send_audit_msgs($1_sudo_t)
@@ -145,6 +152,8 @@ template(`sudo_role_template',`
 	# for some PAM modules and for cwd
 	userdom_dontaudit_search_user_home_content($1_sudo_t)
 	userdom_dontaudit_search_user_home_dirs($1_sudo_t)
+	# allow forwarding signals to the child process
+	userdom_signal_all_users($1_sudo_t)
 
 	tunable_policy(`allow_polyinstantiation',`
 		allow $1_sudo_t self:capability sys_admin;
@@ -154,6 +163,9 @@ template(`sudo_role_template',`
 
 	tunable_policy(`sudo_allow_user_exec_domains',`
 		allow $1_sudo_t $3:key search;
+
+		# allow accessing /proc/pid/stat
+		ps_process_pattern($1_sudo_t, $3)
 
 		# Transmit SIGWINCH to children
 		allow $1_sudo_t $3:process signal;

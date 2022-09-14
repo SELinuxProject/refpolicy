@@ -1,0 +1,164 @@
+## <summary>Tools for the Zettabyte File System.</summary>
+
+########################################
+## <summary>
+##	Execute ZFS tools in the
+##	ZFS domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`zfs_domtrans',`
+	gen_require(`
+		type zfs_t, zfs_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, zfs_exec_t, zfs_t)
+')
+
+########################################
+## <summary>
+##	Execute ZFS tools in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`zfs_exec',`
+	gen_require(`
+		type zfs_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, zfs_exec_t)
+')
+
+########################################
+## <summary>
+##	Execute ZFS tools in the ZFS domain, and
+##	allow the specified role the ZFS domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`zfs_run',`
+	gen_require(`
+		type zfs_t;
+	')
+
+	zfs_domtrans($1)
+	role $2 types zfs_t;
+')
+
+########################################
+## <summary>
+##	Search ZFS config directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`zfs_search_config',`
+	gen_require(`
+		type zfs_config_t;
+	')
+
+	files_search_etc($1)
+	search_dirs_pattern($1, zfs_config_t, zfs_config_t)
+')
+
+########################################
+## <summary>
+##	Read ZFS config files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`zfs_read_config',`
+	gen_require(`
+		type zfs_config_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, zfs_config_t, zfs_config_t)
+	read_lnk_files_pattern($1, zfs_config_t, zfs_config_t)
+')
+
+########################################
+## <summary>
+##	Read and write zpool cache files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`zfs_rw_zpool_cache',`
+	gen_require(`
+		type zfs_zpool_cache_t;
+	')
+
+	zfs_search_config($1)
+	allow $1 zfs_zpool_cache_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate a ZFS environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`zfs_admin',`
+	gen_require(`
+		type zfs_t, zed_t;
+		type zfs_config_t, zfs_zpool_cache_t;
+		type zfs_runtime_t;
+	')
+
+	zfs_run($1, $2)
+
+	allow $1 zfs_t:process { ptrace signal_perms };
+	ps_process_pattern($1, zfs_t)
+
+	allow $1 zed_t:process { ptrace signal_perms };
+	ps_process_pattern($1, zed_t)
+
+	files_search_etc($1)
+	admin_pattern($1, zfs_config_t)
+	admin_pattern($1, zfs_zpool_cache_t)
+
+	files_search_runtime($1)
+	admin_pattern($1, zfs_runtime_t)
+')
