@@ -23,12 +23,23 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update -q
+        sudo apt-get install -qy autoconf-archive bison flex libconfuse-dev uthash-dev
 
-        # Install SELint from Debian testing
-        wget -O - https://ftp-master.debian.org/keys/archive-key-10.asc 2>/dev/null | sudo apt-key add -
-        sudo add-apt-repository 'deb http://deb.debian.org/debian/ testing main' -y
-        sudo apt-get install -qy selint
-        selint -V
+    - name: Checkout SELint
+      uses: actions/checkout@v3
+      with:
+        repository: SELinuxProject/selint
+        # support exclusions in interface arguments
+        ref: '41a575e82dea5cd7f60b4fa7aeb84405dba3baba' # "Parse interface taking list of exemptions"
+        path: selint
+
+    - name: Build SELint
+      run: |
+        cd selint/
+        ./autogen.sh
+        ./configure --without-check
+        make -j$(nproc)
+        sudo make install
 
     - name: Create generated policy files
       run: |
@@ -41,8 +52,9 @@ jobs:
     - name: Run SELint
       run: |
         # disable C-005 (Permissions in av rule or class declaration not ordered) for now: needs fixing
+        # disable C-008 (Conditional expression identifier from foreign module) for now: needs fixing
         # disable W-005 (Interface call from module not in optional_policy block): refpolicy does not follow this rule
-        selint --source --recursive --summary --fail --disable C-005 --disable W-005 policy
+        selint --source --recursive --summary --fail --disable C-005 --disable C-008 --disable W-005 policy
 
   build:
     runs-on: ubuntu-latest
