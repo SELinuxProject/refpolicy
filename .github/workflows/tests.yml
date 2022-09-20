@@ -3,6 +3,7 @@ name: Build tests
 on: [push, pull_request]
 
 env:
+  # Minimum userspace version to build refpolicy.
   SELINUX_USERSPACE_VERSION: checkpolicy-3.1
 
 jobs:
@@ -10,23 +11,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # This version should be the minimum required to run the fc checker
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
 
     - name: Install dependencies
       run: |
-        sudo apt-get update -qq
+        sudo apt-get update -q
+        sudo apt-get install -qy autoconf-archive bison flex libconfuse-dev uthash-dev
 
-        # Install SELint from Debian testing
-        wget -O - https://ftp-master.debian.org/keys/archive-key-10.asc 2>/dev/null | sudo apt-key add -
-        sudo add-apt-repository 'deb http://deb.debian.org/debian/ testing main' -y
-        sudo apt-get install -qqy selint
-        selint -V
+    - name: Checkout SELint
+      uses: actions/checkout@v3
+      with:
+        repository: SELinuxProject/selint
+        # support exclusions in interface arguments
+        ref: 'v1.3.0' # "Parse interface taking list of exemptions"
+        path: selint
+
+    - name: Build SELint
+      run: |
+        cd selint/
+        ./autogen.sh
+        ./configure --without-check
+        make -j$(nproc)
+        sudo make install
 
     - name: Create generated policy files
       run: |
@@ -39,8 +51,9 @@ jobs:
     - name: Run SELint
       run: |
         # disable C-005 (Permissions in av rule or class declaration not ordered) for now: needs fixing
+        # disable C-008 (Conditional expression identifier from foreign module) for now: needs fixing
         # disable W-005 (Interface call from module not in optional_policy block): refpolicy does not follow this rule
-        selint --source --recursive --summary --fail --disable C-005 --disable W-005 policy
+        selint --source --recursive --summary --fail --disable C-005 --disable C-008 --disable W-005 policy
 
   build:
     runs-on: ubuntu-latest
@@ -79,18 +92,18 @@ jobs:
           - {type: mls, distro: gentoo, monolithic: y, systemd: n, apps-off: unconfined}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     # This should be the minimum required Python version to build refpolicy.
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.5
 
     - name: Install dependencies
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -qqy \
+        sudo apt-get update -q
+        sudo apt-get install -qy \
             bison \
             flex \
             gettext \
