@@ -2,6 +2,90 @@
 
 ########################################
 ## <summary>
+##	Execute glusterd in the glusterd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`glusterfs_domtrans_daemon',`
+	gen_require(`
+		type glusterd_t, glusterd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, glusterd_exec_t, glusterd_t)
+')
+
+########################################
+## <summary>
+##	Execute glusterd in the glusterd domain, and
+##	allow the specified role the glusterd domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`glusterfs_run_daemon',`
+	gen_require(`
+		type glusterd_t;
+	')
+
+	glusterfs_domtrans_daemon($1)
+	role $2 types glusterd_t;
+')
+
+########################################
+## <summary>
+##	Connect to glusterd over a unix stream socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`glusterfs_stream_connect_daemon',`
+	gen_require(`
+		type glusterd_t;
+		type glusterd_runtime_t;
+	')
+
+	files_search_runtime($1)
+	stream_connect_pattern($1, glusterd_runtime_t, glusterd_runtime_t, glusterd_t)
+	allow $1 glusterd_runtime_t:sock_file read_sock_file_perms;
+')
+
+########################################
+## <summary>
+##	Inherit and use glusterd file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`glusterfs_use_daemon_fds',`
+	gen_require(`
+		type glusterd_t;
+	')
+
+	allow $1 glusterd_t:fd use;
+')
+
+########################################
+## <summary>
 ##	All of the rules required to
 ##	administrate an glusterfs environment.
 ## </summary>
@@ -21,13 +105,17 @@ interface(`glusterfs_admin',`
 	gen_require(`
 		type glusterd_t, glusterd_initrc_exec_t, glusterd_log_t;
 		type glusterd_tmp_t, glusterd_conf_t, glusterd_var_lib_t;
-		type glusterd_runtime_t;
+		type glusterd_hook_t, glusterd_runtime_t, glusterd_brick_t;
 	')
+
+	glusterfs_run_daemon($1, $2)
 
 	init_startstop_service($1, $2, glusterd_t, glusterd_initrc_exec_t)
 
 	allow $1 glusterd_t:process { ptrace signal_perms };
 	ps_process_pattern($1, glusterd_t)
+
+	glusterfs_stream_connect_daemon($1)
 
 	files_search_etc($1)
 	admin_pattern($1, glusterd_conf_t)
@@ -40,7 +128,12 @@ interface(`glusterfs_admin',`
 
 	files_search_var_lib($1)
 	admin_pattern($1, glusterd_var_lib_t)
+	admin_pattern($1, glusterd_hook_t)
 
 	files_search_runtime($1)
 	admin_pattern($1, glusterd_runtime_t)
+
+	# searching var for /srv
+	files_search_var($1)
+	admin_pattern($1, glusterd_brick_t)
 ')

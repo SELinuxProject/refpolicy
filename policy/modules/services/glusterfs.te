@@ -1,5 +1,15 @@
 policy_module(glusterfs)
 
+## <desc>
+##	<p>
+##	Allow the gluster daemon to automatically
+##	add and remove file contexts from the local
+##	SELinux policy when adding and removing
+##	bricks.
+##	</p>
+## </desc>
+gen_tunable(glusterfs_modify_policy, false)
+
 ########################################
 #
 # Declarations
@@ -27,16 +37,22 @@ files_tmp_file(glusterd_tmp_t)
 type glusterd_var_lib_t;
 files_type(glusterd_var_lib_t)
 
+type glusterd_brick_t;
+files_type(glusterd_brick_t)
+
+type glusterd_hook_t;
+files_type(glusterd_hook_t)
+
 ########################################
 #
 # Local policy
 #
 
-allow glusterd_t self:capability { chown dac_override dac_read_search fowner sys_admin sys_resource };
-allow glusterd_t self:process { setrlimit signal };
+allow glusterd_t self:capability { chown dac_override dac_read_search fowner ipc_lock sys_admin sys_resource };
+allow glusterd_t self:process { getsched setrlimit signal signull };
 allow glusterd_t self:fifo_file rw_fifo_file_perms;
-allow glusterd_t self:tcp_socket { accept listen };
-allow glusterd_t self:unix_stream_socket { accept listen };
+allow glusterd_t self:tcp_socket create_stream_socket_perms;
+allow glusterd_t self:unix_stream_socket { create_stream_socket_perms connectto };
 
 manage_dirs_pattern(glusterd_t, glusterd_conf_t, glusterd_conf_t)
 manage_files_pattern(glusterd_t, glusterd_conf_t, glusterd_conf_t)
@@ -58,16 +74,25 @@ manage_files_pattern(glusterd_t, glusterd_runtime_t, glusterd_runtime_t)
 manage_sock_files_pattern(glusterd_t, glusterd_runtime_t, glusterd_runtime_t)
 files_runtime_filetrans(glusterd_t, glusterd_runtime_t, { dir file sock_file })
 
+can_exec(glusterd_t, glusterd_var_lib_t)
 manage_dirs_pattern(glusterd_t, glusterd_var_lib_t, glusterd_var_lib_t)
 manage_files_pattern(glusterd_t, glusterd_var_lib_t, glusterd_var_lib_t)
+manage_lnk_files_pattern(glusterd_t, glusterd_var_lib_t, glusterd_var_lib_t)
 files_var_lib_filetrans(glusterd_t, glusterd_var_lib_t, dir)
 
+list_dirs_pattern(glusterd_t, glusterd_hook_t, glusterd_hook_t)
+read_files_pattern(glusterd_t, glusterd_hook_t, glusterd_hook_t)
+read_lnk_files_pattern(glusterd_t, glusterd_hook_t, glusterd_hook_t)
+can_exec(glusterd_t, glusterd_hook_t)
+
+manage_dirs_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+manage_files_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+manage_chr_files_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+manage_fifo_files_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+manage_lnk_files_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+manage_sock_files_pattern(glusterd_t, glusterd_brick_t, glusterd_brick_t)
+
 can_exec(glusterd_t, glusterd_exec_t)
-
-kernel_read_system_state(glusterd_t)
-
-corecmd_exec_bin(glusterd_t)
-corecmd_exec_shell(glusterd_t)
 
 corenet_all_recvfrom_netlabel(glusterd_t)
 corenet_tcp_sendrecv_generic_if(glusterd_t)
@@ -76,6 +101,9 @@ corenet_tcp_sendrecv_generic_node(glusterd_t)
 corenet_udp_sendrecv_generic_node(glusterd_t)
 corenet_tcp_bind_generic_node(glusterd_t)
 corenet_udp_bind_generic_node(glusterd_t)
+
+corenet_tcp_bind_glusterd_port(glusterd_t)
+corenet_tcp_connect_glusterd_port(glusterd_t)
 
 # Too coarse?
 corenet_sendrecv_all_server_packets(glusterd_t)
@@ -86,17 +114,50 @@ corenet_udp_bind_ipp_port(glusterd_t)
 corenet_sendrecv_all_client_packets(glusterd_t)
 corenet_tcp_connect_all_unreserved_ports(glusterd_t)
 
+corecmd_exec_bin(glusterd_t)
+corecmd_exec_shell(glusterd_t)
+
 dev_read_sysfs(glusterd_t)
 dev_read_urand(glusterd_t)
 
 domain_read_all_domains_state(glusterd_t)
-
 domain_use_interactive_fds(glusterd_t)
 
 files_read_usr_files(glusterd_t)
+files_mounton_mnt(glusterd_t)
+
+fs_dontaudit_getattr_all_fs(glusterd_t)
+fs_getattr_xattr_fs(glusterd_t)
+fs_mount_fusefs(glusterd_t)
+fs_unmount_fusefs(glusterd_t)
+
+kernel_dontaudit_getattr_proc(glusterd_t)
+kernel_read_kernel_sysctls(glusterd_t)
+kernel_read_net_sysctls(glusterd_t)
+kernel_read_system_state(glusterd_t)
+
+storage_rw_fuse(glusterd_t)
 
 auth_use_nsswitch(glusterd_t)
 
+hostname_exec(glusterd_t)
+
 logging_send_syslog_msg(glusterd_t)
 
+miscfiles_read_generic_certs(glusterd_t)
 miscfiles_read_localization(glusterd_t)
+
+userdom_dontaudit_search_user_runtime_root(glusterd_t)
+
+xdg_dontaudit_search_data_dirs(glusterd_t)
+
+tunable_policy(`glusterfs_modify_policy',`
+	# needed by relabeling hooks when adding bricks
+	seutil_domtrans_semanage(glusterd_t)
+	seutil_exec_setfiles(glusterd_t)
+	seutil_read_default_contexts(glusterd_t)
+',`
+	seutil_dontaudit_exec_semanage(glusterd_t)
+	seutil_dontaudit_exec_setfiles(glusterd_t)
+	seutil_dontaudit_read_file_contexts(glusterd_t)
+')
