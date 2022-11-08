@@ -1,0 +1,109 @@
+policy_module(crio)
+
+########################################
+#
+# Declarations
+#
+
+container_engine_domain_template(crio)
+container_system_engine(crio_t)
+kubernetes_container_engine(crio_t)
+type crio_exec_t;
+container_engine_executable_file(crio_exec_t)
+init_daemon_domain(crio_t, crio_exec_t)
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(crio_t, crio_exec_t, s0 - mls_systemhigh)
+')
+mls_trusted_object(crio_t)
+
+podman_conmon_domain_template(crio, crio_t)
+role system_r types crio_conmon_t;
+
+########################################
+#
+# crio local policy
+#
+
+allow crio_t crio_conmon_t:process sigkill;
+
+corecmd_mounton_bin_dirs(crio_t)
+
+dev_dontaudit_getattr_generic_chr_files(crio_t)
+
+files_mounton_kernel_modules_dirs(crio_t)
+# mounts on /etc/ca-certificates
+files_mounton_etc_dirs(crio_t)
+# watch /usr/share/containers/oci/hooks.d
+files_watch_usr_dirs(crio_t)
+
+kernel_dgram_send(crio_t)
+kernel_read_irq_sysctls(crio_t)
+
+auth_use_nsswitch(crio_t)
+
+iptables_mounton_runtime_files(crio_t)
+
+miscfiles_mounton_generic_cert_dirs(crio_t)
+
+# tries to search for /root/.config/containers/registries.conf
+xdg_dontaudit_search_config_dirs(crio_t)
+
+container_watch_config_dirs(crio_t)
+
+# Ensure conmon runs in s0 so that it can talk to the container
+podman_spec_rangetrans_conmon(crio_t, s0)
+
+kubernetes_search_config(crio_t)
+kubernetes_mounton_config_dirs(crio_t)
+kubernetes_mounton_config_files(crio_t)
+
+# kubelet creates tmpfs files that CRI-O will
+# relabel to container_file_t
+kubernetes_list_tmpfs(crio_t)
+kubernetes_relabelfrom_tmpfs_dirs(crio_t)
+kubernetes_relabelfrom_tmpfs_files(crio_t)
+kubernetes_relabelfrom_tmpfs_symlinks(crio_t)
+
+optional_policy(`
+	fstools_domtrans(crio_t)
+')
+
+########################################
+#
+# crio conmon local policy
+#
+
+allow crio_conmon_t self:capability { kill sys_ptrace sys_resource };
+
+files_search_tmp(crio_conmon_t)
+
+fs_list_cgroup_dirs(crio_conmon_t)
+
+init_rw_inherited_stream_socket(crio_conmon_t)
+init_use_fds(crio_conmon_t)
+
+container_kill_all_containers(crio_conmon_t)
+container_read_all_container_state(crio_conmon_t)
+
+# for kubernetes debug pods
+container_use_container_ptys(crio_conmon_t)
+
+# crio logs are tmp files
+container_manage_engine_tmp_files(crio_conmon_t)
+container_manage_engine_tmp_sock_files(crio_conmon_t)
+container_engine_tmp_filetrans(crio_conmon_t, { file sock_file })
+
+container_manage_runtime_files(crio_conmon_t)
+container_manage_runtime_lnk_files(crio_conmon_t)
+container_manage_runtime_fifo_files(crio_conmon_t)
+container_manage_runtime_sock_files(crio_conmon_t)
+
+container_search_var_lib(crio_conmon_t)
+container_manage_var_lib_files(crio_conmon_t)
+container_manage_var_lib_fifo_files(crio_conmon_t)
+container_manage_var_lib_sock_files(crio_conmon_t)
+
+container_manage_log_files(crio_conmon_t)
+
+kubernetes_getpgid_containers(crio_conmon_t)
+kubernetes_kubelet_kill(crio_conmon_t)

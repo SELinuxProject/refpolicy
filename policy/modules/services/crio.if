@@ -1,0 +1,99 @@
+## <summary>policy for cri-o</summary>
+
+#######################################
+## <summary>
+##	Execute CRI-O in the crio domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`crio_domtrans',`
+	gen_require(`
+		type crio_t, crio_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, crio_exec_t, crio_t)
+')
+
+########################################
+## <summary>
+##	Execute CRI-O in the crio domain,
+##	and allow the specified role the
+##	kubelet domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	The role to be allowed the crio domain.
+##	</summary>
+## </param>
+#
+interface(`crio_run',`
+	gen_require(`
+		type crio_t;
+	')
+
+	role $2 types crio_t;
+
+	crio_domtrans($1)
+')
+
+########################################
+## <summary>
+##	Read the process state (/proc/pid)
+##	of CRI-O conmon.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`crio_read_conmon_state',`
+	gen_require(`
+		type crio_conmon_t;
+	')
+
+	ps_process_pattern($1, crio_conmon_t)
+')
+
+#######################################
+## <summary>
+##  All of the rules required to administrate
+##  a CRI-O environment.
+## </summary>
+## <param name="domain">
+##  <summary>
+##  Domain allowed access.
+##  </summary>
+## </param>
+## <param name="role">
+##  <summary>
+##  Role allowed access.
+##  </summary>
+## </param>
+## <rolecap/>
+#
+interface(`crio_admin',`
+	gen_require(`
+		type crio_t;
+		type crio_conmon_t;
+	')
+
+	allow $1 crio_t:process { ptrace signal_perms };
+	ps_process_pattern($1, crio_t)
+
+	allow $1 crio_conmon_t:process { ptrace signal_perms };
+	ps_process_pattern($1, crio_conmon_t)
+
+	# no private type for crictl, so connect directly
+	container_stream_connect_system_engine($1)
+')
