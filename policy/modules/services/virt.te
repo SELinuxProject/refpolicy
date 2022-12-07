@@ -206,6 +206,7 @@ files_type(virtlockd_var_lib_t)
 type virtlogd_t;
 type virtlogd_exec_t;
 init_daemon_domain(virtlogd_t, virtlogd_exec_t)
+init_named_socket_activation(virtlogd_t, virt_runtime_t)
 
 type virtlogd_run_t;
 files_runtime_file(virtlogd_run_t)
@@ -451,6 +452,8 @@ tunable_policy(`virt_use_evdev',`
 
 allow virtd_t self:capability { chown dac_override dac_read_search fowner fsetid ipc_lock kill mknod net_admin net_raw setgid setpcap setuid sys_admin sys_chroot sys_nice sys_ptrace };
 dontaudit virtd_t self:capability { sys_module sys_ptrace };
+allow virtd_t self:capability2 { bpf perfmon };
+allow virtd_t self:bpf { map_create map_read map_write prog_load prog_run };
 allow virtd_t self:process { getcap getsched setcap sigkill signal signull execmem setexec setfscreate setrlimit setsockcreate setsched };
 allow virtd_t self:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
 allow virtd_t self:unix_stream_socket { accept connectto listen relabelfrom relabelto };
@@ -522,7 +525,8 @@ allow virtd_t virt_image_type:file relabel_file_perms;
 allow virtd_t virt_image_type:dir { manage_dir_perms relabel_dir_perms };
 allow virtd_t virt_image_type:blk_file relabel_blk_file_perms;
 allow virtd_t virt_image_type:chr_file relabel_chr_file_perms;
-allow virtd_t virt_image_type:sock_file manage_sock_file_perms;
+# relabel needed for qemu guest agent sockets
+allow virtd_t virt_image_type:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
 allow virtd_t virt_ptynode:chr_file rw_term_perms;
 
@@ -690,6 +694,15 @@ sysnet_signal_ifconfig(virtd_t)
 sysnet_domtrans_ifconfig(virtd_t)
 
 userdom_read_all_users_state(virtd_t)
+
+ifdef(`init_systemd',`
+	init_read_utmp(virtd_t)
+
+	systemd_dbus_chat_logind(virtd_t)
+
+	systemd_connect_machined(virtd_t)
+	systemd_dbus_chat_machined(virtd_t)
+')
 
 tunable_policy(`virt_use_fusefs',`
 	fs_manage_fusefs_dirs(virtd_t)
