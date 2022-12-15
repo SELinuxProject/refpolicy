@@ -57,6 +57,6 @@ fi
 for ifile in $(find ${SOURCEDIR} -type f -name '*.if'); do
   for interface in $(grep -E '^template\(' ${ifile} | sed -e 's:^template(`\([^'\'']*\)'\''\s*,\s*`:\1:g'); do
     # Generate the interface
-    sed -n "/^template(\`${interface}',\`/,/^')/p" ${ifile} | grep -v "^template" | grep -v "^')" > ${TARGETDIR}/${interface}.iftemplate;
+    sed -n "/^template(\`${interface}',\s*\`/,/^')/p" ${ifile} | grep -v "^template" | grep -v "^')" > ${TARGETDIR}/${interface}.iftemplate;
   done
 done
