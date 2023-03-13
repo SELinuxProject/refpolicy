@@ -74,6 +74,7 @@ optional_policy(`
 type init_runtime_t alias init_var_run_t;
 files_runtime_file(init_runtime_t)
 init_mountpoint(init_runtime_t)
+init_unit_file(init_runtime_t)
 
 #
 # init_var_lib_t is the type for /var/lib/systemd.
@@ -462,6 +463,7 @@ ifdef(`init_systemd',`
 	fs_relabel_tmpfs_chr_files(init_t)
 	fs_relabel_tmpfs_fifo_files(init_t)
 	fs_read_efivarfs_files(init_t)
+	fs_setattr_efivarfs_files(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
 	fs_relabel_tmpfs_files(init_t)
@@ -533,12 +535,14 @@ ifdef(`init_systemd',`
 	systemd_rw_networkd_netlink_route_sockets(init_t)
 	systemd_manage_userdb_runtime_sock_files(init_t)
 	systemd_manage_userdb_runtime_dirs(init_t)
+	systemd_manage_userdb_runtime_symlinks(init_t)
 	systemd_filetrans_userdb_runtime_dirs(init_t)
 	systemd_stream_connect_userdb(init_t)
 
 	term_create_devpts_dirs(init_t)
 	term_create_ptmx(init_t)
 	term_create_controlling_term(init_t)
+	term_setattr_unallocated_ttys(init_t)
 	term_watch_unallocated_ttys(init_t)
 	term_watch_reads_unallocated_ttys(init_t)
 
@@ -697,10 +701,11 @@ optional_policy(`
 # Init script local policy
 #
 
-allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
+allow initrc_t self:process { getcap getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease audit_write audit_control setfcap };
 allow initrc_t self:capability2 { wake_alarm block_suspend };
 dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
+allow initrc_t self:netlink_kobject_uevent_socket create_socket_perms; # needed by rdma-ndd
 allow initrc_t self:passwd rootok;
 allow initrc_t self:key manage_key_perms;
 
