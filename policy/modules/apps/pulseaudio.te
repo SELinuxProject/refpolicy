@@ -13,6 +13,14 @@ policy_module(pulseaudio)
 ## </desc>
 gen_tunable(pulseaudio_execmem, false)
 
+## <desc>
+##	<p>
+##	Determine whether pulseaudio
+##	can use the network.
+##	</p>
+## </desc>
+gen_tunable(pulseaudio_can_network, false)
+
 attribute pulseaudio_client;
 attribute pulseaudio_tmpfsfile;
 
@@ -54,7 +62,6 @@ allow pulseaudio_t self:process { getcap getsched setcap setrlimit setsched sign
 allow pulseaudio_t self:fifo_file rw_fifo_file_perms;
 allow pulseaudio_t self:unix_stream_socket { accept connectto listen };
 allow pulseaudio_t self:unix_dgram_socket sendto;
-allow pulseaudio_t self:tcp_socket { accept listen };
 allow pulseaudio_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 allow pulseaudio_t pulseaudio_home_t:dir manage_dir_perms;
@@ -107,21 +114,6 @@ kernel_read_kernel_sysctls(pulseaudio_t)
 
 corecmd_exec_bin(pulseaudio_t)
 
-corenet_all_recvfrom_netlabel(pulseaudio_t)
-corenet_tcp_sendrecv_generic_if(pulseaudio_t)
-corenet_udp_sendrecv_generic_if(pulseaudio_t)
-corenet_tcp_sendrecv_generic_node(pulseaudio_t)
-corenet_udp_sendrecv_generic_node(pulseaudio_t)
-
-corenet_sendrecv_pulseaudio_server_packets(pulseaudio_t)
-corenet_tcp_bind_pulseaudio_port(pulseaudio_t)
-
-corenet_sendrecv_soundd_server_packets(pulseaudio_t)
-corenet_tcp_bind_soundd_port(pulseaudio_t)
-
-corenet_sendrecv_sap_server_packets(pulseaudio_t)
-corenet_udp_bind_sap_port(pulseaudio_t)
-
 dev_watch_dev_dirs(pulseaudio_t)
 dev_read_sound(pulseaudio_t)
 dev_write_sound(pulseaudio_t)
@@ -159,6 +151,25 @@ userdom_manage_user_tmp_sockets(pulseaudio_t)
 
 tunable_policy(`pulseaudio_execmem',`
 	allow pulseaudio_t self:process execmem;
+')
+
+tunable_policy(`pulseaudio_can_network',`
+	allow pulseaudio_t self:tcp_socket create_stream_socket_perms;
+
+	corenet_all_recvfrom_netlabel(pulseaudio_t)
+	corenet_tcp_sendrecv_generic_if(pulseaudio_t)
+	corenet_udp_sendrecv_generic_if(pulseaudio_t)
+	corenet_tcp_sendrecv_generic_node(pulseaudio_t)
+	corenet_udp_sendrecv_generic_node(pulseaudio_t)
+
+	corenet_sendrecv_pulseaudio_server_packets(pulseaudio_t)
+	corenet_tcp_bind_pulseaudio_port(pulseaudio_t)
+
+	corenet_sendrecv_soundd_server_packets(pulseaudio_t)
+	corenet_tcp_bind_soundd_port(pulseaudio_t)
+
+	corenet_sendrecv_sap_server_packets(pulseaudio_t)
+	corenet_udp_bind_sap_port(pulseaudio_t)
 ')
 
 tunable_policy(`use_nfs_home_dirs',`
@@ -258,13 +269,6 @@ xdg_config_filetrans(pulseaudio_client, pulseaudio_xdg_config_t, dir, "pulse")
 
 fs_getattr_tmpfs(pulseaudio_client)
 
-corenet_all_recvfrom_netlabel(pulseaudio_client)
-corenet_tcp_sendrecv_generic_if(pulseaudio_client)
-corenet_tcp_sendrecv_generic_node(pulseaudio_client)
-
-corenet_sendrecv_pulseaudio_client_packets(pulseaudio_client)
-corenet_tcp_connect_pulseaudio_port(pulseaudio_client)
-
 pulseaudio_stream_connect(pulseaudio_client)
 pulseaudio_manage_home(pulseaudio_client)
 pulseaudio_home_filetrans_pulseaudio_home(pulseaudio_client, dir, ".pulse")
@@ -276,6 +280,15 @@ pulseaudio_use_fds(pulseaudio_client)
 userdom_read_user_tmpfs_files(pulseaudio_client)
 userdom_user_runtime_filetrans(pulseaudio_client, pulseaudio_tmp_t, dir, "pulse")
 # userdom_delete_user_tmpfs_files(pulseaudio_client)
+
+tunable_policy(`pulseaudio_can_network',`
+	corenet_all_recvfrom_netlabel(pulseaudio_client)
+	corenet_tcp_sendrecv_generic_if(pulseaudio_client)
+	corenet_tcp_sendrecv_generic_node(pulseaudio_client)
+
+	corenet_sendrecv_pulseaudio_client_packets(pulseaudio_client)
+	corenet_tcp_connect_pulseaudio_port(pulseaudio_client)
+')
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_getattr_nfs(pulseaudio_client)

@@ -74,6 +74,7 @@ optional_policy(`
 type init_runtime_t alias init_var_run_t;
 files_runtime_file(init_runtime_t)
 init_mountpoint(init_runtime_t)
+init_unit_file(init_runtime_t)
 
 #
 # init_var_lib_t is the type for /var/lib/systemd.
@@ -271,6 +272,7 @@ ifdef(`init_systemd',`
 	allow init_t self:capability2 audit_read;
 	allow init_t self:key { search setattr write };
 	allow init_t self:bpf { map_create map_read map_write prog_load prog_run };
+	allow init_t self:user_namespace create;
 	dontaudit init_t self:process { dyntransition setcurrent };
 
 	# manage the capabilities granted to namespace processes
@@ -461,6 +463,7 @@ ifdef(`init_systemd',`
 	fs_relabel_tmpfs_chr_files(init_t)
 	fs_relabel_tmpfs_fifo_files(init_t)
 	fs_read_efivarfs_files(init_t)
+	fs_setattr_efivarfs_files(init_t)
 	# for privatetmp functions
 	fs_relabel_tmpfs_dirs(init_t)
 	fs_relabel_tmpfs_files(init_t)
@@ -532,12 +535,14 @@ ifdef(`init_systemd',`
 	systemd_rw_networkd_netlink_route_sockets(init_t)
 	systemd_manage_userdb_runtime_sock_files(init_t)
 	systemd_manage_userdb_runtime_dirs(init_t)
+	systemd_manage_userdb_runtime_symlinks(init_t)
 	systemd_filetrans_userdb_runtime_dirs(init_t)
 	systemd_stream_connect_userdb(init_t)
 
 	term_create_devpts_dirs(init_t)
 	term_create_ptmx(init_t)
 	term_create_controlling_term(init_t)
+	term_setattr_unallocated_ttys(init_t)
 	term_watch_unallocated_ttys(init_t)
 	term_watch_reads_unallocated_ttys(init_t)
 
@@ -696,10 +701,11 @@ optional_policy(`
 # Init script local policy
 #
 
-allow initrc_t self:process { getpgid setsched setpgid setrlimit getsched };
+allow initrc_t self:process { getcap getpgid setsched setpgid setrlimit getsched };
 allow initrc_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease audit_write audit_control setfcap };
 allow initrc_t self:capability2 { wake_alarm block_suspend };
 dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
+allow initrc_t self:netlink_kobject_uevent_socket create_socket_perms; # needed by rdma-ndd
 allow initrc_t self:passwd rootok;
 allow initrc_t self:key manage_key_perms;
 
@@ -1164,6 +1170,16 @@ ifdef(`init_systemd',`
 
 	systemd_start_power_units(initrc_t)
 	systemd_watch_networkd_runtime_dirs(initrc_t)
+
+	# Ensures the memory.pressure cgroup file is labelled differently, so
+	# that processes can manage it without having access to the rest of the
+	# cgroup tree. This is a special file so each open is an independent,
+	# separate instance that cannot affect already opened ones, so it is not
+	# necessary to lock it down on a process-by-process base. This is useful
+	# to allow receiving notifications when memory pressure is high, see:
+	# https://systemd.io/MEMORY_PRESSURE/
+	fs_cgroup_filetrans_memory_pressure(init_t, file, "memory.pressure")
+	fs_mounton_cgroup_files(init_t)
 
 	optional_policy(`
 		# create /var/lock/lvm/

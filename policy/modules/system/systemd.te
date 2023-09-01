@@ -429,6 +429,7 @@ ifdef(`enable_mls',`
 allow systemd_coredump_t self:capability { setgid setuid setpcap sys_ptrace };
 allow systemd_coredump_t self:cap_userns { sys_admin sys_ptrace };
 allow systemd_coredump_t self:process { getcap setcap setfscreate };
+allow systemd_coredump_t self:user_namespace create;
 allow systemd_coredump_t self:unix_dgram_socket { create write connect getopt setopt };
 allow systemd_coredump_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow systemd_coredump_t self:fifo_file rw_inherited_fifo_file_perms;
@@ -476,8 +477,8 @@ seutil_search_default_contexts(systemd_coredump_t)
 #
 
 allow systemd_generator_t self:fifo_file rw_fifo_file_perms;
-allow systemd_generator_t self:capability { dac_override sys_admin };
-allow systemd_generator_t self:process setfscreate;
+allow systemd_generator_t self:capability { dac_override sys_admin sys_resource };
+allow systemd_generator_t self:process { getcap getsched setfscreate signal };
 
 corecmd_exec_shell(systemd_generator_t)
 corecmd_exec_bin(systemd_generator_t)
@@ -486,8 +487,11 @@ dev_read_sysfs(systemd_generator_t)
 dev_write_kmsg(systemd_generator_t)
 dev_write_sysfs_dirs(systemd_generator_t)
 dev_read_urand(systemd_generator_t)
+dev_create_sysfs_files(systemd_generator_t)
+dev_write_sysfs(systemd_generator_t)
 
 files_read_etc_files(systemd_generator_t)
+files_read_etc_runtime_files(systemd_generator_t)
 files_search_runtime(systemd_generator_t)
 files_list_boot(systemd_generator_t)
 files_read_boot_files(systemd_generator_t)
@@ -520,7 +524,8 @@ kernel_dontaudit_getattr_proc(systemd_generator_t)
 # Where an unlabeled mountpoint is encounted:
 kernel_dontaudit_search_unlabeled(systemd_generator_t)
 
-storage_raw_read_fixed_disk(systemd_generator_t)
+# write for systemd-zram-generator
+storage_raw_rw_fixed_disk(systemd_generator_t)
 storage_raw_read_removable_device(systemd_generator_t)
 
 # needed to resolve hostnames for NFS mounts
@@ -543,6 +548,11 @@ optional_policy(`
 	cloudinit_filetrans_runtime(systemd_generator_t, dir, "cloud-init")
 
 	cloudinit_getattr_state_files(systemd_generator_t)
+')
+
+optional_policy(`
+	# for quadlet to access /etc/containers/systemd
+	container_search_config(systemd_generator_t)
 ')
 
 optional_policy(`
@@ -847,6 +857,7 @@ dev_setattr_video_dev(systemd_logind_t)
 
 domain_obj_id_change_exemption(systemd_logind_t)
 
+files_read_etc_runtime_files(systemd_logind_t)
 files_search_runtime(systemd_logind_t)
 # Getattr all shm segments as part of cleaning up the
 # segments of deleted ephemeral users.
@@ -862,6 +873,7 @@ fs_read_efivarfs_files(systemd_logind_t)
 fs_relabelfrom_tmpfs_dirs(systemd_logind_t)
 fs_unmount_tmpfs(systemd_logind_t)
 fs_getattr_xattr_fs(systemd_logind_t)
+fs_watch_memory_pressure(systemd_logind_t)
 
 selinux_use_status_page(systemd_logind_t)
 
@@ -1009,6 +1021,7 @@ fs_getattr_cgroup(systemd_machined_t)
 fs_getattr_tmpfs(systemd_machined_t)
 fs_getattr_xattr_fs(systemd_machined_t)
 fs_read_nsfs_files(systemd_machined_t)
+fs_watch_memory_pressure(systemd_machined_t)
 
 selinux_getattr_fs(systemd_machined_t)
 
@@ -1107,6 +1120,7 @@ dev_read_sysfs(systemd_networkd_t)
 dev_write_kmsg(systemd_networkd_t)
 
 files_read_etc_files(systemd_networkd_t)
+files_read_etc_runtime_files(systemd_networkd_t)
 files_watch_runtime_dirs(systemd_networkd_t)
 files_watch_root_dirs(systemd_networkd_t)
 files_list_runtime(systemd_networkd_t)
@@ -1114,6 +1128,7 @@ files_list_runtime(systemd_networkd_t)
 fs_getattr_all_fs(systemd_networkd_t)
 fs_search_cgroup_dirs(systemd_networkd_t)
 fs_read_nsfs_files(systemd_networkd_t)
+fs_watch_memory_pressure(systemd_networkd_t)
 
 auth_use_nsswitch(systemd_networkd_t)
 
@@ -1179,6 +1194,7 @@ miscfiles_read_localization(systemd_notify_t)
 allow systemd_nspawn_t self:process { signal getcap setcap setfscreate setrlimit sigkill };
 allow systemd_nspawn_t self:capability { dac_override dac_read_search fsetid mknod net_admin setgid setuid setpcap sys_admin sys_chroot };
 allow systemd_nspawn_t self:capability2 wake_alarm;
+allow systemd_nspawn_t self:user_namespace create;
 allow systemd_nspawn_t self:unix_dgram_socket connected_socket_perms;
 allow systemd_nspawn_t self:unix_stream_socket create_stream_socket_perms;
 
@@ -1235,6 +1251,7 @@ fs_mount_tmpfs(systemd_nspawn_t)
 fs_remount_tmpfs(systemd_nspawn_t)
 fs_remount_xattr_fs(systemd_nspawn_t)
 fs_read_cgroup_files(systemd_nspawn_t)
+fs_watch_memory_pressure(systemd_nspawn_t)
 
 term_getattr_generic_ptys(systemd_nspawn_t)
 term_getattr_pty_fs(systemd_nspawn_t)
@@ -1381,6 +1398,9 @@ dontaudit systemd_pcrphase_t self:capability net_admin;
 dev_rw_tpm(systemd_pcrphase_t)
 dev_write_kmsg(systemd_pcrphase_t)
 
+# read /etc/machine-id
+files_read_etc_runtime_files(systemd_pcrphase_t)
+
 fs_read_efivarfs_files(systemd_pcrphase_t)
 fs_getattr_cgroup(systemd_pcrphase_t)
 fs_search_cgroup_dirs(systemd_pcrphase_t)
@@ -1392,6 +1412,8 @@ kernel_read_system_state(systemd_pcrphase_t)
 init_read_state(systemd_pcrphase_t)
 
 logging_send_syslog_msg(systemd_pcrphase_t)
+
+miscfiles_read_generic_certs(systemd_pcrphase_t)
 
 #########################################
 #
@@ -1473,6 +1495,7 @@ corenet_tcp_bind_llmnr_port(systemd_resolved_t)
 corenet_udp_bind_generic_node(systemd_resolved_t)
 corenet_udp_bind_dns_port(systemd_resolved_t)
 corenet_udp_bind_llmnr_port(systemd_resolved_t)
+corenet_udp_bind_howl_port(systemd_resolved_t)
 
 selinux_use_status_page(systemd_resolved_t)
 
@@ -1484,6 +1507,9 @@ files_list_runtime(systemd_resolved_t)
 
 fs_getattr_all_fs(systemd_resolved_t)
 fs_search_cgroup_dirs(systemd_resolved_t)
+fs_search_tmpfs(systemd_resolved_t)
+fs_search_ramfs(systemd_resolved_t)
+fs_watch_memory_pressure(systemd_resolved_t)
 
 init_dgram_send(systemd_resolved_t)
 
@@ -1574,6 +1600,7 @@ files_read_etc_files(systemd_sysctl_t)
 
 fs_getattr_all_fs(systemd_sysctl_t)
 fs_search_cgroup_dirs(systemd_sysctl_t)
+fs_search_ramfs(systemd_sysctl_t)
 
 systemd_log_parse_environment(systemd_sysctl_t)
 
@@ -1646,6 +1673,8 @@ dev_setattr_all_sysfs(systemd_tmpfiles_t)
 # /sys/module/kernel/parameters/crash_kexec_post_notifiers
 dev_write_sysfs(systemd_tmpfiles_t)
 
+domain_obj_id_change_exemption(systemd_tmpfiles_t)
+
 files_create_lock_dirs(systemd_tmpfiles_t)
 files_dontaudit_getattr_all_dirs(systemd_tmpfiles_t)
 files_manage_all_runtime_dirs(systemd_tmpfiles_t)
@@ -1661,8 +1690,9 @@ files_manage_all_locks(systemd_tmpfiles_t)
 files_purge_tmp(systemd_tmpfiles_t)
 files_read_etc_files(systemd_tmpfiles_t)
 files_read_etc_runtime_files(systemd_tmpfiles_t)
-files_relabel_config_files(systemd_tmpfiles_t)
 files_relabel_config_dirs(systemd_tmpfiles_t)
+files_relabel_config_files(systemd_tmpfiles_t)
+files_relabel_config_symlinks(systemd_tmpfiles_t)
 files_relabel_all_locks(systemd_tmpfiles_t)
 files_relabel_all_runtime_dirs(systemd_tmpfiles_t)
 files_relabel_all_tmp_dirs(systemd_tmpfiles_t)
@@ -1861,8 +1891,8 @@ seutil_libselinux_linked(systemd_user_session_type)
 # systemd-userdbd local policy
 #
 
-allow systemd_userdbd_t self:capability dac_read_search;
-allow systemd_userdbd_t self:process signal;
+allow systemd_userdbd_t self:capability { dac_read_search sys_resource };
+allow systemd_userdbd_t self:process { getcap signal };
 allow systemd_userdbd_t self:unix_stream_socket create_stream_socket_perms;
 
 stream_connect_pattern(systemd_userdbd_t, systemd_homed_runtime_t, systemd_homed_runtime_t, systemd_homed_t)
