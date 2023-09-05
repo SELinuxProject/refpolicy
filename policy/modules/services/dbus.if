@@ -104,6 +104,9 @@ template(`dbus_role_template',`
 	allow $3 $1_dbusd_t:process { ptrace signal_perms };
 
 	allow $1_dbusd_t $3:process sigkill;
+	allow $1_dbusd_t session_dbusd_tmp_t:sock_file manage_sock_file_perms;
+
+	kernel_getattr_proc($1_dbusd_t)
 
 	corecmd_bin_domtrans($1_dbusd_t, $3)
 	corecmd_shell_domtrans($1_dbusd_t, $3)
@@ -150,6 +153,7 @@ interface(`dbus_system_bus_client',`
 	dbus_read_config($1)
 	dbus_list_system_bus_runtime($1)
 	dbus_read_system_bus_runtime_named_sockets($1)
+	dbus_rw_session_tmp_sockets($1)
 ')
 
 #######################################
@@ -222,6 +226,8 @@ interface(`dbus_all_session_bus_client',`
 
 	allow $1 session_bus_type:unix_stream_socket connectto;
 	allow $1 session_bus_type:fd use;
+
+	dbus_rw_session_tmp_sockets($1)
 ')
 
 #######################################
@@ -727,6 +733,24 @@ interface(`dbus_dontaudit_write_system_bus_runtime_named_sockets',`
 	')
 
 	dontaudit $1 system_dbusd_runtime_t:sock_file write;
+')
+
+########################################
+## <summary>
+##	Read and write session named sockets in the tmp directory (/tmp).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`dbus_rw_session_tmp_sockets',`
+	gen_require(`
+		type session_dbusd_tmp_t;
+	')
+
+	rw_sock_files_pattern($1, session_dbusd_tmp_t, session_dbusd_tmp_t)
 ')
 
 ########################################
