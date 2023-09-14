@@ -44,8 +44,6 @@ template(`xserver_restricted_role',`
 
 	allow xserver_t $2:process signal;
 
-	allow xserver_t $2:shm rw_shm_perms;
-
 	allow $2 user_fonts_t:dir list_dir_perms;
 	allow $2 user_fonts_t:file read_file_perms;
 
@@ -125,8 +123,12 @@ template(`xserver_restricted_role',`
 	# Client write xserver shm
 	tunable_policy(`allow_write_xshm',`
 		allow $2 xserver_t:shm rw_shm_perms;
+	')
+
+	tunable_policy(`allow_write_xshm || xserver_client_writes_xserver_tmpfs',`
 		allow $2 xserver_tmpfs_t:file rw_file_perms;
 	')
+
 	tunable_policy(`xserver_allow_dri',`
 		dev_rw_dri($2)
 	')
@@ -175,8 +177,14 @@ template(`xserver_role',`
 	xserver_restricted_role($1, $2, $3, $4)
 
 	# Communicate via System V shared memory.
-	allow $2 xserver_t:shm rw_shm_perms;
-	allow $2 xserver_tmpfs_t:file rw_file_perms;
+	tunable_policy(`allow_write_xshm',`
+		# Communicate via System V shared memory.
+		allow $2 xserver_t:shm rw_shm_perms;
+	')
+
+	tunable_policy(`allow_write_xshm || xserver_client_writes_xserver_tmpfs',`
+		allow $2 xserver_tmpfs_t:file rw_file_perms;
+	')
 
 	# XCB Event Queue: used by the Qt library for example
 	allow $2 xserver_tmp_t:file rw_file_perms;
@@ -266,8 +274,8 @@ interface(`xserver_ro_session',`
 #######################################
 ## <summary>
 ##	Create sessions on the X server, with read and write
-##	access to the X server shared
-##	memory segments.
+##	access to the X server shared memory segments, but
+##	do not bypass existing tunable policy logic.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -286,8 +294,14 @@ interface(`xserver_rw_session',`
 	')
 
 	xserver_ro_session($1,$2)
-	allow $1 xserver_t:shm rw_shm_perms;
-	allow $1 xserver_tmpfs_t:file rw_file_perms;
+
+	tunable_policy(`allow_write_xshm',`
+		allow $1 xserver_t:shm rw_shm_perms;
+	')
+
+	tunable_policy(`allow_write_xshm || xserver_client_writes_xserver_tmpfs',`
+		allow $1 xserver_tmpfs_t:file rw_file_perms;
+	')
 ')
 
 #######################################
@@ -482,6 +496,9 @@ template(`xserver_user_x_domain_template',`
 	# Client write xserver shm
 	tunable_policy(`allow_write_xshm',`
 		allow $2 xserver_t:shm rw_shm_perms;
+	')
+
+	tunable_policy(`allow_write_xshm || xserver_client_writes_xserver_tmpfs',`
 		allow $2 xserver_tmpfs_t:file rw_file_perms;
 	')
 ')
@@ -1010,7 +1027,7 @@ interface(`xserver_read_xdm_runtime_files',`
 	')
 
 	files_search_runtime($1)
-	allow $1 xdm_var_run_t:file read_file_perms;
+	read_files_pattern($1, xdm_var_run_t, xdm_var_run_t)
 ')
 
 ########################################
@@ -1463,7 +1480,9 @@ interface(`xserver_rw_shm',`
 		type xserver_t;
 	')
 
-	allow $1 xserver_t:shm rw_shm_perms;
+	tunable_policy(`allow_write_xshm',`
+		allow $1 xserver_t:shm rw_shm_perms;
+	')
 ')
 
 ########################################
