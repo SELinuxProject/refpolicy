@@ -5,6 +5,14 @@ policy_module(logging)
 # Declarations
 #
 
+## <desc>
+## <p>
+## Allows syslogd internet domain sockets
+## functionality (dangerous).
+## </p>
+## </desc>
+gen_tunable(logging_syslog_can_network, false)
+
 attribute logfile;
 
 type auditctl_t;
@@ -386,8 +394,7 @@ optional_policy(`
 # chown fsetid for syslog-ng
 # sys_admin for the integrated klog of syslog-ng and metalog
 # sys_nice for rsyslog
-# cjp: why net_admin!
-allow syslogd_t self:capability { chown dac_override fsetid net_admin setgid setuid sys_admin sys_nice sys_resource sys_tty_config };
+allow syslogd_t self:capability { chown dac_override fsetid setgid setuid sys_admin sys_nice sys_resource sys_tty_config };
 dontaudit syslogd_t self:capability { sys_ptrace };
 dontaudit syslogd_t self:cap_userns { kill sys_ptrace };
 # setpgid for metalog
@@ -401,8 +408,6 @@ allow syslogd_t self:unix_dgram_socket create_socket_perms;
 allow syslogd_t self:unix_stream_socket create_stream_socket_perms;
 allow syslogd_t self:unix_dgram_socket sendto;
 allow syslogd_t self:fifo_file rw_fifo_file_perms;
-allow syslogd_t self:udp_socket create_socket_perms;
-allow syslogd_t self:tcp_socket create_stream_socket_perms;
 
 allow syslogd_t syslog_conf_t:file read_file_perms;
 allow syslogd_t syslog_conf_t:dir list_dir_perms;
@@ -456,29 +461,6 @@ kernel_change_ring_buffer_level(syslogd_t)
 kernel_read_ring_buffer(syslogd_t)
 # /initrd is not umounted before minilog starts
 kernel_dontaudit_search_unlabeled(syslogd_t)
-
-corenet_all_recvfrom_netlabel(syslogd_t)
-corenet_udp_sendrecv_generic_if(syslogd_t)
-corenet_udp_sendrecv_generic_node(syslogd_t)
-corenet_udp_bind_generic_node(syslogd_t)
-corenet_udp_bind_syslogd_port(syslogd_t)
-# syslog-ng can listen and connect on tcp port 514 (rsh)
-corenet_tcp_sendrecv_generic_if(syslogd_t)
-corenet_tcp_sendrecv_generic_node(syslogd_t)
-corenet_tcp_bind_generic_node(syslogd_t)
-corenet_tcp_bind_rsh_port(syslogd_t)
-corenet_tcp_connect_rsh_port(syslogd_t)
-# Allow users to define additional syslog ports to connect to
-corenet_tcp_bind_syslogd_port(syslogd_t)
-corenet_tcp_connect_syslogd_port(syslogd_t)
-corenet_tcp_connect_postgresql_port(syslogd_t)
-corenet_tcp_connect_mysqld_port(syslogd_t)
-
-# syslog-ng can send or receive logs
-corenet_sendrecv_syslogd_client_packets(syslogd_t)
-corenet_sendrecv_syslogd_server_packets(syslogd_t)
-corenet_sendrecv_postgresql_client_packets(syslogd_t)
-corenet_sendrecv_mysqld_client_packets(syslogd_t)
 
 dev_filetrans(syslogd_t, devlog_t, sock_file)
 dev_read_sysfs(syslogd_t)
@@ -586,6 +568,11 @@ ifdef(`distro_gentoo',`
 	term_dontaudit_setattr_unallocated_ttys(syslogd_t)
 ')
 
+ifdef(`distro_redhat',`
+	# EL9 configures with --enable-libcap-ng
+	allow syslogd_t self:capability setpcap;
+')
+
 ifdef(`distro_suse',`
 	# suse creates a /dev/log under /var/lib/stunnel for chrooted stunnel
 	files_var_lib_filetrans(syslogd_t, devlog_t, sock_file)
@@ -595,6 +582,35 @@ ifdef(`distro_ubuntu',`
 	optional_policy(`
 		unconfined_domain(syslogd_t)
 	')
+')
+
+tunable_policy(`logging_syslog_can_network',`
+	allow syslogd_t self:capability { net_admin };
+	allow syslogd_t self:tcp_socket create_stream_socket_perms;
+	allow syslogd_t self:udp_socket create_socket_perms;
+
+	corenet_all_recvfrom_netlabel(syslogd_t)
+	corenet_udp_sendrecv_generic_if(syslogd_t)
+	corenet_udp_sendrecv_generic_node(syslogd_t)
+	corenet_udp_bind_generic_node(syslogd_t)
+	corenet_udp_bind_syslogd_port(syslogd_t)
+	# syslog-ng can listen and connect on tcp port 514 (rsh)
+	corenet_tcp_sendrecv_generic_if(syslogd_t)
+	corenet_tcp_sendrecv_generic_node(syslogd_t)
+	corenet_tcp_bind_generic_node(syslogd_t)
+	corenet_tcp_bind_rsh_port(syslogd_t)
+	corenet_tcp_connect_rsh_port(syslogd_t)
+	# Allow users to define additional syslog ports to connect to
+	corenet_tcp_bind_syslogd_port(syslogd_t)
+	corenet_tcp_connect_syslogd_port(syslogd_t)
+	corenet_tcp_connect_postgresql_port(syslogd_t)
+	corenet_tcp_connect_mysqld_port(syslogd_t)
+
+	# syslog-ng can send or receive logs
+	corenet_sendrecv_syslogd_client_packets(syslogd_t)
+	corenet_sendrecv_syslogd_server_packets(syslogd_t)
+	corenet_sendrecv_postgresql_client_packets(syslogd_t)
+	corenet_sendrecv_mysqld_client_packets(syslogd_t)
 ')
 
 optional_policy(`

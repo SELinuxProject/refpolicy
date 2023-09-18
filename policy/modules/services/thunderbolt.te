@@ -1,0 +1,63 @@
+policy_module(thunderbolt)
+
+# boltd is a daemon to manage Thunderbolt devices
+
+########################################
+#
+# Declarations
+#
+
+type thunderboltd_t;
+type thunderboltd_exec_t;
+init_daemon_domain(thunderboltd_t, thunderboltd_exec_t)
+
+type thunderboltd_var_lib_t;
+files_type(thunderboltd_var_lib_t)
+
+type thunderboltd_runtime_t;
+files_runtime_file(thunderboltd_runtime_t)
+
+########################################
+#
+# Local policy
+#
+
+allow thunderboltd_t self:unix_dgram_socket { create write };
+allow thunderboltd_t self:netlink_kobject_uevent_socket { create getattr read bind getopt setopt };
+
+manage_dirs_pattern(thunderboltd_t, thunderboltd_var_lib_t, thunderboltd_var_lib_t)
+manage_files_pattern(thunderboltd_t, thunderboltd_var_lib_t, thunderboltd_var_lib_t)
+
+files_runtime_filetrans(thunderboltd_t, thunderboltd_runtime_t, { dir })
+allow thunderboltd_t thunderboltd_runtime_t:dir manage_dir_perms;
+
+kernel_read_system_state(thunderboltd_t)
+
+dev_read_sysfs(thunderboltd_t)
+
+files_read_etc_files(thunderboltd_t)
+
+logging_send_syslog_msg(thunderboltd_t)
+
+miscfiles_read_localization(thunderboltd_t)
+
+udev_search_runtime(thunderboltd_t)
+
+ifdef(`init_systemd',`
+	init_stream_connect(thunderboltd_t)
+')
+
+optional_policy(`
+	dbus_connect_system_bus(thunderboltd_t)
+	dbus_list_system_bus_runtime(thunderboltd_t)
+	dbus_system_bus_client(thunderboltd_t)
+	policykit_dbus_chat(thunderboltd_t)
+')
+
+optional_policy(`
+	unconfined_dbus_send(thunderboltd_t)
+')
+
+optional_policy(`
+	xserver_dbus_chat_xdm(thunderboltd_t)
+')
