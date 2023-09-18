@@ -27,6 +27,22 @@ gen_require(`
 
 ## <desc>
 ## <p>
+## Allows the X server to use TCP/IP
+## networking functionality (insecure).
+## </p>
+## </desc>
+gen_tunable(xserver_can_network, false)
+
+## <desc>
+## <p>
+## Allows the X display manager to use
+## TCP/IP networking functionality (insecure).
+## </p>
+## </desc>
+gen_tunable(xserver_xdm_can_network, false)
+
+## <desc>
+## <p>
 ## Allows clients to write to the X server shared
 ## memory segments.
 ## </p>
@@ -309,8 +325,6 @@ allow xdm_t self:shm create_shm_perms;
 allow xdm_t self:sem create_sem_perms;
 allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
 allow xdm_t self:unix_dgram_socket create_socket_perms;
-allow xdm_t self:tcp_socket create_stream_socket_perms;
-allow xdm_t self:udp_socket create_socket_perms;
 allow xdm_t self:socket create_socket_perms;
 allow xdm_t self:appletalk_socket create_socket_perms;
 allow xdm_t self:key { search link write };
@@ -385,18 +399,6 @@ kernel_view_key(xdm_t)
 
 corecmd_exec_shell(xdm_t)
 corecmd_exec_bin(xdm_t)
-
-corenet_all_recvfrom_netlabel(xdm_t)
-corenet_tcp_sendrecv_generic_if(xdm_t)
-corenet_udp_sendrecv_generic_if(xdm_t)
-corenet_tcp_sendrecv_generic_node(xdm_t)
-corenet_udp_sendrecv_generic_node(xdm_t)
-corenet_tcp_bind_generic_node(xdm_t)
-corenet_udp_bind_generic_node(xdm_t)
-corenet_tcp_connect_all_ports(xdm_t)
-corenet_sendrecv_all_client_packets(xdm_t)
-# xdm tries to bind to biff_port_t
-corenet_dontaudit_tcp_bind_all_ports(xdm_t)
 
 dev_read_rand(xdm_t)
 dev_read_sysfs(xdm_t)
@@ -514,6 +516,23 @@ tunable_policy(`xdm_sysadm_login',`
 
 tunable_policy(`xserver_gnome_xdm',`
 	allow xdm_t self:process execmem;
+')
+
+tunable_policy(`xserver_xdm_can_network',`
+	allow xdm_t self:tcp_socket create_stream_socket_perms;
+	allow xdm_t self:udp_socket create_socket_perms;
+
+	corenet_all_recvfrom_netlabel(xdm_t)
+	corenet_tcp_sendrecv_generic_if(xdm_t)
+	corenet_udp_sendrecv_generic_if(xdm_t)
+	corenet_tcp_sendrecv_generic_node(xdm_t)
+	corenet_udp_sendrecv_generic_node(xdm_t)
+	corenet_tcp_bind_generic_node(xdm_t)
+	corenet_udp_bind_generic_node(xdm_t)
+	corenet_tcp_connect_all_ports(xdm_t)
+	corenet_sendrecv_all_client_packets(xdm_t)
+	# xdm tries to bind to biff_port_t
+	corenet_dontaudit_tcp_bind_all_ports(xdm_t)
 ')
 
 optional_policy(`
@@ -643,8 +662,6 @@ allow xserver_t self:msgq create_msgq_perms;
 allow xserver_t self:msg { send receive };
 allow xserver_t self:unix_dgram_socket { create_socket_perms sendto };
 allow xserver_t self:unix_stream_socket { create_stream_socket_perms connectto };
-allow xserver_t self:tcp_socket create_stream_socket_perms;
-allow xserver_t self:udp_socket create_socket_perms;
 allow xserver_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 manage_dirs_pattern(xserver_t, xserver_tmp_t, xserver_tmp_t)
@@ -693,17 +710,6 @@ kernel_write_proc_files(xserver_t)
 # Run helper programs in xserver_t.
 corecmd_exec_bin(xserver_t)
 corecmd_exec_shell(xserver_t)
-
-corenet_all_recvfrom_netlabel(xserver_t)
-corenet_tcp_sendrecv_generic_if(xserver_t)
-corenet_udp_sendrecv_generic_if(xserver_t)
-corenet_tcp_sendrecv_generic_node(xserver_t)
-corenet_udp_sendrecv_generic_node(xserver_t)
-corenet_tcp_bind_generic_node(xserver_t)
-corenet_tcp_bind_xserver_port(xserver_t)
-corenet_tcp_connect_all_ports(xserver_t)
-corenet_sendrecv_xserver_server_packets(xserver_t)
-corenet_sendrecv_all_client_packets(xserver_t)
 
 dev_rw_sysfs(xserver_t)
 dev_rw_mouse(xserver_t)
@@ -776,6 +782,25 @@ xserver_use_user_fonts(xserver_t)
 ifdef(`enable_mls',`
 	range_transition xserver_t xserver_tmp_t:sock_file s0 - mls_systemhigh;
 	range_transition xserver_t xserver_t:x_drawable s0 - mls_systemhigh;
+')
+
+tunable_policy(`xserver_can_network',`
+	allow xserver_t self:tcp_socket create_stream_socket_perms;
+	allow xserver_t self:udp_socket create_socket_perms;
+
+	corenet_all_recvfrom_netlabel(xserver_t)
+	corenet_tcp_sendrecv_generic_if(xserver_t)
+	corenet_udp_sendrecv_generic_if(xserver_t)
+	corenet_tcp_sendrecv_generic_node(xserver_t)
+	corenet_udp_sendrecv_generic_node(xserver_t)
+	corenet_tcp_bind_generic_node(xserver_t)
+	corenet_tcp_bind_xserver_port(xserver_t)
+	corenet_tcp_connect_all_ports(xserver_t)
+	corenet_sendrecv_xserver_server_packets(xserver_t)
+	corenet_sendrecv_all_client_packets(xserver_t)
+
+	# VNC v4 module in X server
+	corenet_tcp_bind_vnc_port(xserver_t)
 ')
 
 tunable_policy(`!xserver_object_manager',`
@@ -851,9 +876,6 @@ allow xdm_t xdm_tmpfs_t:file execmod;
 
 # Run Xorg.wrap
 can_exec(xserver_t, xserver_exec_t)
-
-# VNC v4 module in X server
-corenet_tcp_bind_vnc_port(xserver_t)
 
 init_use_fds(xserver_t)
 
