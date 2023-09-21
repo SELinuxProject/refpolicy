@@ -39,6 +39,14 @@ gen_tunable(spamassassin_network_update, true)
 ## </desc>
 gen_tunable(rspamd_spamd, false)
 
+## <desc>
+##	<p>
+##	Determine whether execmem should be allowed
+##	Needed if LUA JIT is enabled for rspamd
+##	</p>
+## </desc>
+gen_tunable(spamd_execmem, false)
+
 attribute_role spamd_update_roles;
 
 type spamassassin_t;
@@ -415,9 +423,15 @@ tunable_policy(`spamd_enable_home_dirs',`
 	userdom_manage_user_home_content_symlinks(spamd_t)
 ')
 
+tunable_policy(`spamd_execmem',`
+	allow spamd_t self:process execmem;
+')
+
 tunable_policy(`rspamd_spamd',`
 	allow spamd_t self:process setrlimit;
 	allow spamc_t self:process setrlimit;
+
+	kernel_read_network_state(spamd_t)
 
 	list_dirs_pattern(spamd_t, spamd_etc_t, spamd_etc_t)
 	mmap_read_files_pattern(spamd_t, spamd_etc_t, spamd_etc_t)
@@ -427,7 +441,7 @@ tunable_policy(`rspamd_spamd',`
 	allow spamd_t spamd_var_lib_t:dir watch;
 	filetrans_pattern(spamd_t, spamd_var_lib_t, spamd_runtime_t, sock_file)
 
-	search_dirs_pattern(spamd_t, spamd_log_t, spamd_log_t)
+	allow spamd_t spamd_log_t:dir rw_dir_perms;
 
 	fs_search_tmpfs(spamd_t)
 	manage_dirs_pattern(spamd_t, spamd_tmpfs_t, spamd_tmpfs_t)
