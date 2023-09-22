@@ -96,6 +96,8 @@ allow courier_authdaemon_t courier_tcpd_t:unix_stream_socket rw_stream_socket_pe
 
 can_exec(courier_authdaemon_t, courier_exec_t)
 
+kernel_getattr_proc(courier_authdaemon_t)
+
 corecmd_exec_shell(courier_authdaemon_t)
 
 domtrans_pattern(courier_authdaemon_t, courier_pop_exec_t, courier_pop_t)
@@ -112,6 +114,7 @@ libs_read_lib_files(courier_authdaemon_t)
 miscfiles_read_localization(courier_authdaemon_t)
 
 selinux_getattr_fs(courier_authdaemon_t)
+seutil_search_default_contexts(courier_authdaemon_t)
 
 userdom_dontaudit_search_user_home_dirs(courier_authdaemon_t)
 
@@ -129,20 +132,34 @@ dev_read_rand(courier_pcp_t)
 # POP3/IMAP local policy
 #
 
-allow courier_pop_t self:capability { setgid setuid };
+allow courier_pop_t self:capability { chown dac_read_search fowner setgid setuid };
+dontaudit courier_pop_t self:capability fsetid;
+allow courier_pop_t self:unix_stream_socket connectto;
+allow courier_pop_t self:process setrlimit;
+
 allow courier_pop_t courier_authdaemon_t:tcp_socket rw_stream_socket_perms;
 allow courier_pop_t courier_authdaemon_t:process sigchld;
 
 allow courier_pop_t courier_tcpd_t:{ unix_stream_socket tcp_socket } rw_stream_socket_perms;
 
-allow courier_pop_t courier_var_lib_t:file rw_inherited_file_perms;
+allow courier_pop_t courier_var_lib_t:dir rw_dir_perms;
+allow courier_pop_t courier_var_lib_t:file manage_file_perms;
 
+allow courier_pop_t courier_etc_t:file map;
+
+can_exec(courier_pop_t, courier_exec_t)
+can_exec(courier_pop_t, courier_tcpd_exec_t)
 stream_connect_pattern(courier_pop_t, courier_var_lib_t, courier_var_lib_t, courier_authdaemon_t)
 
 domtrans_pattern(courier_pop_t, courier_authdaemon_exec_t, courier_authdaemon_t)
 
 corecmd_exec_shell(courier_pop_t)
+corenet_tcp_bind_generic_node(courier_pop_t)
+corenet_tcp_bind_pop_port(courier_pop_t)
 
+files_search_var_lib(courier_pop_t)
+
+miscfiles_read_generic_certs(courier_pop_t)
 miscfiles_read_localization(courier_pop_t)
 
 mta_manage_mail_home_rw_content(courier_pop_t)
