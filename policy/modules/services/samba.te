@@ -408,11 +408,13 @@ tunable_policy(`samba_create_home_dirs',`
 ')
 
 tunable_policy(`samba_enable_home_dirs',`
+	files_watch_home(smbd_t)
 	userdom_manage_user_home_content_dirs(smbd_t)
 	userdom_manage_user_home_content_files(smbd_t)
 	userdom_manage_user_home_content_symlinks(smbd_t)
 	userdom_manage_user_home_content_sockets(smbd_t)
 	userdom_manage_user_home_content_pipes(smbd_t)
+	userdom_watch_user_home_dirs(smbd_t)
 ')
 
 tunable_policy(`samba_portmapper',`
@@ -444,11 +446,13 @@ tunable_policy(`samba_export_all_ro',`
 	fs_read_noxattr_fs_files(smbd_t)
 	files_list_non_auth_dirs(smbd_t)
 	files_read_non_auth_files(smbd_t)
+	files_watch_all_dirs(smbd_t)
 ')
 
 tunable_policy(`samba_export_all_rw',`
 	fs_read_noxattr_fs_files(smbd_t)
 	files_manage_non_auth_files(smbd_t)
+	files_watch_all_dirs(smbd_t)
 ')
 
 optional_policy(`
@@ -617,13 +621,17 @@ optional_policy(`
 allow smbcontrol_t self:process signal;
 allow smbcontrol_t self:fifo_file rw_fifo_file_perms;
 allow smbcontrol_t self:unix_stream_socket create_stream_socket_perms;
+allow smbcontrol_t self:unix_dgram_socket create_socket_perms;
 allow smbcontrol_t self:process { signal signull };
 
 allow smbcontrol_t { winbind_t nmbd_t smbd_t }:process { signal signull };
-read_files_pattern(smbcontrol_t, samba_runtime_t, samba_runtime_t)
+allow smbcontrol_t { smbd_t nmbd_t }:unix_dgram_socket sendto;
+manage_files_pattern(smbcontrol_t, samba_runtime_t, samba_runtime_t)
+allow smbcontrol_t samba_runtime_t:file map;
 allow smbcontrol_t samba_runtime_t:dir rw_dir_perms;
 
 manage_files_pattern(smbcontrol_t, samba_var_t, samba_var_t)
+allow smbcontrol_t samba_var_t:sock_file manage_sock_file_perms;
 
 samba_read_config(smbcontrol_t)
 samba_search_var(smbcontrol_t)
@@ -639,6 +647,7 @@ files_search_var_lib(smbcontrol_t)
 term_use_console(smbcontrol_t)
 
 init_use_fds(smbcontrol_t)
+init_rw_inherited_stream_socket(smbcontrol_t)
 
 miscfiles_read_localization(smbcontrol_t)
 
