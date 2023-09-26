@@ -150,8 +150,11 @@ type systemd_hwdb_t;
 files_type(systemd_hwdb_t)
 
 type systemd_journal_t;
-files_type(systemd_journal_t)
 logging_log_file(systemd_journal_t)
+
+type systemd_journal_init_t;
+type systemd_journalctl_exec_t;
+init_system_domain(systemd_journal_init_t, systemd_journalctl_exec_t)
 
 type systemd_locale_t;
 type systemd_locale_exec_t;
@@ -766,6 +769,36 @@ init_search_runtime(systemd_hw_t)
 
 seutil_read_config(systemd_hw_t)
 seutil_read_file_contexts(systemd_hw_t)
+
+#######################################
+#
+# journald local policy
+#
+# During system boot, the service systemd-journal-catalog-update.service
+# runs journalctl with the switch --update-catalog which needs manage
+# permissions for systemd_journal_t files.  Transitioning from initrc_t
+# into systemd_journal_init_t for this operation limits write access
+# to sysemd_journal_t files to only the systemd_journal_init_t domain.
+#
+
+dontaudit systemd_journal_init_t self:capability net_admin;
+
+manage_files_pattern(systemd_journal_init_t, systemd_journal_t, systemd_journal_t)
+
+fs_getattr_cgroup(systemd_journal_init_t)
+fs_search_cgroup_dirs(systemd_journal_init_t)
+
+kernel_getattr_proc(systemd_journal_init_t)
+kernel_read_kernel_sysctls(systemd_journal_init_t)
+kernel_read_system_state(systemd_journal_init_t)
+
+init_read_state(systemd_journal_init_t)
+init_search_var_lib_dirs(systemd_journal_init_t)
+
+logging_send_syslog_msg(systemd_journal_init_t)
+logging_stream_connect_journald_varlink(systemd_journal_init_t)
+
+miscfiles_read_localization(systemd_journal_init_t)
 
 #######################################
 #
