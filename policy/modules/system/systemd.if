@@ -19,11 +19,6 @@
 ##	The user domain for the role.
 ##	</summary>
 ## </param>
-## <param name="pty_type">
-##	<summary>
-##	The type for the user pty
-##	</summary>
-## </param>
 #
 template(`systemd_role_template',`
 	gen_require(`
@@ -34,6 +29,7 @@ template(`systemd_role_template',`
 		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
 		type systemd_user_unit_t;
 		type systemd_user_runtime_unit_t, systemd_user_transient_unit_t;
+		type systemd_machined_t, user_devpts_t;
 	')
 
 	#################################
@@ -61,6 +57,7 @@ template(`systemd_role_template',`
 	allow $1_systemd_t $3:process { setsched rlimitinh signal_perms };
 	corecmd_shell_domtrans($1_systemd_t, $3)
 	corecmd_bin_domtrans($1_systemd_t, $3)
+	corecmd_shell_entry_type($1_systemd_t)
 
 	# systemctl --user rules
 	allow $1_systemd_t systemd_user_unix_stream_activated_socket_type:unix_stream_socket { create_socket_perms listen };
@@ -124,6 +121,10 @@ template(`systemd_role_template',`
 	seutil_search_default_contexts($1_systemd_t)
 	seutil_read_file_contexts($1_systemd_t)
 
+	# for machinectl shell
+	term_user_pty($1_systemd_t, user_devpts_t)
+	allow $1_systemd_t user_devpts_t:chr_file rw_file_perms;
+
 	systemd_manage_conf_home_content($1_systemd_t)
 	systemd_manage_data_home_content($1_systemd_t)
 
@@ -152,6 +153,12 @@ template(`systemd_role_template',`
 	allow $3 systemd_user_runtime_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
 	allow $3 systemd_user_runtime_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	allow $3 systemd_user_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	# for "machinectl shell"
+	allow $1_systemd_t systemd_machined_t:fd use;
+	allow $3 systemd_machined_t:fd use;
+	allow $3 systemd_machined_t:dbus send_msg;
+	allow systemd_machined_t $3:dbus send_msg;
 
 	allow $3 systemd_user_runtime_notify_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 
