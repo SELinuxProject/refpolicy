@@ -9,8 +9,15 @@ attribute milter_domains;
 attribute milter_data_type;
 
 milter_template(greylist)
+milter_template(postfwd)
 milter_template(regex)
 milter_template(spamass)
+
+type postfwd_milter_runtime_t;
+files_runtime_file(postfwd_milter_runtime_t)
+
+type postfwd_milter_tmp_t;
+files_tmp_file(postfwd_milter_tmp_t)
 
 type spamass_milter_initrc_exec_t;
 init_script_file(spamass_milter_initrc_exec_t)
@@ -72,6 +79,40 @@ miscfiles_read_localization(greylist_milter_t)
 
 optional_policy(`
 	mysql_stream_connect(greylist_milter_t)
+')
+
+########################################
+#
+# postfwd local policy
+#
+
+allow postfwd_milter_t self:process { signal signull };
+allow postfwd_milter_t self:capability { chown dac_override dac_read_search kill setgid setuid };
+allow postfwd_milter_t self:unix_stream_socket connectto;
+
+files_runtime_filetrans(postfwd_milter_t, postfwd_milter_runtime_t, file, "postfwd.pid")
+allow postfwd_milter_t postfwd_milter_runtime_t:file manage_file_perms;
+
+allow postfwd_milter_t postfwd_milter_tmp_t:sock_file manage_sock_file_perms;
+allow postfwd_milter_t postfwd_milter_tmp_t:file manage_file_perms;
+files_tmp_filetrans(postfwd_milter_t, postfwd_milter_tmp_t, { file sock_file })
+
+kernel_read_kernel_sysctls(postfwd_milter_t)
+
+corecmd_exec_bin(postfwd_milter_t)
+corecmd_exec_shell(postfwd_milter_t)
+corecmd_mmap_bin_files(postfwd_milter_t)
+corenet_tcp_bind_all_unreserved_ports(postfwd_milter_t)
+corenet_tcp_connect_all_unreserved_ports(postfwd_milter_t)
+
+dev_read_urand(postfwd_milter_t)
+
+files_read_usr_files(postfwd_milter_t)
+files_read_usr_symlinks(postfwd_milter_t)
+files_search_tmp(postfwd_milter_t)
+
+optional_policy(`
+	postfix_read_config(postfwd_milter_t)
 ')
 
 ########################################
