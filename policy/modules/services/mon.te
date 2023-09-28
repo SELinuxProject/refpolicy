@@ -42,8 +42,7 @@ files_tmp_file(mon_tmp_t)
 
 allow mon_t self:fifo_file rw_fifo_file_perms;
 allow mon_t self:tcp_socket create_stream_socket_perms;
-# for mailxmpp.alert to set ulimit
-allow mon_t self:process setrlimit;
+allow mon_t self:process { setrlimit getsched signal };
 
 domtrans_pattern(mon_t, mon_local_test_exec_t, mon_local_test_t)
 
@@ -104,6 +103,11 @@ optional_policy(`
 	mta_send_mail(mon_t)
 ')
 
+optional_policy(`
+	# for config of xmpp sending program
+	xdg_read_config_files(mon_t)
+')
+
 ########################################
 #
 # Local policy
@@ -151,6 +155,10 @@ optional_policy(`
 	mysql_stream_connect(mon_net_test_t)
 ')
 
+optional_policy(`
+	snmp_read_snmp_var_lib_files(mon_net_test_t)
+')
+
 ########################################
 #
 # Local policy
@@ -161,9 +169,10 @@ optional_policy(`
 #
 
 # sys_ptrace is for reading /proc/1/maps etc
-allow mon_local_test_t self:capability { sys_ptrace sys_admin };
+allow mon_local_test_t self:capability { dac_override dac_read_search setgid setuid sys_ptrace sys_admin };
 allow mon_local_test_t self:fifo_file rw_fifo_file_perms;
-allow mon_local_test_t self:process getsched;
+allow mon_local_test_t self:process { getsched sigkill sigstop signal };
+allow mon_local_test_t self:cap_userns sys_ptrace;
 
 can_exec(mon_local_test_t, mon_local_test_exec_t)
 
@@ -184,8 +193,10 @@ dev_getattr_sysfs(mon_local_test_t)
 dev_read_urand(mon_local_test_t)
 dev_read_sysfs(mon_local_test_t)
 
+domain_getattr_all_domains(mon_local_test_t)
 domain_read_all_domains_state(mon_local_test_t)
 
+files_dontaudit_getattr_all_tmpfs_files(mon_local_test_t)
 files_read_usr_files(mon_local_test_t)
 files_search_mnt(mon_local_test_t)
 files_search_spool(mon_local_test_t)
@@ -194,9 +205,18 @@ files_list_boot(mon_local_test_t)
 fs_search_auto_mountpoints(mon_local_test_t)
 fs_getattr_nfs(mon_local_test_t)
 fs_getattr_xattr_fs(mon_local_test_t)
+fs_list_cgroup_dirs(mon_local_test_t)
 fs_list_hugetlbfs(mon_local_test_t)
 fs_list_tmpfs(mon_local_test_t)
+fs_read_cgroup_files(mon_local_test_t)
+fs_search_cgroup_dirs(mon_local_test_t)
 fs_search_nfs(mon_local_test_t)
+fstools_domtrans(mon_local_test_t)
+
+# for selinux.monitor
+selinux_get_enforce_mode(mon_local_test_t)
+selinux_getattr_fs(mon_local_test_t)
+seutil_search_default_contexts(mon_local_test_t)
 
 storage_getattr_fixed_disk_dev(mon_local_test_t)
 storage_getattr_removable_dev(mon_local_test_t)
@@ -208,12 +228,14 @@ application_exec_all(mon_local_test_t)
 
 auth_use_nsswitch(mon_local_test_t)
 
+fsdaemon_read_lib(mon_local_test_t)
 init_getattr_initctl(mon_local_test_t)
 
 logging_send_syslog_msg(mon_local_test_t)
 
 miscfiles_read_generic_certs(mon_t)
 miscfiles_read_localization(mon_local_test_t)
+storage_raw_read_fixed_disk(mon_local_test_t)
 
 sysnet_read_config(mon_local_test_t)
 
