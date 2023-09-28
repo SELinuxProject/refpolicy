@@ -15,6 +15,7 @@ attribute mailserver_sender;
 attribute user_mail_domain;
 
 attribute_role user_mail_roles;
+attribute_role admin_mail_roles;
 
 type etc_aliases_t;
 files_type(etc_aliases_t)
@@ -43,6 +44,10 @@ role system_r types system_mail_t;
 mta_base_mail_template(user)
 userdom_user_application_type(user_mail_t)
 role user_mail_roles types user_mail_t;
+
+mta_base_mail_template(admin)
+userdom_user_application_type(admin_mail_t)
+role admin_mail_roles types admin_mail_t;
 
 userdom_user_tmp_file(user_mail_tmp_t)
 
@@ -428,4 +433,31 @@ optional_policy(`
 
 	postfix_read_config(user_mail_t)
 	postfix_list_spool(user_mail_t)
+')
+
+########################################
+#
+# Admin local policy
+#
+
+manage_files_pattern(admin_mail_t, mail_home_t, mail_home_t)
+userdom_user_home_dir_filetrans(admin_mail_t, mail_home_t, file, ".esmtp_queue")
+userdom_user_home_dir_filetrans(admin_mail_t, mail_home_t, file, ".forward")
+userdom_user_home_dir_filetrans(admin_mail_t, mail_home_t, file, ".mailrc")
+userdom_user_home_dir_filetrans(admin_mail_t, mail_home_t, file, "dead.letter")
+
+dev_read_sysfs(admin_mail_t)
+
+userdom_use_user_terminals(admin_mail_t)
+
+files_etc_filetrans(admin_mail_t, etc_aliases_t, file)
+allow admin_mail_t etc_aliases_t:file manage_file_perms;
+
+optional_policy(`
+	allow admin_mail_t self:capability dac_override;
+
+	userdom_rw_user_tmp_files(admin_mail_t)
+
+	postfix_read_config(admin_mail_t)
+	postfix_list_spool(admin_mail_t)
 ')
