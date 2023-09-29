@@ -41,10 +41,11 @@ dev_node(bootloader_tmp_t)
 # bootloader local policy
 #
 
-allow bootloader_t self:capability { chown dac_override dac_read_search fsetid mknod setgid sys_admin sys_rawio };
+allow bootloader_t self:capability { chown dac_override dac_read_search fsetid sys_chroot mknod setgid sys_admin sys_rawio };
 dontaudit bootloader_t self:capability sys_resource;
-allow bootloader_t self:process { signal_perms execmem };
+allow bootloader_t self:process { signal_perms execmem getsched setfscreate };
 allow bootloader_t self:fifo_file rw_fifo_file_perms;
+allow bootloader_t self:netlink_selinux_socket connected_socket_perms;
 
 allow bootloader_t bootloader_etc_t:file read_file_perms;
 # uncomment the following lines if you use "lilo -p"
@@ -53,6 +54,7 @@ allow bootloader_t bootloader_etc_t:file read_file_perms;
 
 manage_dirs_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
 manage_files_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
+allow bootloader_t bootloader_tmp_t:file map;
 manage_lnk_files_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
 manage_blk_files_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
 manage_chr_files_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
@@ -62,6 +64,7 @@ allow bootloader_t bootloader_tmp_t:dir mounton;
 files_root_filetrans(bootloader_t, bootloader_tmp_t, file)
 
 kernel_getattr_core_if(bootloader_t)
+kernel_read_crypto_sysctls(bootloader_t)
 kernel_read_network_state(bootloader_t)
 kernel_read_system_state(bootloader_t)
 kernel_read_software_raid_state(bootloader_t)
@@ -78,12 +81,15 @@ storage_raw_read_removable_device(bootloader_t)
 storage_raw_write_removable_device(bootloader_t)
 storage_rw_fuse(bootloader_t)
 
+dev_create_null_dev(bootloader_t)
+dev_delete_null(bootloader_t)
 dev_getattr_all_chr_files(bootloader_t)
 dev_getattr_all_blk_files(bootloader_t)
 dev_dontaudit_rw_generic_dev_nodes(bootloader_t)
 dev_read_rand(bootloader_t)
 dev_read_urand(bootloader_t)
 dev_read_sysfs(bootloader_t)
+dev_setattr_null_dev(bootloader_t)
 # newer versions of grub use efivarfs to modify EFI variables; dontaudit legacy /sys/fs/efi/vars access
 dev_dontaudit_write_sysfs_files(bootloader_t)
 # needed on some hardware
@@ -108,11 +114,17 @@ term_dontaudit_manage_pty_dirs(bootloader_t)
 
 corecmd_exec_all_executables(bootloader_t)
 
+domain_dontaudit_search_all_domains_state(bootloader_t)
+
+# this is for cp -a of /etc files
+domain_obj_id_change_exemption(bootloader_t)
+
 domain_use_interactive_fds(bootloader_t)
 
 files_getattr_boot_fs(bootloader_t)
 files_create_boot_dirs(bootloader_t)
 files_getattr_default_dirs(bootloader_t)
+files_getattr_lost_found_dirs(bootloader_t)
 files_manage_boot_files(bootloader_t)
 files_manage_boot_symlinks(bootloader_t)
 files_read_etc_files(bootloader_t)
@@ -150,22 +162,31 @@ init_use_script_fds(bootloader_t)
 init_rw_script_pipes(bootloader_t)
 
 libs_read_lib_files(bootloader_t)
+libs_exec_ld_so(bootloader_t)
 libs_exec_lib_files(bootloader_t)
 
 logging_send_syslog_msg(bootloader_t)
 logging_rw_generic_logs(bootloader_t)
 
+miscfiles_read_fonts(bootloader_t)
 miscfiles_read_localization(bootloader_t)
 
 mount_rw_runtime_files(bootloader_t)
 
+selinux_get_enforce_mode(bootloader_t)
 selinux_getattr_fs(bootloader_t)
+selinux_search_fs(bootloader_t)
+selinux_use_status_page(bootloader_t)
 selinux_use_status_page(bootloader_t)
 seutil_read_bin_policy(bootloader_t)
+seutil_read_config(bootloader_t)
 seutil_read_file_contexts(bootloader_t)
 seutil_read_loadpolicy(bootloader_t)
 seutil_dontaudit_search_config(bootloader_t)
 
+sysnet_read_config(bootloader_t)
+
+udev_read_rules_files(bootloader_t)
 udev_read_runtime_files(bootloader_t)
 
 userdom_use_user_terminals(bootloader_t)
@@ -239,7 +260,8 @@ optional_policy(`
 	dev_rw_lvm_control(bootloader_t)
 
 	lvm_domtrans(bootloader_t)
-	lvm_read_config(bootloader_t)
+	lvm_manage_config(bootloader_t)
+	lvm_manage_metadata(bootloader_t)
 ')
 
 optional_policy(`
