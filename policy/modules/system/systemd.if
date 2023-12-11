@@ -28,6 +28,7 @@ template(`systemd_role_template',`
 		attribute systemd_user_activated_sock_file_type, systemd_user_unix_stream_activated_socket_type;
 		type systemd_analyze_exec_t;
 		type systemd_conf_home_t, systemd_data_home_t;
+		type systemd_tmpfiles_exec_t;
 		type systemd_user_runtime_t, systemd_user_runtime_notify_t;
 		type systemd_user_unit_t;
 		type systemd_user_runtime_unit_t, systemd_user_transient_unit_t;
@@ -42,7 +43,13 @@ template(`systemd_role_template',`
 	domain_user_exemption_target($1_systemd_t)
 	userdom_application_exec_domain($1_systemd_t, $1)
 	ubac_constrained($1_systemd_t)
-	role $2 types $1_systemd_t;
+	role $2 types { $1_systemd_t };
+
+	type $1_systemd_tmpfiles_t;
+	domain_type($1_systemd_tmpfiles_t)
+	domain_entry_file($1_systemd_tmpfiles_t, systemd_tmpfiles_exec_t)
+	domain_user_exemption_target($1_systemd_tmpfiles_t)
+	role $2 types { $1_systemd_tmpfiles_t };
 
 	#################################
 	#
@@ -134,6 +141,26 @@ template(`systemd_role_template',`
 	dbus_connect_spec_session_bus($1, $1_systemd_t)
 
 	userdom_exec_user_bin_files($1_systemd_t)
+
+	# user systemd-tmpfiles rules
+	allow $1_systemd_tmpfiles_t $1_systemd_t:unix_stream_socket rw_socket_perms;
+	domtrans_pattern($1_systemd_t, systemd_tmpfiles_exec_t, $1_systemd_tmpfiles_t)
+	read_files_pattern($1_systemd_t, $1_systemd_tmpfiles_t, $1_systemd_tmpfiles_t)
+
+	files_list_runtime($1_systemd_tmpfiles_t)
+	files_read_etc_files($1_systemd_tmpfiles_t)
+
+	kernel_read_kernel_sysctls($1_systemd_tmpfiles_t)
+	kernel_read_system_state($1_systemd_tmpfiles_t)
+
+	logging_send_syslog_msg($1_systemd_tmpfiles_t)
+
+	selinux_use_status_page($1_systemd_tmpfiles_t)
+
+	seutil_read_file_contexts($1_systemd_tmpfiles_t)
+
+	userdom_search_user_home_dirs($1_systemd_tmpfiles_t)
+	userdom_search_user_runtime($1_systemd_tmpfiles_t)
 
 	# userdomain rules
 	allow $3 $1_systemd_t:process signal;
