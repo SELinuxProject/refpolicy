@@ -530,6 +530,8 @@ fs_rw_cgroup_files(container_t)
 # for metallb BGP speakers
 fs_read_nsfs_files(container_t)
 
+kernel_get_sysvipc_info(container_t)
+kernel_read_fs_sysctls(container_t)
 kernel_read_vm_overcommit_sysctl(container_t)
 
 auth_use_nsswitch(container_t)
@@ -955,13 +957,14 @@ domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
 
 allow spc_t self:process { getcap setrlimit };
-allow spc_t self:capability { audit_write chown dac_read_search fowner fsetid sys_admin sys_ptrace sys_rawio sys_resource };
+allow spc_t self:capability { audit_write chown dac_read_search fowner fsetid net_admin net_raw sys_admin sys_chroot sys_ptrace sys_rawio sys_resource };
 allow spc_t self:capability2 { bpf perfmon };
 allow spc_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow spc_t self:alg_socket create_stream_socket_perms;
 allow spc_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow spc_t self:netlink_generic_socket create_socket_perms;
 allow spc_t self:netlink_netfilter_socket create_socket_perms;
-allow spc_t self:netlink_xfrm_socket create_socket_perms;
+allow spc_t self:netlink_xfrm_socket create_netlink_socket_perms;
 allow spc_t self:perf_event { cpu kernel open read };
 
 allow container_engine_system_domain spc_t:process { setsched signal_perms };
@@ -985,6 +988,9 @@ allow spc_t container_runtime_t:dir { manage_dir_perms mounton };
 allow spc_t container_runtime_t:file manage_file_perms;
 allow spc_t container_runtime_t:sock_file manage_sock_file_perms;
 
+dev_mount_sysfs(spc_t)
+dev_unmount_sysfs(spc_t)
+dev_remount_sysfs(spc_t)
 dev_mounton_sysfs_dirs(spc_t)
 dev_read_sysfs(spc_t)
 
@@ -998,6 +1004,8 @@ fs_manage_cgroup_files(spc_t)
 fs_mount_bpf(spc_t)
 fs_create_bpf_dirs(spc_t)
 fs_manage_bpf_files(spc_t)
+fs_manage_bpf_symlinks(spc_t)
+fs_unmount_nsfs(spc_t)
 fs_list_tmpfs(spc_t)
 fs_watch_tmpfs_dirs(spc_t)
 
@@ -1005,11 +1013,15 @@ kernel_load_module(spc_t)
 kernel_request_load_module(spc_t)
 kernel_read_network_state(spc_t)
 kernel_read_vm_overcommit_sysctl(spc_t)
+kernel_rw_kernel_sysctl(spc_t)
 kernel_dontaudit_list_unlabeled(spc_t)
 
 storage_raw_rw_fixed_disk(spc_t)
 
+files_manage_etc_files(spc_t)
+
 init_read_state(spc_t)
+init_write_runtime_socket(spc_t)
 
 iptables_read_runtime_files(spc_t)
 
@@ -1017,6 +1029,8 @@ modutils_read_module_deps(spc_t)
 
 # for kubernetes debug pods
 term_use_generic_ptys(spc_t)
+
+container_manage_config_files(spc_t)
 
 container_list_plugin_dirs(spc_t)
 container_manage_plugin_files(spc_t)
@@ -1031,6 +1045,11 @@ container_manage_log_files(spc_t)
 container_manage_var_lib_dirs(spc_t)
 container_manage_var_lib_files(spc_t)
 container_map_var_lib_files(spc_t)
+
+# for cilium
+allow spc_t container_config_t:dir watch;
+allow spc_t container_runtime_t:lnk_file manage_lnk_file_perms;
+allow spc_t container_runtime_t:file watch;
 
 ifdef(`init_systemd',`
 	init_dbus_chat(spc_t)
@@ -1070,6 +1089,14 @@ optional_policy(`
 
 	# for device plugins
 	kubernetes_stream_connect_kubelet(spc_t)
+
+	# for cilium
+	kubernetes_manage_runtime_dirs(spc_t)
+	kubernetes_mounton_runtime_dirs(spc_t)
+	kubernetes_manage_runtime_files(spc_t)
+	kubernetes_watch_runtime_files(spc_t)
+	kubernetes_manage_runtime_symlinks(spc_t)
+	kubernetes_manage_runtime_sock_files(spc_t)
 ')
 
 optional_policy(`
