@@ -1,0 +1,353 @@
+## <summary>Cockpit web management system for Linux</summary>
+##
+## <desc>
+## Cockpit is a web console that enables users to administer Linux servers
+## via a web browser.
+## see https://cockpit-project.org/
+##
+## For linux logins that are allowed access they must be associated with a
+## SELinux user that uses ssh_role_template (sysadm, system).  To be able
+## to alter system settings the must be allowed sudo access.
+## </desc>
+
+#######################################
+## <summary>
+##	The role template for the cockpit module.
+## </summary>
+## <desc>
+##	<p>
+##	This template creates a derived domain which is allowed
+##	to change the linux user id, to run commands as a different
+##	user.
+##	</p>
+## </desc>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`cockpit_role_template',`
+
+	type $1_cockpit_tmpfs_t;
+	files_runtime_file($1_cockpit_tmpfs_t)
+	dev_filetrans($2, $1_cockpit_tmpfs_t, file)
+
+	allow $2 $1_cockpit_tmpfs_t:file { manage_file_perms execute };
+
+	dev_dontaudit_execute_dev_nodes($2)
+
+	files_dontaudit_execute_default_files($2)
+	files_dontaudit_execuite_etc_runtime_files($2)
+	files_dontaudit_exec_runtime($2)
+	files_watch_etc_files($2)
+	files_watch_root_dirs($2)
+	files_watch_var_dirs($2)
+	files_watch_var_lib_dirs($2)
+
+	cockpit_use_ws_fds($2)
+	cockpit_rw_ws_stream_sockets($2)
+
+	init_watch_utmp($2)
+
+	systemd_watch_logind_runtime_dirs($2)
+
+	userdom_dontaudit_execute_user_tmpfs_files($2)
+')
+
+########################################
+## <summary>
+##	Transition to the cockpit session domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`cockpit_domtrans_session',`
+	gen_require(`
+		type cockpit_session_t, cockpit_session_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, cockpit_session_exec_t, cockpit_session_t)
+')
+
+########################################
+## <summary>
+##	Allow specified domain to get status of cockpit service
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_get_service_status',`
+	gen_require(`
+		type cockpit_unit_t;
+		class service status;
+	')
+
+	allow $1 cockpit_unit_t:service status;
+')
+
+########################################
+## <summary>
+##	Allow specified domain to enable cockpit units
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_enabledisable',`
+	gen_require(`
+		type cockpit_unit_t;
+		class service { enable disable };
+	')
+
+	cockpit_get_service_status($1)
+	allow $1 cockpit_unit_t:service { enable disable };
+')
+
+########################################
+## <summary>
+##	Allow specified domain to start cockpit units
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_startstop',`
+	gen_require(`
+		type cockpit_unit_t;
+		class service { start stop };
+	')
+
+	cockpit_get_service_status($1)
+	allow $1 cockpit_unit_t:service { start stop };
+')
+
+########################################
+## <summary>
+##	Create, read, write, and delete the cockpick runtime symlink files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_manage_runtime_symlnks',`
+	gen_require(`
+		type cockpit_runtime_t;
+	')
+
+	files_search_runtime($1)
+	manage_lnk_files_pattern($1, cockpit_runtime_t, cockpit_runtime_t)
+')
+
+########################################
+## <summary>
+##	Inherit and use cockpit session file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_use_session_fds',`
+	gen_require(`
+		type cockpit_session_t;
+	')
+
+	allow $1 cockpit_session_t:fd use;
+')
+
+########################################
+## <summary>
+##	Read and write cockpit session unnamed pipes.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_rw_session_pipes',`
+	gen_require(`
+		type cockpit_session_t;
+	')
+
+	allow $1 cockpit_session_t:fifo_file rw_fifo_file_perms;
+')
+
+########################################
+## <summary>
+##	Inherit and use cockpit web service file descriptors.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_use_ws_fds',`
+	gen_require(`
+		type cockpit_ws_t;
+	')
+
+	allow $1 cockpit_ws_t:fd use;
+')
+
+########################################
+## <summary>
+##	Read and write cockpit web service stream socket
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_rw_ws_stream_sockets',`
+	gen_require(`
+		type cockpit_ws_t;
+	')
+
+	allow $1 cockpit_ws_t:unix_stream_socket rw_socket_perms;
+')
+
+########################################
+## <summary>
+##	Manage the cockpit certificate files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_manage_cert_files',`
+	gen_require(`
+		type cockpit_cert_t;
+	')
+
+	manage_files_pattern($1, cockpit_cert_t, cockpit_cert_t)
+')
+
+########################################
+## <summary>
+##	Read cockpit certificate files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_read_cert_files',`
+	gen_require(`
+		type cockpit_cert_t;
+	')
+
+	files_search_etc($1)
+	list_dirs_pattern($1, cockpit_cert_t, cockpit_cert_t)
+	read_files_pattern($1, cockpit_cert_t, cockpit_cert_t)
+')
+
+########################################
+## <summary>
+##	Delete cockpit certificate files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`cockpit_delete_cert_files',`
+	gen_require(`
+		type cockpit_cert_t;
+		type cockpit_runtime_t;
+	')
+
+	list_dirs_pattern($1, cockpit_runtime_t, cockpit_runtime_t)
+	delete_files_pattern($1, cockpit_runtime_t, cockpit_cert_t)
+')
+
+########################################
+## <summary>
+##	Allow cockpit to send signals to another domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to send to,
+##	</summary>
+## </param>
+#
+interface(`cockpit_send_signal',`
+	gen_require(`
+		type cockpit_session_t;
+	')
+
+	allow cockpit_session_t $1:process signal;
+')
+
+########################################
+## <summary>
+##	All of the rules required to administrate
+##	an cockpit environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`cockpit_admin',`
+	gen_require(`
+		type cockpit_ws_t;
+		type cockpit_session_t;
+		type cockpit_state_t;
+		type cockpit_runtime_t;
+		type cockpit_unit_t;
+	')
+
+	allow $1 cockpit_ws_t:process { ptrace signal_perms };
+	ps_process_pattern($1, cockpit_ws_t)
+
+	allow $1 cockpit_session_t:process { ptrace signal_perms };
+	ps_process_pattern($1, cockpit_session_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, cockpit_state_t)
+	admin_pattern($1, cockpit_runtime_t)
+
+	cockpit_enabledisable($1)
+	cockpit_startstop($1)
+	admin_pattern($1, cockpit_unit_t)
+')
