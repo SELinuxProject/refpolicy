@@ -304,7 +304,7 @@ manage_fifo_files_pattern(container_domain, container_file_t, container_file_t)
 rw_chr_files_pattern(container_domain, container_file_t, container_file_t)
 rw_blk_files_pattern(container_domain, container_file_t, container_file_t)
 allow container_domain container_file_t:dir_file_class_set watch;
-allow container_domain container_file_t:file { entrypoint map };
+allow container_domain container_file_t:file { relabel_file_perms entrypoint map };
 allow container_domain container_file_t:chr_file map;
 
 allow container_domain container_ro_file_t:blk_file read_blk_file_perms;
@@ -469,6 +469,15 @@ optional_policy(`
 	virt_virsh_use_fds(container_domain)
 	virt_virsh_rw_pipes(container_domain)
 	virt_virsh_sigchld(container_domain)
+')
+
+########################################
+#
+# Common container system domain local policy
+#
+
+optional_policy(`
+	kubernetes_read_container_engine_state(container_system_domain)
 ')
 
 ########################################
@@ -957,9 +966,13 @@ domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
 
 allow spc_t self:process { getcap setrlimit };
-allow spc_t self:capability { audit_write chown dac_read_search fowner fsetid net_admin net_raw sys_admin sys_chroot sys_ptrace sys_rawio sys_resource };
+# Normally triggered when rook-ceph executes lvm tools which creates noise.
+# This can be allowed if actually needed.
+dontaudit spc_t self:process setfscreate;
+allow spc_t self:capability { audit_write chown dac_read_search fowner fsetid ipc_lock mknod net_admin net_raw setpcap sys_admin sys_chroot sys_nice sys_ptrace sys_rawio sys_resource };
 allow spc_t self:capability2 { bpf perfmon };
 allow spc_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow spc_t self:key manage_key_perms;
 allow spc_t self:alg_socket create_stream_socket_perms;
 allow spc_t self:netlink_audit_socket { create_netlink_socket_perms nlmsg_relay };
 allow spc_t self:netlink_generic_socket create_socket_perms;
@@ -979,24 +992,43 @@ allow spc_t container_engine_system_domain:fifo_file rw_fifo_file_perms;
 allow spc_t container_engine_tmpfs_t:dir list_dir_perms;
 allow spc_t container_engine_tmpfs_t:chr_file rw_chr_file_perms;
 allow spc_t container_engine_tmpfs_t:lnk_file read_lnk_file_perms;
+# for rook-ceph
+allow spc_t container_engine_tmpfs_t:blk_file rw_blk_file_perms;
 
 # for kubernetes storage class providers
 allow spc_t container_file_t:{ dir file } mounton;
-allow spc_t container_file_t:dir_file_class_set { relabelfrom relabelto };
+allow spc_t container_file_t:dir_file_class_set relabel_blk_file_perms;
+# for rook-ceph
+allow spc_t container_file_t:blk_file manage_blk_file_perms;
 
 allow spc_t container_runtime_t:dir { manage_dir_perms mounton };
 allow spc_t container_runtime_t:file manage_file_perms;
 allow spc_t container_runtime_t:sock_file manage_sock_file_perms;
 
+# for rook-ceph
+allow spc_t container_device_t:file manage_file_perms;
+allow spc_t container_device_t:blk_file { manage_blk_file_perms relabel_blk_file_perms };
+fs_tmpfs_filetrans(spc_t, container_device_t, blk_file)
+
+dev_read_rand(spc_t)
 dev_mount_sysfs(spc_t)
 dev_unmount_sysfs(spc_t)
 dev_remount_sysfs(spc_t)
 dev_mounton_sysfs_dirs(spc_t)
 dev_read_sysfs(spc_t)
+# for rook-ceph
+dev_rw_lvm_control(spc_t)
+dev_rw_generic_blk_files(spc_t)
+dev_write_sysfs(spc_t)
+dev_filetrans(spc_t, container_device_t, blk_file)
+dev_dontaudit_getattr_all_chr_files(spc_t)
+dev_dontaudit_setattr_generic_symlinks(spc_t)
+dev_dontaudit_relabelto_generic_blk_files(spc_t)
 
 fs_read_nsfs_files(spc_t)
 fs_mount_xattr_fs(spc_t)
 fs_unmount_xattr_fs(spc_t)
+fs_remount_xattr_fs(spc_t)
 fs_mount_cgroup(spc_t)
 fs_mounton_cgroup(spc_t)
 fs_manage_cgroup_dirs(spc_t)
@@ -1006,15 +1038,23 @@ fs_create_bpf_dirs(spc_t)
 fs_manage_bpf_files(spc_t)
 fs_manage_bpf_symlinks(spc_t)
 fs_unmount_nsfs(spc_t)
+fs_mount_tmpfs(spc_t)
 fs_list_tmpfs(spc_t)
 fs_watch_tmpfs_dirs(spc_t)
+fs_create_fusefs_blk_files(spc_t)
+fs_setattr_fusefs_blk_files(spc_t)
 
+kernel_get_sysvipc_info(spc_t)
 kernel_load_module(spc_t)
 kernel_request_load_module(spc_t)
 kernel_read_network_state(spc_t)
 kernel_read_vm_overcommit_sysctl(spc_t)
 kernel_rw_kernel_sysctl(spc_t)
 kernel_dontaudit_list_unlabeled(spc_t)
+# for rook-ceph when provisioning volumes
+kernel_read_state(spc_t)
+kernel_setsched(spc_t)
+kernel_getattr_unlabeled_dirs(spc_t)
 
 storage_raw_rw_fixed_disk(spc_t)
 
@@ -1025,10 +1065,19 @@ init_write_runtime_socket(spc_t)
 
 iptables_read_runtime_files(spc_t)
 
+# rook-ceph enumerates LVM devices
+lvm_read_config(spc_t)
+lvm_manage_lock_files(spc_t)
+lvm_manage_runtime_files(spc_t)
+
 modutils_read_module_deps(spc_t)
+
+mount_manage_runtime_files(spc_t)
 
 # for kubernetes debug pods
 term_use_generic_ptys(spc_t)
+
+container_read_all_container_state(spc_t)
 
 container_manage_config_files(spc_t)
 
@@ -1097,6 +1146,9 @@ optional_policy(`
 	kubernetes_watch_runtime_files(spc_t)
 	kubernetes_manage_runtime_symlinks(spc_t)
 	kubernetes_manage_runtime_sock_files(spc_t)
+
+	# for rook-ceph
+	kubernetes_dontaudit_search_engine_keys(spc_t)
 ')
 
 optional_policy(`
