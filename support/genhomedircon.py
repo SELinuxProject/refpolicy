@@ -43,7 +43,7 @@
 import sys, pwd, getopt, re, os
 from subprocess import getstatusoutput
 
-EXCLUDE_LOGINS=["/sbin/nologin", "/bin/false"]
+EXCLUDE_LOGINS=["/sbin/nologin", "/usr/sbin/nologin", "/bin/false", "/usr/bin/false"]
 
 
 def getStartingUID():
