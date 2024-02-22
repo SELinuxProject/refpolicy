@@ -62,7 +62,11 @@ SEMOD_PKG ?= $(tc_usrbindir)/semodule_package
 SEMOD_LNK ?= $(tc_usrbindir)/semodule_link
 SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
 LOADPOLICY ?= $(tc_usrsbindir)/load_policy
+ifdef TEST_TOOLCHAIN
+SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen --attr-helper $(TEST_TOOLCHAIN)$(BINDIR)/sepolgen-ifgen-attr-helper
+else
 SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen
+endif
 SETFILES ?= $(tc_sbindir)/setfiles
 SEFCONTEXT_COMPILE ?= $(tc_usrsbindir)/sefcontext_compile
 XMLLINT ?= $(BINDIR)/xmllint
