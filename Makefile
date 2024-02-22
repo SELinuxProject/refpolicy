@@ -64,6 +64,7 @@ SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
 LOADPOLICY ?= $(tc_usrsbindir)/load_policy
 SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen
 SETFILES ?= $(tc_sbindir)/setfiles
+SEFCONTEXT_COMPILE ?= $(tc_usrsbindir)/sefcontext_compile
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
 
