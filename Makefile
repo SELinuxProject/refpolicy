@@ -47,9 +47,16 @@ endif
 BINDIR ?= /usr/bin
 SBINDIR ?= /usr/sbin
 ifdef TEST_TOOLCHAIN
-tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)$(BINDIR)
-tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)$(SBINDIR)
-tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" $(TEST_TOOLCHAIN)/sbin
+python_path_plat := $(shell python3 -c "import sysconfig; print(sysconfig.get_path('platlib', vars={'platbase': '/usr', 'base': '/usr'}))")
+python_path_pure := $(shell python3 -c "import sysconfig; print(sysconfig.get_path('purelib', vars={'platbase': '/usr', 'base': '/usr'}))")
+ifdef PYTHONPATH
+python_path := "$(TEST_TOOLCHAIN)$(python_path_plat):$(TEST_TOOLCHAIN)$(python_path_pure):$(PYTHONPATH)"
+else
+python_path := "$(TEST_TOOLCHAIN)$(python_path_plat):$(TEST_TOOLCHAIN)$(python_path_pure)"
+endif
+tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)$(BINDIR)
+tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)$(SBINDIR)
+tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)/sbin
 else
 tc_usrbindir := $(BINDIR)
 tc_usrsbindir := $(SBINDIR)
@@ -62,8 +69,13 @@ SEMOD_PKG ?= $(tc_usrbindir)/semodule_package
 SEMOD_LNK ?= $(tc_usrbindir)/semodule_link
 SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
 LOADPOLICY ?= $(tc_usrsbindir)/load_policy
+ifdef TEST_TOOLCHAIN
+SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen --attr-helper $(TEST_TOOLCHAIN)$(BINDIR)/sepolgen-ifgen-attr-helper
+else
 SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen
+endif
 SETFILES ?= $(tc_sbindir)/setfiles
+SEFCONTEXT_COMPILE ?= $(tc_usrsbindir)/sefcontext_compile
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
 

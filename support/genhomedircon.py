@@ -43,7 +43,7 @@
 import sys, pwd, getopt, re, os
 from subprocess import getstatusoutput
 
-EXCLUDE_LOGINS=["/sbin/nologin", "/bin/false"]
+EXCLUDE_LOGINS=["/sbin/nologin", "/usr/sbin/nologin", "/bin/false", "/usr/bin/false"]
 
 
 def getStartingUID():
@@ -51,7 +51,7 @@ def getStartingUID():
 	rc=getstatusoutput("grep -h '^UID_MIN' /etc/login.defs")
 	if rc[0] == 0:
 		uid_min = re.sub("^UID_MIN[^0-9]*", "", rc[1])
-		#stip any comment from the end of the line
+		#strip any comment from the end of the line
 		uid_min = uid_min.split("#")[0]
 		uid_min = uid_min.strip()
 		if int(uid_min) < starting_uid:
@@ -59,7 +59,7 @@ def getStartingUID():
 	rc=getstatusoutput("grep -h '^LU_UIDNUMBER' /etc/libuser.conf")
 	if rc[0] == 0:
 		lu_uidnumber = re.sub("^LU_UIDNUMBER[^0-9]*", "", rc[1])
-		#stip any comment from the end of the line
+		#strip any comment from the end of the line
 		lu_uidnumber = re.sub("[ \t].*", "", lu_uidnumber)
 		lu_uidnumber = lu_uidnumber.split("#")[0]
 		lu_uidnumber = lu_uidnumber.strip()
