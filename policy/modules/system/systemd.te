@@ -414,6 +414,9 @@ fs_register_binary_executable_type(systemd_binfmt_t)
 allow systemd_cgroups_t self:capability net_admin;
 
 kernel_domtrans_to(systemd_cgroups_t, systemd_cgroups_exec_t)
+# read kernel.cap_last_cap
+kernel_read_kernel_sysctls(systemd_cgroups_t)
+kernel_dontaudit_getattr_proc(systemd_cgroups_t)
 # for /proc/cmdline
 kernel_read_system_state(systemd_cgroups_t)
 
@@ -440,14 +443,14 @@ ifdef(`enable_mls',`
 # coredump local policy
 #
 
-allow systemd_coredump_t self:capability { setgid setuid setpcap sys_ptrace };
+allow systemd_coredump_t self:capability { dac_read_search setgid setuid setpcap sys_ptrace };
+dontaudit systemd_coredump_t self:capability { dac_override net_admin };
 allow systemd_coredump_t self:cap_userns { sys_admin sys_ptrace };
 allow systemd_coredump_t self:process { getcap setcap setfscreate };
 allow systemd_coredump_t self:user_namespace create;
 allow systemd_coredump_t self:unix_dgram_socket { create write connect getopt setopt };
 allow systemd_coredump_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow systemd_coredump_t self:fifo_file rw_inherited_fifo_file_perms;
-dontaudit systemd_coredump_t self:capability net_admin;
 
 mmap_manage_files_pattern(systemd_coredump_t, systemd_coredump_var_lib_t, systemd_coredump_var_lib_t)
 
@@ -458,7 +461,7 @@ kernel_rw_pipes(systemd_coredump_t)
 kernel_use_fds(systemd_coredump_t)
 
 corecmd_exec_bin(systemd_coredump_t)
-corecmd_read_all_executables(systemd_coredump_t)
+corecmd_mmap_read_all_executables(systemd_coredump_t)
 
 dev_write_kmsg(systemd_coredump_t)
 
@@ -469,12 +472,9 @@ files_read_etc_files(systemd_coredump_t)
 files_search_var_lib(systemd_coredump_t)
 files_mounton_root(systemd_coredump_t)
 
-fs_getattr_xattr_fs(systemd_coredump_t)
+fs_getattr_all_fs(systemd_coredump_t)
 fs_getattr_nsfs_files(systemd_coredump_t)
 fs_search_cgroup_dirs(systemd_coredump_t)
-fs_getattr_cgroup(systemd_coredump_t)
-
-selinux_getattr_fs(systemd_coredump_t)
 
 init_list_var_lib_dirs(systemd_coredump_t)
 init_read_state(systemd_coredump_t)
@@ -526,7 +526,7 @@ init_rename_runtime_files(systemd_generator_t)
 init_search_runtime(systemd_generator_t)
 init_setattr_runtime_files(systemd_generator_t)
 init_write_runtime_files(systemd_generator_t)
-init_list_unit_dirs(systemd_generator_t)
+init_list_all_units(systemd_generator_t)
 init_read_generic_units_files(systemd_generator_t)
 init_read_generic_units_symlinks(systemd_generator_t)
 init_read_script_files(systemd_generator_t)
@@ -559,7 +559,7 @@ ifdef(`distro_gentoo',`
 
 optional_policy(`
 	cloudinit_create_runtime_dirs(systemd_generator_t)
-	cloudinit_write_runtime_files(systemd_generator_t)
+	cloudinit_rw_runtime_files(systemd_generator_t)
 	cloudinit_create_runtime_files(systemd_generator_t)
 	cloudinit_filetrans_runtime(systemd_generator_t, dir, "cloud-init")
 
@@ -825,6 +825,11 @@ miscfiles_read_localization(systemd_journal_init_t)
 kernel_read_kernel_sysctls(systemd_locale_t)
 
 files_read_etc_files(systemd_locale_t)
+
+fs_getattr_all_fs(systemd_locale_t)
+fs_search_cgroup_dirs(systemd_locale_t)
+
+init_stream_connect(systemd_locale_t)
 
 selinux_use_status_page(systemd_locale_t)
 

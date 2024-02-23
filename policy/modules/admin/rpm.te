@@ -46,8 +46,18 @@ init_unit_file(rpm_unit_t)
 type rpm_var_lib_t;
 files_type(rpm_var_lib_t)
 
+optional_policy(`
+	# delete locks
+	systemd_tmpfilesd_managed(rpm_var_lib_t)
+')
+
 type rpm_var_cache_t;
 files_type(rpm_var_cache_t)
+
+optional_policy(`
+	# delete locks
+	systemd_tmpfilesd_managed(rpm_var_cache_t)
+')
 
 type rpm_script_t;
 type rpm_script_exec_t;
@@ -72,7 +82,7 @@ files_tmpfs_file(rpm_script_tmpfs_t)
 # rpm Local policy
 #
 
-allow rpm_t self:capability { chown dac_override fowner fsetid ipc_lock mknod setfcap setgid setuid sys_chroot sys_nice sys_tty_config };
+allow rpm_t self:capability { chown dac_read_search dac_override fowner fsetid ipc_lock mknod setfcap setgid setuid sys_chroot sys_nice sys_tty_config };
 allow rpm_t self:process { transition signal_perms getsched setsched getsession getpgid setpgid getcap setcap share getattr setexec setfscreate noatsecure siginh setrlimit rlimitinh dyntransition execmem setkeycreate setsockcreate getrlimit };
 allow rpm_t self:fd use;
 allow rpm_t self:fifo_file rw_fifo_file_perms;
@@ -90,6 +100,7 @@ allow rpm_t self:netlink_kobject_uevent_socket create_socket_perms;
 allow rpm_t rpm_log_t:file { append_file_perms create_file_perms setattr_file_perms };
 logging_log_filetrans(rpm_t, rpm_log_t, file)
 
+allow rpm_t rpm_tmp_t:dir watch;
 manage_dirs_pattern(rpm_t, rpm_tmp_t, rpm_tmp_t)
 manage_files_pattern(rpm_t, rpm_tmp_t, rpm_tmp_t)
 files_tmp_filetrans(rpm_t, rpm_tmp_t, { file dir })
@@ -101,6 +112,7 @@ manage_fifo_files_pattern(rpm_t, rpm_tmpfs_t, rpm_tmpfs_t)
 manage_sock_files_pattern(rpm_t, rpm_tmpfs_t, rpm_tmpfs_t)
 fs_tmpfs_filetrans(rpm_t, rpm_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
+allow rpm_t rpm_var_cache_t:dir watch;
 manage_dirs_pattern(rpm_t, rpm_var_cache_t, rpm_var_cache_t)
 manage_files_pattern(rpm_t, rpm_var_cache_t, rpm_var_cache_t)
 files_var_filetrans(rpm_t, rpm_var_cache_t, dir)
@@ -211,6 +223,8 @@ seutil_read_file_contexts(rpm_t)
 
 userdom_use_user_terminals(rpm_t)
 userdom_use_unpriv_users_fds(rpm_t)
+userdom_watch_user_runtime_dirs(rpm_t)
+userdom_user_runtime_root_filetrans_user_runtime(rpm_t, dir)
 
 ifdef(`init_systemd', `
 	systemd_use_logind_fds(rpm_t)
@@ -256,6 +270,8 @@ allow rpm_script_t self:msg { send receive };
 allow rpm_script_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 allow rpm_script_t rpm_t:netlink_route_socket { read write };
+
+allow rpm_script_t rpm_var_lib_t:file map;
 
 allow rpm_script_t rpm_tmp_t:file read_file_perms;
 
@@ -333,7 +349,7 @@ term_getattr_unallocated_ttys(rpm_script_t)
 term_list_ptys(rpm_script_t)
 term_use_all_terms(rpm_script_t)
 
-auth_dontaudit_getattr_shadow(rpm_script_t)
+auth_dontaudit_read_shadow(rpm_script_t)
 auth_use_nsswitch(rpm_script_t)
 
 init_domtrans_script(rpm_script_t)
@@ -356,6 +372,7 @@ seutil_run_setfiles(rpm_script_t, rpm_roles)
 seutil_run_semanage(rpm_script_t, rpm_roles)
 
 userdom_use_all_users_fds(rpm_script_t)
+userdom_user_runtime_root_filetrans_user_runtime(rpm_script_t, dir)
 
 ifdef(`distro_redhat',`
 	optional_policy(`
@@ -370,6 +387,10 @@ tunable_policy(`allow_execmem',`
 
 optional_policy(`
 	bootloader_run(rpm_script_t, rpm_roles)
+')
+
+optional_policy(`
+	cloudinit_rw_inherited_pipes(rpm_script_t)
 ')
 
 optional_policy(`
@@ -394,11 +415,12 @@ optional_policy(`
 ')
 
 optional_policy(`
-	udev_domtrans(rpm_script_t)
+	udev_run_udevadm(rpm_script_t, rpm_roles)
 ')
 
 optional_policy(`
 	unconfined_domtrans(rpm_script_t)
+	unconfined_write_inherited_pipes(rpm_script_t)
 
 	optional_policy(`
 		java_domtrans_unconfined(rpm_script_t)

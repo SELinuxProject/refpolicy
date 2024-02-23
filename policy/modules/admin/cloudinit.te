@@ -1,9 +1,20 @@
 policy_module(cloudinit)
 
+gen_require(`
+	class passwd passwd;
+')
+
 ########################################
 #
 # Declarations
 #
+
+## <desc>
+## <p>
+## Enable support for cloud-init to manage all non-security files.
+## </p>
+## </desc>
+gen_tunable(cloudinit_manage_non_security, false)
 
 type cloud_init_t;
 type cloud_init_exec_t;
@@ -19,17 +30,21 @@ files_mountpoint(cloud_init_runtime_t)
 type cloud_init_state_t;
 files_type(cloud_init_state_t)
 
+type cloud_init_tmp_t;
+files_tmp_file(cloud_init_tmp_t)
+
 ########################################
 #
 # Local policy
 #
 
 allow cloud_init_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid };
-dontaudit cloud_init_t self:capability { net_admin sys_tty_config };
+dontaudit cloud_init_t self:capability { net_admin sys_admin sys_tty_config };
 allow cloud_init_t self:fifo_file rw_fifo_file_perms;
 allow cloud_init_t self:unix_dgram_socket create_socket_perms;
+allow cloud_init_t self:passwd passwd;
 
-allow cloud_init_t cloud_init_log_t:file { create_file_perms append_file_perms setattr };
+allow cloud_init_t cloud_init_log_t:file { create_file_perms append_file_perms read setattr };
 logging_log_filetrans(cloud_init_t, cloud_init_log_t, file)
 
 manage_files_pattern(cloud_init_t, cloud_init_runtime_t, cloud_init_runtime_t)
@@ -37,17 +52,29 @@ manage_lnk_files_pattern(cloud_init_t, cloud_init_runtime_t, cloud_init_runtime_
 manage_dirs_pattern(cloud_init_t, cloud_init_runtime_t, cloud_init_runtime_t)
 files_runtime_filetrans(cloud_init_t, cloud_init_runtime_t, { dir file lnk_file })
 
+can_exec(cloud_init_t, cloud_init_state_t)
 manage_files_pattern(cloud_init_t, cloud_init_state_t, cloud_init_state_t)
 manage_lnk_files_pattern(cloud_init_t, cloud_init_state_t, cloud_init_state_t)
 manage_dirs_pattern(cloud_init_t, cloud_init_state_t, cloud_init_state_t)
 files_var_lib_filetrans(cloud_init_t, cloud_init_state_t, { dir file lnk_file })
 
-auth_domtrans_chk_passwd(cloud_init_t)
+manage_files_pattern(cloud_init_t, cloud_init_tmp_t, cloud_init_tmp_t)
+manage_lnk_files_pattern(cloud_init_t, cloud_init_tmp_t, cloud_init_tmp_t)
+manage_dirs_pattern(cloud_init_t, cloud_init_tmp_t, cloud_init_tmp_t)
+files_tmp_filetrans(cloud_init_t, cloud_init_tmp_t, { dir file lnk_file })
 
-corecmd_exec_bin(cloud_init_t)
-corecmd_exec_shell(cloud_init_t)
+auth_run_chk_passwd(cloud_init_t, system_r)
 
-corenet_dontaudit_tcp_bind_generic_node(cloud_init_t)
+corecmd_exec_all_executables(cloud_init_t)
+
+corenet_all_recvfrom_netlabel(cloud_init_t)
+corenet_tcp_sendrecv_generic_if(cloud_init_t)
+corenet_tcp_sendrecv_generic_node(cloud_init_t)
+corenet_tcp_connect_all_ports(cloud_init_t)
+corenet_tcp_bind_generic_node(cloud_init_t)
+corenet_tcp_bind_all_unreserved_ports(cloud_init_t)
+corenet_udp_bind_generic_node(cloud_init_t)
+corenet_udp_bind_all_unreserved_ports(cloud_init_t)
 
 dbus_system_bus_client(cloud_init_t)
 
@@ -55,23 +82,23 @@ dev_getattr_all_blk_files(cloud_init_t)
 # /sys/devices/pci0000:00/0000:00:03.0/net/eth0/address
 dev_read_sysfs(cloud_init_t)
 
+domain_read_all_domains_state(cloud_init_t)
+domain_obj_id_change_exemption(cloud_init_t)
+
 files_manage_config_dirs(cloud_init_t)
 files_relabel_config_dirs(cloud_init_t)
 files_manage_config_files(cloud_init_t)
 files_relabel_config_files(cloud_init_t)
+files_manage_mnt_dirs(cloud_init_t)
 
 fs_getattr_all_fs(cloud_init_t)
 fs_search_tmpfs(cloud_init_t)
 fs_search_cgroup_dirs(cloud_init_t)
 fs_read_iso9660_files(cloud_init_t)
 
-fstools_domtrans(cloud_init_t)
+fstools_run(cloud_init_t, system_r)
 
-hostname_domtrans(cloud_init_t)
-
-init_get_system_status(cloud_init_t)
-init_read_state(cloud_init_t)
-init_stream_connect(cloud_init_t)
+hostname_run(cloud_init_t, system_r)
 
 kernel_read_system_state(cloud_init_t)
 kernel_read_kernel_sysctls(cloud_init_t)
@@ -83,25 +110,1021 @@ logging_send_syslog_msg(cloud_init_t)
 
 miscfiles_read_localization(cloud_init_t)
 
-mount_domtrans(cloud_init_t)
+mount_run(cloud_init_t, system_r)
+
+selinux_set_enforce_mode(cloud_init_t)
+selinux_set_all_booleans(cloud_init_t)
+selinux_set_parameters(cloud_init_t)
+selinux_read_policy(cloud_init_t)
 
 seutil_read_default_contexts(cloud_init_t)
+seutil_run_semanage(cloud_init_t, system_r)
+seutil_run_setfiles(cloud_init_t, system_r)
 
-ssh_domtrans_keygen(cloud_init_t)
+ssh_run_keygen(cloud_init_t, system_r)
 ssh_manage_home_files(cloud_init_t)
 ssh_create_home_dirs(cloud_init_t)
 ssh_setattr_home_dirs(cloud_init_t)
 # Read public keys
 ssh_read_server_keys(cloud_init_t)
 
-sysnet_domtrans_ifconfig(cloud_init_t)
+sysnet_run_ifconfig(cloud_init_t, system_r)
 
 term_write_console(cloud_init_t)
 
-usermanage_domtrans_useradd(cloud_init_t)
-usermanage_domtrans_groupadd(cloud_init_t)
-usermanage_domtrans_passwd(cloud_init_t)
+udev_manage_rules_files(cloud_init_t)
+udev_read_runtime_files(cloud_init_t)
+
+usermanage_run_useradd(cloud_init_t, system_r)
+usermanage_run_groupadd(cloud_init_t, system_r)
+usermanage_run_passwd(cloud_init_t, system_r)
+
+tunable_policy(`cloudinit_manage_non_security',`
+	files_manage_non_security_dirs(cloud_init_t)
+	files_manage_non_security_files(cloud_init_t)
+	files_relabel_non_security_dirs(cloud_init_t)
+	files_relabel_non_security_files(cloud_init_t)
+')
 
 optional_policy(`
+	abrt_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	accountsd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	acct_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	afs_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	aide_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	aisexecd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	amanda_run_recover(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	amavis_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	amtu_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	apt_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	aptcacher_run_acngtool(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	arpwatch_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	automount_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	avahi_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	backup_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bacula_run_admin(cloud_init_t, system_r)
+	bacula_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bind_admin(cloud_init_t, system_r)
+	bind_run_ndc(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bird_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bitlbee_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	boinc_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bootloader_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	bugzilla_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cachefilesd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	calamaris_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	canna_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	certbot_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	certmaster_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	certmonger_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	certwatch_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cfengine_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cgroup_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	chkrootkit_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	chronyd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	clamav_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	clock_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cobbler_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	collectd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	condor_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	consoletype_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	container_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	corosync_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	couchdb_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cron_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ctdb_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cups_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cvs_admin(cloud_init_t, system_r)
+	cvs_exec(cloud_init_t)
+')
+
+optional_policy(`
+	cyphesis_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	cyrus_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dante_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ddclient_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	devicekit_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dev_rw_xen(cloud_init_t)
+')
+
+optional_policy(`
+	dhcpd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dictd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dirmngr_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	distcc_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dkim_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dmidecode_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dnsmasq_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dovecot_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dphysswapfile_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	dpkg_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	drbd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	entropyd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	exim_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	fail2ban_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	fapolicyd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	fcoe_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	fetchmail_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	firewalld_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	firstboot_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ftp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	gatekeeper_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	gdomap_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	glance_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	glusterfs_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	gssproxy_admin(cloud_init_t)
+')
+
+optional_policy(`
+	hostname_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	hwloc_admin(cloud_init_t)
+	hwloc_run_dhwd(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	hypervkvp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	i18n_input_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	icecast_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ifplugd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	inn_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	iodine_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ipsec_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	iptables_admin(cloud_init_t, system_r)
+	iptables_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	irqbalance_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	iscsi_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	isnsd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	jabber_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	kdump_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	kerberos_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	kerneloops_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	keystone_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	knot_admin(cloud_init_t, system_r)
+	knot_run_client(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	kismet_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ksmtuned_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	l2tp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ldap_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	libs_run_ldconfig(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	lightsquid_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	likewise_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	lircd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	lldpad_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	logrotate_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	lsmd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	lvm_admin(cloud_init_t, system_r)
+	lvm_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	mandb_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	mcelog_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	memcached_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	minidlna_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	minissdpd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	modutils_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	mongodb_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	monit_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	monop_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	mpd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	mrtg_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	munin_stream_connect(cloud_init_t)
+')
+
+optional_policy(`
+	mysql_admin(cloud_init_t, system_r)
+	mysql_stream_connect(cloud_init_t)
+')
+
+optional_policy(`
+	nagios_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	nessus_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	netlabel_run_mgmt(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	netutils_run(cloud_init_t, system_r)
+	netutils_run_ping(cloud_init_t, system_r)
+	netutils_run_traceroute(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	networkmanager_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	nis_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	nscd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+        nsd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	nslcd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ntop_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ntp_admin(cloud_init_t, system_r)
+	corenet_udp_bind_ntp_port(cloud_init_t)
+')
+
+optional_policy(`
+	numad_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	nut_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	oident_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	openct_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	openhpi_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	opensm_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	openvpn_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	openvswitch_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pacemaker_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pads_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pcscd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pegasus_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	perdition_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pingd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pkcs_admin_slotd(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	plymouthd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	portage_run(cloud_init_t, system_r)
+	portage_run_fetch(cloud_init_t, system_r)
+	portage_run_gcc_config(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	portmap_run_helper(cloud_init_t, system_r)
+	portmap_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	portreserve_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	postfix_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	postfixpolicyd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	postgrey_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ppp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	prelude_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	privoxy_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	psad_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	puppet_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pxe_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	pyzor_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	qpidd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	quantum_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	quota_run(cloud_init_t, system_r)
+	quota_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rabbitmq_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	radius_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	radvd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	raid_run_mdadm(system_r, cloud_init_t)
+	raid_admin_mdadm(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	redis_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	resmgr_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rhsmcertd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rkhunter_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rngd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rpc_admin(cloud_init_t, system_r)
+	rpc_domtrans_nfsd(cloud_init_t)
+')
+
+optional_policy(`
+	rpcbind_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rpm_run(cloud_init_t, system_r)
+	rpm_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rsync_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rtkit_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	rwho_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	samba_admin(cloud_init_t, system_r, system_r)
+	samba_run_smbcontrol(cloud_init_t, system_r)
+	samba_run_smbmount(cloud_init_t, system_r)
+	samba_run_net(cloud_init_t, system_r)
+	samba_run_winbind_helper(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	samhain_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sanlock_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sasl_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sblim_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sensord_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	setrans_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	setroubleshoot_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	shorewall_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	slpd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	smartmon_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	smokeping_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	smstools_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	snmp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	snort_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	soundserver_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	spamassassin_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sssd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	stapserver_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	# If sudo is used in runcmd:
+	allow cloud_init_t self:capability sys_resource;
+	allow cloud_init_t self:process { setrlimit setsched };
+
+	sudo_exec(cloud_init_t)
+
+	userdom_search_user_runtime(cloud_init_t)
+
+	optional_policy(`
+		systemd_write_inherited_logind_sessions_pipes(cloud_init_t)
+	')
+')
+
+optional_policy(`
+	svnserve_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sysnet_run_ifconfig(cloud_init_t, system_r)
+	sysnet_run_dhcpc(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	sysstat_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	init_start_system(cloud_init_t)
+	init_stop_system(cloud_init_t)
+	init_reload(cloud_init_t)
+	init_get_system_status(cloud_init_t)
+	init_manage_all_units(cloud_init_t)
+	init_manage_all_unit_files(cloud_init_t)
+	init_relabel_all_unit_files(cloud_init_t)
+	init_list_all_units(cloud_init_t)
+
+	systemd_exec_systemctl(cloud_init_t)
 	systemd_dbus_chat_hostnamed(cloud_init_t)
+	systemd_dbus_chat_logind(cloud_init_t)
+	systemd_list_journal_dirs(cloud_init_t)
+	systemd_read_journal_files(cloud_init_t)
+')
+
+optional_policy(`
+	tboot_run_txtstat(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tcsd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tftp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tgtd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tor_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	transproxy_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tripwire_run_siggen(cloud_init_t, system_r)
+	tripwire_run_tripwire(cloud_init_t, system_r)
+	tripwire_run_twadmin(cloud_init_t, system_r)
+	tripwire_run_twprint(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	tzdata_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	udev_run_udevadm(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	ulogd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	unconfined_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	uptime_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	uucp_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	uuidd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	varnishd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	varnishd_admin_varnishlog(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	vdagent_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	vhostmd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	virt_admin(cloud_init_t, system_r)
+	virt_stream_connect(cloud_init_t)
+')
+
+optional_policy(`
+	vnstatd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	vpn_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	watchdog_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	wdmd_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	webalizer_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	wireguard_admin(cloud_init_t, system_r)
+	wireguard_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	vlock_run(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	zabbix_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	zarafa_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	zebra_admin(cloud_init_t, system_r)
+')
+
+optional_policy(`
+	zfs_admin(cloud_init_t, system_r)
 ')
