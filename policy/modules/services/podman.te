@@ -39,6 +39,12 @@ userdom_user_application_domain(podman_user_conmon_t, conmon_exec_t)
 
 allow podman_t podman_conmon_t:process setsched;
 
+kernel_rw_vm_overcommit_sysctl(podman_t)
+
+init_use_fds(podman_t)
+init_setattr_stream_sockets(podman_t)
+init_stream_connect(podman_t)
+
 # for --network=host
 selinux_getattr_dirs(podman_t)
 selinux_mounton_dirs(podman_t)
@@ -67,8 +73,10 @@ podman_spec_rangetrans_conmon(podman_t, s0)
 ifdef(`init_systemd',`
 	init_dbus_chat(podman_t)
 	init_setsched(podman_t)
+	init_get_system_status(podman_t)
 	init_start_system(podman_t)
 	init_stop_system(podman_t)
+	init_reload(podman_t)
 
 	# containers get created as systemd transient units
 	init_get_transient_units_status(podman_t)
@@ -114,7 +122,7 @@ kernel_read_sysctl(podman_user_t)
 
 logging_send_syslog_msg(podman_user_t)
 
-init_write_runtime_socket(podman_user_t)
+init_stream_connect(podman_user_t)
 
 mount_exec(podman_user_t)
 
@@ -191,7 +199,7 @@ ifdef(`init_systemd',`
 # podman conmon local policy
 #
 
-allow podman_conmon_t self:capability { dac_override dac_read_search sys_ptrace sys_resource };
+allow podman_conmon_t self:capability { dac_override dac_read_search kill sys_ptrace sys_resource };
 dontaudit podman_conmon_t self:capability net_admin;
 
 podman_domtrans(podman_conmon_t)
@@ -199,7 +207,11 @@ podman_domtrans(podman_conmon_t)
 init_rw_inherited_stream_socket(podman_conmon_t)
 init_use_fds(podman_conmon_t)
 
+container_signal_system_containers(podman_conmon_t)
+
 container_read_system_container_state(podman_conmon_t)
+
+container_ioctl_files(podman_conmon_t)
 
 container_manage_runtime_files(podman_conmon_t)
 container_manage_runtime_fifo_files(podman_conmon_t)
