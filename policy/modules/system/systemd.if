@@ -23,7 +23,7 @@
 template(`systemd_role_template',`
 	gen_require(`
 		class service { reload start status stop };
-		class system { disable enable reload start stop status };
+		class system { disable enable reload start status stop };
 		attribute systemd_user_session_type, systemd_log_parse_env_type;
 		attribute systemd_user_activated_sock_file_type, systemd_user_unix_stream_activated_socket_type;
 		type systemd_analyze_exec_t;
@@ -62,7 +62,7 @@ template(`systemd_role_template',`
 	allow $1_systemd_t self:process { getsched signal };
 	allow $1_systemd_t self:netlink_kobject_uevent_socket create_socket_perms;
 	allow $1_systemd_t self:unix_stream_socket create_stream_socket_perms;
-	allow $1_systemd_t $3:process { setsched rlimitinh signal_perms };
+	allow $1_systemd_t $3:process { rlimitinh setsched signal_perms };
 	corecmd_shell_domtrans($1_systemd_t, $3)
 	corecmd_bin_domtrans($1_systemd_t, $3)
 
@@ -170,7 +170,7 @@ template(`systemd_role_template',`
 	allow $3 $1_systemd_t:fifo_file rw_inherited_fifo_file_perms;
 	stream_connect_pattern($3, systemd_user_runtime_t, systemd_user_runtime_t, $1_systemd_t)
 
-	allow $3 $1_systemd_t:system { disable enable reload start stop status };
+	allow $3 $1_systemd_t:system { disable enable reload start status stop };
 
 	allow $3 systemd_user_runtime_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $3 systemd_user_runtime_t:file { manage_file_perms relabel_file_perms };
@@ -2074,10 +2074,10 @@ interface(`systemd_manage_networkd_units',`
 interface(`systemd_enabledisable_networkd',`
 	gen_require(`
 		type systemd_networkd_unit_t;
-		class service { enable disable };
+		class service { disable enable };
 	')
 
-	allow $1 systemd_networkd_unit_t:service { enable disable };
+	allow $1 systemd_networkd_unit_t:service { disable enable };
 ')
 
 ########################################
@@ -2555,13 +2555,13 @@ interface(`systemd_tmpfilesd_managed',`
 	')
 
 	allow systemd_tmpfiles_t $1:dir { manage_dir_perms relabel_dir_perms  };
-	allow systemd_tmpfiles_t $1:file { create setattr unlink write_file_perms relabel_file_perms };
-	allow systemd_tmpfiles_t $1:lnk_file { create read setattr unlink relabel_lnk_file_perms };
-	allow systemd_tmpfiles_t $1:fifo_file { create setattr unlink relabel_fifo_file_perms };
+	allow systemd_tmpfiles_t $1:file { create relabel_file_perms setattr unlink write_file_perms };
+	allow systemd_tmpfiles_t $1:lnk_file { create read relabel_lnk_file_perms setattr unlink };
+	allow systemd_tmpfiles_t $1:fifo_file { create relabel_fifo_file_perms setattr unlink };
 
 	ifelse(`$2',`',`',`
 		refpolicywarn(`$0($*) second parameter is deprecated.')
-		allow systemd_tmpfiles_t $1:$2 { setattr relabelfrom relabelto create };
+		allow systemd_tmpfiles_t $1:$2 { create relabelfrom relabelto setattr };
 	')
 ')
 
