@@ -1,0 +1,60 @@
+name: Build SETools
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "SETools version (a git commit ID, tag, or branch)"
+        type: string
+        required: true
+      python-version:
+        description: "Python version to use"
+        type: string
+        required: true
+    outputs:
+      artifact-id:
+        description: "SETools wheel artifact ID"
+        value: ${{ jobs.build.outputs.artifact-id }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    outputs:
+      artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
+
+    steps:
+    - name: Checkout setools
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/setools
+        ref: "${{ inputs.version }}"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update -q
+
+    - name: Download userspace source artifact
+      uses: actions/download-artifact@v4
+      id: dl-userspace
+      with:
+        name: selinux-src
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "${{ inputs.python-version }}"
+
+    - name: Build setools
+      shell: bash
+      run: pip wheel --no-deps .
+      env:
+        CFLAGS: "-O2"
+        USERSPACE_SRC: "${{ steps.dl-userspace.outputs.download-path }}"
+
+    - name: Upload wheel
+      uses: actions/upload-artifact@v4
+      id: upload-artifact
+      with:
+        name: setools
+        path: "setools-*.whl"

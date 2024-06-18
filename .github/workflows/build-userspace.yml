@@ -1,0 +1,84 @@
+name: "Build SELinux userspace"
+
+env:
+  SELINUX_SRC: "${{ github.workspace }}/selinux-src"
+  SELINUX_BIN: "${{ github.workspace }}/selinux-bin"
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Userspace version (a git commit ID, tag, or branch)"
+        required: false
+        type: string
+    outputs:
+      source-id:
+        description: "Userspace source artifact ID"
+        value: ${{ jobs.build.outputs.source-id }}
+      binary-id:
+        description: "Userspace binary artifact ID"
+        value: ${{ jobs.build.outputs.binary-id }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    outputs:
+      source-id: ${{ steps.upload-src-artifact.outputs.artifact-id }}
+      binary-id: ${{ steps.upload-bin-artifact.outputs.artifact-id }}
+
+    steps:
+    - name: Checkout SELinux userspace tools and libs
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/selinux
+        ref: "${{ inputs.version }}"
+        path: "${{ env.SELINUX_SRC }}"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -qy \
+            bison \
+            flex \
+            gettext \
+            libaudit-dev \
+            libbz2-dev \
+            libpcre3-dev \
+            libxml2-utils \
+            swig
+
+    - name: Compile
+      shell: bash
+      id: compile
+      working-directory: "${{ env.SELINUX_SRC }}"
+      run: |
+        # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
+        sed -i -e 's/secilc//' Makefile
+        # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
+        sed -i -e 's/sepolicy//' policycoreutils/Makefile
+        # Drop restorecond to break glib dependence
+        sed -i -e 's/ restorecond//' policycoreutils/Makefile
+        # Drop sandbox to break libcap-ng dependence
+        sed -i -e 's/ sandbox//' policycoreutils/Makefile
+        # Compile and install SELinux toolchain
+        make OPT_SUBDIRS=semodule-utils install
+        # set output directory on successful/pre-existing compile
+        echo "DESTDIR=\"${DESTDIR}\"" >> $GITHUB_OUTPUT
+      env:
+        DESTDIR: "${{ env.SELINUX_BIN }}"
+        CFLAGS: "-O2"
+
+    - name: Upload source artifact
+      uses: actions/upload-artifact@v4
+      id: upload-src-artifact
+      with:
+        name: selinux-src
+        path: "${{ env.SELINUX_SRC }}/"
+
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      id: upload-bin-artifact
+      with:
+        name: selinux-bin
+        path: "${{ env.SELINUX_BIN }}/"

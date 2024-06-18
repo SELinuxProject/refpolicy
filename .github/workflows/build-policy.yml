@@ -1,0 +1,143 @@
+name: Build refpolicy
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Refpolicy version (a git commit ID, tag, or branch)"
+        required: false
+        type: string
+        default: ""
+      path:
+        description: "Path to store the refpolicy sources"
+        required: false
+        type: string
+        default: "refpolicy-src"
+      python-version:
+        description: "Python version to use"
+        required: true
+        type: string
+      artifact-name:
+        description: "Artifact name to use; suffixed with policy build options (distro, mls/mcs, etc.)"
+        required: false
+        type: string
+        default: "refpolicy"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        # matrix updates must also be duplicated to validate-policy.yml and diff-policy.yml
+        distro: ["redhat", "debian", "gentoo"]
+        type: ["standard", "mcs", "mls"]
+        monolithic: ["y", "n"]
+        systemd: ["y", "n"]
+        direct_initrc: ["y", "n"]
+        apps-off: ["unconfined", ""]
+        exclude:
+          - { distro: "redhat", systemd: "n" }
+          - { distro: "redhat", direct_initrc: "y" }
+          - { distro: "debian", systemd: "n" }
+          - { distro: "debian", direct_initrc: "y" }
+          - { type: "mls", apps-off: "" }
+          - { systemd: "y", direct_initrc: "y" }
+
+    steps:
+    - name: Checkout refpolicy sources
+      uses: actions/checkout@v4
+      with:
+        ref: "${{ inputs.version }}"
+        path: "${{ inputs.path }}"
+
+    - name: Download userspace binary artifact
+      uses: actions/download-artifact@v4
+      id: dl-userspace
+      with:
+        name: selinux-bin
+
+      # actions/upload-artifact does not preserve permissions.
+    - name: Fix userspace file permissions
+      shell: bash
+      working-directory: "${{ steps.dl-userspace.outputs.download-path }}"
+      run: chmod +x usr/bin/* lib/*.so* usr/lib/*.so* usr/libexec/selinux/hll/pp sbin/* usr/sbin/*
+
+    # This should be the minimum required Python version to build refpolicy.
+    # or the standard Python version on Ubuntu.
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "${{ inputs.python-version }}"
+
+    - name: Configure environment
+      shell: bash
+      run: |
+        echo "DESTDIR=/tmp/refpolicy" >> $GITHUB_ENV
+        echo "PYTHON=python${{ inputs.python-version }}" >> $GITHUB_ENV
+        echo "TYPE=${{ matrix.type }}" >> $GITHUB_ENV
+        echo "DISTRO=${{ matrix.distro }}" >> $GITHUB_ENV
+        echo "MONOLITHIC=${{ matrix.monolithic }}" >> $GITHUB_ENV
+        echo "SYSTEMD=${{ matrix.systemd }}" >> $GITHUB_ENV
+        echo "APPS_OFF=${{ matrix.apps-off }}" >> $GITHUB_ENV
+        echo "DIRECT_INITRC=${{ matrix.direct_initrc }}" >> $GITHUB_ENV
+        echo "WERROR=y" >> $GITHUB_ENV
+        echo "TEST_TOOLCHAIN=\"${{ steps.dl-userspace.outputs.download-path }}\"" >> $GITHUB_ENV
+
+    - name: Build refpolicy
+      shell: bash
+      working-directory: "${{ inputs.path }}"
+      run: |
+        # Drop build.conf settings to listen to env vars
+        sed -r -i -e '/(MONOLITHIC|TYPE|DISTRO|SYSTEMD|DIRECT_INITRC|WERROR)/d' build.conf
+
+        make bare
+        make conf
+        make
+
+    - name: Validate output policy
+      working-directory: ${{ inputs.path }}
+      shell: bash
+      run: |
+        make validate
+
+    - name: Build docs
+      working-directory: ${{ inputs.path }}
+      shell: bash
+      run: |
+        make xml
+        make html
+
+    - name: Test installation
+      working-directory: ${{ inputs.path }}
+      shell: bash
+      run: |
+        make install
+        make install-headers
+        make install-src
+        make install-docs
+        make install-udica-templates
+        make install-appconfig
+      env:
+        DESTDIR: /tmp/refpolicy-install
+
+    # normalize to "sepolicy" and "file_contexts"
+    - name: Normalize artifacts
+      working-directory: ${{ inputs.path }}
+      shell: bash
+      run: |
+        if [[ $MONOLITHIC == "y" ]]; then
+          policy_file=$(make MONOLITHIC=y --eval='output_filename: ; @echo $(polver)' output_filename)
+          mv "${policy_file}" sepolicy
+        else
+          mv tmp/policy.bin sepolicy
+          mv tmp/all_mods.fc file_contexts
+        fi
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}
+        path: |
+          ${{ inputs.path }}/sepolicy
+          ${{ inputs.path }}/file_contexts
