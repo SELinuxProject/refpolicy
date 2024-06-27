@@ -1,0 +1,111 @@
+name: Diff policy
+
+on:
+  workflow_call:
+    inputs:
+      left:
+        description: "The left policy for the diff"
+        required: true
+        type: string
+      right:
+        description: "The right policy for the diff"
+        required: true
+        type: string
+      python-version:
+        description: "Python version to use"
+        required: true
+        type: string
+
+jobs:
+  sediff:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        distro: ["redhat", "debian", "gentoo"]
+        type: ["standard", "mcs", "mls"]
+        monolithic: ["y", "n"]
+        systemd: ["y", "n"]
+        direct_initrc: ["y", "n"]
+        apps-off: ["unconfined", ""]
+        exclude:
+          - { distro: "redhat", systemd: "n" }
+          - { distro: "redhat", direct_initrc: "y" }
+          - { distro: "debian", systemd: "n" }
+          - { distro: "debian", direct_initrc: "y" }
+          - { type: "mls", apps-off: "" }
+          - { systemd: "y", direct_initrc: "y" }
+          # above here, the matrix must be the same as in build-policy.yml.
+          # below here, remove duplicate analyses
+          - { monolithic: "n" }
+          - { type: "standard" }
+          - { apps-off: "" }
+          - { systemd: "n" }
+
+    steps:
+      - name: Checkout testing dir of repo
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: testing
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update -q
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ inputs.python-version }}"
+
+      - name: Download userspace binary artifact
+        uses: actions/download-artifact@v4
+        id: dl-userspace
+        with:
+          name: selinux-bin
+
+        # actions/upload-artifact does not preserve permissions.
+      - name: Fix userspace file permissions
+        shell: bash
+        working-directory: "${{ steps.dl-userspace.outputs.download-path }}"
+        run: chmod +x usr/bin/* lib/*.so* usr/lib/*.so* usr/libexec/selinux/hll/pp sbin/* usr/sbin/*
+
+      - name: Download left policy artifact
+        uses: actions/download-artifact@v4
+        id: dl-left
+        with:
+          name: ${{ inputs.left }}-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}
+          path: left
+
+      - name: Download right policy artifact
+        uses: actions/download-artifact@v4
+        id: dl-right
+        with:
+          name: ${{ inputs.right }}-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}
+          path: right
+
+      - name: Download setools artifact
+        uses: actions/download-artifact@v4
+        id: dl-setools
+        with:
+          name: setools
+
+      - name: Install setools
+        shell: bash
+        working-directory: ${{ steps.dl-setools.outputs.download-path }}
+        run: sudo pip install setools*.whl
+
+      - name: Diff policies
+        shell: bash
+        id: sediff
+        run: sediff left/sepolicy right/sepolicy &> diff-${{ inputs.left }}-${{ inputs.right }}.log
+        env:
+          LD_LIBRARY_PATH: "${{ steps.dl-userspace.outputs.download-path }}/lib:${{ steps.dl-userspace.outputs.download-path }}/usr/lib"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: diff-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}
+          path: |
+            diff-${{ inputs.left }}-${{ inputs.right }}.log

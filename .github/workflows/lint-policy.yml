@@ -1,0 +1,73 @@
+name: Policy linting
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version to use"
+        required: true
+        type: string
+      selint-version:
+        description: "SELint version (a git commit ID, tag, or branch)"
+        required: true
+        type: string
+
+jobs:
+  selint:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -qy autoconf-archive bison flex libconfuse-dev uthash-dev
+
+    - name: Checkout SELint
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/selint
+        ref: "${{ inputs.selint-version }}"
+        path: selint
+
+    - name: Build SELint
+      working-directory: selint
+      run: |
+        ./autogen.sh
+        ./configure --without-check
+        make -j$(nproc)
+        sudo make install
+
+    - name: Create generated policy files
+      run: |
+        make conf
+        make generate
+
+    - name: Run SELint
+      run: |
+        # disable C-005 (Permissions in av rule or class declaration not ordered) for now: needs fixing
+        # disable C-008 (Conditional expression identifier from foreign module) for now: needs fixing
+        # disable W-005 (Interface call from module not in optional_policy block): refpolicy does not follow this rule
+        selint --source --recursive --summary --fail --disable C-005 --disable C-008 --disable W-005 policy
+
+  check_fc_files:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # This version should be the minimum required to run the fc checker
+    # or the standard Python version on Ubuntu.
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "${{ inputs.python-version }}"
+
+    - name: Create generated policy files
+      run: |
+        make conf
+        make generate
+
+    - name: Run file context checker
+      run: python${{ inputs.python-version }} -t -t -E -W error testing/check_fc_files.py
