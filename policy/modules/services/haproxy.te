@@ -1,0 +1,121 @@
+policy_module(haproxy)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Determine whether haproxy can bind to
+##	all TCP ports.
+##	</p>
+## </desc>
+gen_tunable(haproxy_bind_all_tcp_ports, false)
+
+## <desc>
+##	<p>
+##	Determine whether haproxy can bind to
+##	kubernetes ports (typically 6443/tcp).
+##	</p>
+## </desc>
+gen_tunable(haproxy_bind_kubernetes_port, false)
+
+## <desc>
+##	<p>
+##	Determine whether haproxy can connect to
+##	all TCP ports.
+##	</p>
+## </desc>
+gen_tunable(haproxy_connect_all_tcp_ports, false)
+
+## <desc>
+##	<p>
+##	Determine whether haproxy can connect to
+##	kubernetes ports (typically 6443/tcp).
+##	</p>
+## </desc>
+gen_tunable(haproxy_connect_kubernetes_port, false)
+
+type haproxy_t;
+type haproxy_exec_t;
+init_daemon_domain(haproxy_t, haproxy_exec_t)
+
+type haproxy_conf_t;
+files_config_file(haproxy_conf_t)
+
+type haproxy_initrc_exec_t;
+init_script_file(haproxy_initrc_exec_t)
+
+type haproxy_log_t;
+logging_log_file(haproxy_log_t)
+
+type haproxy_runtime_t;
+files_runtime_file(haproxy_runtime_t)
+
+type haproxy_tmpfs_t;
+files_tmpfs_file(haproxy_tmpfs_t)
+
+########################################
+#
+# haproxy local policy
+#
+
+allow haproxy_t self:process { getsched setrlimit signal };
+allow haproxy_t self:capability { kill setuid setgid };
+dontaudit haproxy_t self:capability net_admin;
+allow haproxy_t self:fifo_file rw_fifo_file_perms;
+allow haproxy_t self:tcp_socket create_stream_socket_perms;
+allow haproxy_t self:udp_socket create_socket_perms;
+allow haproxy_t self:unix_dgram_socket create_socket_perms;
+
+read_files_pattern(haproxy_t, haproxy_conf_t, haproxy_conf_t)
+
+create_dirs_pattern(haproxy_t, haproxy_log_t, haproxy_log_t)
+create_files_pattern(haproxy_t, haproxy_log_t, haproxy_log_t)
+append_files_pattern(haproxy_t, haproxy_log_t, haproxy_log_t)
+logging_log_filetrans(haproxy_t, haproxy_log_t, { dir file })
+
+manage_files_pattern(haproxy_t, haproxy_runtime_t, haproxy_runtime_t)
+manage_sock_files_pattern(haproxy_t, haproxy_runtime_t, haproxy_runtime_t)
+files_runtime_filetrans(haproxy_t, haproxy_runtime_t, { dir file sock_file })
+
+mmap_manage_files_pattern(haproxy_t, haproxy_tmpfs_t, haproxy_tmpfs_t)
+fs_tmpfs_filetrans(haproxy_t, haproxy_tmpfs_t, file)
+
+corenet_tcp_bind_http_port(haproxy_t)
+corenet_tcp_connect_http_port(haproxy_t)
+corenet_tcp_bind_generic_node(haproxy_t)
+
+corecmd_search_bin(haproxy_t)
+
+dev_dontaudit_read_sysfs(haproxy_t)
+
+kernel_read_kernel_sysctls(haproxy_t)
+kernel_read_state(haproxy_t)
+kernel_read_system_state(haproxy_t)
+
+auth_use_nsswitch(haproxy_t)
+
+miscfiles_read_generic_certs(haproxy_t)
+miscfiles_read_localization(haproxy_t)
+
+logging_send_syslog_msg(haproxy_t)
+
+can_exec(haproxy_t, haproxy_exec_t)
+
+tunable_policy(`haproxy_bind_all_tcp_ports',`
+	corenet_tcp_bind_all_ports(haproxy_t)
+')
+
+tunable_policy(`haproxy_bind_kubernetes_port',`
+	corenet_tcp_bind_kubernetes_port(haproxy_t)
+')
+
+tunable_policy(`haproxy_connect_all_tcp_ports',`
+	corenet_tcp_connect_all_ports(haproxy_t)
+')
+
+tunable_policy(`haproxy_connect_kubernetes_port',`
+	corenet_tcp_connect_kubernetes_port(haproxy_t)
+')
