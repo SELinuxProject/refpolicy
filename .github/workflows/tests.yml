@@ -3,21 +3,27 @@ name: Build tests
 on: [push, pull_request]
 
 env:
-  # Minimum userspace version to build refpolicy.
-  SELINUX_USERSPACE_VERSION: checkpolicy-3.1
+  # Minimum versions to build refpolicy.
+  PYTHON_VERSION: "3.10"
+  SELINUX_USERSPACE_VERSION: checkpolicy-3.2
+  USERSPACE_SRC: "selinux-src"
+  # branch for sechecker
+  SECHECKER_VERSION: "4.4"
+  SETOOLS_SRC: "setools-src"
 
 jobs:
   lint:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     # This version should be the minimum required to run the fc checker
+    # or the standard Python version on Ubuntu.
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.7
+        python-version: "${{env.PYTHON_VERSION}}"
 
     - name: Install dependencies
       run: |
@@ -56,7 +62,7 @@ jobs:
         selint --source --recursive --summary --fail --disable C-005 --disable C-008 --disable W-005 policy
 
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
@@ -119,13 +125,29 @@ jobs:
           - {type: mls, distro: gentoo, monolithic: y, systemd: n, apps-off: unconfined, direct_initrc: y}
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout Reference Policy
+      uses: actions/checkout@v4
+
+    - name: Checkout SELinux userspace tools and libs
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/selinux
+        ref: "${{env.SELINUX_USERSPACE_VERSION}}"
+        path: "${{env.USERSPACE_SRC}}"
+
+    - name: Checkout setools
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/setools
+        ref: "${{env.SECHECKER_VERSION}}"
+        path: "${{env.SETOOLS_SRC}}"
 
     # This should be the minimum required Python version to build refpolicy.
+    # or the standard Python version on Ubuntu.
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.5
+        python-version: "${{env.PYTHON_VERSION}}"
 
     - name: Install dependencies
       run: |
@@ -144,7 +166,6 @@ jobs:
       run: |
         echo "DESTDIR=/tmp/refpolicy" >> $GITHUB_ENV
         echo "PYTHON=python" >> $GITHUB_ENV
-        echo "TEST_TOOLCHAIN_SRC=/tmp/selinux-src" >> $GITHUB_ENV
         echo "TEST_TOOLCHAIN=/tmp/selinux" >> $GITHUB_ENV
         echo "TYPE=${{matrix.build-opts.type}}" >> $GITHUB_ENV
         echo "DISTRO=${{matrix.build-opts.distro}}" >> $GITHUB_ENV
@@ -153,21 +174,25 @@ jobs:
         echo "APPS_OFF=${{matrix.build-opts.apps-off}}" >> $GITHUB_ENV
         echo "DIRECT_INITRC=${{matrix.build-opts.direct_initrc}}" >> $GITHUB_ENV
         echo "WERROR=y" >> $GITHUB_ENV
+        echo "CFLAGS=\"-O2\"" >> $GITHUB_ENV
 
     - name: Build toolchain
       run: |
-        # Download current SELinux userspace tools and libraries
-        git clone https://github.com/SELinuxProject/selinux.git ${TEST_TOOLCHAIN_SRC} -b ${SELINUX_USERSPACE_VERSION}
         # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
-        sed -i -e 's/secilc//' ${TEST_TOOLCHAIN_SRC}/Makefile
+        sed -i -e 's/secilc//' ${USERSPACE_SRC}/Makefile
         # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
-        sed -i -e 's/sepolicy//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        sed -i -e 's/sepolicy//' ${USERSPACE_SRC}/policycoreutils/Makefile
         # Drop restorecond to break glib dependence
-        sed -i -e 's/ restorecond//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        sed -i -e 's/ restorecond//' ${USERSPACE_SRC}/policycoreutils/Makefile
         # Drop sandbox to break libcap-ng dependence
-        sed -i -e 's/ sandbox//' ${TEST_TOOLCHAIN_SRC}/policycoreutils/Makefile
+        sed -i -e 's/ sandbox//' ${USERSPACE_SRC}/policycoreutils/Makefile
         # Compile and install SELinux toolchain
-        make OPT_SUBDIRS=semodule-utils DESTDIR=${TEST_TOOLCHAIN} -C ${TEST_TOOLCHAIN_SRC} install
+        make OPT_SUBDIRS=semodule-utils DESTDIR=${TEST_TOOLCHAIN} -C ${USERSPACE_SRC} install
+
+    - name: Build setools
+      run: |
+        cd ${SETOOLS_SRC}
+        pip install .
 
     - name: Build refpolicy
       run: |
