@@ -156,8 +156,8 @@ ifdef(`enable_mls',`
 #
 
 # Use capabilities. old rule:
-allow init_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_admin sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease audit_write audit_control setfcap };
-allow init_t self:capability2 { wake_alarm block_suspend };
+allow init_t self:capability { audit_control audit_write chown dac_override dac_read_search fowner fsetid ipc_lock ipc_owner kill lease linux_immutable mknod net_admin net_bind_service net_broadcast net_raw setfcap setgid setpcap setuid sys_admin sys_boot sys_chroot sys_nice sys_pacct sys_ptrace sys_rawio sys_resource sys_time sys_tty_config };
+allow init_t self:capability2 { block_suspend wake_alarm };
 # is ~sys_module really needed? observed:
 # sys_boot
 # sys_tty_config
@@ -259,21 +259,21 @@ miscfiles_read_localization(init_t)
 
 ifdef(`init_systemd',`
 	gen_require(`
-		class service { status start stop };
-		class system { status reboot halt reload };
+		class service { start status stop };
+		class system { halt reboot reload status };
 	')
 
 	# handle instances where an old labeled init script is encountered.
 	typeattribute init_t init_run_all_scripts_domain;
 
 	allow init_t self:unix_dgram_socket { create_socket_perms sendto };
-	allow init_t self:process { setsockcreate setfscreate setrlimit };
-	allow init_t self:process { getcap setcap getsched setsched };
-	allow init_t self:unix_stream_socket { create_stream_socket_perms connectto };
-	allow init_t self:netlink_audit_socket { nlmsg_relay create_socket_perms };
+	allow init_t self:process { setfscreate setrlimit setsockcreate };
+	allow init_t self:process { getcap getsched setcap setsched };
+	allow init_t self:unix_stream_socket { connectto create_stream_socket_perms };
+	allow init_t self:netlink_audit_socket { create_socket_perms nlmsg_relay };
 	allow init_t self:netlink_netfilter_socket create_socket_perms;
 	allow init_t self:netlink_selinux_socket create_socket_perms;
-	allow init_t self:system { status reboot halt reload };
+	allow init_t self:system { halt reboot reload status };
 	# Until systemd is fixed
 	allow init_t self:udp_socket create_socket_perms;
 	allow init_t self:netlink_route_socket create_netlink_socket_perms;
@@ -286,7 +286,7 @@ ifdef(`init_systemd',`
 
 	# manage the capabilities granted to namespace processes
 	allow init_t self:cap_userns { audit_write chown dac_override dac_read_search fowner fsetid ipc_lock ipc_owner kill lease linux_immutable mknod net_admin net_bind_service net_raw setfcap setgid setpcap setuid sys_admin sys_boot sys_chroot sys_module sys_nice sys_pacct sys_ptrace sys_rawio sys_resource sys_time sys_tty_config };
-	allow init_t self:cap2_userns { audit_read bpf block_suspend mac_admin mac_override perfmon syslog wake_alarm };
+	allow init_t self:cap2_userns { audit_read block_suspend bpf mac_admin mac_override perfmon syslog wake_alarm };
 
 	allow init_t init_mountpoint_type:dir_file_class_set { getattr mounton };
 
@@ -302,7 +302,7 @@ ifdef(`init_systemd',`
 	allow init_t systemprocess:unix_dgram_socket create_socket_perms;
 
 	# setexec and setkeycreate for systemd --user
-	allow init_t self:process { getcap getsched setsched setpgid setfscreate setsockcreate setexec setkeycreate setcap setrlimit };
+	allow init_t self:process { getcap getsched setcap setexec setfscreate setkeycreate setpgid setrlimit setsched setsockcreate };
 	allow init_t self:capability2 { audit_read block_suspend bpf perfmon };
 	allow init_t self:netlink_kobject_uevent_socket create_socket_perms;
 	allow init_t self:unix_dgram_socket lock;
@@ -315,12 +315,12 @@ ifdef(`init_systemd',`
 	allow init_t daemon:udp_socket create_socket_perms;
 	allow daemon init_t:unix_dgram_socket sendto;
 
-	allow init_run_all_scripts_domain systemdunit:service { status start stop };
+	allow init_run_all_scripts_domain systemdunit:service { start status stop };
 
 	allow systemprocess init_t:unix_dgram_socket sendto;
-	allow systemprocess init_t:unix_stream_socket { append write read getattr ioctl };
+	allow systemprocess init_t:unix_stream_socket { append getattr ioctl read write };
 
-	allow daemon init_t:unix_stream_socket { append write read getattr ioctl };
+	allow daemon init_t:unix_stream_socket { append getattr ioctl read write };
 
 	# systemd must be able to renice processes in other
 	# slices when containers are started and stopped
@@ -568,7 +568,7 @@ ifdef(`init_systemd',`
 	userdom_relabel_user_runtime_root_dirs(init_t)
 
 	tunable_policy(`init_create_mountpoints',`
-		allow init_t init_mountpoint_type:dir { create_dir_perms add_entry_dir_perms };
+		allow init_t init_mountpoint_type:dir { add_entry_dir_perms create_dir_perms };
                 allow init_t init_mountpoint_type:fifo_file create_fifo_file_perms;
 		allow init_t init_mountpoint_type:sock_file create_sock_file_perms;
 		allow init_t init_mountpoint_type:lnk_file create_lnk_file_perms;
@@ -716,9 +716,9 @@ optional_policy(`
 # Init script local policy
 #
 
-allow initrc_t self:process { getcap getpgid setsched setpgid setrlimit getsched };
-allow initrc_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease audit_write audit_control setfcap };
-allow initrc_t self:capability2 { wake_alarm block_suspend };
+allow initrc_t self:process { getcap getpgid getsched setpgid setrlimit setsched };
+allow initrc_t self:capability { audit_control audit_write chown dac_override dac_read_search fowner fsetid ipc_lock ipc_owner kill lease linux_immutable mknod net_admin net_bind_service net_broadcast net_raw setfcap setgid setpcap setuid sys_boot sys_chroot sys_nice sys_pacct sys_ptrace sys_rawio sys_resource sys_time sys_tty_config };
+allow initrc_t self:capability2 { block_suspend wake_alarm };
 dontaudit initrc_t self:capability sys_module; # sysctl is triggering this
 allow initrc_t self:netlink_kobject_uevent_socket create_socket_perms; # needed by rdma-ndd
 allow initrc_t self:passwd rootok;
@@ -726,7 +726,7 @@ allow initrc_t self:key manage_key_perms;
 
 # Allow IPC with self
 allow initrc_t self:unix_dgram_socket create_socket_perms;
-allow initrc_t self:unix_stream_socket { create listen accept ioctl read getattr write setattr append bind connect getopt setopt shutdown connectto };
+allow initrc_t self:unix_stream_socket { accept append bind connect connectto create getattr getopt ioctl listen read setattr setopt shutdown write };
 allow initrc_t self:tcp_socket create_stream_socket_perms;
 allow initrc_t self:udp_socket create_socket_perms;
 allow initrc_t self:fifo_file rw_fifo_file_perms;
@@ -1125,10 +1125,10 @@ ifdef(`enable_mls',`
 
 ifdef(`init_systemd',`
 	gen_require(`
-		class service { stop start status reload };
-		class system { start stop status reboot halt reload };
+		class service { reload start status stop };
+		class system { halt reboot reload start status stop };
 	')
-	allow initrc_t init_t:system { start stop status reboot halt reload };
+	allow initrc_t init_t:system { halt reboot reload start status stop };
 
 	manage_files_pattern(initrc_t, initrc_lock_t, initrc_lock_t)
 	files_lock_filetrans(initrc_t, initrc_lock_t, file)
@@ -1149,7 +1149,7 @@ ifdef(`init_systemd',`
 	manage_files_pattern(initrc_t, systemdunit, systemdunit)
 	manage_lnk_files_pattern(initrc_t, systemdunit, systemdunit)
 	allow initrc_t systemdunit:service reload;
-	allow initrc_t init_script_file_type:service { stop start status reload };
+	allow initrc_t init_script_file_type:service { reload start status stop };
 
 	# Access to notify socket for services with Type=notify
 	kernel_dgram_send(initrc_t)
@@ -1563,7 +1563,7 @@ init_use_script_ptys(daemon)
 
 ifdef(`init_systemd',`
 	# Until systemd is fixed
-	allow daemon init_t:socket_class_set { getopt read getattr ioctl setopt write };
+	allow daemon init_t:socket_class_set { getattr getopt ioctl read setopt write };
 
 	fs_search_cgroup_dirs(daemon)
 
