@@ -46,25 +46,25 @@ template(`userdom_base_user_template',`
 
 	term_user_tty($1_t, user_tty_device_t)
 
-	allow $1_t self:process { signal_perms getsched setsched share getpgid setpgid setcap getsession getattr };
+	allow $1_t self:process { getattr getpgid getsched getsession setcap setpgid setsched share signal_perms };
 	allow $1_t self:fd use;
 	allow $1_t self:key manage_key_perms;
 	allow $1_t self:fifo_file rw_fifo_file_perms;
 	allow $1_t self:unix_dgram_socket { create_socket_perms sendto };
-	allow $1_t self:unix_stream_socket { create_stream_socket_perms connectto };
+	allow $1_t self:unix_stream_socket { connectto create_stream_socket_perms };
 	allow $1_t self:shm create_shm_perms;
 	allow $1_t self:sem create_sem_perms;
 	allow $1_t self:msgq create_msgq_perms;
-	allow $1_t self:msg { send receive };
+	allow $1_t self:msg { receive send };
 	allow $1_t self:context contains;
 	dontaudit $1_t self:socket create;
 
-	allow $1_t user_devpts_t:chr_file { setattr rw_chr_file_perms };
+	allow $1_t user_devpts_t:chr_file { rw_chr_file_perms setattr };
 	term_create_pty($1_t, user_devpts_t)
 	# avoid annoying messages on terminal hangup on role change
 	dontaudit $1_t user_devpts_t:chr_file ioctl;
 
-	allow $1_t user_tty_device_t:chr_file { setattr rw_chr_file_perms };
+	allow $1_t user_tty_device_t:chr_file { rw_chr_file_perms setattr };
 	# avoid annoying messages on terminal hangup on role change
 	dontaudit $1_t user_tty_device_t:chr_file ioctl;
 
@@ -327,11 +327,11 @@ interface(`userdom_ro_home_role',`
 	read_sock_files_pattern($2, { user_home_t user_home_dir_t }, user_home_t)
 	files_list_home($2)
 
-	allow $2 { user_home_t user_home_dir_t }:dir { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:lnk_file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:sock_file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:fifo_file { watch watch_mount watch_sb watch_with_perm watch_reads };
+	allow $2 { user_home_t user_home_dir_t }:dir {  watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:lnk_file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:sock_file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:fifo_file { watch watch_mount watch_reads watch_sb watch_with_perm };
 
 	tunable_policy(`use_nfs_home_dirs',`
 		fs_list_nfs($2)
@@ -415,11 +415,11 @@ interface(`userdom_manage_home_role',`
 	# cjp: this should probably be removed:
 	allow $2 user_home_dir_t:dir { manage_dir_perms relabel_dir_perms };
 
-	allow $2 { user_home_t user_home_dir_t }:dir { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:lnk_file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:sock_file { watch watch_mount watch_sb watch_with_perm watch_reads };
-	allow $2 user_home_t:fifo_file { watch watch_mount watch_sb watch_with_perm watch_reads };
+	allow $2 { user_home_t user_home_dir_t }:dir { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:lnk_file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:sock_file { watch watch_mount watch_reads watch_sb watch_with_perm };
+	allow $2 user_home_t:fifo_file { watch watch_mount watch_reads watch_sb watch_with_perm };
 
 	userdom_manage_user_bin($2)
 	userdom_exec_user_bin_files($2)
@@ -643,8 +643,8 @@ template(`userdom_common_user_template',`
 	#
 
 	# evolution and gnome-session try to create a netlink socket
-	dontaudit $1_t self:netlink_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown };
-	dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+	dontaudit $1_t self:netlink_socket { append bind connect create getattr getopt ioctl read setattr setopt shutdown write };
+	dontaudit $1_t self:netlink_route_socket { append bind connect create getattr getopt ioctl nlmsg_read nlmsg_write read setattr setopt shutdown write };
 
 	# gnome-settings-daemon and some applications create a netlink socket
 	allow $1_t self:netlink_kobject_uevent_socket create_socket_perms;
@@ -984,9 +984,9 @@ template(`userdom_login_user_template', `
 	allow $1_t self:capability { chown fowner setgid };
 	dontaudit $1_t self:capability { fsetid sys_nice };
 
-	allow $1_t self:process { transition signal_perms ptrace getsched setsched getsession getpgid setpgid getcap setcap share getattr setfscreate noatsecure siginh rlimitinh dyntransition setkeycreate setsockcreate getrlimit };
+	allow $1_t self:process { dyntransition getattr getcap getpgid getrlimit getsched getsession noatsecure ptrace rlimitinh setcap setfscreate setkeycreate setpgid setsched setsockcreate share siginh signal_perms transition };
 	dontaudit $1_t self:process setrlimit;
-	dontaudit $1_t self:netlink_route_socket { create ioctl read getattr write setattr append bind connect getopt setopt shutdown nlmsg_read nlmsg_write };
+	dontaudit $1_t self:netlink_route_socket { append bind connect create getattr getopt ioctl nlmsg_read nlmsg_write read setattr setopt shutdown write };
 
 	allow $1_t self:context contains;
 
@@ -1329,7 +1329,7 @@ template(`userdom_unpriv_user_template', `
 template(`userdom_admin_user_template',`
 	gen_require(`
 		attribute admindomain;
-		class passwd { passwd chfn chsh rootok };
+		class passwd { chfn chsh passwd rootok };
 	')
 
 	##############################
@@ -1355,14 +1355,14 @@ template(`userdom_admin_user_template',`
 	# $1_t local policy
 	#
 
-	allow $1_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid setpcap linux_immutable net_bind_service net_broadcast net_admin net_raw ipc_lock ipc_owner sys_rawio sys_chroot sys_ptrace sys_pacct sys_admin sys_boot sys_nice sys_resource sys_time sys_tty_config mknod lease setfcap };
+	allow $1_t self:capability { chown dac_override dac_read_search fowner fsetid ipc_lock ipc_owner kill lease linux_immutable mknod net_admin net_bind_service net_broadcast net_raw setfcap setgid setpcap setuid sys_admin sys_boot sys_chroot sys_nice sys_pacct sys_ptrace sys_rawio sys_resource sys_time sys_tty_config };
 	allow $1_t self:cap_userns sys_ptrace;
 	allow $1_t self:process { setexec setfscreate };
 	allow $1_t self:netlink_audit_socket nlmsg_readpriv;
 	allow $1_t self:netlink_tcpdiag_socket create_netlink_socket_perms;
 	allow $1_t self:tun_socket create;
 	# Set password information for other users.
-	allow $1_t self:passwd { passwd chfn chsh };
+	allow $1_t self:passwd { chfn chsh passwd };
 	# Skip authentication when pam_rootok is specified.
 	allow $1_t self:passwd rootok;
 
