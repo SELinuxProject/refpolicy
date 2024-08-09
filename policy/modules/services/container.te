@@ -180,6 +180,12 @@ ifdef(`enable_mls',`
 ')
 mls_trusted_object(container_engine_t)
 
+container_domain_template(container_kvm)
+typeattribute container_kvm_t container_system_domain, container_net_domain;
+optional_policy(`
+	kubernetes_container(container_kvm_t)
+')
+
 type spc_t, container_domain, container_net_domain, container_system_domain, privileged_container_domain;
 domain_type(spc_t)
 role system_r types spc_t;
@@ -944,6 +950,28 @@ filetrans_pattern(container_engine_user_domain, container_data_home_t, container
 
 ########################################
 #
+# KVM container local policy
+#
+
+allow container_kvm_t self:process { getcap setrlimit };
+allow container_kvm_t self:capability { net_admin sys_resource };
+allow container_kvm_t self:tun_socket { relabelfrom relabelto };
+
+dev_getattr_mtrr_dev(container_kvm_t)
+dev_read_sysfs(container_kvm_t)
+
+fs_read_cgroup_files(container_kvm_t)
+
+kernel_read_device_sysctls(container_kvm_t)
+kernel_read_irq_sysctls(container_kvm_t)
+kernel_read_vm_overcommit_sysctl(container_kvm_t)
+
+allow container_kvm_t spc_t:fd use;
+allow container_kvm_t spc_t:fifo_file write;
+allow container_kvm_t spc_t:tun_socket relabelfrom;
+
+########################################
+#
 # Common privileged container local policy
 #
 
@@ -974,7 +1002,7 @@ domtrans_pattern(container_engine_system_domain, container_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_ro_file_t, spc_t)
 domtrans_pattern(container_engine_system_domain, container_var_lib_t, spc_t)
 
-allow spc_t self:process { getcap setrlimit };
+allow spc_t self:process { getcap setexec setrlimit };
 # Normally triggered when rook-ceph executes lvm tools which creates noise.
 # This can be allowed if actually needed.
 dontaudit spc_t self:process setfscreate;
@@ -1126,6 +1154,10 @@ files_runtime_filetrans(spc_t, container_runtime_t, dir)
 allow spc_t container_config_t:dir watch;
 allow spc_t container_runtime_t:lnk_file manage_lnk_file_perms;
 allow spc_t container_runtime_t:file watch;
+
+# for kubevirt
+allow spc_t container_kvm_t:process transition;
+ps_process_pattern(spc_t, container_kvm_t)
 
 ifdef(`init_systemd',`
 	init_dbus_chat(spc_t)
