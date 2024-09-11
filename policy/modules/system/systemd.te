@@ -212,6 +212,9 @@ init_mountpoint(systemd_networkd_runtime_t)
 type systemd_networkd_unit_t;
 init_unit_file(systemd_networkd_unit_t)
 
+type systemd_networkd_var_lib_t;
+files_type(systemd_networkd_var_lib_t)
+
 type systemd_notify_t;
 type systemd_notify_exec_t;
 init_daemon_domain(systemd_notify_t, systemd_notify_exec_t)
@@ -225,6 +228,13 @@ files_runtime_file(systemd_nspawn_runtime_t)
 
 type systemd_nspawn_tmp_t;
 files_tmp_file(systemd_nspawn_tmp_t)
+
+type systemd_nsresourced_t;
+type systemd_nsresourced_exec_t;
+init_daemon_domain(systemd_nsresourced_t, systemd_nsresourced_exec_t)
+
+type systemd_nsresourced_runtime_t;
+files_runtime_file(systemd_nsresourced_runtime_t)
 
 type systemd_pcrphase_t;
 type systemd_pcrphase_exec_t;
@@ -528,6 +538,8 @@ seutil_search_default_contexts(systemd_coredump_t)
 allow systemd_generator_t self:fifo_file rw_fifo_file_perms;
 allow systemd_generator_t self:capability { dac_override sys_admin sys_resource };
 allow systemd_generator_t self:process { getcap getsched setfscreate signal };
+# for systemd-ssh-generator
+allow systemd_generator_t self:vsock_socket create;
 
 corecmd_exec_shell(systemd_generator_t)
 corecmd_exec_bin(systemd_generator_t)
@@ -538,6 +550,8 @@ dev_write_sysfs_dirs(systemd_generator_t)
 dev_read_urand(systemd_generator_t)
 dev_create_sysfs_files(systemd_generator_t)
 dev_write_sysfs(systemd_generator_t)
+# for systemd-ssh-generator
+dev_read_vsock(systemd_generator_t)
 
 files_read_etc_files(systemd_generator_t)
 files_read_etc_runtime_files(systemd_generator_t)
@@ -623,6 +637,11 @@ optional_policy(`
 	fs_rw_nfsd_fs(systemd_generator_t)
 	rpc_list_exports(systemd_generator_t)
 	rpc_read_exports(systemd_generator_t)
+')
+
+optional_policy(`
+	# needed by systemd-ssh-generator
+	ssh_exec_sshd(systemd_generator_t)
 ')
 
 optional_policy(`
@@ -763,6 +782,7 @@ kernel_read_kernel_sysctls(systemd_hostnamed_t)
 kernel_dontaudit_getattr_proc(systemd_hostnamed_t)
 
 dev_read_sysfs(systemd_hostnamed_t)
+dev_read_vsock(systemd_hostnamed_t)
 
 files_read_etc_files(systemd_hostnamed_t)
 files_read_etc_runtime_files(systemd_hostnamed_t)
@@ -1240,6 +1260,11 @@ allow systemd_networkd_t self:unix_dgram_socket create_socket_perms;
 manage_dirs_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
 manage_files_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
 manage_lnk_files_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
+manage_sock_files_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
+
+init_var_lib_filetrans(systemd_networkd_t, systemd_networkd_var_lib_t, dir)
+manage_dirs_pattern(systemd_networkd_t, systemd_networkd_var_lib_t, systemd_networkd_var_lib_t)
+manage_files_pattern(systemd_networkd_t, systemd_networkd_var_lib_t, systemd_networkd_var_lib_t)
 
 kernel_read_system_state(systemd_networkd_t)
 kernel_read_kernel_sysctls(systemd_networkd_t)
@@ -1478,6 +1503,31 @@ optional_policy(`
 optional_policy(`
 	virt_manage_virt_content(systemd_nspawn_t)
 ')
+
+#########################################
+#
+# nsresourced local policy
+#
+
+allow systemd_nsresourced_t self:capability { sys_resource };
+allow systemd_nsresourced_t self:process { getcap signal };
+allow systemd_nsresourced_t systemd_nsresourced_exec_t:file execute_no_trans;
+
+manage_dirs_pattern(systemd_nsresourced_t, systemd_nsresourced_runtime_t, systemd_nsresourced_runtime_t)
+manage_files_pattern(systemd_nsresourced_t, systemd_nsresourced_runtime_t, systemd_nsresourced_runtime_t)
+manage_sock_files_pattern(systemd_nsresourced_t, systemd_nsresourced_runtime_t, systemd_nsresourced_runtime_t)
+init_runtime_filetrans(systemd_nsresourced_t, systemd_nsresourced_runtime_t, dir)
+
+fs_getattr_cgroup(systemd_nsresourced_t)
+
+# for /proc/1/environ
+init_read_state(systemd_nsresourced_t)
+
+kernel_read_kernel_sysctls(systemd_nsresourced_t)
+# for /proc/cmdline
+kernel_read_system_state(systemd_nsresourced_t)
+
+systemd_log_parse_environment(systemd_nsresourced_t)
 
 #######################################
 #
@@ -1796,6 +1846,8 @@ seutil_read_file_contexts(systemd_sysusers_t)
 
 systemd_log_parse_environment(systemd_sysusers_t)
 
+systemd_stream_connect_nsresourced(systemd_sysusers_t)
+
 #########################################
 #
 # Tmpfiles local policy
@@ -2097,6 +2149,8 @@ kernel_read_kernel_sysctls(systemd_userdbd_t)
 seutil_search_default_contexts(systemd_userdbd_t)
 
 systemd_log_parse_environment(systemd_userdbd_t)
+
+systemd_stream_connect_nsresourced(systemd_userdbd_t)
 
 #########################################
 #
