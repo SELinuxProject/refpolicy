@@ -54,28 +54,33 @@ python_path := $(TEST_TOOLCHAIN)$(python_path_plat):$(TEST_TOOLCHAIN)$(python_pa
 else
 python_path := $(TEST_TOOLCHAIN)$(python_path_plat):$(TEST_TOOLCHAIN)$(python_path_pure)
 endif
-tc_usrbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)$(BINDIR)
-tc_usrsbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)$(SBINDIR)
-tc_sbindir := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)" $(TEST_TOOLCHAIN)/sbin
+tc_env := env LD_LIBRARY_PATH="$(TEST_TOOLCHAIN)/lib:$(TEST_TOOLCHAIN)/usr/lib" PYTHONPATH="$(python_path)"
+tc_usrbindir := $(TEST_TOOLCHAIN)$(BINDIR)
+tc_usrsbindir := $(TEST_TOOLCHAIN)$(SBINDIR)
+tc_sbindir := $(TEST_TOOLCHAIN)/sbin
 else
+tc_env :=
 tc_usrbindir := $(BINDIR)
 tc_usrsbindir := $(SBINDIR)
 tc_sbindir := /sbin
 endif
-CHECKPOLICY ?= $(tc_usrbindir)/checkpolicy
-CHECKMODULE ?= $(tc_usrbindir)/checkmodule
-SEMODULE ?= $(tc_usrsbindir)/semodule
-SEMOD_PKG ?= $(tc_usrbindir)/semodule_package
-SEMOD_LNK ?= $(tc_usrbindir)/semodule_link
-SEMOD_EXP ?= $(tc_usrbindir)/semodule_expand
-LOADPOLICY ?= $(tc_usrsbindir)/load_policy
+CHECKPOLICY ?= $(tc_env) $(tc_usrbindir)/checkpolicy
+CHECKMODULE ?= $(tc_env) $(tc_usrbindir)/checkmodule
+SEMODULE ?= $(tc_env) $(tc_usrsbindir)/semodule
+SEMOD_PKG ?= $(tc_env) $(tc_usrbindir)/semodule_package
+SEMOD_LNK ?= $(tc_env) $(tc_usrbindir)/semodule_link
+SEMOD_EXP ?= $(tc_env) $(tc_usrbindir)/semodule_expand
+LOADPOLICY ?= $(tc_env) $(tc_usrsbindir)/load_policy
+# chkcon is not directly run by makefiles; the path is used by the validate-appconfig
+# tool.  The tc_env is added below in the validateappconfig var
+CHKCON ?= $(tc_usrbindir)/chkcon
 ifdef TEST_TOOLCHAIN
-SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen --attr-helper $(TEST_TOOLCHAIN)$(BINDIR)/sepolgen-ifgen-attr-helper
+SEPOLGEN_IFGEN ?= $(tc_env) $(tc_usrbindir)/sepolgen-ifgen --attr-helper $(TEST_TOOLCHAIN)$(BINDIR)/sepolgen-ifgen-attr-helper
 else
-SEPOLGEN_IFGEN ?= $(tc_usrbindir)/sepolgen-ifgen
+SEPOLGEN_IFGEN ?= $(tc_env) $(tc_usrbindir)/sepolgen-ifgen
 endif
-SETFILES ?= $(tc_sbindir)/setfiles
-SEFCONTEXT_COMPILE ?= $(tc_usrsbindir)/sefcontext_compile
+SETFILES ?= $(tc_env) $(tc_sbindir)/setfiles
+SEFCONTEXT_COMPILE ?= $(tc_env) $(tc_usrsbindir)/sefcontext_compile
 XMLLINT ?= $(BINDIR)/xmllint
 SECHECK ?= $(BINDIR)/sechecker
 
@@ -123,6 +128,7 @@ m4terminate := $(support)/fatal_error.m4
 # so policycoreutils updates are not required (RHEL4)
 genhomedircon := $(PYTHON) $(support)/genhomedircon.py
 gentemplates := $(support)/gentemplates.sh
+validateappconfig := $(tc_env) $(PYTHON) $(support)/validate-appconfig.py -c $(CHKCON)
 
 # documentation paths
 docs := doc
@@ -337,6 +343,23 @@ off_mods += $(filter-out $(cmdline_off) $(cmdline_base) $(cmdline_mods), $(mod_c
 
 # add modules not in modules.conf to the off list
 off_mods += $(filter-out $(base_mods) $(mod_mods) $(off_mods),$(notdir $(detected_mods)))
+
+# enable appconfig validation based on enabled modules
+ifneq "$(filter container.te,$(base_mods) $(mod_mods))" ""
+	validateappconfig += -l
+endif
+
+ifneq "$(filter postgresql.te,$(base_mods) $(mod_mods))" ""
+	validateappconfig += -s
+endif
+
+ifneq "$(filter virt.te,$(base_mods) $(mod_mods))" ""
+	validateappconfig += -v
+endif
+
+ifneq "$(filter xserver.te,$(base_mods) $(mod_mods))" ""
+	validateappconfig += -x
+endif
 
 # filesystems to be used in labeling targets
 filesystems = $(shell mount | grep -v "context=" | $(GREP) -v '\((|.*,)bind(,.*|)\)' | $(AWK) '/(ext[234]|btrfs| xfs| jfs).*rw/{print $$3}';)
