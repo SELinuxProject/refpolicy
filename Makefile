@@ -275,7 +275,10 @@ seusers := $(appconf)/seusers
 appdir := $(contextpath)
 user_default_contexts := $(wildcard config/appconfig-$(TYPE)/*_default_contexts)
 user_default_contexts_names := $(addprefix $(contextpath)/users/,$(subst _default_contexts,,$(notdir $(user_default_contexts))))
-appfiles := $(addprefix $(appdir)/,default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts sepgsql_contexts x_contexts customizable_types securetty_types lxc_contexts openrc_contexts virtual_domain_context virtual_image_context) $(contextpath)/files/media $(fcsubspath) $(user_default_contexts_names)
+appfiles_names := default_contexts default_type initrc_context failsafe_context userhelper_context removable_context dbus_contexts sepgsql_contexts x_contexts customizable_types securetty_types lxc_contexts openrc_contexts virtual_domain_context virtual_image_context
+appfiles := $(addprefix $(appdir)/,$(appfiles_names)) $(contextpath)/files/media $(fcsubspath) $(user_default_contexts_names)
+builtappconf := $(tmpdir)/appconfig
+builtappfiles := $(addprefix $(builtappconf)/,$(appfiles_names) $(notdir $(user_default_contexts)) media) $(fcsubspath)
 net_contexts := $(builddir)net_contexts
 net_contexts_nft := $(builddir)net_contexts.nft
 docfiles += $(net_contexts) $(net_contexts_nft)
@@ -509,9 +512,12 @@ $(userpath)/local.users: config/local.users
 #
 # Build Appconfig files
 #
-$(tmpdir)/initrc_context: $(appconf)/initrc_context
-	@mkdir -p $(tmpdir)
-	$(verbose) $(M4) $(M4PARAM) $(m4support) $^ | $(GREP) '^[a-z]' > $@
+$(builtappconf)/%: $(appconf)/%
+	@mkdir -p $(@D)
+	@echo "Building $(@F)"
+	$(verbose) $(M4) $(M4PARAM) $(m4support) $< > $@
+
+.SECONDARY: $(builtappfiles)
 
 ########################################
 #
@@ -526,7 +532,7 @@ $(installdir)/booleans: $(booleans)
 	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $(tmpdir)/booleans $@
 
-$(contextpath)/files/media: $(appconf)/media
+$(contextpath)/files/media: $(builtappconf)/media
 	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $< $@
 
@@ -534,11 +540,11 @@ $(fcsubspath): config/file_contexts.subs_dist
 	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $< $@
 
-$(contextpath)/users/%: $(appconf)/%_default_contexts
+$(contextpath)/users/%: $(builtappconf)/%_default_contexts
 	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $^ $@
 
-$(appdir)/%: $(appconf)/%
+$(appdir)/%: $(builtappconf)/%
 	$(verbose) $(M4) $(M4PARAM) $(m4support) $< > $(tmpdir)/$(@F)
 	@$(INSTALL) -d -m 0755 $(@D)
 	$(verbose) $(INSTALL) -m 0644 $(tmpdir)/$(@F) $@
