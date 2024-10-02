@@ -20,8 +20,13 @@ except ImportError:
 
 import selinux as libselinux
 
+with suppress(ImportError):
+    import setools
+
 DBUS_CONTEXTS: typing.Final[str] = "dbus_contexts"
+DEFAULT_TYPE: typing.Final[str] = "default_type"
 MEDIA_CONTEXTS: typing.Final[str] = "media"
+SINGLE_LINE_PARTIAL_CONTEXTS_FILES: typing.Final[tuple[str, ...]] = ("failsafe_context",)
 SINGLE_LINE_CONTEXTS_FILES: typing.Final[tuple[str, ...]] = ("initrc_context",
                                                              "removable_context",
                                                              "userhelper_context")
@@ -47,12 +52,20 @@ class ContextValidator:
                  chkcon_path: str | None = None) -> None:
 
         self.log = logging.getLogger(self.__class__.__name__)
-        self.policy_path = policy_path
         self.selinux_enabled = libselinux.is_selinux_enabled() == 1
+        self.policy_path = policy_path
         self.chkcon_path: Path | str | None = self._find_chkcon(chkcon_path)
+
+        try:
+            self.policy = setools.SELinuxPolicy(policy_path) \
+                if self.selinux_enabled or policy_path else None
+        except NameError:
+            self.policy = None
+
         self.log.debug(f"{self.__class__.__name__}: "
-                       f"{self.policy_path=}, "
                        f"{self.selinux_enabled=}, "
+                       f"{self.policy_path=}, "
+                       f"{self.policy=}, "
                        f"{self.chkcon_path=}")
 
     def _find_chkcon(self, /, path: Path | str | None) -> Path | str | None:
@@ -83,6 +96,56 @@ class ContextValidator:
                                 stderr=subprocess.PIPE)
 
         return result.returncode == 0
+
+    def validate_role_type(self, context: str, /) -> bool:
+        """Validate role:type associations"""
+        if not self.policy:
+            self.log.critical(f"Warning: Role:type context validation not done for {context}")
+            return True
+
+        ctx = context.split(":")
+        if len(ctx) != 2 or not all(ctx):
+            return False
+
+        try:
+            role = self.policy.lookup_role(ctx[0])
+            type_ = self.policy.lookup_type(ctx[1])
+
+            if type_ not in set(role.types()):
+                self.log.debug(f"Type {type_} not in role {role}")
+                return False
+
+            return True
+
+        except setools.exception.InvalidSymbol as e:
+            self.log.debug(str(e))
+            return False
+
+    def validate_partial_context(self, context: str, /) -> bool:
+        """Validate a partial context (no seuser)"""
+        if not self.policy:
+            self.log.critical(f"Warning: Partial context validation not done for {context}")
+            return True
+
+        self.log.info(f"Validating partial context {context}")
+
+        ctx = context.split(":")
+        if (self.policy.mls and len(ctx) != 3) or (not self.policy.mls and len(ctx) != 2) \
+                or not all(ctx):
+
+            self.log.debug(f"Incorrect number of fields in {context}")
+            return False
+
+        try:
+            # default level and clearance are tied to seuser, so ensuring
+            # the level is valid is the only possible check here.
+            _ = self.policy.lookup_level(ctx[2]) if self.policy.mls else None
+
+            return self.validate_role_type(":".join(ctx[:2]))
+
+        except setools.exception.InvalidSymbol as e:
+            self.log.debug(str(e))
+            return False
 
     def validate_context(self, context: str, /) -> bool:
         """Verify that the specified context is valid in the policy."""
@@ -191,6 +254,53 @@ def validate_lxc_contexts(validator: ContextValidator, fullpath: Path, /) -> boo
     return valid
 
 
+def validate_default_type(validator: ContextValidator, filename: Path, /) -> bool:
+    """
+    Validate the default_type file.  This file always has role:type pairs,
+    and never has MLS levels.
+
+    Validation is looser here than for other appconfig files.  The files are not
+    changed based on the modules in the policy, since invalid contexts
+    are not fatal to the userspace code.
+    """
+    valid_lines: int = 0
+    with open(filename, "r", encoding="utf-8") as file:
+        logging.info(f"Validating {filename}")
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+
+            if validator.validate_role_type(line):
+                valid_lines += 1
+            else:
+                logging.warning(f"Invalid context in {filename}: {line}")
+
+    return valid_lines > 0
+
+
+def validate_single_line_partial_context_files(validator: ContextValidator,
+                                               filenames: list[Path], /) -> bool:
+    """
+    Validate the contexts in the files with a single partial context per line,
+    such as failsafe_context.
+    """
+    valid: bool = True
+    for filename in filenames:
+        with open(filename, "r", encoding="utf-8") as file:
+            logging.info(f"Validating {filename}")
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+
+                if not validator.validate_partial_context(line):
+                    print(f"Invalid context in {filename}: {line}")
+                    valid = False
+
+    return valid
+
+
 def validate_single_line_context_files(validator: ContextValidator,
                                        filenames: list[Path], /) -> bool:
     """
@@ -269,6 +379,8 @@ def validate_appconfig_files(conf_dir: str, /, *,
                                                                  chkcon_path=chkcon_path)
     base_path: typing.Final[Path] = Path(conf_dir)
 
+    single_line_partial_contexts = [base_path / p for p in SINGLE_LINE_PARTIAL_CONTEXTS_FILES]
+
     single_line_contexts = [base_path / p for p in SINGLE_LINE_CONTEXTS_FILES]
     if virt:
         single_line_contexts.extend(base_path / p for p in VIRT_CONTEXTS_FILES)
@@ -283,7 +395,10 @@ def validate_appconfig_files(conf_dir: str, /, *,
                 validate_single_line_context_files(validator, single_line_contexts),
                 validate_media_contexts(validator, base_path / MEDIA_CONTEXTS),
                 validate_three_field_contexts(validator, key_value_contexts),
-                validate_lxc_contexts(validator, base_path / LXC_CONTEXTS) if lxc else True))
+                validate_lxc_contexts(validator, base_path / LXC_CONTEXTS) if lxc else True,
+                validate_default_type(validator, base_path / DEFAULT_TYPE),
+                validate_single_line_partial_context_files(validator,
+                                                           single_line_partial_contexts)))
 
 
 if __name__ == "__main__":
