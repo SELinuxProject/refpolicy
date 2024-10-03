@@ -45,6 +45,8 @@ CHKCON_PATHS: typing.Final[tuple[Path, ...]] = (Path("/usr/local/bin"),
                                                 Path("/usr/sbin"),
                                                 Path("/sbin"))
 
+GITHUB_ACTIONS_ENV_VAR: typing.Final[str] = "GITHUB_ACTION"
+
 
 class ContextValidator:
 
@@ -53,7 +55,7 @@ class ContextValidator:
     def __init__(self, /, policy_path: str | None = None, *,
                  chkcon_path: str | None = None) -> None:
 
-        self.log = logging.getLogger(self.__class__.__name__)
+        self.log = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.selinux_enabled = libselinux.is_selinux_enabled() == 1
         self.policy_path = policy_path
         self.chkcon_path: Path | str | None = self._find_chkcon(chkcon_path)
@@ -112,7 +114,7 @@ class ContextValidator:
     def validate_user(self, user: str, /) -> bool:
         """Validate the specified user."""
         if not self.policy:
-            self.log.critical(f"Warning: User validation not done for {user}")
+            self.log.warning(f"User validation not done for {user}")
             return True
 
         try:
@@ -125,7 +127,7 @@ class ContextValidator:
     def validate_role_type(self, context: str, /) -> bool:
         """Validate role:type associations"""
         if not self.policy:
-            self.log.critical(f"Warning: Role:type context validation not done for {context}")
+            self.log.warning(f"Role:type context validation not done for {context}")
             return True
 
         ctx = context.split(":")
@@ -153,7 +155,7 @@ class ContextValidator:
         valid: bool = True
         try:
             if not self.rbacrq or not self.dta:
-                self.log.warning(f"Warning: Domain transition not done for {source_domain} -> {target_domain}")
+                self.log.warning(f"Domain transition not done for {source_domain} -> {target_domain}")
                 return True
 
             self.log.debug(f"Validating domain transition {source_domain} -> {target_domain}")
@@ -204,7 +206,7 @@ class ContextValidator:
     def validate_partial_context(self, context: str, /) -> bool:
         """Validate a partial context (no seuser)"""
         if not self.policy:
-            self.log.critical(f"Warning: Partial context validation not done for {context}")
+            self.log.warning(f"Partial context validation not done for {context}")
             return True
 
         self.log.info(f"Validating partial context {context}")
@@ -237,7 +239,7 @@ class ContextValidator:
             self.log.debug(f"Validating context {context} with security_check_context")
             return libselinux.security_check_context(context) == 0
 
-        self.log.critical(f"Warning: Context validation not done for {context}")
+        self.log.warning(f"Context validation not done for {context}")
         return True
 
 
@@ -263,7 +265,8 @@ def validate_dbus_contexts(validator: ContextValidator, file_path: Path, /) -> b
     """
 
     # Parse the XML file
-    logging.info(f"Using {minidom.__name__} for parsing {file_path}.")
+    log = logging.getLogger(__name__).getChild("validate_dbus_contexts")
+    log.info(f"Using {minidom.__name__} for parsing {file_path}.")
     dom: typing.Final[minidom.Document] = minidom.parse(str(file_path))
 
     # Ensure <busconfig> is the top-level tag
@@ -293,14 +296,14 @@ def validate_dbus_contexts(validator: ContextValidator, file_path: Path, /) -> b
             continue
 
         if child.tagName != "associate":
-            print(f"Invalid element found under <selinux>: {child.toxml()}")
+            log.error(f"Invalid element found under <selinux>: {child.toxml()}")
             valid = False
             continue
 
         # Validate that each <associate> element has only "own" and "context" attributes
         attributes: minidom.NamedNodeMap = child.attributes
         if set(attributes.keys()) != {"own", "context"}:
-            print(f"Invalid associate element: {child.toxml()}")
+            log.error(f"Invalid associate element: {child.toxml()}")
             valid = False
             continue
 
@@ -308,17 +311,19 @@ def validate_dbus_contexts(validator: ContextValidator, file_path: Path, /) -> b
         own: str = attributes["own"].value
         context: str = attributes["context"].value
         if not validator.validate_context(context):
-            print(f"Invalid context for service {own}: {context}")
+            log.error(f"Invalid context for service {own}: {context}")
             valid = False
+            continue
 
     return valid
 
 
 def validate_lxc_contexts(validator: ContextValidator, fullpath: Path, /) -> bool:
     """Validate the lxc_contexts file."""
+    log = logging.getLogger(__name__).getChild("validate_lxc_contexts")
     valid: bool = True
     with open(fullpath, "r", encoding="utf-8") as file:
-        logging.info(f"Validating {fullpath}")
+        log.info(f"Validating {fullpath}")
         for line in file:
             line = line.strip()
             items = line.split()
@@ -328,7 +333,7 @@ def validate_lxc_contexts(validator: ContextValidator, fullpath: Path, /) -> boo
 
                 context = items[2].strip("\"")
                 if not validator.validate_context(context):
-                    print(f"Invalid context in {fullpath}: {line}")
+                    log.error(f"Invalid context in {fullpath}: {line}")
                     valid = False
 
     return valid
@@ -343,9 +348,10 @@ def validate_default_type(validator: ContextValidator, filename: Path, /) -> boo
     changed based on the modules in the policy, since invalid contexts
     are not fatal to the userspace code.
     """
+    log = logging.getLogger(__name__).getChild("validate_default_type")
     valid_lines: int = 0
     with open(filename, "r", encoding="utf-8") as file:
-        logging.info(f"Validating {filename}")
+        log.info(f"Validating {filename}")
         for line in file:
             line = line.strip()
             if not line:
@@ -354,7 +360,7 @@ def validate_default_type(validator: ContextValidator, filename: Path, /) -> boo
             if validator.validate_role_type(line):
                 valid_lines += 1
             else:
-                logging.warning(f"Invalid context in {filename}: {line}")
+                log.warning(f"Invalid context in {filename}: {line}")
 
     return valid_lines > 0
 
@@ -365,17 +371,18 @@ def validate_single_line_partial_context_files(validator: ContextValidator,
     Validate the contexts in the files with a single partial context per line,
     such as failsafe_context.
     """
+    log = logging.getLogger(__name__).getChild("validate_single_line_partial_context_files")
     valid: bool = True
     for filename in filenames:
         with open(filename, "r", encoding="utf-8") as file:
-            logging.info(f"Validating {filename}")
+            log.info(f"Validating {filename}")
             for line in file:
                 line = line.strip()
                 if not line:
                     continue
 
                 if not validator.validate_partial_context(line):
-                    print(f"Invalid context in {filename}: {line}")
+                    log.error(f"Invalid context in {filename}: {line}")
                     valid = False
 
     return valid
@@ -389,17 +396,18 @@ def validate_single_line_context_files(validator: ContextValidator,
     but can also be used for virtual_image_context, which can have multiple
     lines of a single context.
     """
+    log = logging.getLogger(__name__).getChild("validate_single_line_context_files")
     valid: bool = True
     for filename in filenames:
         with open(filename, "r", encoding="utf-8") as file:
-            logging.info(f"Validating {filename}")
+            log.info(f"Validating {filename}")
             for line in file:
                 line = line.strip()
                 if not line:
                     continue
 
                 if not validator.validate_context(line):
-                    print(f"Invalid context in {filename}: {line}")
+                    log.error(f"Invalid context in {filename}: {line}")
                     valid = False
 
     return valid
@@ -407,14 +415,15 @@ def validate_single_line_context_files(validator: ContextValidator,
 
 def validate_media_contexts(validator: ContextValidator, fullpath: Path, /) -> bool:
     """Validate the contexts in the media file."""
+    log = logging.getLogger(__name__).getChild("validate_media_contexts")
     valid: bool = True
     with open(fullpath, "r", encoding="utf-8") as file:
-        logging.info(f"Validating {fullpath}")
+        log.info(f"Validating {fullpath}")
         for line in file:
             line = line.strip()
             with suppress(IndexError):
                 if not validator.validate_context(line.split()[1]):
-                    print(f"Invalid context in {fullpath}: {line}")
+                    log.error(f"Invalid context in {fullpath}: {line}")
                     valid = False
 
     return valid
@@ -427,11 +436,12 @@ def validate_three_field_contexts(validator: ContextValidator, filepaths: list[P
     the third field being the context.  Examples are sepgsql_contexts and
     x_contexts.
     """
+    log = logging.getLogger(__name__).getChild("validate_three_field_contexts")
     valid: bool = True
 
     for fullpath in filepaths:
         with open(fullpath, "r", encoding="utf-8") as file:
-            logging.info(f"Validating {fullpath}")
+            log.info(f"Validating {fullpath}")
             for line in file:
                 line = line.strip()
                 items = line.split()
@@ -440,7 +450,7 @@ def validate_three_field_contexts(validator: ContextValidator, filepaths: list[P
                         continue
 
                     if not validator.validate_context(items[2]):
-                        print(f"Invalid context in {fullpath}: {line}")
+                        log.error(f"Invalid context in {fullpath}: {line}")
                         valid = False
 
     return valid
@@ -449,6 +459,7 @@ def validate_three_field_contexts(validator: ContextValidator, filepaths: list[P
 def _validate_default_contexts_line(validator: ContextValidator, line: str,
                                     /, seuser: str = "") -> tuple[str, list[str], list[str]]:
     """Validate a single line of default_contexts, optionally apply seuser to target domains."""
+    log = logging.getLogger(__name__).getChild("_validate_default_contexts_line")
     columns = [c for c in line.split() if c]
     source_domain: str = columns[0]
     target_domains: list[str] = columns[1:]
@@ -465,12 +476,12 @@ def _validate_default_contexts_line(validator: ContextValidator, line: str,
 
     for target_domain in target_domains:
         if not validate_function(target_domain):
-            logging.debug(f"Invalid target domain: {source_domain}: {target_domain}")
+            log.debug(f"Invalid target domain: {source_domain}: {target_domain}")
             invalid_target_domains.append(target_domain)
             continue
 
         if not validator.validate_domain_transition(source_domain, target_domain):
-            logging.debug(f"Invalid domain transition: {source_domain} -> {target_domain}")
+            log.debug(f"Invalid domain transition: {source_domain} -> {target_domain}")
             invalid_target_domains.append(target_domain)
             continue
 
@@ -496,6 +507,7 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
     checked.
     """
 
+    log = logging.getLogger(__name__).getChild("validate_default_contexts")
     valid: bool = True
     valid_source_domains: dict[str, list[str]] = {}
 
@@ -503,7 +515,7 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
     # Validate the default_contexts file. This must have at least one valid line.
     #
     with open(default_contexts, "r", encoding="utf-8") as file:
-        logging.info(f"Validating {default_contexts}")
+        log.info(f"Validating {default_contexts}")
         for line in file:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -516,13 +528,13 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
                 if valid_target_domains:
                     valid_source_domains[source_domain] = valid_target_domains
                 else:
-                    logging.warning(f"{default_contexts}: Warning: No valid target domains " \
-                                    f"for {source_domain}")
+                    log.warning(f"{default_contexts}: No valid target domains " \
+                                f"for {source_domain}")
 
             except ValueError as e:
-                logging.warning(f"{default_contexts}: Warning: {e}")
+                log.warning(f"{default_contexts}: {e}")
 
-    logging.debug(f"Valid source domains in {default_contexts}: {valid_source_domains}")
+    log.debug(f"{default_contexts}: Valid source domains: {valid_source_domains}")
     if not valid_source_domains:
         valid = False
 
@@ -536,10 +548,10 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
     for filepath in seuser_default_contacts:
         valid_lines: int = 0
         seuser = filepath.name.rsplit("_", 2)[0]
-        logging.info(f"Validating {filepath} for seuser {seuser}")
+        log.info(f"Validating {filepath} for seuser {seuser}")
 
         if not validator.validate_user(seuser):
-            logging.warning(f"{filepath}: Warning: Invalid user {seuser}: Skipping validation.")
+            log.warning(f"{filepath}: Invalid user {seuser}: Skipping validation.")
             continue
 
         with open(filepath, "r", encoding="utf-8") as file:
@@ -554,22 +566,22 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
 
                     if source_domain not in valid_source_domains:
                         # could be intentional; can't say for sure this is an error
-                        logging.warning(f"{filepath}: Warning: Source domain {source_domain} " \
-                                        "not in default_contexts.")
+                        log.warning(f"{filepath}: Source domain {source_domain} " \
+                                    "not in default_contexts.")
 
                     if not valid_target_domains:
-                        logging.warning(f"{filepath}: Warning: No valid target domains " \
-                                        f"for {source_domain}")
+                        log.warning(f"{filepath}: No valid target domains " \
+                                    f"for {source_domain}")
                         continue
 
                     valid_lines += 1
 
                 except ValueError as e:
-                    logging.warning(f"{filepath}: Warning: {e}")
+                    log.warning(f"{filepath}: {e}")
                     continue
 
         if not valid_lines:
-            logging.error(f"{filepath}: Error: No valid lines.")
+            log.error(f"{filepath}: No valid lines.")
             valid = False
 
     return valid
@@ -614,6 +626,31 @@ def validate_appconfig_files(conf_dir: str, /, *,
                                           seuser_default_contexts)))
 
 
+class GitHubFormatter(logging.Formatter):
+
+    """Optionally format log messages for GitHub Actions."""
+
+    def __init__(self, *pargs, **kwargs) -> None:
+        super().__init__(*pargs, **kwargs)
+        self.github: bool = os.getenv(GITHUB_ACTIONS_ENV_VAR) is not None
+
+    def format(self, record: logging.LogRecord) -> str:
+        if self.github:
+            formatted = super().format(record)
+            if record.levelno <= logging.DEBUG:
+                return f"::debug::{formatted}"
+            elif record.levelno <= logging.INFO:
+                return f"::notice::{formatted}"
+            elif record.levelno <= logging.WARNING:
+                return f"::warning::{formatted}"
+            else:
+                return f"::error::{formatted}"
+        else:
+            record.msg = f"{record.levelname.lower()}: {record.msg}"
+
+        return super().format(record)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validate userspace app config.",
         epilog="If no policy is specified, the running policy (if any) is used.")
@@ -631,13 +668,17 @@ if __name__ == "__main__":
                         help="Enable debugging.")
     args = parser.parse_args()
 
+    handler = logging.StreamHandler(sys.stdout)
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG,
-                            format='%(asctime)s|%(levelname)s|%(name)s|%(message)s')
+        logging.basicConfig(level=logging.DEBUG, handlers=(handler,))
+        handler.setFormatter(GitHubFormatter("%(asctime)s|%(levelname)s|%(name)s|%(message)s"))
+
         if not sys.warnoptions:
             warnings.simplefilter("default")
     else:
-        logging.basicConfig(level=logging.WARNING, format='%(message)s')
+        logging.basicConfig(level=logging.WARNING, handlers=(handler,))
+        handler.setFormatter(GitHubFormatter("%(message)s"))
+
         if not sys.warnoptions:
             warnings.simplefilter("ignore")
 
