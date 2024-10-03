@@ -24,6 +24,7 @@ with suppress(ImportError):
     import setools
 
 DBUS_CONTEXTS: typing.Final[str] = "dbus_contexts"
+DEFAULT_CONTEXTS: typing.Final[str] = "default_contexts"
 DEFAULT_TYPE: typing.Final[str] = "default_type"
 MEDIA_CONTEXTS: typing.Final[str] = "media"
 SINGLE_LINE_PARTIAL_CONTEXTS_FILES: typing.Final[tuple[str, ...]] = ("failsafe_context",)
@@ -32,6 +33,7 @@ SINGLE_LINE_CONTEXTS_FILES: typing.Final[tuple[str, ...]] = ("initrc_context",
                                                              "userhelper_context")
 LXC_CONTEXTS: typing.Final[str] = "lxc_contexts"
 SEPGSQL_CONTEXTS: typing.Final[str] = "sepgsql_contexts"
+SEUSER_DEFAULT_CONTEXTS_GLOB: typing.Final[str] = f"*_{DEFAULT_CONTEXTS}"
 VIRT_CONTEXTS_FILES: typing.Final[tuple[str, ...]] = ("virtual_domain_context",
                                                       "virtual_image_context")
 XSERVER_CONTEXTS: typing.Final[str] = "x_contexts"
@@ -59,8 +61,18 @@ class ContextValidator:
         try:
             self.policy = setools.SELinuxPolicy(policy_path) \
                 if self.selinux_enabled or policy_path else None
+            self.dta = setools.DomainTransitionAnalysis(self.policy,
+                                                        mode = setools.DomainTransitionAnalysis.Mode.AllPaths,
+                                                        depth_limit = 1) \
+                                                        if self.policy else None
+            self.rbacrq = setools.RBACRuleQuery(self.policy,
+                                                ruletype = (setools.RBACRuletype.allow,)) \
+                                                if self.policy else None
         except NameError:
             self.policy = None
+            self.dta = None
+            self.rbacrq = None
+            self.log.warning(f"SETools not available. {sys.path=}")
 
         self.log.debug(f"{self.__class__.__name__}: "
                        f"{self.selinux_enabled=}, "
@@ -97,6 +109,19 @@ class ContextValidator:
 
         return result.returncode == 0
 
+    def validate_user(self, user: str, /) -> bool:
+        """Validate the specified user."""
+        if not self.policy:
+            self.log.critical(f"Warning: User validation not done for {user}")
+            return True
+
+        try:
+            _ = self.policy.lookup_user(user)
+        except setools.exception.InvalidSymbol:
+            return False
+
+        return True
+
     def validate_role_type(self, context: str, /) -> bool:
         """Validate role:type associations"""
         if not self.policy:
@@ -120,6 +145,61 @@ class ContextValidator:
         except setools.exception.InvalidSymbol as e:
             self.log.debug(str(e))
             return False
+
+    def validate_domain_transition(self, source_domain: str, target_domain: str, /) -> bool:
+        """Validate a domain transition (RBAC and TE only) is allowed in the policy"""
+        # in this function source/target domain refers to the role:type[:level] context
+        # and source/target type refers to only the type.
+        valid: bool = True
+        try:
+            if not self.rbacrq or not self.dta:
+                self.log.warning(f"Warning: Domain transition not done for {source_domain} -> {target_domain}")
+                return True
+
+            self.log.debug(f"Validating domain transition {source_domain} -> {target_domain}")
+            source_role, source_type = source_domain.split(":")[0:2]
+            target_role, target_type = target_domain.split(":")[0:2]
+
+            #
+            # Validate role change
+            #
+            if source_role == target_role:
+                self.log.debug(f"No role change ({source_role} -> {target_role}).")
+            else:
+                self.rbacrq.source = source_role
+                self.rbacrq.target = target_role
+
+                try:
+                    # only need to find 1 valid result.
+                    _ = next(self.rbacrq.results())
+                    self.log.debug(f"Role change {source_role} -> {target_role} is allowed.")
+                except StopIteration:
+                    self.log.debug(f"Role change {source_role} -> {target_role} is NOT allowed.")
+                    valid = False
+
+            #
+            # Vaidate domain (TE) transition
+            #
+            if source_type == target_type:
+                # unlikely
+                self.log.debug(f"No type change ({source_type} -> {target_type}).")
+            else:
+                self.dta.source = source_type
+                self.dta.target = target_type
+
+                try:
+                    # only need to find 1 valid result.
+                    _ = next(self.dta.results())
+                    self.log.debug(f"Domain transition {source_domain} -> {target_domain} is allowed.")
+                except StopIteration:
+                    self.log.debug(f"Domain transition {source_domain} -> {target_domain} is NOT allowed.")
+                    valid = False
+
+        except setools.exception.InvalidSymbol as e:
+            self.log.debug(str(e))
+            valid = False
+
+        return valid
 
     def validate_partial_context(self, context: str, /) -> bool:
         """Validate a partial context (no seuser)"""
@@ -366,6 +446,135 @@ def validate_three_field_contexts(validator: ContextValidator, filepaths: list[P
     return valid
 
 
+def _validate_default_contexts_line(validator: ContextValidator, line: str,
+                                    /, seuser: str = "") -> tuple[str, list[str], list[str]]:
+    """Validate a single line of default_contexts, optionally apply seuser to target domains."""
+    columns = [c for c in line.split() if c]
+    source_domain: str = columns[0]
+    target_domains: list[str] = columns[1:]
+    valid_target_domains: list[str] = []
+    invalid_target_domains: list[str] = []
+
+    if not validator.validate_partial_context(source_domain):
+        raise ValueError(f"Invalid source domain: {source_domain}.")
+
+    if seuser:
+        validate_function = lambda x: validator.validate_context(f"{seuser}:{x}")
+    else:
+        validate_function = validator.validate_partial_context
+
+    for target_domain in target_domains:
+        if not validate_function(target_domain):
+            logging.debug(f"Invalid target domain: {source_domain}: {target_domain}")
+            invalid_target_domains.append(target_domain)
+            continue
+
+        if not validator.validate_domain_transition(source_domain, target_domain):
+            logging.debug(f"Invalid domain transition: {source_domain} -> {target_domain}")
+            invalid_target_domains.append(target_domain)
+            continue
+
+        valid_target_domains.append(target_domain)
+
+    return source_domain, valid_target_domains, invalid_target_domains
+
+
+def validate_default_contexts(validator: ContextValidator, default_contexts: Path,
+                              seuser_default_contacts: list[Path], /) -> bool:
+
+    """
+    Validate all default_context files.
+
+    Validation is looser here than for other appconfig files.  The files are not
+    changed based on the modules in the policy, since invalid contexts
+    are not fatal to the userspace code.
+
+    While these files rarely change, debugging issues with changing them can be
+    challenging, so this does enhanced checking to attempt to verify that the
+    domain transitions are valid.  However, this is not a guarantee since the
+    seuser is not available on the source domain and constraints are not
+    checked.
+    """
+
+    valid: bool = True
+    valid_source_domains: dict[str, list[str]] = {}
+
+    #
+    # Validate the default_contexts file. This must have at least one valid line.
+    #
+    with open(default_contexts, "r", encoding="utf-8") as file:
+        logging.info(f"Validating {default_contexts}")
+        for line in file:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            try:
+                source_domain, valid_target_domains, invalid_target_domains = \
+                    _validate_default_contexts_line(validator, line)
+
+                if valid_target_domains:
+                    valid_source_domains[source_domain] = valid_target_domains
+                else:
+                    logging.warning(f"{default_contexts}: Warning: No valid target domains " \
+                                    f"for {source_domain}")
+
+            except ValueError as e:
+                logging.warning(f"{default_contexts}: Warning: {e}")
+
+    logging.debug(f"Valid source domains in {default_contexts}: {valid_source_domains}")
+    if not valid_source_domains:
+        valid = False
+
+    #
+    # Validate *_default_contexts files.
+    #
+    # refpolicy has a number of *_default_contexts files that are used to customize
+    # the default contexts behavior for a particular seuser.  These files are
+    # named "<seuser>_default_contexts" and have the same format as default_contexts.
+    #
+    for filepath in seuser_default_contacts:
+        valid_lines: int = 0
+        seuser = filepath.name.rsplit("_", 2)[0]
+        logging.info(f"Validating {filepath} for seuser {seuser}")
+
+        if not validator.validate_user(seuser):
+            logging.warning(f"{filepath}: Warning: Invalid user {seuser}: Skipping validation.")
+            continue
+
+        with open(filepath, "r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+
+                try:
+                    source_domain, valid_target_domains, invalid_target_domains = \
+                        _validate_default_contexts_line(validator, line, seuser=seuser)
+
+                    if source_domain not in valid_source_domains:
+                        # could be intentional; can't say for sure this is an error
+                        logging.warning(f"{filepath}: Warning: Source domain {source_domain} " \
+                                        "not in default_contexts.")
+
+                    if not valid_target_domains:
+                        logging.warning(f"{filepath}: Warning: No valid target domains " \
+                                        f"for {source_domain}")
+                        continue
+
+                    valid_lines += 1
+
+                except ValueError as e:
+                    logging.warning(f"{filepath}: Warning: {e}")
+                    continue
+
+        if not valid_lines:
+            logging.error(f"{filepath}: Error: No valid lines.")
+            valid = False
+
+    return valid
+
+
 def validate_appconfig_files(conf_dir: str, /, *,
                              policy_path: str | None = None,
                              chkcon_path: str | None = None,
@@ -391,6 +600,8 @@ def validate_appconfig_files(conf_dir: str, /, *,
     if xserver:
         key_value_contexts.append(base_path / XSERVER_CONTEXTS)
 
+    seuser_default_contexts = list(base_path.glob(SEUSER_DEFAULT_CONTEXTS_GLOB))
+
     return all((validate_dbus_contexts(validator, base_path / DBUS_CONTEXTS),
                 validate_single_line_context_files(validator, single_line_contexts),
                 validate_media_contexts(validator, base_path / MEDIA_CONTEXTS),
@@ -398,7 +609,9 @@ def validate_appconfig_files(conf_dir: str, /, *,
                 validate_lxc_contexts(validator, base_path / LXC_CONTEXTS) if lxc else True,
                 validate_default_type(validator, base_path / DEFAULT_TYPE),
                 validate_single_line_partial_context_files(validator,
-                                                           single_line_partial_contexts)))
+                                                           single_line_partial_contexts),
+                validate_default_contexts(validator, base_path / DEFAULT_CONTEXTS,
+                                          seuser_default_contexts)))
 
 
 if __name__ == "__main__":
