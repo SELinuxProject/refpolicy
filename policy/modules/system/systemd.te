@@ -549,6 +549,8 @@ udev_read_runtime_files(systemd_generator_t)
 mls_file_read_to_clearance(systemd_generator_t)
 mls_file_write_to_clearance(systemd_generator_t)
 
+files_manage_update_rootfs_aos(systemd_generator_t)
+
 ifdef(`distro_gentoo',`
 	corecmd_shell_entry_type(systemd_generator_t)
 ')
@@ -735,6 +737,8 @@ sysnet_etc_filetrans_config(systemd_hostnamed_t)
 sysnet_manage_config(systemd_hostnamed_t)
 
 systemd_log_parse_environment(systemd_hostnamed_t)
+
+init_rw_script_stream_sockets(systemd_hostnamed_t)
 
 # Allow reading /run/udev/data/+dmi:id
 udev_read_runtime_files(systemd_hostnamed_t)
@@ -960,6 +964,9 @@ mls_file_write_to_clearance(systemd_logind_t)
 
 files_map_etc_files(systemd_logind_t)
 
+init_rw_script_stream_sockets(systemd_logind_t)
+kernel_use_fds(systemd_logind_t)
+
 # Needed to work around patch not yet merged into the systemd-logind supported on RHEL 7.x
 # The change in systemd by Nicolas Iooss on 02-Feb-2016 with hash 4b51966cf6c06250036e428608da92f8640beb96
 # should fix the problem where user directories in /run/user/$UID/ are not getting the proper context
@@ -979,6 +986,10 @@ tunable_policy(`systemd_logind_get_bootloader',`
 # systemd-logind uses util-linux's blkid in order to find the ESP (EFI System Partition).
 # This reads the first sectors of fixed disk devices.
 storage_raw_read_fixed_disk_cond(systemd_logind_t, systemd_logind_get_bootloader)
+
+optional_policy(`
+	unconfined_use_fds(systemd_logind_t)
+')
 
 optional_policy(`
 	dbus_connect_system_bus(systemd_logind_t)
@@ -1121,6 +1132,7 @@ allow systemd_networkd_t self:rawip_socket create_socket_perms;
 allow systemd_networkd_t self:tun_socket { create_socket_perms relabelfrom relabelto };
 allow systemd_networkd_t self:udp_socket create_socket_perms;
 allow systemd_networkd_t self:unix_dgram_socket create_socket_perms;
+allow systemd_networkd_t self:netlink_netfilter_socket create_socket_perms;
 
 manage_dirs_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
 manage_files_pattern(systemd_networkd_t, systemd_networkd_runtime_t, systemd_networkd_runtime_t)
@@ -1176,6 +1188,9 @@ sysnet_read_config(systemd_networkd_t)
 systemd_log_parse_environment(systemd_networkd_t)
 
 files_map_etc_files(systemd_networkd_t)
+
+init_rw_script_stream_sockets(systemd_networkd_t)
+kernel_use_fds(systemd_networkd_t)
 
 tunable_policy(`systemd_networkd_dhcp_server',`
 	corenet_sendrecv_dhcpd_server_packets(systemd_networkd_t)
@@ -1565,6 +1580,9 @@ systemd_log_parse_environment(systemd_resolved_t)
 systemd_read_networkd_runtime(systemd_resolved_t)
 
 files_map_etc_files(systemd_resolved_t)
+init_rw_script_stream_sockets(systemd_resolved_t)
+init_manage_dir_utmp(systemd_resolved_t)
+kernel_use_fds(systemd_resolved_t)
 
 optional_policy(`
 	dbus_connect_system_bus(systemd_resolved_t)
@@ -1631,6 +1649,8 @@ fs_getattr_tmpfs(systemd_sessions_t)
 fs_search_cgroup_dirs(systemd_sessions_t)
 fs_getattr_cgroup(systemd_sessions_t)
 
+init_rw_script_stream_sockets(systemd_sessions_t)
+
 ########################################
 #
 # sysctl local policy
@@ -1658,8 +1678,12 @@ fs_search_ramfs(systemd_sysctl_t)
 
 systemd_log_parse_environment(systemd_sysctl_t)
 
+init_rw_script_stream_sockets(systemd_sysctl_t)
+kernel_use_fds(systemd_sysctl_t)
+
 fs_getattr_cgroup(systemd_sessions_t)
 fs_search_cgroup_dirs(systemd_sessions_t)
+kernel_use_fds(systemd_sessions_t)
 
 #########################################
 #
@@ -1824,6 +1848,9 @@ mls_file_upgrade(systemd_tmpfiles_t)
 
 userdom_manage_user_runtime_root_dirs(systemd_tmpfiles_t)
 userdom_relabel_user_runtime_root_dirs(systemd_tmpfiles_t)
+
+init_rw_script_stream_sockets(systemd_tmpfiles_t)
+kernel_use_fds(systemd_tmpfiles_t)
 
 tunable_policy(`systemd_tmpfiles_manage_all',`
 	# systemd-tmpfiles can be configured to manage anything.
@@ -2005,6 +2032,9 @@ systemd_log_parse_environment(systemd_userdbd_t)
 
 files_manage_var_files(systemd_userdbd_t)
 
+init_rw_script_stream_sockets(systemd_userdbd_t)
+kernel_use_fds(systemd_userdbd_t)
+
 #########################################
 #
 # systemd-user-runtime-dir local policy
@@ -2058,6 +2088,8 @@ userdom_user_runtime_root_filetrans_user_runtime(systemd_user_runtime_dir_t, dir
 userdom_manage_user_runtime_dirs(systemd_user_runtime_dir_t)
 userdom_mounton_user_runtime_dirs(systemd_user_runtime_dir_t)
 userdom_relabelto_user_runtime_dirs(systemd_user_runtime_dir_t)
+
+init_rw_script_stream_sockets(systemd_user_runtime_dir_t)
 
 optional_policy(`
 	dbus_system_bus_client(systemd_user_runtime_dir_t)
