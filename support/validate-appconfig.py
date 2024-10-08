@@ -52,14 +52,13 @@ class ContextValidator:
 
     """Validate contexts using security_check_context or chkcon"""
 
-    def __init__(self, /, policy_path: str | None = None, *,
-                 chkcon_path: str | None = None) -> None:
+    def __init__(self, /, policy_path: typing.Optional[str]= None, *,
+                 chkcon_path: typing.Optional[str] = None) -> None:
 
         self.log = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.selinux_enabled = libselinux.is_selinux_enabled() == 1
         self.policy_path = policy_path
-        self.chkcon_path: Path | str | None = self._find_chkcon(chkcon_path)
-
+        self.chkcon_path: typing.Optional[Path, str, None] = self._find_chkcon(chkcon_path)
         try:
             self.policy = setools.SELinuxPolicy(policy_path) \
                 if self.selinux_enabled or policy_path else None
@@ -75,6 +74,10 @@ class ContextValidator:
             self.dta = None
             self.rbacrq = None
             self.log.warning(f"SETools not available. {sys.path=}")
+        except AttributeError:
+            self.dta = None
+            self.rbacrq = None
+            self.log.warning(f"Old SETools Available - partial analysis only. {sys.path=}")
 
         self.log.debug(f"{self.__class__.__name__}: "
                        f"{self.selinux_enabled=}, "
@@ -82,7 +85,7 @@ class ContextValidator:
                        f"{self.policy=}, "
                        f"{self.chkcon_path=}")
 
-    def _find_chkcon(self, /, path: Path | str | None) -> Path | str | None:
+    def _find_chkcon(self, /, path: typing.Union[Path, str, None]) -> typing.Union[Path, str,  None]:
         if path:
             self.log.debug(f"Checking access on provided chkcon path {path}")
             if os.access(path, os.X_OK):
@@ -588,8 +591,8 @@ def validate_default_contexts(validator: ContextValidator, default_contexts: Pat
 
 
 def validate_appconfig_files(conf_dir: str, /, *,
-                             policy_path: str | None = None,
-                             chkcon_path: str | None = None,
+                             policy_path: typing.Optional[str] = None,
+                             chkcon_path: typing.Optional[str] = None,
                              lxc: bool = True,
                              sepgsql: bool = True,
                              virt: bool = True,
