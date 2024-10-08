@@ -43,19 +43,19 @@ class ContextValidator:
 
     """Validate contexts using security_check_context or chkcon"""
 
-    def __init__(self, /, policy_path: str | None = None, *,
-                 chkcon_path: str | None = None) -> None:
+    def __init__(self, /, policy_path: typing.Optional[str]= None, *,
+                 chkcon_path: typing.Optional[str] = None) -> None:
 
         self.log = logging.getLogger(self.__class__.__name__)
         self.policy_path = policy_path
         self.selinux_enabled = libselinux.is_selinux_enabled() == 1
-        self.chkcon_path: Path | str | None = self._find_chkcon(chkcon_path)
+        self.chkcon_path: typing.Optional[Path, str, None] = self._find_chkcon(chkcon_path)
         self.log.debug(f"{self.__class__.__name__}: "
                        f"{self.policy_path=}, "
                        f"{self.selinux_enabled=}, "
                        f"{self.chkcon_path=}")
 
-    def _find_chkcon(self, /, path: Path | str | None) -> Path | str | None:
+    def _find_chkcon(self, /, path: typing.Union[Path, str, None]) -> typing.Union[Path, str,  None]:
         if path:
             self.log.debug(f"Checking access on provided chkcon path {path}")
             if os.access(path, os.X_OK):
@@ -257,8 +257,8 @@ def validate_three_field_contexts(validator: ContextValidator, filepaths: list[P
 
 
 def validate_appconfig_files(conf_dir: str, /, *,
-                             policy_path: str | None = None,
-                             chkcon_path: str | None = None,
+                             policy_path: typing.Optional[str] = None,
+                             chkcon_path: typing.Optional[str] = None,
                              lxc: bool = True,
                              sepgsql: bool = True,
                              virt: bool = True,
