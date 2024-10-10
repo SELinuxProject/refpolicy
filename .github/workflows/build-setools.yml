@@ -23,34 +23,47 @@ jobs:
       artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
 
     steps:
+    - name: Download cached SETools
+      uses: actions/cache@v4
+      id: cache-setools
+      with:
+        path: "setools-*.whl"
+        key: setools-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
+
     - name: Checkout setools
       uses: actions/checkout@v4
+      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       with:
         repository: SELinuxProject/setools
         ref: "${{ inputs.version }}"
 
-    - name: Install dependencies
-      shell: bash
-      run: |
-        sudo apt-get update -q
-
-    - name: Download userspace source artifact
+    - name: Download userspace artifact
       uses: actions/download-artifact@v4
+      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       id: dl-userspace
       with:
-        name: selinux-src
+        name: selinux
+
+    - name: Install dependencies
+      shell: bash
+      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
+      run: |
+        sudo apt-get update -q
+        tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf selinux.tar.gz
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       with:
         python-version: "${{ inputs.python-version }}"
 
     - name: Build setools
       shell: bash
+      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       run: pip wheel --no-deps .
       env:
         CFLAGS: "-O2"
-        USERSPACE_SRC: "${{ steps.dl-userspace.outputs.download-path }}"
+        LD_LIBRARY_PATH: "${{steps.dl-userspace.outputs.download-path}}/lib:${{steps.dl-userspace.outputs.download-path}}/usr/lib:${LD_LIBRARY_PATH}"
 
     - name: Upload wheel
       uses: actions/upload-artifact@v4

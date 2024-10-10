@@ -16,9 +16,6 @@ on:
         required: true
         type: string
     outputs:
-      source-id:
-        description: "Userspace source artifact ID"
-        value: ${{ jobs.build.outputs.source-id }}
       binary-id:
         description: "Userspace binary artifact ID"
         value: ${{ jobs.build.outputs.binary-id }}
@@ -27,12 +24,19 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     outputs:
-      source-id: ${{ steps.upload-src-artifact.outputs.artifact-id }}
-      binary-id: ${{ steps.upload-bin-artifact.outputs.artifact-id }}
+      binary-id: ${{ steps.upload-artifact.outputs.artifact-id }}
 
     steps:
+    - name: Download cached SELinux userspace
+      uses: actions/cache@v4
+      id: cache-userspace
+      with:
+        path: ${{ github.workspace }}/selinux.tar.gz
+        key: selinux-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
+
     - name: Checkout SELinux userspace tools and libs
       uses: actions/checkout@v4
+      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
       with:
         repository: SELinuxProject/selinux
         ref: "${{ inputs.version }}"
@@ -40,10 +44,12 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v5
+      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
       with:
         python-version: "${{ inputs.python-version }}"
 
     - name: Install dependencies
+      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         sudo apt-get update -q
@@ -58,6 +64,7 @@ jobs:
             swig
 
     - name: Compile
+      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
       shell: bash
       id: compile
       working-directory: "${{ env.SELINUX_SRC }}"
@@ -78,16 +85,18 @@ jobs:
         DESTDIR: "${{ env.SELINUX_BIN }}"
         CFLAGS: "-O2"
 
-    - name: Upload source artifact
-      uses: actions/upload-artifact@v4
-      id: upload-src-artifact
-      with:
-        name: selinux-src
-        path: "${{ env.SELINUX_SRC }}/"
+    - name: Create artifact
+      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
+      shell: bash
+      id: create-artifact
+      working-directory: "${{ env.SELINUX_BIN }}"
+      run: |
+        # Create a tarball of the binary directory
+        tar -czf "${{ github.workspace }}/selinux.tar.gz" .
 
-    - name: Upload binary artifact
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
-      id: upload-bin-artifact
+      id: upload-artifact
       with:
-        name: selinux-bin
-        path: "${{ env.SELINUX_BIN }}/"
+        name: selinux
+        path: "${{ github.workspace }}/selinux.tar.gz"
