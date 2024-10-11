@@ -51,17 +51,11 @@ jobs:
         ref: "${{ inputs.version }}"
         path: "${{ inputs.path }}"
 
-    - name: Download userspace binary artifact
+    - name: Download userspace artifact
       uses: actions/download-artifact@v4
       id: dl-userspace
       with:
-        name: selinux-bin
-
-      # actions/upload-artifact does not preserve permissions.
-    - name: Fix userspace file permissions
-      shell: bash
-      working-directory: "${{ steps.dl-userspace.outputs.download-path }}"
-      run: chmod +x usr/bin/* lib/*.so* usr/lib/*.so* usr/libexec/selinux/hll/pp sbin/* usr/sbin/*
+        name: selinux
 
     # This should be the minimum required Python version to build refpolicy.
     # or the standard Python version on Ubuntu.
@@ -70,11 +64,24 @@ jobs:
       with:
         python-version: "${{ inputs.python-version }}"
 
+    - name: Download setools artifact
+      uses: actions/download-artifact@v4
+      id: dl-setools
+      with:
+        name: setools
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        tar -C "${{ steps.dl-setools.outputs.download-path }}" -zxvf selinux.tar.gz
+        sudo python -m pip install setools*.whl networkx
+
     - name: Configure environment
       shell: bash
       run: |
         echo "DESTDIR=/tmp/refpolicy" >> $GITHUB_ENV
         echo "PYTHON=python${{ inputs.python-version }}" >> $GITHUB_ENV
+        echo "PYTHONPATH=/usr/local/lib/python${{ inputs.python-version }}/dist-packages" >> $GITHUB_ENV
         echo "TYPE=${{ matrix.type }}" >> $GITHUB_ENV
         echo "DISTRO=${{ matrix.distro }}" >> $GITHUB_ENV
         echo "MONOLITHIC=${{ matrix.monolithic }}" >> $GITHUB_ENV
