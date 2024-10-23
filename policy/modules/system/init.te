@@ -37,6 +37,7 @@ gen_tunable(init_daemons_use_tty, false)
 ## </desc>
 gen_tunable(init_mounton_non_security, false)
 
+attribute init_domain_type;
 attribute init_mountpoint_type;
 attribute init_path_unit_loc_type;
 attribute init_script_domain_type;
@@ -94,7 +95,7 @@ type initctl_t;
 files_type(initctl_t)
 mls_trusted_object(initctl_t)
 
-type initrc_t, init_script_domain_type, init_run_all_scripts_domain;
+type initrc_t, init_script_domain_type, init_run_all_scripts_domain, init_domain_type;
 type initrc_exec_t, init_script_file_type;
 init_domain(initrc_t, initrc_exec_t)
 
@@ -313,14 +314,8 @@ ifdef(`init_systemd',`
 	allow init_t daemon:unix_dgram_socket create_socket_perms;
 	allow init_t daemon:tcp_socket create_stream_socket_perms;
 	allow init_t daemon:udp_socket create_socket_perms;
-	allow daemon init_t:unix_dgram_socket sendto;
 
 	allow init_run_all_scripts_domain systemdunit:service { start status stop };
-
-	allow systemprocess init_t:unix_dgram_socket sendto;
-	allow systemprocess init_t:unix_stream_socket { append getattr ioctl read write };
-
-	allow daemon init_t:unix_stream_socket { append getattr ioctl read write };
 
 	# systemd must be able to renice processes in other
 	# slices when containers are started and stopped
@@ -1551,6 +1546,42 @@ optional_policy(`
 
 ########################################
 #
+# Rules applied to init domains.
+#
+# On SysVinit systems, these are domains started out of the inittab.
+# On systemd systems, this is all domains started by pid1: the union of
+# daemon, systemprocess, init scripts, and domains using init_domain().
+#
+
+# These rules are here instead of above in init_t/initrc_t sections to ensure
+# consistent behavior across all init domains.
+allow { init_t initrc_t } { daemon init_domain_type init_script_domain_type systemprocess }:process { noatsecure rlimitinh };
+allow { init_t initrc_t } { daemon init_domain_type init_script_domain_type systemprocess }:process2 { nnp_transition nosuid_transition };
+
+ifdef(`init_systemd',`
+	allow init_t init_domain_type:process siginh;
+
+	allow init_domain_type init_t:unix_stream_socket { append getattr ioctl read write };
+
+	# StandardInputText uses a memfd rw shm segment.
+	# Cannot deny writes or it breaks.
+	allow init_domain_type init_tmpfs_t:file rw_inherited_file_perms;
+
+	fs_search_cgroup_dirs(init_domain_type)
+
+	# for /run/systemd/private
+	init_write_runtime_socket(init_domain_type)
+
+	# Type=notify
+	systemd_write_notify_socket(init_domain_type)
+
+	optional_policy(`
+		systemd_stream_connect_socket_proxyd(init_domain_type)
+	')
+')
+
+########################################
+#
 # Rules applied to all daemons
 #
 
@@ -1571,8 +1602,13 @@ ifdef(`init_systemd',`
 
 	fs_search_cgroup_dirs(daemon)
 
-	# need write to /var/run/systemd/notify
-	systemd_write_notify_socket(daemon)
+	optional_policy(`
+		systemd_stream_connect_socket_proxyd(daemon)
+	')
+
+	optional_policy(`
+		nscd_use(daemon)
+	')
 ')
 
 tunable_policy(`init_daemons_use_tty',`
@@ -1604,6 +1640,7 @@ optional_policy(`
 	userdom_dontaudit_rw_all_users_stream_sockets(daemon)
 	userdom_dontaudit_read_user_tmp_files(daemon)
 	userdom_dontaudit_write_user_tmp_files(daemon)
+	userdom_dontaudit_use_user_terminals(daemon)
 ')
 
 ########################################
@@ -1617,4 +1654,5 @@ optional_policy(`
 	userdom_dontaudit_search_user_home_dirs(systemprocess)
 	userdom_dontaudit_rw_all_users_stream_sockets(systemprocess)
 	userdom_dontaudit_write_user_tmp_files(systemprocess)
+	userdom_dontaudit_use_user_terminals(systemprocess)
 ')
