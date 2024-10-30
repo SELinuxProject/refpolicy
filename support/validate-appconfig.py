@@ -688,7 +688,7 @@ if __name__ == "__main__":
     try:
         # Validate the <associate> elements under <selinux>
         sys.exit(0 if validate_appconfig_files(args.APPCONFIG_DIR,
-                                       	       policy_path=args.POLICY_PATH,
+                                               policy_path=args.POLICY_PATH,
                                                chkcon_path=args.chkcon,
                                                lxc=args.lxc,
                                                sepgsql=args.sepgsql,
