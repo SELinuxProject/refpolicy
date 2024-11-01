@@ -127,11 +127,12 @@ interface(`init_unit_file',`
 #
 interface(`init_script_domain',`
 	gen_require(`
+		attribute init_domain_type;
 		attribute init_script_domain_type, init_script_file_type;
 		attribute init_run_all_scripts_domain;
 	')
 
-	typeattribute $1 init_script_domain_type;
+	typeattribute $1 init_script_domain_type, init_domain_type;
 	typeattribute $2 init_script_file_type;
 
 	domain_type($1)
@@ -140,16 +141,6 @@ interface(`init_script_domain',`
 	role system_r types $1;
 
 	domtrans_pattern(init_run_all_scripts_domain, $2, $1)
-
-	ifdef(`init_systemd',`
-		gen_require(`
-			type init_t;
-		')
-
-		allow $1 init_t:unix_stream_socket { getattr ioctl read write };
-
-		allow init_t $1:process2 { nnp_transition nosuid_transition };
-	')
 ')
 
 ########################################
@@ -169,33 +160,18 @@ interface(`init_script_domain',`
 #
 interface(`init_domain',`
 	gen_require(`
+		attribute init_domain_type;
 		type init_t;
 		role system_r;
 	')
 
 	domain_type($1)
 	domain_entry_file($1, $2)
+	typeattribute $1 init_domain_type;
 
 	role system_r types $1;
 
 	domtrans_pattern(init_t, $2, $1)
-
-	allow init_t $1:process rlimitinh;
-
-	ifdef(`init_systemd',`
-		gen_require(`
-			type init_tmpfs_t;
-		')
-
-		allow $1 init_t:unix_stream_socket { getattr ioctl read write };
-
-		allow init_t $1:process siginh;
-		allow init_t $1:process2 { nnp_transition nosuid_transition };
-
-		# StandardInputText uses a memfd rw shm segment.
-		# Cannot deny writes or it breaks.
-		allow $1 init_tmpfs_t:file rw_inherited_file_perms;
-	')
 ')
 
 ########################################
@@ -275,35 +251,6 @@ interface(`init_spec_daemon_domain',`
 	role system_r types $1;
 
 	spec_domtrans_pattern(init_t, $2, $1)
-
-	allow init_t $1:process rlimitinh;
-
-	ifdef(`init_systemd',`
-		gen_require(`
-			type init_tmpfs_t;
-		')
-
-		allow $1 init_t:unix_stream_socket { getattr ioctl read write };
-
-		allow init_t $1:process2 { nnp_transition nosuid_transition };
-
-		# StandardInputText uses a memfd rw shm segment.
-		# Cannot deny writes or it breaks.
-		allow $1 init_tmpfs_t:file rw_inherited_file_perms;
-	')
-
-	# daemons started from init will
-	# inherit fds from init for the console
-	init_dontaudit_use_fds($1)
-	term_dontaudit_use_console($1)
-
-	# init script ptys are the stdin/out/err
-	# when using run_init
-	init_use_script_ptys($1)
-
-	ifdef(`direct_sysadm_daemon',`
-		userdom_dontaudit_use_user_terminals($1)
-	')
 ')
 
 ########################################
@@ -343,7 +290,7 @@ interface(`init_spec_daemon_domain',`
 #
 interface(`init_daemon_domain',`
 	gen_require(`
-		type init_t, initrc_t;
+		type initrc_t;
 		role system_r;
 		attribute daemon;
 	')
@@ -357,39 +304,8 @@ interface(`init_daemon_domain',`
 
 	domtrans_pattern(initrc_t, $2, $1)
 
-	# daemons started from init will
-	# inherit fds from init for the console
-	init_dontaudit_use_fds($1)
-	term_dontaudit_use_console($1)
-
-	# init script ptys are the stdin/out/err
-	# when using run_init
-	init_use_script_ptys($1)
-
-	allow init_t $1:process rlimitinh;
-
-	ifdef(`direct_sysadm_daemon',`
-		userdom_dontaudit_use_user_terminals($1)
-	')
-
 	ifdef(`init_systemd',`
 		init_domain($1, $2)
-
-		allow $1 init_t:unix_dgram_socket sendto;
-
-		allow init_t $1:process noatsecure;
-		allow init_t $1:process2 { nnp_transition nosuid_transition };
-
-		# for /run/systemd/private
-		init_write_runtime_socket($1)
-
-		optional_policy(`
-			systemd_stream_connect_socket_proxyd($1)
-		')
-	')
-
-	optional_policy(`
-		nscd_use($1)
 	')
 ')
 
@@ -558,8 +474,6 @@ interface(`init_system_domain',`
 
 	ifdef(`init_systemd',`
 		init_domain($1, $2)
-
-		allow initrc_t $1:process2 { nnp_transition nosuid_transition };
 	')
 ')
 
