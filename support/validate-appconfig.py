@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: GPL-2.0-only
-"""Validate refpolicy userpace configuration files (appconfig) have valid contexts."""
+"""Validate refpolicy userspace configuration files (appconfig) have valid contexts."""
 
 import argparse
 from contextlib import suppress
@@ -183,7 +183,7 @@ class ContextValidator:
                     valid = False
 
             #
-            # Vaidate domain (TE) transition
+            # Validate domain (TE) transition
             #
             if source_type == target_type:
                 # unlikely
@@ -395,7 +395,7 @@ def validate_single_line_context_files(validator: ContextValidator,
                                        filenames: list[Path], /) -> bool:
     """
     Validate the contexts in the files with single context per line.  This
-    is primarily for files tha have a single context, such as initrc_context,
+    is primarily for files that have a single context, such as initrc_context,
     but can also be used for virtual_image_context, which can have multiple
     lines of a single context.
     """
@@ -688,7 +688,7 @@ if __name__ == "__main__":
     try:
         # Validate the <associate> elements under <selinux>
         sys.exit(0 if validate_appconfig_files(args.APPCONFIG_DIR,
-                                       	       policy_path=args.POLICY_PATH,
+                                               policy_path=args.POLICY_PATH,
                                                chkcon_path=args.chkcon,
                                                lxc=args.lxc,
                                                sepgsql=args.sepgsql,

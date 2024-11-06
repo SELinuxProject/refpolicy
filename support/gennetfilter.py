@@ -171,15 +171,15 @@ def parse_corenet(file_name):
 			# parse out the parameters
 			openparen = corenet_line.find('(')+1
 			closeparen = corenet_line.find(')',openparen)
-			parms = re.split(r'[^-a-zA-Z0-9_]+',corenet_line[openparen:closeparen])
-			name = parms[0]
-			del parms[0]
+			params = re.split(r'[^-a-zA-Z0-9_]+',corenet_line[openparen:closeparen])
+			name = params[0]
+			del params[0]
 
 			ports = []
-			while len(parms) > 0:
+			while len(params) > 0:
 				# add a port combination.
-				ports.append(Port(parms[0],parms[1],parms[2]))
-				del parms[:3]
+				ports.append(Port(params[0],params[1],params[2]))
+				del params[:3]
 
 			packets.append(Packet(name,ports))
 

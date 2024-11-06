@@ -125,7 +125,7 @@ ifelse(`$5',`',`',`declare_ibpkeycons($1,shiftn(4,$*))')dnl
 ')
 
 #
-# ib_pkey(nam, subnet_prefix, pkey_num, mls_sensitivity [,subnet_prefix, pkey_num, mls_sensitivity[,...]])
+# ib_pkey(name, subnet_prefix, pkey_num, mls_sensitivity [,subnet_prefix, pkey_num, mls_sensitivity[,...]])
 #
 define(`ib_pkey',`
 type $1_ibpkey_t, ibpkey_type;

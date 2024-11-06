@@ -55,6 +55,7 @@ COMMON_FILE_END_PATTERNS = (
     ('[0-9]+', '0'),  # Match at least one digit
     ('(\\.bin)?', ''),  # Match an optional extension
     ('(-.*)?', ''),  # Match an optional suffix with a minus sign
+    ('(-[0-9\\.]+)?', ''), # Match an optional version suffix
 )
 
 # File types in a .fc file
