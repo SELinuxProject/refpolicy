@@ -90,6 +90,12 @@ jobs:
         echo "DIRECT_INITRC=${{ matrix.direct_initrc }}" >> $GITHUB_ENV
         echo "WERROR=y" >> $GITHUB_ENV
         echo "TEST_TOOLCHAIN=\"${{ steps.dl-userspace.outputs.download-path }}\"" >> $GITHUB_ENV
+        echo 'multiple-decls = true' >> ${{ steps.dl-userspace.outputs.download-path }}/etc/selinux/semanage.conf
+        sed -i -e '/^module-store/a compiler-directory = ${{ steps.dl-userspace.outputs.download-path }}/usr/libexec/selinux/hll' ${{ steps.dl-userspace.outputs.download-path }}/etc/selinux/semanage.conf
+        echo -e '[sefcontext_compile]\npath = ${{ steps.dl-userspace.outputs.download-path }}/usr/sbin/sefcontext_compile\nargs = $@\n[end]' >> ${{ steps.dl-userspace.outputs.download-path }}/etc/selinux/semanage.conf
+        echo -e '[setfiles]\npath = ${{ steps.dl-userspace.outputs.download-path }}/sbin/setfiles\nargs = -c $@ $<\n[end]' >> ${{ steps.dl-userspace.outputs.download-path }}/etc/selinux/semanage.conf
+        sudo cp ${{ steps.dl-userspace.outputs.download-path }}/etc/selinux/semanage.conf /etc/selinux/semanage.conf
+        cat /etc/selinux/semanage.conf
 
     - name: Build refpolicy
       shell: bash
@@ -119,12 +125,17 @@ jobs:
       working-directory: ${{ inputs.path }}
       shell: bash
       run: |
+        echo "${TEST_TOOLCHAIN}"
         make install
         make install-headers
         make install-src
         make install-docs
         make install-udica-templates
         make install-appconfig
+        if [[ $MONOLITHIC == "n" ]]; then
+          # test modules insertion
+          sudo -E make DESTDIR="$DESTDIR" load
+        fi
       env:
         DESTDIR: /tmp/refpolicy-install
 
