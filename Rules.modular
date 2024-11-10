@@ -26,6 +26,12 @@ mod_pkgs := $(addprefix $(builddir),$(notdir $(mod_mods:.te=.pp)))
 # policy packages to install
 instpkg := $(addprefix $(modpkgdir)/,$(notdir $(base_pkg)) $(mod_pkgs))
 
+# For the validate target
+pv := $(shell $(CHECKPOLICY) -V |cut -f 1 -d ' ')
+policy_dir := $(tmpdir)/policy_root/etc/selinux/$(NAME)
+policy_bin := $(policy_dir)/policy/policy.$(pv)
+policy_fc := $(policy_dir)/contexts/files/file_contexts
+
 # search layer dirs for source files
 vpath %.te $(all_layers)
 vpath %.if $(all_layers)
@@ -222,12 +228,12 @@ $(builtappconf)/customizable_types: $(base_conf)
 #
 validate: $(base_pkg) $(mod_pkgs) $(tmpdir)/all_mods.fc $(builtappfiles)
 	@echo "Validating $(NAME) linking."
-	$(verbose) $(SEMOD_LNK) -o $(tmpdir)/test.lnk $(base_pkg) $(mod_pkgs)
-	$(verbose) $(SEMOD_EXP) $(tmpdir)/test.lnk $(tmpdir)/policy.bin
+	@test -d $(tmpdir)/policy_root/var/lib/selinux/$(NAME) || mkdir -p $(tmpdir)/policy_root/var/lib/selinux/$(NAME)
+	$(verbose) $(SEMODULE) $(VERBOSE_FLAG) --noreload --store $(NAME) --path $(tmpdir)/policy_root --install *.pp
 	@echo "Validating $(NAME) file contexts."
-	$(verbose) $(SETFILES) -c $(tmpdir)/policy.bin $(tmpdir)/all_mods.fc
+	$(verbose) $(SETFILES) -c $(policy_bin) $(policy_fc)
 	@echo "Validating $(NAME) appconfig."
-	$(verbose) $(validateappconfig) $(builtappconf) $(tmpdir)/policy.bin
+	$(verbose) $(validateappconfig) $(builtappconf) $(policy_bin)
 	@echo "Success."
 
 ########################################

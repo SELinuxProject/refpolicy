@@ -106,6 +106,13 @@ jobs:
       working-directory: ${{ inputs.path }}
       shell: bash
       run: |
+        temp="${TEST_TOOLCHAIN%\"}"
+        temp="${temp#\"}"
+        echo "compiler-directory = ${temp}/usr/libexec/selinux/hll" | sudo tee -a /etc/selinux/semanage.conf
+        echo -e "[setfiles]\npath = ${temp}/sbin/setfiles\nargs = -c \$@ \$<\n[end]" | sudo tee -a /etc/selinux/semanage.conf
+        echo -e "[sefcontext_compile]\npath = ${temp}/usr/sbin/sefcontext_compile\nargs = \$@\n[end]" | sudo tee -a /etc/selinux/semanage.conf
+        sudo install -m 0755 -o 0 -g 0 "${temp}/lib/libselinux.so.1" /lib/x86_64-linux-gnu/libselinux.so.1
+        sudo install -m 0755 -o 0 -g 0 "${temp}/lib/libsepol.so.2" /lib/x86_64-linux-gnu/libsepol.so.2
         make validate
 
     - name: Build docs
@@ -137,8 +144,10 @@ jobs:
           policy_file=$(make MONOLITHIC=y --eval='output_filename: ; @echo $(polver)' output_filename)
           mv "${policy_file}" sepolicy
         else
-          mv tmp/policy.bin sepolicy
-          mv tmp/all_mods.fc file_contexts
+          policy_file=$(make MONOLITHIC=n --eval='output_filename: ; @echo $(policy_bin)' output_filename)
+          policy_fctx=$(make MONOLITHIC=n --eval='output_filename: ; @echo $(policy_fc)' output_filename)
+          mv "${policy_file}" sepolicy
+          mv "${policy_fctx}" file_contexts
         fi
 
     - name: Upload artifact
