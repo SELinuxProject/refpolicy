@@ -126,8 +126,15 @@ domain_type(systemd_homework_t)
 domain_entry_file(systemd_homework_t, systemd_homework_exec_t)
 role system_r types systemd_homework_t;
 
+type systemd_homed_record_t;
+files_auth_file(systemd_homed_record_t)
+
 type systemd_homed_runtime_t;
 files_runtime_file(systemd_homed_runtime_t)
+
+type systemd_homed_runtime_work_dir_t;
+files_runtime_file(systemd_homed_runtime_work_dir_t)
+files_mountpoint(systemd_homed_runtime_work_dir_t)
 
 type systemd_homed_storage_t;
 files_type(systemd_homed_storage_t)
@@ -679,6 +686,9 @@ allow systemd_homed_t systemd_homed_var_lib_t:dir manage_dir_perms;
 allow systemd_homed_t systemd_homed_var_lib_t:file manage_file_perms;
 init_var_lib_filetrans(systemd_homed_t, systemd_homed_var_lib_t, dir)
 
+# read /etc/machine-id
+files_read_etc_runtime_files(systemd_homed_t)
+
 # Entries such as /sys/devices/virtual/block/loop1/uevent:
 dev_read_sysfs(systemd_homed_t)
 
@@ -729,8 +739,15 @@ allow systemd_homework_t systemd_homed_runtime_t:dir manage_dir_perms;
 files_runtime_filetrans(systemd_homework_t, systemd_homed_runtime_t, file)
 init_runtime_filetrans(systemd_homework_t, systemd_homed_runtime_t, dir)
 
+read_files_pattern(systemd_homework_t, systemd_homed_runtime_work_dir_t, systemd_homed_record_t)
+create_files_pattern(systemd_homework_t, systemd_homed_runtime_work_dir_t, systemd_homed_record_t)
+delete_files_pattern(systemd_homework_t, systemd_homed_runtime_work_dir_t, systemd_homed_record_t)
+
+# read /etc/machine-id
+files_read_etc_runtime_files(systemd_homework_t)
+
 # mount on /run/systemd/user-home-mount
-allow systemd_homework_t systemd_homed_runtime_t:dir mounton;
+allow systemd_homework_t systemd_homed_runtime_work_dir_t:dir mounton;
 
 allow systemd_homework_t systemd_homed_storage_t:file manage_file_perms;
 files_home_filetrans(systemd_homework_t, systemd_homed_storage_t, file)
@@ -772,6 +789,12 @@ storage_raw_write_fixed_disk(systemd_homework_t)
 systemd_log_parse_environment(systemd_homework_t)
 
 udev_read_runtime_files(systemd_homework_t)
+
+# setup luks backed home directories in /run/cryptsetup
+optional_policy(`
+	lvm_manage_runtime_files(systemd_homework_t)
+	lvm_manage_runtime_dirs(systemd_homework_t)
+')
 
 #######################################
 #
