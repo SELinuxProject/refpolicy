@@ -1,0 +1,62 @@
+policy_module(openarc)
+
+########################################
+#
+# Declarations
+#
+
+milter_template(openarc)
+
+type openarc_milter_initrc_exec_t;
+init_script_file(openarc_milter_initrc_exec_t)
+
+type openarc_milter_private_key_t;
+files_security_file(openarc_milter_private_key_t)
+
+type openarc_milter_unit_t;
+init_unit_file(openarc_milter_unit_t)
+
+init_daemon_runtime_file(openarc_milter_data_t, dir, "openarc")
+
+########################################
+#
+# Local policy
+#
+
+allow openarc_milter_t self:capability { dac_override dac_read_search setgid setuid };
+allow openarc_milter_t self:process { getsched signal signull };
+allow openarc_milter_t self:unix_stream_socket create_stream_socket_perms;
+
+read_files_pattern(openarc_milter_t, openarc_milter_private_key_t, openarc_milter_private_key_t)
+
+# /proc/sys/kernel/ngroups_max
+kernel_read_kernel_sysctls(openarc_milter_t)
+kernel_read_vm_overcommit_sysctl(openarc_milter_t)
+
+corecmd_exec_shell(openarc_milter_t)
+
+corenet_udp_bind_generic_node(openarc_milter_t)
+corenet_udp_bind_all_unreserved_ports(openarc_milter_t)
+corenet_udp_bind_generic_port(openarc_milter_t)
+
+dev_read_urand(openarc_milter_t)
+# for cpu/online
+dev_read_sysfs(openarc_milter_t)
+
+files_runtime_filetrans(openarc_milter_t, openarc_milter_data_t, { dir file })
+files_read_usr_files(openarc_milter_t)
+files_search_spool(openarc_milter_t)
+
+miscfiles_read_generic_certs(openarc_milter_t)
+
+# Allow OpenARC to send a message to Postmaster in case of an invalid ARC signature.
+mta_sendmail_exec(openarc_milter_t)
+
+optional_policy(`
+	mta_read_config(openarc_milter_t)
+')
+
+optional_policy(`
+	# set up unix socket
+	postfix_search_spool(openarc_milter_t)
+')
