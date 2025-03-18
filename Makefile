@@ -223,6 +223,10 @@ ifneq ($(OUTPUT_POLICY),)
 	override CHECKPOLICY += -c $(OUTPUT_POLICY)
 endif
 
+ifneq ($(OUTPUT_MODULE),)
+	override CHECKMODULE += -c $(OUTPUT_MODULE)
+endif
+
 ifneq "$(CUSTOM_BUILDOPT)" ""
 	M4PARAM += $(foreach opt,$(CUSTOM_BUILDOPT),-D $(opt)=true)
 endif
