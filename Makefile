@@ -366,8 +366,8 @@ ifneq "$(filter xserver.te,$(base_mods) $(mod_mods))" ""
 endif
 
 # filesystems to be used in labeling targets
-filesystems = $(shell mount | grep -v "context=" | $(GREP) -v '\((|.*,)bind(,.*|)\)' | $(AWK) '/(ext[234]|btrfs| xfs| jfs).*rw/{print $$3}';)
-fs_names := "btrfs ext2 ext3 ext4 xfs jfs"
+filesystems = $(shell mount | grep -v "context=" | $(GREP) -v '\((|.*,)bind(,.*|)\)' | $(AWK) '/(ext[234]|bcachefs|btrfs| xfs| jfs).*rw/{print $$3}';)
+fs_names := "bcachefs btrfs ext2 ext3 ext4 xfs jfs"
 
 ########################################
 #
