@@ -26,6 +26,9 @@ files_runtime_file(dhcpd_runtime_t)
 type dhcpd_state_t;
 files_type(dhcpd_state_t)
 
+type dhcpd_lock_t;
+files_lock_file(dhcpd_lock_t)
+
 type dhcpd_tmp_t;
 files_tmp_file(dhcpd_tmp_t)
 
@@ -39,7 +42,7 @@ init_unit_file(dhcpd_unit_t)
 
 allow dhcpd_t self:capability { chown dac_override net_raw setgid setuid sys_chroot sys_resource };
 dontaudit dhcpd_t self:capability { net_admin sys_tty_config };
-allow dhcpd_t self:process { getcap setcap signal_perms };
+allow dhcpd_t self:process { setsched getcap setcap signal_perms };
 allow dhcpd_t self:fifo_file rw_fifo_file_perms;
 allow dhcpd_t self:tcp_socket { accept listen };
 allow dhcpd_t self:packet_socket create_socket_perms;
@@ -54,6 +57,11 @@ files_tmp_filetrans(dhcpd_t, dhcpd_tmp_t, { dir file })
 
 manage_files_pattern(dhcpd_t, dhcpd_runtime_t, dhcpd_runtime_t)
 files_runtime_filetrans(dhcpd_t, dhcpd_runtime_t, file)
+
+allow dhcpd_t dhcpd_runtime_t:sock_file manage_sock_file_perms;
+# for /run/lock/kea
+allow dhcpd_t dhcpd_lock_t:file manage_file_perms;
+files_lock_filetrans(dhcpd_t, dhcpd_lock_t, file)
 
 can_exec(dhcpd_t, dhcpd_exec_t)
 
@@ -75,6 +83,9 @@ corenet_sendrecv_dhcpd_server_packets(dhcpd_t)
 corenet_sendrecv_icmp_packets(dhcpd_t)
 corenet_tcp_bind_dhcpd_port(dhcpd_t)
 corenet_udp_bind_dhcpd_port(dhcpd_t)
+
+# for kea which needs port 8000 (common alternative web server port)
+corenet_tcp_bind_soundd_port(dhcpd_t)
 
 corenet_sendrecv_pxe_server_packets(dhcpd_t)
 corenet_udp_bind_pxe_port(dhcpd_t)
