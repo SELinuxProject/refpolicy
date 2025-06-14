@@ -1,0 +1,66 @@
+## <summary>Run feedbackd from systemd</summary>
+
+########################################
+## <summary>
+##	Role access for feedbackd.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`feedbackd_role',`
+	gen_require(`
+		attribute_role feedbackd_roles;
+		type feedbackd_exec_t;
+	')
+
+	type $1_feedbackd_t;
+
+
+	roleattribute $3 feedbackd_roles;
+	role $3 types { $1_feedbackd_t };
+
+	allow $1_feedbackd_t self:netlink_kobject_uevent_socket { create getattr setopt bind };
+	allow $1_feedbackd_t self:process signal;
+	allow $1_feedbackd_t self:unix_dgram_socket { create write };
+
+	kernel_read_system_state($1_feedbackd_t)
+
+	dev_read_sysfs($1_feedbackd_t)
+
+	files_search_home($1_feedbackd_t)
+	files_search_var_lib($1_feedbackd_t)
+	files_read_usr_files($1_feedbackd_t)
+	files_map_usr_files($1_feedbackd_t)
+
+	files_read_etc_symlinks($1_feedbackd_t)
+
+	miscfiles_read_localization($1_feedbackd_t)
+
+	application_domain($1_feedbackd_t, feedbackd_exec_t)
+	domtrans_pattern($2, feedbackd_exec_t, $1_feedbackd_t)
+
+	application_domain($1_feedbackd_t, feedbackd_exec_t)
+
+	dev_rw_input_dev($1_feedbackd_t)
+
+	systemd_user_app_status($1, $1_feedbackd_t)
+	systemd_user_daemon_domain($1, feedbackd_exec_t, $1_feedbackd_t)
+	optional_policy(`
+		udev_search_runtime($1_feedbackd_t)
+	')
+')
+
