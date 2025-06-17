@@ -1,0 +1,260 @@
+policy_module(fwupd)
+
+gen_require(`
+	class dbus all_dbus_perms;
+')
+
+########################################
+#
+# Policy for firmwate update daemon and utility
+# Debian package fwupd
+#
+
+########################################
+#
+# Declarations
+#
+
+type fwupd_t;
+type fwupd_exec_t;
+init_daemon_domain(fwupd_t, fwupd_exec_t)
+
+attribute_role fwupdmgr_roles;
+type fwupdmgr_t;
+type fwupdmgr_exec_t;
+application_domain(fwupdmgr_t, fwupdmgr_exec_t)
+role fwupdmgr_roles types fwupdmgr_t;
+
+type fwupd_cache_t;
+files_type(fwupd_cache_t)
+
+type fwupd_conf_t;
+files_type(fwupd_conf_t)
+
+type fwupd_runtime_t;
+files_runtime_file(fwupd_runtime_t)
+
+type fwupd_var_lib_t;
+files_type(fwupd_var_lib_t)
+
+type fwupdmgr_tmpfs_t;
+files_tmpfs_file(fwupdmgr_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+dontaudit fwupd_t self:capability net_admin;
+# sys_admin is for "FuPluginUefiCapsule  skipping device that failed coldplug: failed to read fw_class"
+# linux_immutable is for setting /sys/firmware/efi/efivars/* as mutable
+allow fwupd_t self:capability { dac_override dac_read_search linux_immutable sys_admin };
+allow fwupd_t self:fifo_file rw_fifo_file_perms;
+allow fwupd_t self:process getsched;
+allow fwupd_t self:udp_socket { create connect getattr };
+allow fwupd_t self:tcp_socket { create connect };
+allow fwupd_t self:netlink_route_socket { create bind getattr nlmsg_read read write };
+
+allow fwupd_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+allow fwupd_t fwupd_conf_t:dir { watch list_dir_perms };
+allow fwupd_t fwupd_conf_t:file { map read_file_perms };
+
+allow fwupd_t fwupd_var_lib_t:dir { watch manage_dir_perms };
+allow fwupd_t fwupd_var_lib_t:file mmap_manage_file_perms;
+
+allow fwupd_t fwupd_cache_t:dir { watch manage_dir_perms };
+allow fwupd_t fwupd_cache_t:file mmap_manage_file_perms;
+
+auth_use_pam_motd_dynamic(fwupd_t)
+
+allow fwupd_t fwupd_runtime_t:file manage_file_perms;
+allow fwupd_t fwupdmgr_tmpfs_t:file rw_inherited_file_perms;
+
+kernel_read_kernel_sysctls(fwupd_t)
+# for /proc/filesystems etc
+kernel_read_system_state(fwupd_t)
+kernel_read_vm_overcommit_sysctl(fwupd_t)
+kernel_watch_kernel_sysctl_dirs(fwupd_t)
+kernel_watch_proc_dirs(fwupd_t)
+
+dev_getattr_sysfs(fwupd_t)
+dev_map_sysfs_files(fwupd_t)
+dev_read_gpiochip(fwupd_t)
+dev_read_urand(fwupd_t)
+dev_read_sysfs(fwupd_t)
+dev_rw_acpi_bios(fwupd_t)
+dev_rw_cpu_microcode(fwupd_t)
+dev_rw_dri(fwupd_t)
+dev_rw_generic_usb_dev(fwupd_t)
+dev_rw_mei(fwupd_t)
+dev_rw_tpm(fwupd_t)
+dev_rw_xserver_misc(fwupd_t)
+dev_rx_raw_memory(fwupd_t)
+dev_watch_sysfs_dirs(fwupd_t)
+
+corecmd_exec_bin(fwupd_t)
+corecmd_list_bin(fwupd_t)
+corecmd_watch_bin_dirs(fwupd_t)
+
+corenet_tcp_connect_generic_port(fwupd_t)
+
+files_map_usr_files(fwupd_t)
+files_read_etc_files(fwupd_t)
+files_read_etc_runtime_files(fwupd_t)
+files_read_etc_symlinks(fwupd_t)
+files_read_usr_files(fwupd_t)
+files_search_locks(fwupd_t)
+files_search_var_lib(fwupd_t)
+files_search_boot(fwupd_t)
+files_watch_etc_dirs(fwupd_t)
+files_watch_usr_dirs(fwupd_t)
+
+fs_manage_efivarfs_files(fwupd_t)
+fs_getattr_dos_fs(fwupd_t)
+fs_getattr_efivarfs(fwupd_t)
+
+fs_manage_dos_dirs(fwupd_t)
+fs_manage_dos_files(fwupd_t)
+fs_mmap_read_dos_files(fwupd_t)
+
+init_get_generic_units_status(fwupd_t)
+init_get_system_status(fwupd_t)
+
+# for cgroup file of init_t process
+init_read_state(fwupd_t)
+
+miscfiles_read_generic_certs(fwupd_t)
+miscfiles_read_localization(fwupd_t)
+
+mount_read_runtime_files(fwupd_t)
+
+selinux_get_enforce_mode(fwupd_t)
+selinux_get_fs_mount(fwupd_t)
+seutil_search_default_contexts(fwupd_t)
+selinux_watch_status_page(fwupd_t)
+
+storage_raw_read_fixed_disk(fwupd_t)
+storage_raw_write_fixed_disk(fwupd_t)
+
+sysnet_read_config(fwupd_t)
+
+udev_read_runtime_files(fwupd_t)
+
+optional_policy(`
+	bluetooth_dbus_chat(fwupd_t)
+')
+
+optional_policy(`
+	dbus_read_lib_files(fwupd_t)
+	dbus_system_bus_client(fwupd_t)
+	dbus_connect_system_bus(fwupd_t)
+	dbus_use_system_bus_fds(fwupd_t)
+')
+
+optional_policy(`
+	devicekit_dbus_chat_disk(fwupd_t)
+	devicekit_dbus_chat_power(fwupd_t)
+')
+
+optional_policy(`
+	gpg_exec(fwupd_t)
+')
+
+optional_policy(`
+	init_dbus_chat(fwupd_t)
+')
+
+optional_policy(`
+	low_mem_mon_dbus_chat(fwupd_t)
+')
+
+optional_policy(`
+	modemmanager_dbus_chat(fwupd_t)
+')
+
+optional_policy(`
+	networkmanager_read_runtime_files(fwupd_t)
+')
+
+optional_policy(`
+	policykit_dbus_chat(fwupd_t)
+')
+
+optional_policy(`
+	systemd_dbus_chat_logind(fwupd_t)
+	systemd_use_logind_fds(fwupd_t)
+	systemd_write_inherited_logind_inhibit_pipes(fwupd_t)
+')
+
+########################################
+#
+# Local policy
+#
+
+allow fwupdmgr_t self:process signal;
+allow fwupdmgr_t self:fifo_file rw_fifo_file_perms;
+
+fs_tmpfs_filetrans(fwupdmgr_t, fwupdmgr_tmpfs_t, { file })
+allow fwupdmgr_t fwupdmgr_tmpfs_t:file manage_file_perms;
+
+allow fwupdmgr_t fwupd_t:dbus send_msg;
+allow fwupd_t fwupdmgr_t:dbus send_msg;
+allow fwupd_t fwupdmgr_t:fd use;
+
+kernel_read_system_state(fwupdmgr_t)
+kernel_read_vm_overcommit_sysctl(fwupdmgr_t)
+
+corecmd_exec_bin(fwupdmgr_t)
+domain_use_interactive_fds(fwupdmgr_t)
+
+sysnet_dns_name_resolve(fwupdmgr_t)
+sysnet_read_config(fwupdmgr_t)
+corenet_tcp_connect_generic_port(fwupdmgr_t)
+corenet_tcp_connect_http_port(fwupdmgr_t)
+
+files_read_etc_files(fwupdmgr_t)
+files_read_etc_symlinks(fwupdmgr_t)
+files_read_usr_files(fwupdmgr_t)
+files_map_usr_files(fwupdmgr_t)
+
+miscfiles_read_generic_certs(fwupdmgr_t)
+miscfiles_read_localization(fwupdmgr_t)
+
+userdom_use_user_ptys(fwupdmgr_t)
+userdom_use_user_ttys(fwupdmgr_t)
+userdom_search_user_home_dirs(fwupdmgr_t)
+
+# for dconf
+userdom_map_user_tmp_files(fwupdmgr_t)
+userdom_rw_user_tmp_files(fwupdmgr_t)
+userdom_manage_user_runtime_dirs(fwupdmgr_t)
+userdom_mmap_manage_user_runtime_files(fwupdmgr_t)
+xdg_search_config_dirs(fwupdmgr_t)
+
+optional_policy(`
+	dbus_list_system_bus_runtime(fwupdmgr_t)
+	dbus_write_session_runtime_socket(fwupdmgr_t)
+	dbus_system_bus_client(fwupdmgr_t)
+	dbus_system_bus_receive_file_handle(fwupdmgr_t, fwupdmgr_tmpfs_t)
+')
+
+optional_policy(`
+	networkmanager_dbus_chat(fwupdmgr_t)
+')
+
+optional_policy(`
+	policykit_dbus_chat(fwupdmgr_t)
+')
+
+optional_policy(`
+	systemd_dbus_chat_logind(fwupdmgr_t)
+	systemd_read_logind_state(fwupdmgr_t)
+	systemd_use_logind_fds(fwupdmgr_t)
+	systemd_write_inherited_logind_inhibit_pipes(fwupdmgr_t)
+')
+
+optional_policy(`
+	unconfined_dbus_send(fwupdmgr_t)
+	unconfined_stream_connect(fwupdmgr_t)
+')
