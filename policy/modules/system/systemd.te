@@ -1707,7 +1707,7 @@ logging_send_syslog_msg(systemd_pstore_t)
 # Rfkill local policy
 #
 
-allow systemd_rfkill_t self:netlink_kobject_uevent_socket { bind create getattr getopt read setopt };
+allow systemd_rfkill_t self:netlink_kobject_uevent_socket create_socket_perms;
 
 manage_dirs_pattern(systemd_rfkill_t, systemd_rfkill_var_lib_t, systemd_rfkill_var_lib_t)
 manage_files_pattern(systemd_rfkill_t, systemd_rfkill_var_lib_t, systemd_rfkill_var_lib_t)
@@ -1787,6 +1787,7 @@ seutil_read_file_contexts(systemd_resolved_t)
 
 systemd_log_parse_environment(systemd_resolved_t)
 systemd_read_networkd_runtime(systemd_resolved_t)
+systemd_write_notify_socket(systemd_resolved_t)
 
 optional_policy(`
 	dbus_connect_system_bus(systemd_resolved_t)
@@ -1840,6 +1841,9 @@ fs_getattr_nsfs_files(systemd_sessions_t)
 kernel_read_kernel_sysctls(systemd_sessions_t)
 kernel_dontaudit_getattr_proc(systemd_sessions_t)
 
+fs_getattr_cgroup(systemd_sessions_t)
+fs_search_cgroup_dirs(systemd_sessions_t)
+
 selinux_get_fs_mount(systemd_sessions_t)
 selinux_use_status_page(systemd_sessions_t)
 
@@ -1857,7 +1861,7 @@ systemd_log_parse_environment(systemd_sessions_t)
 # sys_admin for sysctls such as kernel.kptr_restrict and kernel.dmesg_restrict
 # sys_ptrace for kernel.yama.ptrace_scope
 # net_admin for network sysctls
-allow systemd_sysctl_t self:capability { net_admin sys_admin sys_ptrace };
+allow systemd_sysctl_t self:capability { net_admin sys_admin sys_ptrace sys_resource };
 
 kernel_read_kernel_sysctls(systemd_sysctl_t)
 kernel_request_load_module(systemd_sysctl_t)
@@ -1872,6 +1876,9 @@ fs_search_ramfs(systemd_sysctl_t)
 fs_search_tmpfs(systemd_sysctl_t)
 fs_getattr_nsfs_files(systemd_sysctl_t)
 
+fs_getattr_cgroup(systemd_sysctl_t)
+fs_search_ramfs(systemd_sysctl_t)
+
 systemd_log_parse_environment(systemd_sysctl_t)
 
 #########################################
@@ -1883,11 +1890,16 @@ allow systemd_sysusers_t self:capability { chown dac_read_search fsetid };
 allow systemd_sysusers_t self:process setfscreate;
 allow systemd_sysusers_t self:unix_dgram_socket sendto;
 
+domain_obj_id_change_exemption(systemd_sysusers_t)
+
 files_manage_etc_files(systemd_sysusers_t)
 
 fs_getattr_all_fs(systemd_sysusers_t)
 fs_getattr_nsfs_files(systemd_sysusers_t)
 fs_search_all(systemd_sysusers_t)
+
+fs_getattr_cgroup(systemd_sysusers_t)
+fs_search_cgroup_dirs(systemd_sysusers_t)
 
 kernel_read_kernel_sysctls(systemd_sysusers_t)
 
@@ -1907,6 +1919,17 @@ systemd_stream_connect_nsresourced(systemd_sysusers_t)
 # package upgrade
 userdom_use_all_users_fds(systemd_sysusers_t)
 userdom_use_inherited_user_terminals(systemd_sysusers_t)
+
+userdom_use_inherited_user_terminals(systemd_sysusers_t)
+
+optional_policy(`
+	apt_use_fds(systemd_sysusers_t)
+	apt_use_ptys(systemd_sysusers_t)
+')
+
+optional_policy(`
+	unconfined_use_fds(systemd_sysusers_t)
+')
 
 #########################################
 #
@@ -1935,6 +1958,8 @@ allow systemd_tmpfiles_t systemd_journal_t:file relabel_file_perms;
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_t:dir list_dir_perms;
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_type:dir search_dir_perms;
 allow systemd_tmpfiles_t systemd_tmpfiles_conf_type:file read_file_perms;
+
+allow systemd_tmpfiles_t systemd_nspawn_runtime_t:fifo_file unlink;
 
 kernel_getattr_proc(systemd_tmpfiles_t)
 kernel_read_kernel_sysctls(systemd_tmpfiles_t)
@@ -1982,10 +2007,13 @@ files_setattr_lock_dirs(systemd_tmpfiles_t)
 # for /etc/mtab
 files_manage_etc_symlinks(systemd_tmpfiles_t)
 
+fs_getattr_cgroup(systemd_tmpfiles_t)
 fs_list_tmpfs(systemd_tmpfiles_t)
 fs_relabelfrom_tmpfs_dirs(systemd_tmpfiles_t)
 fs_getattr_all_fs(systemd_tmpfiles_t)
+fs_search_auto_mountpoints(systemd_tmpfiles_t)
 fs_search_cgroup_dirs(systemd_tmpfiles_t)
+fs_search_ramfs(systemd_tmpfiles_t)
 fs_getattr_nsfs_files(systemd_tmpfiles_t)
 
 selinux_get_fs_mount(systemd_tmpfiles_t)
@@ -2042,6 +2070,12 @@ tunable_policy(`systemd_tmpfiles_manage_all',`
 ')
 
 optional_policy(`
+	colord_read_lib_files(systemd_tmpfiles_t)
+	colord_relabel_lib(systemd_tmpfiles_t)
+')
+
+optional_policy(`
+	dbus_manage_lib_files(systemd_tmpfiles_t)
 	dbus_read_lib_files(systemd_tmpfiles_t)
 	dbus_relabel_lib_dirs(systemd_tmpfiles_t)
 ')
@@ -2220,13 +2254,15 @@ systemd_stream_connect_nsresourced(systemd_userdbd_t)
 # systemd-user-runtime-dir local policy
 #
 
-allow systemd_user_runtime_dir_t self:capability { chown dac_override dac_read_search fowner sys_admin };
+allow systemd_user_runtime_dir_t self:capability { chown dac_override dac_read_search fowner sys_admin mknod };
 allow systemd_user_runtime_dir_t self:process setfscreate;
 
 domain_obj_id_change_exemption(systemd_user_runtime_dir_t)
 
 allow systemd_user_runtime_dir_t systemd_user_runtime_t:dir manage_dir_perms;
 allow systemd_user_runtime_dir_t systemd_user_runtime_t:file manage_file_perms;
+allow systemd_user_runtime_dir_t systemd_user_runtime_t:sock_file unlink;
+allow systemd_user_runtime_dir_t systemd_user_runtime_notify_t:sock_file unlink;
 
 files_read_etc_files(systemd_user_runtime_dir_t)
 
@@ -2264,6 +2300,11 @@ userdom_delete_all_user_runtime_chr_files(systemd_user_runtime_dir_t)
 userdom_manage_user_tmp_dirs(systemd_user_runtime_dir_t)
 userdom_manage_user_tmp_files(systemd_user_runtime_dir_t)
 
+userdom_delete_user_tmp_dirs(systemd_user_runtime_dir_t)
+userdom_delete_user_tmp_files(systemd_user_runtime_dir_t)
+userdom_delete_user_tmp_named_pipes(systemd_user_runtime_dir_t)
+userdom_delete_user_tmp_named_sockets(systemd_user_runtime_dir_t)
+userdom_list_user_tmp(systemd_user_runtime_dir_t)
 userdom_search_user_runtime_root(systemd_user_runtime_dir_t)
 userdom_user_runtime_root_filetrans_user_runtime(systemd_user_runtime_dir_t, dir)
 userdom_manage_user_runtime_dirs(systemd_user_runtime_dir_t)
@@ -2272,4 +2313,20 @@ userdom_relabelto_user_runtime_dirs(systemd_user_runtime_dir_t)
 
 optional_policy(`
 	dbus_system_bus_client(systemd_user_runtime_dir_t)
+')
+
+optional_policy(`
+	dirmngr_unlink_tmp_sock(systemd_user_runtime_dir_t)
+')
+
+optional_policy(`
+	gpg_agent_tmp_unlink_sock(systemd_user_runtime_dir_t)
+')
+
+optional_policy(`
+	pulseaudio_manage_tmp_dirs(systemd_user_runtime_dir_t)
+')
+
+optional_policy(`
+	userdom_delete_all_user_runtime_named_sockets(systemd_user_runtime_dir_t)
 ')
