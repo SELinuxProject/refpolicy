@@ -449,13 +449,19 @@ kernel_getattr_proc(systemd_binfmt_t)
 
 systemd_log_parse_environment(systemd_binfmt_t)
 
+corecmd_search_bin(systemd_binfmt_t)
+corecmd_check_exec_bin_files(systemd_binfmt_t)
+corecmd_read_bin_files(systemd_binfmt_t)
+
 # Allow to read /etc/binfmt.d/ files
 files_read_etc_files(systemd_binfmt_t)
+files_read_usr_files(systemd_binfmt_t)
 
 fs_register_binary_executable_type(systemd_binfmt_t)
 
 fs_getattr_binfmt_misc_fs(systemd_binfmt_t)
 fs_check_write_binfmt_misc_dirs(systemd_binfmt_t)
+fs_rw_binfmt_misc_dirs(systemd_binfmt_t)
 
 fs_getattr_cgroup(systemd_binfmt_t)
 fs_search_cgroup_dirs(systemd_binfmt_t)
@@ -499,8 +505,8 @@ ifdef(`enable_mls',`
 #
 
 allow systemd_coredump_t self:capability { dac_read_search setgid setpcap setuid sys_ptrace };
-dontaudit systemd_coredump_t self:capability { dac_override net_admin };
-allow systemd_coredump_t self:cap_userns { sys_admin sys_ptrace };
+dontaudit systemd_coredump_t self:capability { dac_override net_admin sys_admin };
+allow systemd_coredump_t self:cap_userns { dac_override dac_read_search sys_ptrace sys_admin };
 allow systemd_coredump_t self:process { getcap setcap setfscreate };
 allow systemd_coredump_t self:user_namespace create;
 allow systemd_coredump_t self:unix_dgram_socket { connect create getopt setopt write };
@@ -510,6 +516,8 @@ allow systemd_coredump_t self:fifo_file rw_inherited_fifo_file_perms;
 mmap_manage_files_pattern(systemd_coredump_t, systemd_coredump_var_lib_t, systemd_coredump_var_lib_t)
 
 kernel_domtrans_to(systemd_coredump_t, systemd_coredump_exec_t)
+kernel_getattr_proc(systemd_coredump_t)
+kernel_read_crypto_sysctls(systemd_coredump_t)
 kernel_read_kernel_sysctls(systemd_coredump_t)
 kernel_read_system_state(systemd_coredump_t)
 kernel_rw_pipes(systemd_coredump_t)
@@ -529,7 +537,8 @@ files_mounton_root(systemd_coredump_t)
 
 fs_getattr_all_fs(systemd_coredump_t)
 fs_getattr_nsfs_files(systemd_coredump_t)
-fs_search_cgroup_dirs(systemd_coredump_t)
+fs_read_cgroup_dirs(systemd_coredump_t)
+fs_search_tmpfs(systemd_coredump_t)
 
 init_list_var_lib_dirs(systemd_coredump_t)
 init_read_state(systemd_coredump_t)
@@ -539,6 +548,7 @@ init_write_runtime_socket(systemd_coredump_t)
 logging_send_syslog_msg(systemd_coredump_t)
 
 seutil_search_default_contexts(systemd_coredump_t)
+
 
 #######################################
 #
@@ -550,6 +560,33 @@ allow systemd_generator_t self:capability { dac_override sys_admin sys_resource 
 allow systemd_generator_t self:process { getcap getsched setfscreate signal };
 # for systemd-ssh-generator
 allow systemd_generator_t self:vsock_socket create;
+
+allow systemd_generator_t self:tcp_socket create;
+allow systemd_generator_t self:udp_socket { create setopt };
+allow systemd_generator_t self:netlink_route_socket { create read bind getattr write nlmsg_read };
+allow systemd_generator_t self:vsock_socket create;
+
+allow systemd_generator_t systemd_unit_t:file getattr;
+
+allow systemd_generator_t systemd_transient_unit_t:dir list_dir_perms;
+
+allow systemd_generator_t systemd_user_runtime_unit_t:dir manage_dir_perms;
+allow systemd_generator_t systemd_user_runtime_unit_t:file manage_file_perms;
+allow systemd_generator_t systemd_user_runtime_unit_t:lnk_file create;
+
+kernel_dontaudit_getattr_proc(systemd_generator_t)
+kernel_read_crypto_sysctls(systemd_generator_t)
+kernel_read_kernel_sysctls(systemd_generator_t)
+kernel_read_network_state(systemd_generator_t)
+kernel_read_system_state(systemd_generator_t)
+kernel_search_network_sysctl(systemd_generator_t)
+kernel_use_fds(systemd_generator_t)
+
+# Where an unlabeled mountpoint is encounted:
+kernel_dontaudit_search_unlabeled(systemd_generator_t)
+
+# vmware_vsock
+kernel_request_load_module(systemd_generator_t)
 
 corecmd_exec_shell(systemd_generator_t)
 corecmd_exec_bin(systemd_generator_t)
@@ -563,21 +600,30 @@ dev_write_sysfs(systemd_generator_t)
 # for systemd-ssh-generator
 dev_read_vsock(systemd_generator_t)
 
+application_exec(systemd_generator_t)
+domain_exec_all_entry_files(systemd_generator_t)
+domain_read_all_entry_files(systemd_generator_t)
+files_exec_etc_files(systemd_generator_t)
 files_read_etc_files(systemd_generator_t)
 files_read_etc_runtime_files(systemd_generator_t)
 files_search_runtime(systemd_generator_t)
 files_list_boot(systemd_generator_t)
 files_read_boot_files(systemd_generator_t)
+files_read_config_files(systemd_generator_t)
 files_search_all_mountpoints(systemd_generator_t)
 files_list_usr(systemd_generator_t)
+files_getattr_usr_files(systemd_generator_t)
 files_dontaudit_getattr_all_dirs(systemd_generator_t)
 files_dontaudit_read_etc_runtime_files(systemd_generator_t)
 
 fs_list_efivars(systemd_generator_t)
 fs_getattr_all_fs(systemd_generator_t)
 fs_getattr_nsfs_files(systemd_generator_t)
+fs_rw_tmpfs_files(systemd_generator_t)
 
 init_create_runtime_files(systemd_generator_t)
+init_read_all_script_files(systemd_generator_t)
+init_getattr_all_unit_files(systemd_generator_t)
 init_manage_runtime_dirs(systemd_generator_t)
 init_manage_runtime_symlinks(systemd_generator_t)
 init_read_runtime_files(systemd_generator_t)
@@ -592,16 +638,12 @@ init_read_script_files(systemd_generator_t)
 init_getattr_all_unit_files(systemd_generator_t)
 init_getattr_all_script_files(systemd_generator_t)
 
-kernel_use_fds(systemd_generator_t)
-kernel_read_system_state(systemd_generator_t)
-kernel_read_kernel_sysctls(systemd_generator_t)
-kernel_dontaudit_getattr_proc(systemd_generator_t)
-# Where an unlabeled mountpoint is encountered:
-kernel_dontaudit_search_unlabeled(systemd_generator_t)
-# vmware_vsock
-kernel_request_load_module(systemd_generator_t)
-
 modutils_domtrans(systemd_generator_t)
+
+miscfiles_read_localization(systemd_generator_t)
+
+selinux_getattr_fs(systemd_generator_t)
+seutil_search_default_contexts(systemd_generator_t)
 
 # write for systemd-zram-generator
 storage_raw_rw_fixed_disk(systemd_generator_t)
@@ -609,6 +651,8 @@ storage_raw_read_removable_device(systemd_generator_t)
 
 # needed to resolve hostnames for NFS mounts
 sysnet_dns_name_resolve(systemd_generator_t)
+# for postconf
+sysnet_read_config(systemd_generator_t)
 
 systemd_log_parse_environment(systemd_generator_t)
 
@@ -637,6 +681,8 @@ optional_policy(`
 	container_search_config(systemd_generator_t)
 ')
 
+udev_search_runtime(systemd_generator_t)
+
 optional_policy(`
 	fstools_exec(systemd_generator_t)
 ')
@@ -645,11 +691,24 @@ optional_policy(`
 	lvm_exec(systemd_generator_t)
 	lvm_map_config(systemd_generator_t)
 	lvm_read_config(systemd_generator_t)
-	miscfiles_read_localization(systemd_generator_t)
 ')
 
 optional_policy(`
-	fs_search_nfsd_fs(systemd_generator_t)
+	# for /lib/systemd/system-generators/openvpn-generator
+	openvpn_read_config(systemd_generator_t)
+')
+
+optional_policy(`
+	# it runs postconf
+	# maybe /lib/systemd/system-generators/postfix-instance-generator
+	postfix_read_config(systemd_generator_t)
+')
+
+optional_policy(`
+	tmpreaper_exec(systemd_generator_t)
+')
+
+optional_policy(`
 	fs_rw_nfsd_fs(systemd_generator_t)
 	rpc_list_exports(systemd_generator_t)
 	rpc_read_exports(systemd_generator_t)
