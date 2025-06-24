@@ -230,6 +230,9 @@ type systemd_nspawn_t;
 type systemd_nspawn_exec_t;
 init_system_domain(systemd_nspawn_t, systemd_nspawn_exec_t)
 
+type systemd_nspawn_devpts_t;
+term_login_pty(systemd_nspawn_devpts_t)
+
 type systemd_nspawn_runtime_t alias systemd_nspawn_var_run_t;
 files_runtime_file(systemd_nspawn_runtime_t)
 
@@ -1407,22 +1410,24 @@ miscfiles_read_localization(systemd_notify_t)
 # Nspawn local policy
 #
 
-allow systemd_nspawn_t self:process { getcap setcap setfscreate setrlimit sigkill signal };
-allow systemd_nspawn_t self:capability { dac_override dac_read_search fsetid mknod net_admin setgid setpcap setuid sys_admin sys_chroot };
+allow systemd_nspawn_t self:process { getsched setsched setpgid getcap setcap setfscreate setrlimit sigkill signal };
+allow systemd_nspawn_t self:capability { chown dac_override dac_read_search fowner fsetid kill sys_resource mknod net_admin setgid setpcap setuid sys_admin sys_chroot audit_control };
 allow systemd_nspawn_t self:capability2 wake_alarm;
 allow systemd_nspawn_t self:user_namespace create;
-allow systemd_nspawn_t self:unix_dgram_socket connected_socket_perms;
+allow systemd_nspawn_t self:unix_dgram_socket { sendto connected_socket_perms };
 allow systemd_nspawn_t self:unix_stream_socket create_stream_socket_perms;
 allow systemd_nspawn_t self:netlink_route_socket create_netlink_socket_perms;
 allow systemd_nspawn_t self:netlink_generic_socket create_socket_perms;
 allow systemd_nspawn_t self:udp_socket create_socket_perms;
-
+allow systemd_nspawn_t self:tcp_socket create_stream_socket_perms;
+allow systemd_nspawn_t self:fifo_file rw_fifo_file_perms;
 allow systemd_nspawn_t systemd_journal_t:dir search;
 
 allow systemd_nspawn_t systemd_nspawn_runtime_t:dir manage_dir_perms;
 allow systemd_nspawn_t systemd_nspawn_runtime_t:file manage_file_perms;
 init_runtime_filetrans(systemd_nspawn_t, systemd_nspawn_runtime_t, dir)
 
+files_read_etc_runtime_files(systemd_nspawn_t)
 files_tmp_filetrans(systemd_nspawn_t, systemd_nspawn_tmp_t, { dir file })
 allow systemd_nspawn_t systemd_nspawn_tmp_t:dir manage_dir_perms;
 allow systemd_nspawn_t systemd_nspawn_tmp_t:dir mounton;
@@ -1432,14 +1437,31 @@ allow systemd_nspawn_t systemd_nspawn_tmp_t:file manage_file_perms;
 # for /run/systemd/nspawn/incoming in chroot
 allow systemd_nspawn_t systemd_nspawn_runtime_t:dir mounton;
 
+term_create_pty(systemd_nspawn_t, systemd_nspawn_devpts_t)
+allow systemd_nspawn_t systemd_nspawn_devpts_t:chr_file manage_chr_file_perms;
+
+kernel_getattr_core_if(systemd_nspawn_t)
+kernel_getattr_proc(systemd_nspawn_t)
+kernel_getattr_unlabeled_dirs(systemd_nspawn_t)
+
 kernel_mount_proc(systemd_nspawn_t)
 kernel_mounton_sysctl_dirs(systemd_nspawn_t)
 kernel_mounton_kernel_sysctl_files(systemd_nspawn_t)
 kernel_mounton_message_if(systemd_nspawn_t)
 kernel_mounton_proc_dirs(systemd_nspawn_t)
+kernel_mounton_sysctl_files(systemd_nspawn_t)
+kernel_mounton_unlabeled_dirs(systemd_nspawn_t)
+
+kernel_read_fs_sysctls(systemd_nspawn_t)
+kernel_read_irq_sysctls(systemd_nspawn_t)
+kernel_read_network_state(systemd_nspawn_t)
 kernel_read_kernel_sysctls(systemd_nspawn_t)
+kernel_read_sysctl(systemd_nspawn_t)
 kernel_read_system_state(systemd_nspawn_t)
+kernel_read_vm_sysctls(systemd_nspawn_t)
 kernel_remount_proc(systemd_nspawn_t)
+kernel_request_load_module(systemd_nspawn_t)
+kernel_search_network_sysctl(systemd_nspawn_t)
 
 corecmd_exec_shell(systemd_nspawn_t)
 corecmd_search_bin(systemd_nspawn_t)
@@ -1455,7 +1477,9 @@ dev_unmount_sysfs(systemd_nspawn_t)
 dev_read_sysfs(systemd_nspawn_t)
 dev_read_rand(systemd_nspawn_t)
 dev_read_urand(systemd_nspawn_t)
+dev_write_kmsg(systemd_nspawn_t)
 
+files_getattr_default_dirs(systemd_nspawn_t)
 files_getattr_tmp_dirs(systemd_nspawn_t)
 files_manage_etc_files(systemd_nspawn_t)
 files_manage_mnt_dirs(systemd_nspawn_t)
@@ -1467,12 +1491,21 @@ files_setattr_runtime_dirs(systemd_nspawn_t)
 
 fs_getattr_cgroup(systemd_nspawn_t)
 fs_getattr_tmpfs(systemd_nspawn_t)
+fs_getattr_xattr_fs(systemd_nspawn_t)
+fs_manage_cgroup_dirs(systemd_nspawn_t)
+fs_manage_cgroup_files(systemd_nspawn_t)
+fs_manage_tmpfs_blk_files(systemd_nspawn_t)
 fs_manage_tmpfs_chr_files(systemd_nspawn_t)
+fs_mount_cgroup(systemd_nspawn_t)
 fs_mount_tmpfs(systemd_nspawn_t)
+fs_mounton_cgroup(systemd_nspawn_t)
+fs_read_nsfs_files(systemd_nspawn_t)
 fs_remount_tmpfs(systemd_nspawn_t)
 fs_remount_xattr_fs(systemd_nspawn_t)
-fs_read_cgroup_files(systemd_nspawn_t)
+fs_search_auto_mountpoints(systemd_nspawn_t)
 fs_watch_memory_pressure(systemd_nspawn_t)
+
+logging_send_syslog_msg(systemd_nspawn_t)
 
 term_getattr_generic_ptys(systemd_nspawn_t)
 term_getattr_pty_fs(systemd_nspawn_t)
@@ -1480,16 +1513,24 @@ term_mount_devpts(systemd_nspawn_t)
 term_search_ptys(systemd_nspawn_t)
 term_setattr_generic_ptys(systemd_nspawn_t)
 term_use_ptmx(systemd_nspawn_t)
+term_use_generic_ptys(systemd_nspawn_t)
 
 init_domtrans_script(systemd_nspawn_t)
 init_getrlimit(systemd_nspawn_t)
 init_kill_scripts(systemd_nspawn_t)
 init_read_state(systemd_nspawn_t)
+init_read_runtime_files(systemd_nspawn_t)
 init_search_run(systemd_nspawn_t)
 init_write_runtime_socket(systemd_nspawn_t)
 init_spec_domtrans_script(systemd_nspawn_t)
 
+miscfiles_read_localization(systemd_nspawn_t)
 miscfiles_manage_localization(systemd_nspawn_t)
+mount_exec(systemd_nspawn_t)
+
+udev_read_runtime_files(systemd_nspawn_t)
+
+sysnet_exec_ifconfig(systemd_nspawn_t)
 
 # for writing inside chroot
 sysnet_manage_config(systemd_nspawn_t)
@@ -1497,6 +1538,8 @@ sysnet_manage_config(systemd_nspawn_t)
 udev_read_runtime_files(systemd_nspawn_t)
 
 userdom_manage_user_home_dirs(systemd_nspawn_t)
+
+systemd_write_notify_socket(systemd_nspawn_t)
 
 tunable_policy(`systemd_nspawn_labeled_namespace',`
 	allow systemd_nspawn_t systemd_nspawn_runtime_t:fifo_file manage_fifo_file_perms;
@@ -1538,8 +1581,11 @@ tunable_policy(`systemd_nspawn_labeled_namespace',`
 
 	init_domtrans(systemd_nspawn_t)
 
+	logging_manage_runtime_sockets(systemd_nspawn_t)
+	logging_relabelto_devlog_sock_files(systemd_nspawn_t)
 	logging_search_logs(systemd_nspawn_t)
 
+	seutil_exec_setfiles(systemd_nspawn_t)
 	seutil_search_default_contexts(systemd_nspawn_t)
 ')
 
