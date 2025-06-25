@@ -1,0 +1,98 @@
+policy_module(opensnitch)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+## <p>
+## allow user sockets in /tmp
+## </p>
+## </desc>
+gen_tunable(opensnitch_use_tmp_sockets, true)
+
+## <desc>
+## <p>
+## allow writing config files
+## </p>
+## </desc>
+gen_tunable(opensnitch_write_config, true)
+
+type opensnitchd_t;
+type opensnitchd_exec_t;
+init_system_domain(opensnitchd_t, opensnitchd_exec_t)
+
+type opensnitchd_conf_t;
+files_config_file(opensnitchd_conf_t)
+
+type opensnitchd_log_t;
+logging_log_file(opensnitchd_log_t)
+
+allow opensnitchd_t self:capability { dac_override dac_read_search net_admin sys_ptrace sys_resource };
+allow opensnitchd_t self:capability2 { bpf perfmon };
+allow opensnitchd_t self:cap_userns sys_ptrace;
+allow opensnitchd_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow opensnitchd_t self:netlink_netfilter_socket { create bind getattr write read getopt setopt };
+allow opensnitchd_t self:netlink_route_socket { create bind setopt write nlmsg_read getattr read };
+allow opensnitchd_t self:process { getsched signal };
+allow opensnitchd_t self:perf_event { open kernel tracepoint cpu read write };
+allow opensnitchd_t self:netlink_tcpdiag_socket { create getattr bind setopt write read nlmsg_read };
+
+allow opensnitchd_t opensnitchd_log_t:file { open append };
+
+kernel_getattr_core_if(opensnitchd_t)
+kernel_getattr_message_if(opensnitchd_t)
+kernel_read_irq_sysctls(opensnitchd_t)
+kernel_read_kernel_sysctls(opensnitchd_t)
+kernel_read_network_state(opensnitchd_t)
+kernel_read_psi(opensnitchd_t)
+kernel_read_software_raid_state(opensnitchd_t)
+kernel_read_state(opensnitchd_t)
+kernel_read_sysctl(opensnitchd_t)
+kernel_read_system_state(opensnitchd_t)
+kernel_request_load_module(opensnitchd_t)
+kernel_search_debugfs(opensnitchd_t)
+kernel_search_network_sysctl(opensnitchd_t)
+
+dev_getattr_mtrr_dev(opensnitchd_t)
+dev_read_sysfs(opensnitchd_t)
+
+# needs to know what program is accessing the net
+corecmd_search_bin(opensnitchd_t)
+corecmd_check_exec_bin_files(opensnitchd_t)
+corecmd_getattr_all_executables(opensnitchd_t)
+domain_getattr_all_tcp_sockets(opensnitchd_t)
+domain_getattr_all_udp_sockets(opensnitchd_t)
+domain_read_all_domains_state(opensnitchd_t)
+
+files_read_etc_symlinks(opensnitchd_t)
+files_read_kernel_symbol_table(opensnitchd_t)
+
+fs_rw_tracefs_files(opensnitchd_t)
+fs_search_tracefs(opensnitchd_t)
+fs_getattr_tracefs_files(opensnitchd_t)
+
+init_read_state(opensnitchd_t)
+logging_search_logs(opensnitchd_t)
+miscfiles_read_localization(opensnitchd_t)
+
+userdom_connectto_all_users_stream_sockets(opensnitchd_t)
+
+tunable_policy(`opensnitch_write_config',`
+	allow opensnitchd_t opensnitchd_conf_t:dir { watch rw_dir_perms  };
+	allow opensnitchd_t opensnitchd_conf_t:file { watch manage_file_perms };
+', `
+	allow opensnitchd_t opensnitchd_conf_t:dir { watch list_dir_perms  };
+	allow opensnitchd_t opensnitchd_conf_t:file { watch read_file_perms };
+')
+
+tunable_policy(`opensnitch_use_tmp_sockets',`
+	files_search_tmp(opensnitchd_t)
+	userdom_write_user_tmp_sockets(opensnitchd_t)
+')
+
+optional_policy(`
+	systemd_list_resolved_runtime(opensnitchd_t)
+	systemd_stream_connect_resolved(opensnitchd_t)
+')
