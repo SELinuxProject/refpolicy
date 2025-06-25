@@ -106,12 +106,6 @@ mount_exec(incusd_t)
 
 rsync_exec(incusd_t)
 
-# avc:  denied  { read } for  pid=20404 comm="qemu-system-x86"
-# name="overcommit_memory" dev="proc" ino=16557
-# scontext=system_u:system_r:incusd_t:s0
-# tcontext=system_u:object_r:sysctl_vm_overcommit_t:s0 tclass=file permissive=0
-kernel_read_vm_overcommit_sysctl(incusd_t)
-
 # for bridge management
 dev_create_sysfs_files(incusd_t)
 dev_write_sysfs(incusd_t)
@@ -167,11 +161,6 @@ tunable_policy(`incus_lxc_legacy_mounts',`
 # incus idmap support: checks whether the kernel supports VFS v3 fscaps
 container_execute_engine_tmp_files(incusd_t)
 
-# required for QEMU feature check, won't start otherwise
-files_rw_generic_tmp_sockets(incusd_t)
-files_dontaudit_unlink_generic_tmp_sockets(incusd_t)
-
-
 optional_policy(`
 	# required so that incus will get the VM PID
 	# and make "incus info VM" work
@@ -184,17 +173,28 @@ optional_policy(`
 	# these are required for incusd to check and execute qemu
 	qemu_domtrans(incusd_t)
 	qemu_exec(incusd_t)
+
+	# required for QEMU feature check, will not start otherwise
+	files_rw_generic_tmp_sockets(incusd_t)
+	files_dontaudit_unlink_generic_tmp_sockets(incusd_t)
+
+	# avc:  denied  { read } for  pid=20404 comm="qemu-system-x86"
+	# name="overcommit_memory" dev="proc" ino=16557
+	# scontext=system_u:system_r:incusd_t:s0
+	# tcontext=system_u:object_r:sysctl_vm_overcommit_t:s0 tclass=file permissive=0
+	kernel_read_vm_overcommit_sysctl(incusd_t)
+
+	# incusd needs support to label VM files before launching
+	# until then, VM files will unfortunately be unlabeled
+	kernel_manage_unlabeled_dirs(incusd_t)
+	kernel_manage_unlabeled_files(incusd_t)
+	kernel_manage_unlabeled_symlinks(incusd_t)
+	kernel_mounton_unlabeled_dirs(incusd_t)
+
+	files_search_default(incusd_t)
 ')
 
 dev_getattr_vhost_dev(incusd_t)
-
-# incusd needs support to label VM files before launching
-# until then, VM files will unfortunately be unlabeled
-kernel_manage_unlabeled_dirs(incusd_t)
-kernel_manage_unlabeled_files(incusd_t)
-kernel_manage_unlabeled_symlinks(incusd_t)
-kernel_mounton_unlabeled_dirs(incusd_t)
-files_search_default(incusd_t)
 
 # name="stub-resolv.conf"
 fs_read_tmpfs_files(incusd_t)
