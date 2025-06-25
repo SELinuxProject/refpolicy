@@ -12,6 +12,13 @@ policy_module(boinc)
 ## </desc>
 gen_tunable(boinc_execmem, true)
 
+## <desc>
+##	<p>
+##	Determine whether boinc can access X/GPU
+##	</p>
+## </desc>
+gen_tunable(boinc_use_gpu, true)
+
 type boinc_t;
 type boinc_exec_t;
 init_daemon_domain(boinc_t, boinc_exec_t)
@@ -47,7 +54,7 @@ files_tmp_file(boinc_project_tmp_t)
 # Local policy
 #
 
-allow boinc_t self:process { setpgid setsched sigkill signal signull };
+allow boinc_t self:process { setpgid setsched getsched sigkill signal signull ptrace sigstop };
 allow boinc_t self:unix_stream_socket { accept listen };
 allow boinc_t self:tcp_socket { accept listen };
 allow boinc_t self:shm create_shm_perms;
@@ -86,7 +93,8 @@ libs_legacy_use_ld_so(boinc_t)
 domtrans_pattern(boinc_t, boinc_project_var_lib_t, boinc_project_t)
 
 kernel_read_system_state(boinc_t)
-kernel_search_vm_sysctl(boinc_t)
+kernel_read_vm_sysctls(boinc_t)
+kernel_read_vm_overcommit_sysctl(boinc_t)
 kernel_read_kernel_sysctls(boinc_t)
 
 corenet_all_recvfrom_netlabel(boinc_t)
@@ -98,6 +106,7 @@ corenet_sendrecv_boinc_client_packets(boinc_t)
 corenet_sendrecv_boinc_server_packets(boinc_t)
 corenet_tcp_bind_boinc_port(boinc_t)
 corenet_tcp_connect_boinc_port(boinc_t)
+corenet_tcp_connect_generic_port(boinc_t)
 
 corenet_sendrecv_boinc_client_server_packets(boinc_t)
 corenet_tcp_bind_boinc_client_port(boinc_t)
@@ -117,7 +126,6 @@ corecmd_exec_shell(boinc_t)
 dev_read_rand(boinc_t)
 dev_read_urand(boinc_t)
 dev_read_sysfs(boinc_t)
-dev_rw_xserver_misc(boinc_t)
 
 domain_read_all_domains_state(boinc_t)
 
@@ -145,6 +153,11 @@ tunable_policy(`boinc_execmem',`
 	allow boinc_t self:process { execmem execstack };
 ')
 
+tunable_policy(`boinc_use_gpu',`
+	dev_rw_dri(boinc_t)
+	dev_rw_xserver_misc(boinc_t)
+')
+
 optional_policy(`
 	mta_send_mail(boinc_t)
 ')
@@ -154,10 +167,13 @@ optional_policy(`
 ')
 
 optional_policy(`
-	corenet_tcp_connect_xserver_port(boinc_t)
+	tunable_policy(`boinc_use_gpu',`
+		corenet_tcp_connect_xserver_port(boinc_t)
 
-	xserver_list_xdm_tmp(boinc_t)
-	xserver_non_drawing_client(boinc_t)
+		xserver_list_xdm_tmp(boinc_t)
+		xserver_non_drawing_client(boinc_t)
+		xserver_stream_connect_xdm(boinc_t)
+	')
 ')
 
 ########################################
@@ -219,4 +235,8 @@ optional_policy(`
 
 optional_policy(`
 	java_exec(boinc_project_t)
+')
+
+optional_policy(`
+	unconfined_stream_connect(boinc_t)
 ')

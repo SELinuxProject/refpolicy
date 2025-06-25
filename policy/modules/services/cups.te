@@ -5,6 +5,13 @@ policy_module(cups)
 # Declarations
 #
 
+## <desc>
+## <p>
+## Allows legacy ld_so for old printer filters
+## </p>
+## </desc>
+gen_tunable(cups_use_legacy_ldso, false)
+
 type cupsd_config_t;
 type cupsd_config_exec_t;
 init_daemon_domain(cupsd_config_t, cupsd_config_exec_t)
@@ -117,6 +124,7 @@ manage_files_pattern(cupsd_t, cupsd_interface_t, cupsd_interface_t)
 
 manage_dirs_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t)
 manage_files_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t)
+manage_lnk_files_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t)
 filetrans_pattern(cupsd_t, cupsd_etc_t, cupsd_rw_etc_t, file)
 files_var_filetrans(cupsd_t, cupsd_rw_etc_t, { dir file })
 
@@ -194,11 +202,13 @@ domain_use_interactive_fds(cupsd_t)
 
 files_getattr_boot_dirs(cupsd_t)
 files_list_spool(cupsd_t)
+files_map_etc_files(cupsd_t)
 files_read_etc_runtime_files(cupsd_t)
 files_read_usr_files(cupsd_t)
 files_exec_usr_files(cupsd_t)
 # for /var/lib/defoma
 files_read_var_lib_files(cupsd_t)
+files_read_var_lib_symlinks(cupsd_t)
 files_list_world_readable(cupsd_t)
 files_read_world_readable_files(cupsd_t)
 files_read_world_readable_symlinks(cupsd_t)
@@ -386,6 +396,8 @@ dev_read_urand(cupsd_config_t)
 dev_read_rand(cupsd_config_t)
 dev_rw_generic_usb_dev(cupsd_config_t)
 
+cups_stream_connect(cupsd_config_t)
+
 files_read_etc_runtime_files(cupsd_config_t)
 files_read_usr_files(cupsd_config_t)
 files_read_var_symlinks(cupsd_config_t)
@@ -449,6 +461,7 @@ optional_policy(`
 ')
 
 optional_policy(`
+	unconfined_dbus_send(cupsd_config_t)
 	unconfined_stream_connect(cupsd_config_t)
 ')
 
@@ -547,6 +560,10 @@ miscfiles_setattr_fonts_cache_dirs(cups_pdf_t)
 userdom_manage_user_home_content_dirs(cups_pdf_t)
 userdom_manage_user_home_content_files(cups_pdf_t)
 userdom_home_filetrans_user_home_dir(cups_pdf_t)
+
+tunable_policy(`cups_use_legacy_ldso',`
+	libs_legacy_use_ld_so(cupsd_t)
+')
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_manage_nfs_dirs(cups_pdf_t)
