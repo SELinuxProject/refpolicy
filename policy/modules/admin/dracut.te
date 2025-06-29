@@ -1,11 +1,19 @@
 policy_module(dracut)
 
+########################################
+#
+# Declarations
+#
+
 type dracut_t;
 type dracut_exec_t;
 application_domain(dracut_t, dracut_exec_t)
 
 type dracut_var_log_t;
 logging_log_file(dracut_var_log_t)
+
+type dracut_runtime_t;
+files_runtime_file(dracut_runtime_t)
 
 type dracut_tmp_t;
 files_tmp_file(dracut_tmp_t)
@@ -15,13 +23,21 @@ files_tmp_file(dracut_tmp_t)
 # Local policy
 #
 
-allow dracut_t self:process setfscreate;
-allow dracut_t self:capability dac_override;
+allow dracut_t self:process { getsched setfscreate };
+# sys_admin needed for fsfreeze use
+# sys_chroot needed for ldconfig
+allow dracut_t self:capability { dac_override dac_read_search setfcap sys_admin sys_chroot };
+dontaudit dracut_t self:capability sys_resource;
 allow dracut_t self:fifo_file rw_fifo_file_perms;
 allow dracut_t self:unix_stream_socket create_stream_socket_perms;
+allow dracut_t self:alg_socket create_stream_socket_perms;
 
-manage_files_pattern(dracut_t, dracut_tmp_t, dracut_tmp_t)
-manage_dirs_pattern(dracut_t, dracut_tmp_t, dracut_tmp_t)
+allow dracut_t dracut_runtime_t:dir manage_dir_perms;
+allow dracut_t dracut_runtime_t:file manage_file_perms;
+files_runtime_filetrans(dracut_t, dracut_runtime_t, { dir file })
+
+allow dracut_t dracut_tmp_t:dir { manage_dir_perms relabelfrom };
+allow dracut_t dracut_tmp_t:file { manage_file_perms relabel_file_perms };
 manage_lnk_files_pattern(dracut_t, dracut_tmp_t, dracut_tmp_t)
 manage_chr_files_pattern(dracut_t, dracut_tmp_t, dracut_tmp_t)
 files_tmp_filetrans(dracut_t, dracut_tmp_t, dir)
@@ -32,35 +48,160 @@ logging_log_filetrans(dracut_t, dracut_var_log_t, file)
 corecmd_exec_bin(dracut_t)
 corecmd_exec_shell(dracut_t)
 corecmd_mmap_all_executables(dracut_t)
+corecmd_delete_all_executables(dracut_t)
+corecmd_setattr_all_executables(dracut_t)
+corecmd_relabelto_all_executables(dracut_t)
 
 dev_read_kmsg(dracut_t)
+dev_read_rand(dracut_t)
 dev_read_sysfs(dracut_t)
+dev_rw_lvm_control(dracut_t)
+# for ssh-keygen
+dev_write_urand(dracut_t)
+# findmnt generates these
+dev_dontaudit_getattr_all_blk_files(dracut_t)
+dev_dontaudit_getattr_all_chr_files(dracut_t)
 
 domain_use_interactive_fds(dracut_t)
+domain_obj_id_change_exemption(dracut_t)
 
 files_create_kernel_img(dracut_t)
-files_read_etc_files(dracut_t)
-files_read_kernel_modules(dracut_t)
-files_read_usr_files(dracut_t)
 files_search_runtime(dracut_t)
+
+files_rw_etc_files(dracut_t)
+files_create_etc_files(dracut_t)
+files_delete_etc_files(dracut_t)
+files_rename_etc_files(dracut_t)
+files_setattr_etc_files(dracut_t)
+files_relabelto_etc_files(dracut_t)
+files_mmap_read_kernel_modules(dracut_t)
+files_delete_kernel_modules(dracut_t)
+files_setattr_kernel_modules(dracut_t)
+files_relabelto_kernel_modules_files(dracut_t)
+files_read_usr_files(dracut_t)
+files_delete_usr_files(dracut_t)
+files_setattr_usr_files(dracut_t)
+files_relabelto_usr_files(dracut_t)
+files_read_usr_src_files(dracut_t)
+files_read_etc_runtime_files(dracut_t)
+files_delete_etc_runtime_files(dracut_t)
+files_setattr_etc_runtime_files(dracut_t)
+files_relabelto_etc_runtime_files(dracut_t)
+files_relabelfrom_etc_runtime_files(dracut_t)
+
+files_dontaudit_search_mnt(dracut_t)
+
+# cgroup for virt-detect
+fs_getattr_cgroup(dracut_t)
+fs_read_cgroup_files(dracut_t)
+# tmpfs on /run/modprobe.d
+fs_list_tmpfs(dracut_t)
+fs_getattr_nsfs_files(dracut_t)
+fs_getattr_xattr_fs(dracut_t)
+fs_dontaudit_getattr_hugetlbfs_dirs(dracut_t)
+
+kernel_read_messages(dracut_t)
+kernel_read_system_state(dracut_t)
+# for virt-detect
+kernel_read_kernel_sysctls(dracut_t)
+kernel_read_network_state(dracut_t)
+kernel_read_vm_overcommit_sysctl(dracut_t)
+kernel_dontaudit_getattr_proc(dracut_t)
+
+storage_dontaudit_read_fixed_disk(dracut_t)
+
+# create a stripped down shadow file in initrd
+auth_manage_shadow(dracut_t)
+auth_use_nsswitch(dracut_t)
+
+# for virt-detect
+init_read_state(dracut_t)
+
+fstools_domtrans(dracut_t)
 
 libs_exec_ldconfig(dracut_t)
 libs_exec_ld_so(dracut_t)
 libs_exec_lib_files(dracut_t)
+libs_delete_ld_so(dracut_t)
+libs_setattr_ld_so(dracut_t)
+libs_relabel_ld_so(dracut_t)
+libs_delete_lib_files(dracut_t)
+libs_setattr_lib_files(dracut_t)
+libs_relabelto_lib_files(dracut_t)
 
-kernel_read_messages(dracut_t)
-kernel_read_system_state(dracut_t)
+logging_read_syslog_config(dracut_t)
+logging_delete_syslog_config_files(dracut_t)
+logging_setattr_syslog_config_files(dracut_t)
+logging_relabelto_syslog_config_files(dracut_t)
+logging_dontaudit_search_runtime_dirs(dracut_t)
 
+miscfiles_read_generic_certs(dracut_t)
 miscfiles_read_localization(dracut_t)
 
+modutils_exec(dracut_t)
 modutils_read_module_config(dracut_t)
+modutils_delete_module_config(dracut_t)
+modutils_setattr_module_config(dracut_t)
+modutils_relabel_module_config(dracut_t)
 modutils_read_module_deps(dracut_t)
 
-udev_read_rules_files(dracut_t)
+seutil_domtrans_setfiles(dracut_t)
+
+udev_list_rules(dracut_t)
+udev_rw_rules_files(dracut_t)
+udev_delete_rules_files(dracut_t)
+udev_setattr_rules_files(dracut_t)
+udev_relabelto_rules_files(dracut_t)
 
 userdom_search_user_home_dirs(dracut_t)
 userdom_use_user_terminals(dracut_t)
 
+ifdef(`init_systemd',`
+	sysnet_read_config(dracut_t)
+	sysnet_delete_config(dracut_t)
+	sysnet_setattr_config(dracut_t)
+	sysnet_relabelto_config(dracut_t)
+
+	init_manage_all_unit_files(dracut_t)
+	init_relabel_all_unit_files(dracut_t)
+
+	systemd_exec_sysusers(dracut_t)
+	systemd_read_user_units_files(dracut_t)
+')
+
 optional_policy(`
+	installkernel_list_tmp(dracut_t)
+	installkernel_create_tmp_files(dracut_t)
+	installkernel_rw_tmp_files(dracut_t)
+')
+
+optional_policy(`
+	lvm_exec(dracut_t)
 	lvm_read_config(dracut_t)
+')
+
+optional_policy(`
+	portage_exec_gcc_config(dracut_t)
+	portage_list_config(dracut_t)
+	portage_read_config(dracut_t)
+	portage_list_ebuild(dracut_t)
+	portage_read_ebuild_files(dracut_t)
+')
+
+optional_policy(`
+	ssh_exec_keygen(dracut_t)
+	ssh_read_server_keys(dracut_t)
+	ssh_dontaudit_getattr_home_dirs(dracut_t)
+')
+
+optional_policy(`
+	xdg_dontaudit_search_data_dirs(dracut_t)
+')
+
+optional_policy(`
+	zfs_read_config(dracut_t)
+	zfs_read_zpool_cache(dracut_t)
+	zfs_delete_zpool_cache(dracut_t)
+	zfs_setattr_zpool_cache_files(dracut_t)
+	zfs_relabelto_zpool_cache_files(dracut_t)
 ')
