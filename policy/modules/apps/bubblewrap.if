@@ -1,0 +1,141 @@
+## <summary>Run bubblewrap and then transition back to original domain</summary>
+
+########################################
+## <summary>
+##	Role access for bubblewrap.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`bubblewrap_role',`
+	gen_require(`
+		attribute_role bubblewrap_roles;
+		type bubblewrap_exec_t;
+	')
+
+	type $1_bubblewrap_t;
+
+
+	roleattribute $3 bubblewrap_roles;
+	role $3 types { $1_bubblewrap_t };
+
+	application_domain($1_bubblewrap_t, bubblewrap_exec_t)
+	domtrans_pattern($2, bubblewrap_exec_t, $1_bubblewrap_t)
+	allow $1_bubblewrap_t $2:fd use;
+
+	corecmd_bin_domtrans($1_bubblewrap_t, $2)
+	corecmd_shell_domtrans($1_bubblewrap_t, $2)
+	allow $1_bubblewrap_t $2:process2 { nnp_transition nosuid_transition };
+
+	allow $2 $1_bubblewrap_t:fd use;
+
+	allow $1_bubblewrap_t $2:unix_stream_socket rw_socket_perms;
+
+	allow $2 $1_bubblewrap_t:process signal_perms;
+	ps_process_pattern($1_bubblewrap_t, $2)
+
+	allow $1_bubblewrap_t self:process { sigkill setpgid getcap setcap };
+	allow $1_bubblewrap_t self:user_namespace create;
+	allow $1_bubblewrap_t self:cap_userns { dac_override sys_admin sys_ptrace setpcap net_admin };
+	allow $1_bubblewrap_t self:netlink_route_socket create_netlink_socket_perms;
+
+	allow $1_bubblewrap_t self:udp_socket create;
+	allow $1_bubblewrap_t self:unix_dgram_socket { create ioctl };
+
+	kernel_mount_proc($1_bubblewrap_t)
+	kernel_read_sysctl($1_bubblewrap_t)
+	kernel_read_kernel_sysctls($1_bubblewrap_t)
+	kernel_read_system_state($1_bubblewrap_t)
+
+	application_domain($1_bubblewrap_t, bubblewrap_exec_t)
+
+	dev_read_rand($1_bubblewrap_t)
+	dev_remount_fs($1_bubblewrap_t)
+	dev_remount_sysfs($1_bubblewrap_t)
+
+	domain_use_interactive_fds($1_bubblewrap_t)
+
+	files_list_home($1_bubblewrap_t)
+	files_list_non_security($1_bubblewrap_t)
+	files_mounton_non_security($1_bubblewrap_t)
+	files_read_etc_files($1_bubblewrap_t)
+	files_search_mnt($1_bubblewrap_t)
+
+	fs_getattr_nsfs_files($1_bubblewrap_t)
+	fs_list_auto_mountpoints($1_bubblewrap_t)
+	fs_manage_tmpfs_dirs($1_bubblewrap_t)
+	fs_mount_tmpfs($1_bubblewrap_t)
+	fs_remount_cgroup($1_bubblewrap_t)
+	fs_remount_dos_fs($1_bubblewrap_t)
+	fs_remount_fusefs($1_bubblewrap_t)
+	fs_remount_tmpfs($1_bubblewrap_t)
+	fs_remount_xattr_fs($1_bubblewrap_t)
+	fs_unmount_tmpfs($1_bubblewrap_t)
+	fs_unmount_xattr_fs($1_bubblewrap_t)
+
+	miscfiles_read_localization($1_bubblewrap_t)
+
+	selinux_get_fs_mount($1_bubblewrap_t)
+	selinux_remount_fs($1_bubblewrap_t)
+
+	term_mount_devpts($1_bubblewrap_t)
+
+	userdom_list_user_tmp($1_bubblewrap_t)
+	userdom_manage_tmpfs_role($1_r, $1_bubblewrap_t)
+	userdom_read_user_tmp_symlinks($1_bubblewrap_t)
+	userdom_read_user_home_content_symlinks($1_bubblewrap_t)
+	userdom_manage_user_home_content_files($1_bubblewrap_t)
+	userdom_use_user_ptys($1_bubblewrap_t)
+	userdom_use_user_ttys($1_bubblewrap_t)
+
+	ifndef(`enable_mls',`
+		fs_search_removable($1_bubblewrap_t)
+		fs_read_removable_files($1_bubblewrap_t)
+		fs_read_removable_symlinks($1_bubblewrap_t)
+	')
+
+	tunable_policy(`use_nfs_home_dirs',`
+		fs_read_nfs_symlinks($1_bubblewrap_t)
+	')
+
+	tunable_policy(`use_samba_home_dirs',`
+		fs_read_cifs_symlinks($1_bubblewrap_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, $1_bubblewrap_t)
+	')
+')
+
+########################################
+## <summary>
+##	Execute bubblewrap in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`bubblewrap_exec',`
+	gen_require(`
+		type bubblewrap_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, bubblewrap_exec_t)
+')
