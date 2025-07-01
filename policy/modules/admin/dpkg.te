@@ -68,6 +68,8 @@ allow dpkg_t self:sem create_sem_perms;
 allow dpkg_t self:msgq create_msgq_perms;
 allow dpkg_t self:msg { receive send };
 
+can_exec(dpkg_t,  dpkg_exec_t)
+
 allow dpkg_t dpkg_lock_t:file manage_file_perms;
 
 spec_domtrans_pattern(dpkg_t, dpkg_var_lib_t, dpkg_script_t)
@@ -151,6 +153,10 @@ libs_run_ldconfig(dpkg_t, dpkg_roles)
 
 logging_send_syslog_msg(dpkg_t)
 
+miscfiles_read_localization(dpkg_t)
+selinux_use_status_page(dpkg_t)
+seutil_read_file_contexts(dpkg_t)
+
 seutil_manage_src_policy(dpkg_t)
 seutil_manage_bin_policy(dpkg_t)
 
@@ -200,8 +206,8 @@ optional_policy(`
 # Script Local policy
 #
 
-allow dpkg_script_t self:capability { audit_write chown dac_override dac_read_search fowner fsetid ipc_lock kill mknod net_admin setfcap setgid setuid sys_chroot sys_nice sys_ptrace };
-allow dpkg_script_t self:process { dyntransition getattr getcap getpgid getrlimit getsched getsession noatsecure rlimitinh setcap setfscreate setkeycreate setpgid setsched setsockcreate share siginh signal_perms transition };
+allow dpkg_script_t self:capability { audit_write chown dac_override dac_read_search fowner fsetid ipc_lock kill mknod net_admin setfcap setgid setuid sys_chroot sys_nice sys_resource sys_ptrace };
+allow dpkg_script_t self:process { dyntransition getattr getcap getpgid getrlimit getsched getsession noatsecure rlimitinh setcap setfscreate setkeycreate setpgid setsched setsockcreate share siginh signal_perms transition setrlimit };
 allow dpkg_script_t self:fd use;
 allow dpkg_script_t self:fifo_file rw_fifo_file_perms;
 allow dpkg_script_t self:unix_dgram_socket create_socket_perms;
@@ -228,12 +234,14 @@ allow dpkg_script_t dpkg_script_tmpfs_t:sock_file manage_sock_file_perms;
 allow dpkg_script_t dpkg_script_tmpfs_t:fifo_file manage_fifo_file_perms;
 fs_tmpfs_filetrans(dpkg_script_t, dpkg_script_tmpfs_t, { dir file lnk_file sock_file fifo_file })
 
+kernel_getattr_proc(dpkg_script_t)
 kernel_read_kernel_sysctls(dpkg_script_t)
 kernel_read_system_state(dpkg_script_t)
 
 corecmd_exec_all_executables(dpkg_script_t)
 
 dev_list_sysfs(dpkg_script_t)
+dev_getattr_fs(dpkg_script_t)
 # Use named file transition to fix this
 # dev_manage_generic_blk_files(dpkg_script_t)
 # dev_manage_generic_chr_files(dpkg_script_t)
@@ -250,9 +258,11 @@ domain_signull_all_domains(dpkg_script_t)
 files_exec_etc_files(dpkg_script_t)
 files_read_etc_runtime_files(dpkg_script_t)
 files_exec_usr_files(dpkg_script_t)
+files_relabel_non_auth_files(dpkg_script_t)
 
 fs_manage_nfs_files(dpkg_script_t)
 fs_getattr_nfs(dpkg_script_t)
+fs_getattr_tmpfs(dpkg_script_t)
 fs_getattr_xattr_fs(dpkg_script_t)
 fs_mount_xattr_fs(dpkg_script_t)
 fs_unmount_xattr_fs(dpkg_script_t)
@@ -291,10 +301,15 @@ libs_run_ldconfig(dpkg_script_t, dpkg_roles)
 
 logging_send_syslog_msg(dpkg_script_t)
 
+miscfiles_map_man_cache(dpkg_script_t)
+miscfiles_read_fonts(dpkg_script_t)
 miscfiles_read_localization(dpkg_script_t)
 
 seutil_run_loadpolicy(dpkg_script_t, dpkg_roles)
 seutil_run_setfiles(dpkg_script_t, dpkg_roles)
+
+selinux_use_status_page(dpkg_script_t)
+seutil_read_file_contexts(dpkg_script_t)
 
 userdom_use_all_users_fds(dpkg_script_t)
 
@@ -303,6 +318,7 @@ tunable_policy(`allow_execmem',`
 ')
 
 optional_policy(`
+	apt_read_cache(dpkg_script_t)
 	apt_rw_pipes(dpkg_script_t)
 	apt_use_fds(dpkg_script_t)
 ')
@@ -319,6 +335,10 @@ optional_policy(`
 
 optional_policy(`
 	clamav_filetrans_log(dpkg_script_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(dpkg_script_t)
 ')
 
 optional_policy(`
@@ -363,6 +383,7 @@ optional_policy(`
 	systemd_dbus_chat_hostnamed(dpkg_script_t)
 	systemd_dbus_chat_logind(dpkg_script_t)
 	systemd_run_sysusers(dpkg_script_t, dpkg_roles)
+	systemd_watch_passwd_runtime_dirs(dpkg_script_t)
 ')
 
 optional_policy(`
