@@ -1,0 +1,198 @@
+policy_module(incus)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Allow incusd to mount filesystems inside
+##	lxc containers that might be required
+##	by some legacy init systems.
+##	</p>
+## </desc>
+gen_tunable(incus_lxc_legacy_mounts, false)
+
+# common attribute for all container domains
+# that may be used with incus
+attribute incus_container_domain;
+
+container_engine_domain_template(incusd)
+container_system_engine(incusd_t)
+
+type incusd_exec_t;
+container_engine_executable_file(incusd_exec_t)
+init_daemon_domain(incusd_t, incusd_exec_t)
+
+type incusc_exec_t;
+container_engine_executable_file(incusc_exec_t)
+
+type incusc_t;
+application_domain(incusc_t, incusc_exec_t)
+
+type incusc_user_t;
+application_domain(incusc_user_t, incusc_exec_t)
+
+ifdef(`enable_mls',`
+	init_ranged_daemon_domain(incusd_t, incusd_exec_t, s0 - mls_systemhigh)
+')
+
+########################################
+#
+# incus daemon local policy
+
+allow incusd_t self:process getattr;
+dontaudit incusd_t self:capability sys_module;
+allow incusd_t self:anon_inode { create map read write };
+allow incusd_t self:io_uring sqpoll;
+allow incusd_t self:netlink_kobject_uevent_socket create_socket_perms;
+allow incusd_t self:vsock_socket create_stream_socket_perms;
+
+# incusd needs to manage the host network
+allow incusd_t self:rawip_socket create_socket_perms;
+allow incusd_t self:tun_socket { create relabelfrom relabelto };
+
+# mounton access to /proc/sys/kernel/random/boot_id
+kernel_mounton_kernel_sysctl_files(incusd_t)
+
+# incusd wants to load netdev-phys*
+kernel_request_load_module(incusd_t)
+
+kernel_setsched(incusd_t)
+
+# for bridge management
+dev_create_sysfs_files(incusd_t)
+dev_write_sysfs(incusd_t)
+
+dev_getattr_vhost_dev(incusd_t)
+
+# incusd won't start without access to /dev/urandom
+dev_read_urand(incusd_t)
+
+# losetup required for instance creation
+dev_rw_loop_control(incusd_t)
+dev_rw_vhost(incusd_t)
+
+# required for fanotify on /dev/zvol/zdata/incus/virtual-machines/.#vm1.block...
+dev_watch_dev_fs(incusd_t)
+
+# read /etc/machine-id
+files_read_etc_runtime_files(incusd_t)
+
+# incus apparmor support wants to handle /sys/kernel/tracing
+fs_dontaudit_getattr_configfs(incusd_t)
+fs_dontaudit_getattr_tracefs(incusd_t)
+fs_dontaudit_getattr_tracefs_dirs(incusd_t)
+fs_dontaudit_remount_configfs(incusd_t)
+fs_dontaudit_remount_tracefs(incusd_t)
+
+fs_dontaudit_manage_fusefs_files(incusd_t)
+fs_getattr_binfmt_misc_dirs(incusd_t)
+fs_getattr_binfmt_misc_fs(incusd_t)
+fs_mount_binfmt_misc_fs(incusd_t)
+
+# here dontaudit would also work, but consuming more resources
+fs_watch_tmpfs_dirs(incusd_t)
+
+# name="stub-resolv.conf"
+fs_read_tmpfs_files(incusd_t)
+
+iptables_domtrans(incusd_t)
+iptables_kill(incusd_t)
+
+# incus idmap support: checks whether the kernel supports VFS v3 fscaps
+container_exec_engine_tmp_files(incusd_t)
+
+# comm="incusd" path="/run/systemd/resolve/stub-resolv.conf"
+container_read_tmpfs_files(incusd_t)
+
+ifdef(`init_systemd',`
+	init_get_system_status(incusd_t)
+	init_start_system(incusd_t)
+	init_stop_generic_units(incusd_t)
+	init_stop_system(incusd_t)
+')
+
+tunable_policy(`incus_lxc_legacy_mounts',`
+	kernel_getattr_debugfs(incusd_t)
+	kernel_search_debugfs(incusd_t)
+	kernel_remount_debugfs(incusd_t)
+
+	fs_getattr_binfmt_misc_fs(incusd_t)
+	fs_getattr_efivarfs(incusd_t)
+	fs_getattr_pstorefs(incusd_t)
+	fs_remount_efivarfs(incusd_t)
+	fs_remount_pstorefs(incusd_t)
+',`
+	kernel_dontaudit_getattr_debugfs(incusd_t)
+	kernel_dontaudit_search_debugfs(incusd_t)
+	kernel_dontaudit_remount_debugfs(incusd_t)
+
+	fs_dontaudit_getattr_binfmt_misc_fs(incusd_t)
+	fs_dontaudit_getattr_efivarfs(incusd_t)
+	fs_dontaudit_getattr_pstorefs(incusd_t)
+	fs_dontaudit_remount_efivarfs(incusd_t)
+	fs_dontaudit_remount_pstorefs(incusd_t)
+')
+
+optional_policy(`
+	dnsmasq_domtrans(incusd_t)
+	dnsmasq_kill(incusd_t)
+	dnsmasq_signal(incusd_t)
+	dnsmasq_signull(incusd_t)
+')
+
+optional_policy(`
+	dpkg_dontaudit_manage_db(incusd_t)
+')
+
+optional_policy(`
+	mount_exec(incusd_t)
+')
+
+optional_policy(`
+	# these are required for incusd to check and execute qemu
+	qemu_domtrans(incusd_t)
+	qemu_exec(incusd_t)
+
+	# required so that incus will get the VM PID
+	# and make "incus info VM" work
+	# Error: stat /proc/628420: permission denied
+	qemu_read_state(incusd_t)
+
+	qemu_kill(incusd_t)
+	qemu_stream_connect(incusd_t)
+
+	# avc:  denied  { read } for  pid=20404 comm="qemu-system-x86"
+	# name="overcommit_memory" dev="proc" ino=16557
+	# scontext=system_u:system_r:incusd_t:s0
+	# tcontext=system_u:object_r:sysctl_vm_overcommit_t:s0 tclass=file permissive=0
+	kernel_read_vm_overcommit_sysctl(incusd_t)
+
+	# incusd needs support to label VM files before launching
+	# until then, VM files will unfortunately be unlabeled
+	kernel_manage_unlabeled_dirs(incusd_t)
+	kernel_manage_unlabeled_files(incusd_t)
+	kernel_manage_unlabeled_symlinks(incusd_t)
+	kernel_mounton_unlabeled_dirs(incusd_t)
+
+	# required for QEMU feature check, will not start otherwise
+	files_dontaudit_delete_generic_tmp_named_sockets(incusd_t)
+	files_rw_generic_tmp_sockets(incusd_t)
+	files_search_default(incusd_t)
+')
+
+optional_policy(`
+	rsync_exec(incusd_t)
+')
+
+########################################
+#
+# incus lxc container local policy
+
+allow incus_container_domain self:cap_userns { chown dac_read_search fowner fsetid kill net_admin net_bind_service net_raw setgid setpcap setuid sys_admin sys_boot sys_chroot sys_ptrace };
+
+container_manage_engine_tmpfs_dirs(incus_container_domain)
+container_manage_engine_tmpfs_files(incus_container_domain)
+container_manage_engine_tmpfs_symlinks(incus_container_domain)
