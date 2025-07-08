@@ -90,7 +90,7 @@ xdg_cache_content(chromium_xdg_cache_t)
 #
 
 # execmem for load in plugins
-allow chromium_t self:process { execmem getcap getsched setcap setrlimit setsched sigkill signal signull };
+allow chromium_t self:process { execmem execheap getcap getsched setcap setrlimit setsched sigkill signal signull ptrace };
 allow chromium_t self:dir { add_name write };
 allow chromium_t self:file create;
 allow chromium_t self:fifo_file rw_fifo_file_perms;
@@ -115,6 +115,7 @@ allow chromium_t chromium_sandbox_t:unix_stream_socket { getattr read write };
 allow chromium_t chromium_sandbox_t:file read_file_perms;
 
 allow chromium_t chromium_naclhelper_t:process { share };
+allow chromium_t chromium_naclhelper_t:process2 nnp_transition;
 
 # tmp has a wide class access (used for plugins)
 manage_files_pattern(chromium_t, chromium_tmp_t, chromium_tmp_t)
@@ -152,9 +153,12 @@ kernel_associate_proc(chromium_t)
 
 kernel_get_sysvipc_info(chromium_t)
 kernel_list_proc(chromium_t)
+kernel_read_device_sysctls(chromium_t)
 kernel_read_fs_sysctls(chromium_t)
 kernel_read_kernel_sysctls(chromium_t)
 kernel_read_net_sysctls(chromium_t)
+kernel_read_psi(chromium_t)
+kernel_read_vm_overcommit_sysctl(chromium_t)
 
 corecmd_exec_bin(chromium_t)
 # Look for /etc/gentoo-release through a shell invocation running find
@@ -183,6 +187,9 @@ files_read_usr_files(chromium_t)
 files_map_usr_files(chromium_t)
 files_read_etc_files(chromium_t)
 files_watch_etc_dirs(chromium_t)
+files_watch_root_dirs(chromium_t)
+files_watch_runtime_dirs(chromium_t)
+
 # During find for /etc/whatever-release we get lots of output otherwise
 files_dontaudit_getattr_all_dirs(chromium_t)
 
@@ -192,6 +199,8 @@ fs_search_cgroup_dirs(chromium_t)
 
 miscfiles_read_all_certs(chromium_t)
 miscfiles_read_localization(chromium_t)
+
+mount_list_runtime(chromium_t)
 
 sysnet_dns_name_resolve(chromium_t)
 
@@ -254,13 +263,20 @@ tunable_policy(`chromium_read_system_info',`
 ')
 
 optional_policy(`
+	alsa_read_config(chromium_t)
+')
+
+optional_policy(`
 	cups_read_config(chromium_t)
 	cups_stream_connect(chromium_t)
 ')
 
 optional_policy(`
 	dbus_all_session_bus_client(chromium_t)
+	dbus_send_fifo_file_all_session_bus(chromium_t)
 	dbus_system_bus_client(chromium_t)
+	dbus_getattr_session_runtime_socket(chromium_t)
+	dbus_write_session_runtime_socket(chromium_t)
 
 	optional_policy(`
 		unconfined_dbus_chat(chromium_t)
@@ -276,7 +292,11 @@ optional_policy(`
 	')
 
 	optional_policy(`
+		systemd_list_resolved_runtime_dir(chromium_t)
 		systemd_dbus_chat_hostnamed(chromium_t)
+		systemd_dbus_chat_logind(chromium_t)
+		systemd_start_all_user_sessions(chromium_t)
+		systemd_status_all_user_sessions(chromium_t)
 	')
 ')
 
@@ -289,10 +309,16 @@ optional_policy(`
 
 optional_policy(`
 	networkmanager_dbus_chat(chromium_t)
+	networkmanager_watch_runtime_dirs(chromium_t)
 ')
 
 optional_policy(`
 	ssh_dontaudit_agent_tmp(chromium_t)
+')
+
+optional_policy(`
+	wm_map_tmpfs_files(chromium_t)
+	wm_rw_tmpfs_files(chromium_t)
 ')
 
 ########################################
@@ -382,6 +408,9 @@ allow chromium_sandbox_t chromium_naclhelper_t:process share;
 allow chromium_naclhelper_t self:user_namespace create;
 allow chromium_naclhelper_t chromium_t:unix_stream_socket { getattr read write };
 allow chromium_naclhelper_t chromium_sandbox_t:unix_stream_socket { getattr read write };
+
+allow chromium_naclhelper_t self:cap_userns { sys_admin sys_chroot };
+allow chromium_naclhelper_t self:process { setcap signal };
 
 dev_read_sysfs(chromium_naclhelper_t)
 dev_read_urand(chromium_naclhelper_t)
