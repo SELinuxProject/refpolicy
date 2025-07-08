@@ -2,6 +2,25 @@ policy_module(container)
 
 ## <desc>
 ##	<p>
+##	Allow containers to execute read-only container files that
+##	were modified in memory. This may be needed by some legacy
+##	applications but should otherwise be considered a bug in the
+##	application.
+##	</p>
+## </desc>
+gen_tunable(container_execmod_ro_files, false)
+
+## <desc>
+##	<p>
+##	Allow the kernel to relabel to/from container file content,
+##	if for example an NFS share with container files is exported
+##	with the security_label option.
+##	</p>
+## </desc>
+gen_tunable(container_nfs_export_relabel, false)
+
+## <desc>
+##	<p>
 ##	Allow containers to manage cgroups.
 ##	This is required for systemd to run inside
 ##	containers.
@@ -36,6 +55,13 @@ gen_tunable(container_read_public_content, false)
 ##	</p>
 ## </desc>
 gen_tunable(container_spc_create_nfs_servers, false)
+
+## <desc>
+##	<p>
+##	Allow super privileged containers to mount and unmount NFS shares.
+##	</p>
+## </desc>
+gen_tunable(container_spc_mount_nfs, false)
 
 ## <desc>
 ##	<p>
@@ -394,6 +420,10 @@ miscfiles_read_generic_certs(container_domain)
 container_rw_device_files(container_domain)
 container_use_container_ptys(container_domain)
 
+tunable_policy(`container_execmod_ro_files',`
+	allow container_domain container_ro_file_t:file execmod;
+')
+
 tunable_policy(`container_manage_cgroup',`
 	fs_manage_cgroup_dirs(container_domain)
 	fs_manage_cgroup_files(container_domain)
@@ -403,6 +433,7 @@ tunable_policy(`container_manage_public_content',`
 	miscfiles_manage_public_files(container_domain)
 	miscfiles_watch_public_dirs(container_domain)
 ')
+
 optional_policy(`
 	# range_transition is not valid in a tunable
 	miscfiles_rangetrans_all_public_content(container_domain, s0)
@@ -533,7 +564,7 @@ corenet_tcp_connect_all_ports(container_net_domain)
 # Container local policy
 #
 
-allow container_t self:process { getcap setrlimit };
+allow container_t self:process { getcap getpgid setrlimit };
 
 allow container_t container_file_t:filesystem getattr;
 
@@ -555,6 +586,7 @@ fs_read_nsfs_files(container_t)
 kernel_get_sysvipc_info(container_t)
 kernel_read_fs_sysctls(container_t)
 kernel_read_vm_overcommit_sysctl(container_t)
+kernel_dontaudit_request_load_module(container_t)
 
 auth_use_nsswitch(container_t)
 
@@ -891,6 +923,11 @@ files_var_filetrans(container_engine_system_domain, container_engine_cache_t, { 
 container_exec_plugins(container_engine_system_domain)
 container_watch_plugin_dirs(container_engine_system_domain)
 
+fs_getattr_bpf(container_engine_system_domain)
+fs_remount_bpf(container_engine_system_domain)
+
+term_remount_devpts(container_engine_system_domain)
+
 optional_policy(`
 	zfs_domtrans(container_engine_system_domain)
 ')
@@ -966,11 +1003,19 @@ fs_read_cgroup_files(container_kvm_t)
 
 kernel_read_device_sysctls(container_kvm_t)
 kernel_read_irq_sysctls(container_kvm_t)
+kernel_read_network_state(container_kvm_t)
 kernel_read_vm_overcommit_sysctl(container_kvm_t)
+kernel_dontaudit_search_sysctl(container_kvm_t)
 
 allow container_kvm_t spc_t:fd use;
 allow container_kvm_t spc_t:fifo_file write;
 allow container_kvm_t spc_t:tun_socket relabelfrom;
+
+tunable_policy(`container_use_hugetlbfs',`
+	allow container_kvm_t container_engine_tmpfs_t:chr_file rw_chr_file_perms;
+
+	fs_mmap_rw_hugetlbfs_files(container_kvm_t)
+')
 
 ########################################
 #
@@ -1106,13 +1151,18 @@ kernel_get_sysvipc_info(spc_t)
 kernel_load_module(spc_t)
 kernel_request_load_module(spc_t)
 kernel_read_network_state(spc_t)
+kernel_read_software_raid_state(spc_t)
+kernel_read_fs_sysctls(spc_t)
+kernel_read_rpc_sysctls(spc_t)
 kernel_read_vm_overcommit_sysctl(spc_t)
 kernel_rw_kernel_sysctl(spc_t)
-kernel_dontaudit_list_unlabeled(spc_t)
+kernel_list_unlabeled(spc_t)
 # for rook-ceph when provisioning volumes
 kernel_read_state(spc_t)
 kernel_setsched(spc_t)
 kernel_getattr_unlabeled_dirs(spc_t)
+
+selinux_get_enforce_mode(spc_t)
 
 storage_raw_rw_fixed_disk(spc_t)
 
@@ -1131,6 +1181,10 @@ lvm_manage_runtime_files(spc_t)
 modutils_read_module_deps(spc_t)
 
 mount_manage_runtime_files(spc_t)
+
+# for networking agents to manage netns
+sysnet_list_netns_dirs(spc_t)
+sysnet_read_netns_files(spc_t)
 
 # for kubernetes debug pods
 term_use_generic_ptys(spc_t)
@@ -1166,6 +1220,7 @@ allow spc_t container_runtime_t:file watch;
 
 # for kubevirt
 allow spc_t container_kvm_t:process transition;
+dontaudit spc_t container_kvm_t:process { noatsecure rlimitinh siginh };
 ps_process_pattern(spc_t, container_kvm_t)
 
 ifdef(`init_systemd',`
@@ -1185,6 +1240,12 @@ optional_policy(`
 		kernel_rw_rpc_sysctls(spc_t)
 		kernel_rw_fs_sysctls(spc_t)
 		rpc_manage_nfs_state_data(spc_t)
+	')
+
+	# for NFS CSI
+	tunable_policy(`container_spc_mount_nfs',`
+		fs_mount_nfs(spc_t)
+		fs_unmount_nfs(spc_t)
 	')
 ')
 

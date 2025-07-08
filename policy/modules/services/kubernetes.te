@@ -136,6 +136,8 @@ container_stream_connect_spc(kubernetes_container_engine_domain)
 
 kubernetes_search_plugin_dirs(kubernetes_container_engine_domain)
 
+# watch /run/cdi
+allow kubernetes_container_engine_domain kubernetes_runtime_t:dir watch;
 allow kubernetes_container_engine_domain kubernetes_runtime_t:sock_file rw_sock_file_perms;
 
 manage_dirs_pattern(kubernetes_container_engine_domain, kubernetes_runtime_t, kubernetes_runtime_t)
@@ -165,6 +167,13 @@ tunable_policy(`container_read_public_content',`
 
 tunable_policy(`container_use_dri',`
 	dev_mounton_dri_dev(kubernetes_container_engine_domain)
+')
+
+tunable_policy(`container_use_hugetlbfs',`
+	fs_remount_hugetlbfs(kubernetes_container_engine_domain)
+	fs_create_hugetlbfs_dirs(kubernetes_container_engine_domain)
+	fs_relabelfrom_hugetlbfs_dirs(kubernetes_container_engine_domain)
+	fs_mounton_hugetlbfs_dirs(kubernetes_container_engine_domain)
 ')
 
 tunable_policy(`container_use_nfs',`
@@ -203,8 +212,10 @@ kubernetes_manage_plugin_files(kubernetes_container_domain)
 # kubelet local policy
 #
 
-allow kubelet_t self:process { getattr getsched setrlimit signal };
+allow kubelet_t self:process { getattr getsched setrlimit signal signull };
 allow kubelet_t self:capability { chown dac_override dac_read_search fowner fsetid kill net_admin net_raw sys_ptrace sys_resource };
+# seems to run fine without it
+dontaudit kubelet_t self:capability sys_admin;
 allow kubelet_t self:cap_userns sys_ptrace;
 allow kubelet_t self:fifo_file rw_fifo_file_perms;
 allow kubelet_t self:rawip_socket create_socket_perms;
@@ -304,6 +315,7 @@ kernel_read_network_state(kubelet_t)
 kernel_read_system_state(kubelet_t)
 kernel_read_state(kubelet_t)
 kernel_read_vm_sysctls(kubelet_t)
+kernel_request_load_module(kubelet_t)
 kernel_rw_kernel_sysctl(kubelet_t)
 kernel_rw_net_sysctls(kubelet_t)
 kernel_rw_vm_overcommit_sysctl(kubelet_t)
@@ -314,6 +326,7 @@ kernel_setattr_all_unlabeled(kubelet_t)
 # create subPath mountpoints in a volume that
 # hasn't been relabeled yet
 kernel_create_unlabeled_dirs(kubelet_t)
+kernel_add_entry_unlabeled_dirs(kubelet_t)
 
 storage_getattr_fixed_disk_dev(kubelet_t)
 storage_dontaudit_read_fixed_disk(kubelet_t)
@@ -406,6 +419,7 @@ container_getattr_all_files(kubelet_t)
 container_getattr_all_ro_files(kubelet_t)
 container_getattr_all_ro_chr_files(kubelet_t)
 container_getattr_all_var_lib_files(kubelet_t)
+container_getattr_tmpfs_files(kubelet_t)
 
 ifdef(`init_systemd',`
 	init_dbus_chat(kubelet_t)
@@ -413,6 +427,7 @@ ifdef(`init_systemd',`
 	init_get_system_status(kubelet_t)
 	init_start_system(kubelet_t)
 	init_stop_system(kubelet_t)
+	init_reload(kubelet_t)
 	init_get_transient_units_status(kubelet_t)
 	init_start_transient_units(kubelet_t)
 	init_stop_transient_units(kubelet_t)
@@ -428,6 +443,12 @@ tunable_policy(`container_manage_public_content',`
 
 tunable_policy(`container_read_public_content',`
 	miscfiles_search_public_dirs(kubelet_t)
+')
+
+tunable_policy(`container_use_hugetlbfs',`
+	fs_getattr_hugetlbfs(kubelet_t)
+	fs_list_hugetlbfs(kubelet_t)
+	fs_setattr_hugetlbfs_dirs(kubelet_t)
 ')
 
 tunable_policy(`container_use_nfs',`
@@ -459,7 +480,7 @@ optional_policy(`
 # kubeadm local policy
 #
 
-allow kubeadm_t self:process { getsched signal };
+allow kubeadm_t self:process { getsched signal signull };
 # cap_sysadmin is required to unmount volumes in /var/lib/kubelet
 allow kubeadm_t self:capability { dac_override dac_read_search net_admin sys_admin };
 allow kubeadm_t self:fifo_file rw_fifo_file_perms;
@@ -489,6 +510,8 @@ corenet_tcp_connect_kubernetes_port(kubeadm_t)
 corecmd_getattr_all_executables(kubeadm_t)
 corecmd_exec_bin(kubeadm_t)
 
+dev_read_sysfs(kubeadm_t)
+
 domain_use_interactive_fds(kubeadm_t)
 
 files_read_boot_files(kubeadm_t)
@@ -506,7 +529,10 @@ fs_manage_tmpfs_dirs(kubeadm_t)
 fs_getattr_xattr_fs(kubeadm_t)
 fs_unmount_xattr_fs(kubeadm_t)
 fs_getattr_cgroup(kubeadm_t)
-fs_search_cgroup_dirs(kubeadm_t)
+# during prechecks, test for CONFIG_CGROUPS_FREEZER
+fs_create_cgroup_dirs(kubeadm_t)
+fs_delete_cgroup_dirs(kubeadm_t)
+fs_list_cgroup_dirs(kubeadm_t)
 fs_read_cgroup_files(kubeadm_t)
 
 kernel_read_network_state(kubeadm_t)
@@ -620,6 +646,9 @@ dontaudit kubectl_t self:capability { sys_admin sys_resource };
 kernel_dontaudit_getattr_proc(kubectl_t)
 
 auth_use_nsswitch(kubectl_t)
+
+# find kubectl plugins
+corecmd_list_bin(kubectl_t)
 
 # not required, but convenient for using config commands
 # in the config directory
