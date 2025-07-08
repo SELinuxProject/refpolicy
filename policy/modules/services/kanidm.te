@@ -1,0 +1,229 @@
+policy_module(kanidm)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##  <p>
+##  Determine whether kanidm-unixd-tasks can
+##  create home directories via pam.
+##  </p>
+## </desc>
+gen_tunable(kanidm_unixd_create_home_dirs, false)
+
+## <desc>
+##  <p>
+##	Determine whether kanidm-unixd-tasks can
+##	modify the SELinux policy. This is to create
+##	local equivalence file context rules which map
+##	usernames to their UUID, SPN, or other identifier.
+##  </p>
+## </desc>
+gen_tunable(kanidm_unixd_modify_policy, false)
+
+type kanidmd_t;
+type kanidmd_exec_t;
+init_daemon_domain(kanidmd_t, kanidmd_exec_t)
+
+type kanidm_unixd_t;
+type kanidm_unixd_exec_t;
+init_daemon_domain(kanidm_unixd_t, kanidm_unixd_exec_t)
+
+type kanidm_unixd_tasks_t;
+type kanidm_unixd_tasks_exec_t;
+init_daemon_domain(kanidm_unixd_tasks_t, kanidm_unixd_tasks_exec_t)
+
+type kanidm_config_t;
+files_config_file(kanidm_config_t)
+
+type kanidmd_runtime_t;
+files_runtime_file(kanidmd_runtime_t)
+
+type kanidm_unixd_cache_t;
+files_type(kanidm_unixd_cache_t)
+
+type kanidm_unixd_runtime_t;
+files_runtime_file(kanidm_unixd_runtime_t)
+
+type kanidm_var_lib_t;
+files_type(kanidm_var_lib_t)
+
+type kanidm_unixd_var_lib_t;
+files_type(kanidm_unixd_var_lib_t)
+
+type kanidmd_log_t;
+logging_log_file(kanidmd_log_t)
+
+type kanidm_unixd_log_t;
+logging_log_file(kanidm_unixd_log_t)
+
+########################################
+#
+# kanidmd local policy
+#
+
+allow kanidmd_t self:process getsched;
+allow kanidmd_t self:tcp_socket create_stream_socket_perms;
+allow kanidmd_t self:unix_dgram_socket create_socket_perms;
+
+read_files_pattern(kanidmd_t, kanidm_config_t, kanidm_config_t)
+
+manage_sock_files_pattern(kanidmd_t, kanidmd_runtime_t, kanidmd_runtime_t)
+files_runtime_filetrans(kanidmd_t, kanidmd_runtime_t, sock_file)
+
+manage_dirs_pattern(kanidmd_t, kanidm_var_lib_t, kanidm_var_lib_t)
+mmap_manage_files_pattern(kanidmd_t, kanidm_var_lib_t, kanidm_var_lib_t)
+
+corenet_tcp_bind_generic_node(kanidmd_t)
+corenet_tcp_bind_http_port(kanidmd_t)
+corenet_tcp_bind_servistaitsm_port(kanidmd_t)
+
+dev_read_sysfs(kanidmd_t)
+
+domain_use_interactive_fds(kanidmd_t)
+
+files_read_usr_files(kanidmd_t)
+files_read_var_lib_symlinks(kanidmd_t)
+
+fs_read_cgroup_files(kanidmd_t)
+
+kernel_read_vm_overcommit_sysctl(kanidmd_t)
+
+logging_send_syslog_msg(kanidmd_t)
+
+miscfiles_read_generic_certs(kanidmd_t)
+
+userdom_use_inherited_user_terminals(kanidmd_t)
+
+optional_policy(`
+	certbot_read_lib(kanidmd_t)
+')
+
+########################################
+#
+# kanidm-unixd local policy
+#
+
+allow kanidm_unixd_t self:process getsched;
+allow kanidm_unixd_t self:udp_socket create_socket_perms;
+allow kanidm_unixd_t self:unix_dgram_socket create_socket_perms;
+
+read_files_pattern(kanidm_unixd_t, kanidm_config_t, kanidm_config_t)
+
+mmap_manage_files_pattern(kanidm_unixd_t, kanidm_unixd_cache_t, kanidm_unixd_cache_t)
+
+manage_dirs_pattern(kanidm_unixd_t, kanidm_unixd_runtime_t, kanidm_unixd_runtime_t)
+manage_sock_files_pattern(kanidm_unixd_t, kanidm_unixd_runtime_t, kanidm_unixd_runtime_t)
+files_runtime_filetrans(kanidm_unixd_t, kanidm_unixd_runtime_t, { dir sock_file })
+
+files_search_var_lib(kanidm_unixd_t)
+manage_files_pattern(kanidm_unixd_t, kanidm_unixd_var_lib_t, kanidm_unixd_var_lib_t)
+
+append_files_pattern(kanidm_unixd_t, kanidm_unixd_log_t, kanidm_unixd_log_t)
+logging_log_filetrans(kanidm_unixd_t, kanidm_unixd_log_t, { dir file })
+
+corenet_tcp_bind_generic_node(kanidm_unixd_t)
+corenet_tcp_connect_http_port(kanidm_unixd_t)
+
+corecmd_exec_shell(kanidm_unixd_t)
+
+dev_read_sysfs(kanidm_unixd_t)
+dev_rw_tpm(kanidm_unixd_t)
+
+domain_use_interactive_fds(kanidm_unixd_t)
+
+# watch /etc/passwd
+files_watch_etc_files(kanidm_unixd_t)
+
+fs_read_cgroup_files(kanidm_unixd_t)
+
+kernel_read_system_state(kanidm_unixd_t)
+kernel_read_vm_overcommit_sysctl(kanidm_unixd_t)
+
+auth_use_nsswitch(kanidm_unixd_t)
+
+miscfiles_read_generic_certs(kanidm_unixd_t)
+miscfiles_read_localization(kanidm_unixd_t)
+
+logging_send_syslog_msg(kanidm_unixd_t)
+
+userdom_use_inherited_user_terminals(kanidm_unixd_t)
+
+########################################
+#
+# kanidm-unixd-tasks local policy
+#
+
+allow kanidm_unixd_tasks_t self:process getsched;
+# needed for running as root reading /run/kanidm-unixd
+allow kanidm_unixd_tasks_t self:capability dac_override;
+
+read_files_pattern(kanidm_unixd_tasks_t, kanidm_config_t, kanidm_config_t)
+
+stream_connect_pattern(kanidm_unixd_tasks_t, kanidm_unixd_runtime_t, kanidm_unixd_runtime_t, kanidm_unixd_t)
+
+append_files_pattern(kanidm_unixd_tasks_t, kanidm_unixd_log_t, kanidm_unixd_log_t)
+logging_log_filetrans(kanidm_unixd_tasks_t, kanidm_unixd_log_t, { dir file })
+
+corecmd_exec_bin(kanidm_unixd_tasks_t)
+
+# for creating home directories
+domain_obj_id_change_exemption(kanidm_unixd_tasks_t)
+
+files_search_home(kanidm_unixd_tasks_t)
+# recursively watch everything in /etc
+files_list_non_auth_dirs(kanidm_unixd_tasks_t)
+files_watch_non_auth_dirs(kanidm_unixd_tasks_t)
+files_dontaudit_getattr_all_files(kanidm_unixd_tasks_t)
+files_dontaudit_getattr_all_symlinks(kanidm_unixd_tasks_t)
+
+kernel_read_kernel_sysctls(kanidm_unixd_tasks_t)
+kernel_read_system_state(kanidm_unixd_tasks_t)
+
+auth_read_shadow(kanidm_unixd_tasks_t)
+auth_use_nsswitch(kanidm_unixd_tasks_t)
+
+logging_send_syslog_msg(kanidm_unixd_tasks_t)
+
+# query SELinux state at startup
+selinux_get_fs_mount(kanidm_unixd_tasks_t)
+selinux_get_enforce_mode(kanidm_unixd_tasks_t)
+
+seutil_libselinux_linked(kanidm_unixd_tasks_t)
+
+tunable_policy(`kanidm_unixd_create_home_dirs',`
+	allow kanidm_unixd_tasks_t self:process setfscreate;
+	allow kanidm_unixd_tasks_t self:capability { chown dac_read_search };
+
+	userdom_create_user_home_dirs(kanidm_unixd_tasks_t)
+	userdom_setattr_user_home_dirs(kanidm_unixd_tasks_t)
+	userdom_home_filetrans_user_home_dir(kanidm_unixd_tasks_t)
+
+	# create alias symlinks
+	files_manage_home_symlinks(kanidm_unixd_tasks_t)
+
+	# populate new home dirs from /etc/skel
+	userdom_manage_user_home_content_dirs(kanidm_unixd_tasks_t)
+	userdom_manage_user_home_content_files(kanidm_unixd_tasks_t)
+	userdom_manage_user_home_content_symlinks(kanidm_unixd_tasks_t)
+	userdom_user_home_dir_filetrans_user_home_content(kanidm_unixd_tasks_t, { dir file lnk_file sock_file fifo_file })
+
+	seutil_exec_setfiles(kanidm_unixd_tasks_t)
+')
+
+tunable_policy(`kanidm_unixd_create_home_dirs && kanidm_unixd_modify_policy',`
+	# create equivalence rules for home dirs
+	seutil_nnp_domtrans_semanage(kanidm_unixd_tasks_t)
+	seutil_read_file_contexts(kanidm_unixd_tasks_t)
+	seutil_read_default_contexts(kanidm_unixd_tasks_t)
+',`
+	seutil_dontaudit_exec_semanage(kanidm_unixd_tasks_t)
+	seutil_dontaudit_exec_setfiles(kanidm_unixd_tasks_t)
+	seutil_dontaudit_read_file_contexts(kanidm_unixd_tasks_t)
+')
+
+optional_policy(`
+	portage_dontaudit_read_config(kanidm_unixd_tasks_t)
+')
