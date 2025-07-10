@@ -193,7 +193,16 @@ container_domain_template(container)
 typealias container_t alias svirt_lxc_net_t;
 typeattribute container_t container_system_domain, container_user_domain, container_net_domain;
 optional_policy(`
+	incus_container(container_t)
+')
+optional_policy(`
 	kubernetes_container(container_t)
+')
+
+container_domain_template(container_init)
+typeattribute container_init_t container_system_domain, container_user_domain, container_net_domain;
+optional_policy(`
+	incus_container(container_init_t)
 ')
 
 container_engine_domain_template(container_engine)
@@ -215,6 +224,9 @@ optional_policy(`
 type spc_t, container_domain, container_net_domain, container_system_domain, privileged_container_domain;
 domain_type(spc_t)
 role system_r types spc_t;
+optional_policy(`
+	incus_container(spc_t)
+')
 optional_policy(`
 	kubernetes_container(spc_t)
 ')
@@ -627,6 +639,102 @@ tunable_policy(`container_use_userns_sysadmin || container_use_sysadmin',`
 optional_policy(`
 	rpm_read_db(container_t)
 ')
+
+########################################
+#
+# Init container local policy
+#
+# Containers with additional permissions
+# required to run an init system
+
+allow container_init_t self:process { getcap setrlimit };
+allow container_init_t self:bpf prog_load;
+allow container_init_t self:netlink_netfilter_socket create_socket_perms;
+allow container_init_t self:netlink_generic_socket create_socket_perms;
+allow container_init_t self:unix_dgram_socket lock;
+
+allow container_init_t container_devpts_t:chr_file { setattr watch watch_reads };
+allow container_init_t container_engine_tmpfs_t:dir { mounton write };
+allow container_init_t container_file_t:dir mounton;
+allow container_init_t container_file_t:file mounton;
+allow container_init_t container_file_t:filesystem unmount;
+allow container_init_t container_tmpfs_t:dir mounton;
+allow container_init_t container_tmpfs_t:file mounton;
+allow container_init_t container_tmpfs_t:sock_file watch;
+
+container_create_tmpfs_chr_files(container_init_t)
+container_delete_tmpfs_chr_files(container_init_t)
+container_getattr_fs(container_init_t)
+container_lock_container_ptys(container_init_t)
+container_remount_fs(container_init_t)
+container_watch_tmpfs_dirs(container_init_t)
+container_watch_tmpfs_files(container_init_t)
+
+auth_use_nsswitch(container_init_t)
+
+corenet_rw_tun_tap_dev(container_init_t)
+
+dev_getattr_mtrr_dev(container_init_t)
+dev_mounton_sysfs_dirs(container_init_t)
+dev_read_rand(container_init_t)
+dev_read_sysfs(container_init_t)
+dev_read_urand(container_init_t)
+dev_remount_fs(container_init_t)
+dev_remount_sysfs(container_init_t)
+dev_unmount_fs(container_init_t)
+dev_write_sysfs(container_init_t)
+
+files_read_kernel_modules(container_init_t)
+
+fs_manage_cgroup_dirs(container_init_t)
+fs_manage_cgroup_files(container_init_t)
+fs_create_tracefs_dirs(container_init_t)
+fs_dontaudit_remount_configfs(container_init_t)
+fs_dontaudit_remount_efivarfs(container_init_t)
+fs_dontaudit_remount_pstorefs(container_init_t)
+fs_dontaudit_remount_tracefs(container_init_t)
+fs_mount_cgroup(container_init_t)
+fs_mount_ramfs(container_init_t)
+fs_mount_tmpfs(container_init_t)
+fs_read_nsfs_files(container_init_t)
+fs_list_ramfs(container_init_t)
+fs_remount_cgroup(container_init_t)
+fs_remount_fusefs(container_init_t)
+fs_remount_tmpfs(container_init_t)
+fs_remount_xattr_fs(container_init_t)
+fs_rw_cgroup_files(container_init_t)
+fs_setattr_ramfs_dirs(container_init_t)
+fs_unmount_ramfs(container_init_t)
+fs_unmount_tmpfs(container_init_t)
+fs_unmount_xattr_fs(container_init_t)
+fs_watch_cgroup_files(container_init_t)
+
+kernel_dontaudit_remount_debugfs(container_init_t)
+kernel_dontaudit_request_load_module(container_init_t)
+kernel_get_sysvipc_info(container_init_t)
+kernel_mounton_kernel_sysctl_files(container_init_t)
+kernel_mounton_message_if(container_init_t)
+kernel_read_fs_sysctls(container_init_t)
+kernel_read_irq_sysctls(container_init_t)
+kernel_read_network_state(container_init_t)
+kernel_read_psi(container_init_t)
+kernel_read_vm_overcommit_sysctl(container_init_t)
+kernel_remount_proc(container_init_t)
+kernel_rw_unix_sysctls(container_domain)
+
+logging_send_audit_msgs(container_init_t)
+
+selinux_remount_fs(container_init_t)
+
+storage_getattr_fixed_disk_dev(container_init_t)
+storage_getattr_fuse_dev(container_init_t)
+storage_rw_fuse(container_init_t)
+
+term_dontaudit_remount_devpts(container_init_t)
+term_unmount_devpts(container_init_t)
+term_use_generic_ptys(container_init_t)
+
+userdom_use_user_ptys(container_init_t)
 
 ########################################
 #

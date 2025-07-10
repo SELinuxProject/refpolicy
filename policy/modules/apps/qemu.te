@@ -13,6 +13,14 @@ policy_module(qemu)
 ## </desc>
 gen_tunable(qemu_full_network, false)
 
+## <desc>
+##	<p>
+##	Determine whether qemu can be
+##	managed by incus.
+##	</p>
+## </desc>
+gen_tunable(qemu_incus_managed, false)
+
 attribute_role qemu_roles;
 roleattribute system_r qemu_roles;
 
@@ -45,6 +53,35 @@ tunable_policy(`qemu_full_network',`
 	corenet_udp_bind_all_ports(qemu_t)
 	corenet_tcp_bind_all_ports(qemu_t)
 	corenet_tcp_connect_all_ports(qemu_t)
+')
+
+optional_policy(`
+	tunable_policy(`qemu_incus_managed',`
+		incus_stream_connect_daemon(qemu_t)
+
+		files_create_generic_tmp_named_sockets(qemu_t)
+
+		kernel_read_kernel_sysctls(qemu_t)
+		kernel_read_vm_overcommit_sysctl(qemu_t)
+
+		# incus VMs do not start otherwise
+		allow qemu_t self:capability { dac_override dac_read_search setuid setgid };
+		allow qemu_t qemu_tmpfs_t:file mmap_read_file_perms;
+
+		# this is due to incus lack of selinux support for VMs
+		# see https://github.com/lxc/incus/issues/1037
+		kernel_rw_unlabeled_files(qemu_t)
+		kernel_rw_unlabeled_dirs(qemu_t)
+		kernel_manage_unlabeled_symlinks(qemu_t)
+
+		container_manage_engine_tmp_files(qemu_t)
+		container_manage_log_files(qemu_t)
+		container_manage_runtime_files(qemu_t)
+		container_manage_runtime_sock_files(qemu_t)
+	')
+
+	storage_raw_read_fixed_disk_cond(qemu_t, qemu_incus_managed)
+	storage_raw_write_fixed_disk_cond(qemu_t, qemu_incus_managed)
 ')
 
 optional_policy(`
