@@ -5,6 +5,16 @@ policy_module(mon)
 # Declarations
 #
 
+## <desc>
+## <p>
+## Allow local tests to use sys_admin capability
+## </p>
+## <p>
+## Needed for good performance on complex sites
+## </p>
+## </desc>
+gen_tunable(mon_local_sys_admin, false)
+
 type mon_t;
 type mon_exec_t;
 init_daemon_domain(mon_t, mon_exec_t)
@@ -51,6 +61,7 @@ manage_files_pattern(mon_t, mon_tmp_t, mon_tmp_t)
 files_tmp_filetrans(mon_t, mon_tmp_t, { file dir })
 
 manage_files_pattern(mon_t, mon_var_lib_t, mon_var_lib_t)
+allow mon_t mon_var_lib_t:dir manage_dir_perms;
 
 manage_files_pattern(mon_t, mon_var_log_t, mon_var_log_t)
 
@@ -108,6 +119,11 @@ optional_policy(`
 	xdg_read_config_files(mon_t)
 ')
 
+optional_policy(`
+	# for config of xmpp sending program
+	xdg_read_config_files(mon_t)
+')
+
 ########################################
 #
 # Local policy
@@ -143,6 +159,7 @@ auth_use_nsswitch(mon_net_test_t)
 miscfiles_read_generic_certs(mon_net_test_t)
 miscfiles_read_localization(mon_net_test_t)
 
+netutils_domtrans(mon_net_test_t)
 netutils_domtrans_ping(mon_net_test_t)
 
 sysnet_read_config(mon_net_test_t)
@@ -159,6 +176,10 @@ optional_policy(`
 	snmp_read_snmp_var_lib_files(mon_net_test_t)
 ')
 
+optional_policy(`
+	snmp_read_snmp_var_lib_files(mon_net_test_t)
+')
+
 ########################################
 #
 # Local policy
@@ -169,10 +190,14 @@ optional_policy(`
 #
 
 # sys_ptrace is for reading /proc/1/maps etc
-allow mon_local_test_t self:capability { dac_override dac_read_search setgid setuid sys_admin sys_ptrace };
+allow mon_local_test_t self:capability { dac_override dac_read_search setgid setuid sys_rawio sys_ptrace };
 allow mon_local_test_t self:fifo_file rw_fifo_file_perms;
 allow mon_local_test_t self:process { getsched sigkill signal sigstop };
 allow mon_local_test_t self:cap_userns sys_ptrace;
+
+tunable_policy(`mon_local_sys_admin', `
+	allow mon_local_test_t self:capability sys_admin;
+')
 
 can_exec(mon_local_test_t, mon_local_test_exec_t)
 
@@ -203,6 +228,7 @@ files_search_spool(mon_local_test_t)
 files_list_boot(mon_local_test_t)
 
 fs_search_auto_mountpoints(mon_local_test_t)
+fs_getattr_dos_fs(mon_local_test_t)
 fs_getattr_nfs(mon_local_test_t)
 fs_getattr_xattr_fs(mon_local_test_t)
 fs_list_cgroup_dirs(mon_local_test_t)
@@ -240,6 +266,11 @@ storage_raw_read_fixed_disk(mon_local_test_t)
 sysnet_read_config(mon_local_test_t)
 
 userdom_dontaudit_read_user_tmpfs_files(mon_local_test_t)
+
+optional_policy(`
+	dbus_system_bus_client(mon_local_test_t)
+	devicekit_dbus_chat_power(mon_local_test_t)
+')
 
 optional_policy(`
 	gpm_getattr_gpmctl(mon_local_test_t)
