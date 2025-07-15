@@ -92,12 +92,16 @@ ifdef(`enable_mls',`
 	init_ranged_system_domain(system_dbusd_t, dbusd_exec_t, s0 - mls_systemhigh)
 ')
 
+optional_policy(`
+	systemd_use_logind_fds(system_dbusd_t)
+')
+
 ########################################
 #
 # Local policy
 #
 
-allow system_dbusd_t self:capability { dac_override setgid setpcap setuid sys_resource };
+allow system_dbusd_t self:capability { dac_override kill setgid setpcap setuid sys_resource };
 # net_admin for changing buffer sizes
 dontaudit system_dbusd_t self:capability { net_admin sys_tty_config };
 allow system_dbusd_t self:process { getattr getcap getsched setcap setpgid setrlimit signal_perms };
@@ -171,6 +175,7 @@ term_dontaudit_use_console(system_dbusd_t)
 auth_use_nsswitch(system_dbusd_t)
 auth_read_pam_console_data(system_dbusd_t)
 
+init_read_runtime_files(system_dbusd_t)
 init_use_fds(system_dbusd_t)
 init_use_script_ptys(system_dbusd_t)
 init_all_labeled_script_domtrans(system_dbusd_t)
@@ -222,6 +227,8 @@ ifdef(`init_systemd', `
 
 	tunable_policy(`dbus_broker_system_bus',`
 		init_get_system_status(system_dbusd_t)
+		init_get_generic_units_status(system_dbusd_t)
+		init_start_generic_units(system_dbusd_t)
 	')
 ')
 
@@ -253,6 +260,15 @@ optional_policy(`
 ')
 
 optional_policy(`
+	tunable_policy(`dbus_broker_system_bus',`
+		rtkit_service_start(system_dbusd_t)
+		rtkit_service_status(system_dbusd_t)
+	')
+')
+
+optional_policy(`
+	systemd_connect_machined(system_dbusd_t)
+
 	# for /run/systemd/users/*
 	systemd_read_logind_runtime_files(system_dbusd_t)
 	systemd_write_inherited_logind_inhibit_pipes(system_dbusd_t)
@@ -264,11 +280,19 @@ optional_policy(`
 
 	# allow populating of /var/lib/dbus by systemd-tmpfilesd
 	systemd_tmpfilesd_managed(system_dbusd_var_lib_t)
+	tunable_policy(`dbus_broker_system_bus',`
+		systemd_start_power_units(system_dbusd_t)
+		systemd_status_power_units(system_dbusd_t)
+	')
 ')
 
 optional_policy(`
 	bluetooth_use(system_dbusd_t)
 	bluetooth_use_inherited_helper_stream_sockets(system_dbusd_t)
+	tunable_policy(`dbus_broker_system_bus',`
+		bluetooth_service_status(system_dbusd_t)
+		bluetooth_service_start(system_dbusd_t)
+	')
 ')
 
 optional_policy(`
@@ -285,6 +309,8 @@ optional_policy(`
 
 optional_policy(`
 	unconfined_dbus_send(system_dbusd_t)
+	# needed for wayland start with GNOME
+	unconfined_use_fds(system_dbusd_t)
 ')
 
 optional_policy(`
@@ -347,6 +373,7 @@ fs_getattr_romfs(session_bus_type)
 fs_getattr_xattr_fs(session_bus_type)
 fs_list_inotifyfs(session_bus_type)
 fs_dontaudit_list_nfs(session_bus_type)
+fs_search_tmpfs(session_bus_type)
 
 kernel_getattr_proc(session_bus_type)
 
@@ -356,6 +383,7 @@ selinux_compute_access_vector(session_bus_type)
 selinux_compute_create_context(session_bus_type)
 selinux_compute_relabel_context(session_bus_type)
 selinux_compute_user_contexts(session_bus_type)
+selinux_use_status_page(session_bus_type)
 
 auth_read_pam_console_data(session_bus_type)
 
