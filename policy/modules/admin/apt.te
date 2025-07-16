@@ -39,8 +39,9 @@ logging_log_file(apt_var_log_t)
 # Local policy
 #
 
-allow apt_t self:capability { chown dac_override fowner fsetid kill setgid setuid };
-allow apt_t self:process { fork setpgid signal };
+allow apt_t self:capability { chown dac_override dac_read_search fowner fsetid kill setgid setuid };
+dontaudit apt_t self:capability net_admin;
+allow apt_t self:process { fork setpgid signal getsched };
 allow apt_t self:fd use;
 allow apt_t self:fifo_file rw_fifo_file_perms;
 allow apt_t self:unix_dgram_socket sendto;
@@ -59,7 +60,9 @@ files_lock_filetrans(apt_t, apt_lock_t, { dir file })
 
 manage_dirs_pattern(apt_t, apt_tmp_t, apt_tmp_t)
 manage_files_pattern(apt_t, apt_tmp_t, apt_tmp_t)
+manage_lnk_files_pattern(apt_t, apt_tmp_t, apt_tmp_t)
 files_tmp_filetrans(apt_t, apt_tmp_t, { file dir })
+allow apt_t apt_tmp_t:file { relabelfrom relabelto };
 
 manage_dirs_pattern(apt_t, apt_tmpfs_t, apt_tmpfs_t)
 manage_files_pattern(apt_t, apt_tmpfs_t, apt_tmpfs_t)
@@ -71,9 +74,12 @@ fs_tmpfs_filetrans(apt_t, apt_tmpfs_t, { dir file lnk_file sock_file fifo_file }
 manage_files_pattern(apt_t, apt_var_cache_t, apt_var_cache_t)
 manage_dirs_pattern(apt_t, apt_var_cache_t, apt_var_cache_t)
 files_var_filetrans(apt_t, apt_var_cache_t, dir)
+allow apt_t apt_var_cache_t:file map;
 
 manage_files_pattern(apt_t, apt_var_lib_t, apt_var_lib_t)
 files_var_lib_filetrans(apt_t, apt_var_lib_t, dir)
+allow apt_t apt_var_lib_t:dir setattr;
+manage_lnk_files_pattern(apt_t, apt_var_lib_t, apt_var_lib_t)
 
 allow apt_t apt_var_log_t:file manage_file_perms;
 allow apt_t apt_var_log_t:dir manage_dir_perms;
@@ -101,12 +107,14 @@ domain_getattr_all_domains(apt_t)
 domain_use_interactive_fds(apt_t)
 
 files_exec_usr_files(apt_t)
+files_list_boot(apt_t)
 files_read_etc_files(apt_t)
 files_read_etc_runtime_files(apt_t)
 
 fs_getattr_all_fs(apt_t)
 
 init_get_system_status(apt_t)
+init_read_state(apt_t)
 
 term_create_pty(apt_t, apt_devpts_t)
 term_list_ptys(apt_t)
@@ -143,6 +151,8 @@ optional_policy(`
 
 	optional_policy(`
 		systemd_dbus_chat_logind(apt_t)
+		systemd_use_logind_fds(apt_t)
+		systemd_write_inherited_logind_inhibit_pipes(apt_t)
 	')
 
 	optional_policy(`
@@ -180,7 +190,7 @@ optional_policy(`
 ')
 
 optional_policy(`
-	systemd_dbus_chat_logind(apt_t)
+	systemd_status_networkd(apt_t)
 ')
 
 optional_policy(`
