@@ -265,6 +265,7 @@ def analyze_fc_file(fc_path):
             reduced_path = re.sub(r'\[[-0-9A-Za-z_.^]+\][?*]', '', reduced_path)
             reduced_path = re.sub(r'\[[-0-9A-Za-z_.^]+\](\+)?', '∞', reduced_path)
             reduced_path = reduced_path.replace('/[^/]+/', '/∞/')
+            reduced_path = re.sub(r'\([·∞†δ]{2,4}\)\?', '', reduced_path)
 
             if '.' in reduced_path:
                 print(f"{prefix}unescaped dot still present {path} after being reduced to {reduced_path} (suggestion: use \\. to match a dot, or a charset like [^/])")  # noqa
