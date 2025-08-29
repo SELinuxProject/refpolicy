@@ -88,6 +88,7 @@ template(`dbus_role_template',`
 
 	allow $3 $1_dbusd_t:unix_stream_socket { connectto create_stream_socket_perms };
 	allow $3 $1_dbusd_t:dbus { acquire_svc send_msg };
+	allow $1_dbusd_t $3:dbus send_msg;
 	allow $3 $1_dbusd_t:fd use;
 
 	dontaudit $1_dbusd_t self:process getcap;
@@ -101,7 +102,14 @@ template(`dbus_role_template',`
 	allow $3 session_dbusd_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
 	userdom_user_home_dir_filetrans($3, session_dbusd_home_t, dir, ".dbus")
 
+	userdom_delete_user_tmp_named_sockets($1_dbusd_t)
+	userdom_manage_user_tmp_dirs($1_dbusd_t)
+
+	# for app-at\x2dspi\x2ddbus\x2dbus@autostart.service
+	userdom_manage_user_tmp_sockets($1_dbusd_t)
+
 	domtrans_pattern($3, dbusd_exec_t, $1_dbusd_t)
+	can_exec($1_dbusd_t, dbusd_exec_t)
 
 	ps_process_pattern($3, $1_dbusd_t)
 	allow $3 $1_dbusd_t:process { ptrace signal_perms };
@@ -126,12 +134,22 @@ template(`dbus_role_template',`
 	auth_use_nsswitch($1_dbusd_t)
 
 	dbus_exec($1_dbusd_t)
+	files_read_etc_runtime_files($1_dbusd_t)
 
 	optional_policy(`
 		systemd_read_logind_runtime_files($1_dbusd_t)
 		systemd_user_daemon_domain($1, dbusd_exec_t, $1_dbusd_t)
 		systemd_user_send_systemd_notify($1, $1_dbusd_t)
 		systemd_user_unix_stream_activated_socket($1_dbusd_t, session_dbusd_runtime_t)
+	')
+
+	optional_policy(`
+		init_dbus_chat($1_dbusd_t)
+		dbus_system_bus_client($1_dbusd_t)
+	')
+
+	optional_policy(`
+		xdg_read_data_files($1_dbusd_t)
 	')
 
 	optional_policy(`

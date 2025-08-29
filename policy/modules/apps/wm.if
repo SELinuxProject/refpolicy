@@ -53,15 +53,19 @@ template(`wm_role_template',`
 	# Policy
 	#
 
+	allow $1_wm_t self:process getcap;
+
 	allow $3 $1_wm_t:fd use;
 
-	allow $1_wm_t $3:unix_stream_socket connectto;
-	allow $3 $1_wm_t:unix_stream_socket connectto;
+	allow $1_wm_t $3:unix_stream_socket { connectto read write getopt getattr accept };
+	allow $3 $1_wm_t:unix_stream_socket { connectto read write getopt };
 
-	allow $3 $1_wm_t:process { ptrace signal_perms };
+	# ptrace here would allow messing with keyboard
+	allow $3 $1_wm_t:process { signal_perms };
 	ps_process_pattern($3, $1_wm_t)
 
-	allow $1_wm_t $3:process { sigkill signull };
+	allow $1_wm_t $3:process { sigkill signull signal };
+	ps_process_pattern($1_wm_t, $3)
 
 	domtrans_pattern($3, wm_exec_t, $1_wm_t)
 
@@ -74,9 +78,13 @@ template(`wm_role_template',`
 	mls_xwin_write_all_levels($1_wm_t)
 	mls_fd_use_all_levels($1_wm_t)
 
+	auth_domtrans_chk_passwd($1_wm_t)
 	auth_use_nsswitch($1_wm_t)
 
 	miscfiles_manage_fonts_cache($1_wm_t)
+
+	userdom_rw_user_tmpfs_files($1_wm_t)
+	userdom_map_user_tmpfs_files($1_wm_t)
 
 	xserver_role($1, $1_wm_t, $3, $4)
 	xserver_manage_core_devices($1_wm_t)
@@ -98,6 +106,10 @@ template(`wm_role_template',`
 	')
 
 	optional_policy(`
+		modemmanager_dbus_chat($1_wm_t)
+	')
+
+	optional_policy(`
 		networkmanager_watch_etc_dirs($1_wm_t)
 	')
 
@@ -111,7 +123,9 @@ template(`wm_role_template',`
 	')
 
 	optional_policy(`
+		systemd_read_logind_state($1_wm_t)
 		systemd_user_app_status($1, $1_wm_t)
+		systemd_write_inherited_logind_inhibit_pipes($1_wm_t)
 	')
 
 	optional_policy(`
