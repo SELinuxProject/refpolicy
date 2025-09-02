@@ -24,6 +24,7 @@ template(`systemd_role_template',`
 	gen_require(`
 		class service { reload start status stop };
 		class system { disable enable reload start status stop };
+		class dbus send_msg;
 		attribute systemd_user_session_type, systemd_log_parse_env_type;
 		attribute systemd_user_activated_sock_file_type, systemd_user_unix_stream_activated_socket_type;
 		type systemd_analyze_exec_t, systemd_cgtop_exec_t;
@@ -68,6 +69,9 @@ template(`systemd_role_template',`
 	corecmd_shell_domtrans($1_systemd_t, $3)
 	corecmd_bin_domtrans($1_systemd_t, $3)
 
+	allow $3 $1_systemd_t:dbus send_msg;
+	allow $1_systemd_t $3:dbus send_msg;
+
 	# systemctl --user rules
 	allow $1_systemd_t systemd_user_unix_stream_activated_socket_type:unix_stream_socket { create_socket_perms listen };
 	allow $1_systemd_t systemd_user_activated_sock_file_type:dir manage_dir_perms;
@@ -93,7 +97,10 @@ template(`systemd_role_template',`
 	allow $1_systemd_t $3:file read_file_perms;
 	allow $1_systemd_t $3:lnk_file read_lnk_file_perms;
 
+	dev_getattr_sound_dev($1_systemd_t)
 	dev_read_urand($1_systemd_t)
+	storage_getattr_removable_dev($1_systemd_t)
+	term_dontaudit_getattr_unallocated_ttys($1_systemd_t)
 
 	files_search_home($1_systemd_t)
 	files_watch_etc_dirs($1_systemd_t)
@@ -104,6 +111,8 @@ template(`systemd_role_template',`
 	fs_watch_cgroup_files($1_systemd_t)
 
 	kernel_dontaudit_getattr_proc($1_systemd_t)
+	kernel_read_psi($1_systemd_t)
+
 	# if systemd exists in the initrd, the journal socket stays labeled kernel_t
 	# without this access, user services cannot log to the journal
 	kernel_stream_connect($1_systemd_t)
@@ -230,8 +239,22 @@ template(`systemd_role_template',`
 	systemd_watch_passwd_runtime_dirs($3)
 
 	optional_policy(`
+		gpg_stream_connect_agent($1_systemd_t)
+	')
+
+	optional_policy(`
+		modemmanager_dbus_chat($1_systemd_t)
+	')
+
+	optional_policy(`
+		pulseaudio_domtrans($1_systemd_t)
+		pulseaudio_manage_tmp_dirs($1_systemd_t)
+	')
+
+	optional_policy(`
 		xdg_config_filetrans($1_systemd_t, systemd_conf_home_t, dir, "systemd")
 		xdg_data_filetrans($1_systemd_t, systemd_data_home_t, dir, "systemd")
+		xdg_read_cache_files($1_systemd_t)
 		xdg_read_config_files($1_systemd_t)
 		xdg_read_data_files($1_systemd_t)
 	')
@@ -271,6 +294,7 @@ template(`systemd_user_daemon_domain',`
 	')
 
 	domtrans_pattern($1_systemd_t, $2, $3)
+	allow $1_systemd_t $3:process noatsecure;
 
 	systemd_user_app_status($1, $3)
 ')
