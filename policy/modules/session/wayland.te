@@ -1,0 +1,81 @@
+policy_module(wayland)
+
+########################################
+#
+# Declarations
+#
+
+attribute wayland_compositor;
+attribute wayland_client;
+
+# For use by clients only allowed to talk through security_context restricted sockets.
+attribute wayland_client_sandboxed;
+
+type wayland_runtime_t;
+files_runtime_file(wayland_runtime_t)
+userdom_user_runtime_content(wayland_runtime_t)
+
+# For use by sandbox engines implementing the security_context protocol.
+type wayland_runtime_sandboxed_t;
+files_runtime_file(wayland_runtime_t)
+userdom_user_runtime_content(wayland_runtime_sandboxed_t)
+
+# Wayland compositors also have their own shared memory.
+attribute wayland_compositor_tmpfs_type;
+
+# No need to distinguish between the shm of sandboxed and unsandboxed clients;
+# all clients should have their own shm type, this attribute is only to group them
+# and grant wayland_compositor access to them.
+attribute wayland_client_tmpfs_type;
+
+##############################
+#
+# Local Policy
+#
+
+allow wayland_client wayland_compositor_tmpfs_type:file mmap_rw_inherited_file_perms;
+
+allow wayland_compositor wayland_client_tmpfs_type:file mmap_rw_inherited_file_perms;
+allow wayland_compositor wayland_client:fd use;
+allow wayland_compositor wayland_client_sandboxed:fd use;
+
+# Compositors may make more privileged sockets in $XDG_RUNTIME_DIR, so let's
+# hardcode in WAYLAND_DISPLAY so we can give other sockets created a higher level
+# of privilege (namebased filetransitions are not supported yet).
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-0")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-1")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-2")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-3")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-4")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-5")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-6")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-7")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-8")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, sock_file, "wayland-9")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-0.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-1.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-2.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-3.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-4.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-5.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-6.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-7.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-8.lock")
+userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-9.lock")
+
+# GPU Access
+dev_rw_dri(wayland_compositor)
+
+files_read_usr_files(wayland_compositor)
+
+# Fonts
+miscfiles_read_fonts(wayland_compositor)
+xserver_use_user_fonts(wayland_compositor)
+
+xserver_read_xkb_libs(wayland_compositor)
+xserver_rw_mesa_shader_cache(wayland_compositor)
+
+optional_policy(`
+	# For seats
+	systemd_use_logind_fds(wayland_compositor)
+')
