@@ -1,0 +1,73 @@
+policy_module(sway)
+
+########################################
+#
+# Declarations
+#
+
+type sway_t;
+type sway_exec_t;
+userdom_user_application_domain(sway_t, sway_exec_t)
+wayland_compositor_domain(sway_t)
+
+type sway_tmpfs_t;
+userdom_user_tmpfs_file(sway_tmpfs_t)
+wayland_compositor_tmpfs(sway_tmpfs_t)
+
+type sway_etc_t;
+files_config_file(sway_etc_t)
+
+type sway_xdg_config_t;
+xdg_config_content(sway_xdg_config_t)
+
+type sway_runtime_t;
+files_runtime_file(sway_runtime_t)
+
+########################################
+#
+# Local policy
+#
+
+# https://github.com/swaywm/sway/blob/master/sway/realtime.c
+allow sway_t self:process { getsched setsched };
+
+read_files_pattern(sway_t, sway_etc_t, sway_etc_t)
+
+# No transition or creation: sway only ever reads the config.
+read_files_pattern(sway_t, sway_xdg_config_t, sway_xdg_config_t)
+
+manage_sock_files_pattern(sway_t, sway_runtime_t, sway_runtime_t)
+# sway-ipc: Wayland display socket is handled by the implied transitions in
+# wayland_compositor_domain().
+files_runtime_filetrans(sway_t, sway_runtime_t, sock_file)
+
+manage_files_pattern(sway_t, sway_tmpfs_t, sway_tmpfs_t)
+allow sway_t sway_tmpfs_t:file map;
+fs_tmpfs_filetrans(sway_t, sway_tmpfs_t, file)
+
+# os-release/lsb-release information, /etc/fonts/fonts.conf
+files_read_etc_files(sway_t)
+
+# pixmaps and icons for xcursor.
+files_read_usr_files(sway_t)
+
+# /dev/udmabuf allocator.
+dev_rw_dma_dev(sway_t)
+
+# XXX: mesa tries to read boot_vga when using i915, and also attempts to read
+# the various cpu_capacity sysfiles - should this be moved into the wayland
+# modules?
+dev_read_sysfs(sway_t)
+
+# XXX: /proc/meminfo, seems to be mesa related - should this be moved into the
+# wayland module?
+kernel_read_system_state(sway_t)
+
+# No need for corecmd_bin_domtrans(), sway executes everything with /bin/sh:
+# https://github.com/swaywm/sway/blob/055be4ec35eec4eaaf066a18ccbf5132ebed0694/sway/commands/exec_always.c#L64
+# Other things that are executed (e.g. swaybar, swaybg, and swaynag) are done
+# so specially by sway, and require specific policy. Those modules should add
+# domain transitions as needed instead.
+# TODO: this should be in the sway_role/sway_role_template interface such that
+# it can be called with the userdomain.
+# corecmd_shell_domtrans(sway_t)
