@@ -39,6 +39,9 @@ allow wayland_compositor wayland_client_tmpfs_type:file mmap_rw_inherited_file_p
 allow wayland_compositor wayland_client:fd use;
 allow wayland_compositor wayland_client_sandboxed:fd use;
 
+allow wayland_compositor wayland_runtime_t:file manage_file_perms;
+allow wayland_compositor wayland_runtime_t:sock_file manage_sock_file_perms;
+
 # Compositors may make more privileged sockets in $XDG_RUNTIME_DIR, so let's
 # hardcode in WAYLAND_DISPLAY so we can give other sockets created a higher level
 # of privilege (namebased filetransitions are not supported yet).
@@ -63,8 +66,20 @@ userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "way
 userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-8.lock")
 userdom_user_runtime_filetrans(wayland_compositor, wayland_runtime_t, file, "wayland-9.lock")
 
+# /dev/udmabuf allocator. This is for the linux-dmabuf-v1 protocol. This is a
+# fairly broad permission, and linux-dmabuf-v1 is a Wayland extension which is
+# implemented by all major compositors:
+# https://wayland.app/protocols/linux-dmabuf-v1#compositor-support
+# However, do not grant this access to wayland_client: shmem is the default way
+# for clients to share data with the compositor, and the majority of clients do
+# not make use of linux-dmabuf-v1.
+dev_rw_dma_dev(wayland_compositor)
+
 # GPU Access
 dev_rw_dri(wayland_compositor)
+
+# libinput
+dev_rw_input_dev(wayland_compositor)
 
 files_read_usr_files(wayland_compositor)
 
@@ -75,7 +90,18 @@ xserver_use_user_fonts(wayland_compositor)
 xserver_read_xkb_libs(wayland_compositor)
 xserver_rw_mesa_shader_cache(wayland_compositor)
 
+tunable_policy(`wayland_compositor_execmem',`
+	# Most likely needed for llvmpipe.
+	allow wayland_compositor self:process execmem;
+')
+
 optional_policy(`
 	# For seats
+	systemd_dbus_chat_logind(wayland_compositor)
 	systemd_use_logind_fds(wayland_compositor)
+')
+
+optional_policy(`
+	# For input devices
+	udev_read_runtime_files(wayland_compositor)
 ')
