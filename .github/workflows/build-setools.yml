@@ -23,19 +23,22 @@ jobs:
       artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
 
     steps:
+    - name: Checkout setools
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/setools
+        ref: "${{ inputs.version }}"
+
+    - name: Get the latest commit hash
+      shell: bash
+      run: echo "COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
     - name: Download cached SETools
       uses: actions/cache@v4
       id: cache-setools
       with:
         path: "setools-*.whl"
-        key: setools-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
-
-    - name: Checkout setools
-      uses: actions/checkout@v4
-      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
-      with:
-        repository: SELinuxProject/setools
-        ref: "${{ inputs.version }}"
+        key: setools-${{ inputs.version }}-${{ env.COMMIT_HASH }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
 
     - name: Download userspace artifact
       uses: actions/download-artifact@v4
@@ -71,3 +74,11 @@ jobs:
       with:
         name: setools
         path: "setools-*.whl"
+
+    - name: Upload failed build directory artifact
+      if: ${{ failure() && runner.debug }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: failed-setools
+        path: |
+          ${{ github.workspace }}

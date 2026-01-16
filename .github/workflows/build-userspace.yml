@@ -27,20 +27,24 @@ jobs:
       binary-id: ${{ steps.upload-artifact.outputs.artifact-id }}
 
     steps:
+    - name: Checkout SELinux userspace tools and libs
+      uses: actions/checkout@v4
+      with:
+        repository: SELinuxProject/selinux
+        ref: "${{ inputs.version }}"
+        path: "${{ env.SELINUX_SRC }}"
+
+    - name: Get the latest commit hash
+      shell: bash
+      run: echo "COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+      working-directory: "${{ env.SELINUX_SRC }}"
+
     - name: Download cached SELinux userspace
       uses: actions/cache@v4
       id: cache-userspace
       with:
         path: ${{ github.workspace }}/selinux.tar.gz
-        key: selinux-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
-
-    - name: Checkout SELinux userspace tools and libs
-      uses: actions/checkout@v4
-      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
-      with:
-        repository: SELinuxProject/selinux
-        ref: "${{ inputs.version }}"
-        path: "${{ env.SELINUX_SRC }}"
+        key: selinux-${{ inputs.version }}-${{ env.COMMIT_HASH }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -100,3 +104,11 @@ jobs:
       with:
         name: selinux
         path: "${{ github.workspace }}/selinux.tar.gz"
+
+    - name: Upload failed build directory
+      if: ${{ failure() && runner.debug }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: failed-selinux
+        path: |
+          ${{ github.workspace }}
