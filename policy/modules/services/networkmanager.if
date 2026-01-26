@@ -404,13 +404,14 @@ interface(`networkmanager_status',`
 #
 interface(`networkmanager_admin',`
 	gen_require(`
+		attribute NetworkManager_dispatch_domains;
 		type NetworkManager_t, NetworkManager_initrc_exec_t, NetworkManager_etc_t;
 		type NetworkManager_etc_rw_t, NetworkManager_log_t, NetworkManager_tmp_t;
 		type NetworkManager_var_lib_t, NetworkManager_runtime_t, wpa_cli_t;
 	')
 
 	allow $1 { wpa_cli_t NetworkManager_t }:process { ptrace signal_perms };
-	ps_process_pattern($1, { wpa_cli_t NetworkManager_t })
+	ps_process_pattern($1, { wpa_cli_t NetworkManager_t NetworkManager_dispatch_domains })
 
 	init_startstop_service($1, $2, NetworkManager_t, NetworkManager_initrc_exec_t)
 
@@ -429,4 +430,35 @@ interface(`networkmanager_admin',`
 
 	files_search_tmp($1)
 	admin_pattern($1, NetworkManager_tmp_t)
+')
+
+########################################
+## <summary>
+##	Create a set of derived types for
+##	networkmanager dispatcher scripts.
+## </summary>
+## <param name="prefix">
+##	<summary>
+##	The prefix to be used for deriving type names.
+##	</summary>
+## </param>
+#
+template(`networkmanager_dispatch_script',`
+	gen_require(`
+		attribute NetworkManager_dispatch_domains;
+		attribute NetworkManager_dispatch_exec_type;
+
+		type NetworkManager_t;
+	')
+
+	type NetworkManager_dispatch_$1_t, NetworkManager_dispatch_domains;
+	domain_type(NetworkManager_dispatch_$1_t)
+	corecmd_shell_entry_type(NetworkManager_dispatch_$1_t)
+	role system_r types NetworkManager_dispatch_$1_t;
+
+	type NetworkManager_dispatch_$1_exec_t, NetworkManager_dispatch_exec_type;
+	domain_entry_file(NetworkManager_dispatch_$1_t, NetworkManager_dispatch_$1_exec_t)
+
+	allow NetworkManager_dispatch_$1_t NetworkManager_dispatch_$1_exec_t:file entrypoint;
+	domtrans_pattern(NetworkManager_t, NetworkManager_dispatch_$1_exec_t, NetworkManager_dispatch_$1_t)
 ')
