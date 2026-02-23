@@ -269,9 +269,18 @@ attribute httpd_script_domains;
 attribute_role httpd_helper_roles;
 roleattribute system_r httpd_helper_roles;
 
+attribute_role httpd_ctl_roles;
+roleattribute system_r httpd_ctl_roles;
+
 type httpd_t;
 type httpd_exec_t;
 init_daemon_domain(httpd_t, httpd_exec_t)
+
+type httpd_ctl_t;
+type httpd_ctl_exec_t;
+application_domain(httpd_ctl_t, httpd_ctl_exec_t)
+allow httpd_ctl_t httpd_exec_t:file entrypoint;
+role httpd_ctl_roles types httpd_ctl_t;
 
 type httpd_cache_t;
 files_type(httpd_cache_t)
@@ -906,6 +915,157 @@ optional_policy(`
 	sympa_read_var_files(httpd_t)
 ')
 
+########################################
+#
+# httpd_ctl local policy
+#
+
+allow httpd_ctl_t self:capability { chown kill };
+# dac_override is required to read files owned by www-data, e.g., error.log
+allow httpd_ctl_t self:capability dac_override;
+dontaudit httpd_ctl_t self:capability net_admin;
+allow httpd_ctl_t httpd_t:process { getattr getcap getpgid getrlimit getsched getsession noatsecure rlimitinh setcap setkeycreate setpgid setsched setsockcreate share siginh signal_perms };
+userdom_use_inherited_user_terminals(httpd_ctl_t)
+
+manage_dirs_pattern(httpd_ctl_t, httpd_cache_t, httpd_cache_t)
+mmap_manage_files_pattern(httpd_ctl_t, httpd_cache_t, httpd_cache_t)
+manage_lnk_files_pattern(httpd_ctl_t, httpd_cache_t, httpd_cache_t)
+files_var_filetrans(httpd_ctl_t, httpd_cache_t, dir)
+
+allow httpd_ctl_t httpd_config_t:dir list_dir_perms;
+read_files_pattern(httpd_ctl_t, httpd_config_t, httpd_config_t)
+read_lnk_files_pattern(httpd_ctl_t, httpd_config_t, httpd_config_t)
+
+allow httpd_ctl_t httpd_htaccess_type:file read_file_perms;
+
+allow httpd_ctl_t httpd_ro_content:dir list_dir_perms;
+allow httpd_ctl_t httpd_ro_content:file { map read_file_perms };
+allow httpd_ctl_t httpd_ro_content:lnk_file read_lnk_file_perms;
+
+allow httpd_ctl_t httpd_keytab_t:file read_file_perms;
+
+allow httpd_ctl_t httpd_lock_t:dir manage_dir_perms;
+allow httpd_ctl_t httpd_lock_t:file manage_file_perms;
+files_lock_filetrans(httpd_ctl_t, httpd_lock_t, { file dir })
+
+manage_dirs_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+append_files_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+create_files_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+read_files_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+setattr_files_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+read_lnk_files_pattern(httpd_ctl_t, httpd_log_t, httpd_log_t)
+logging_log_filetrans(httpd_ctl_t, httpd_log_t, file)
+
+allow httpd_ctl_t httpd_modules_t:dir list_dir_perms;
+mmap_exec_files_pattern(httpd_ctl_t, httpd_modules_t, httpd_modules_t)
+read_files_pattern(httpd_ctl_t, httpd_modules_t, httpd_modules_t)
+read_lnk_files_pattern(httpd_ctl_t, httpd_modules_t, httpd_modules_t)
+
+allow httpd_ctl_t httpd_rotatelogs_t:process signal_perms;
+
+manage_dirs_pattern(httpd_ctl_t, httpd_squirrelmail_t, httpd_squirrelmail_t)
+mmap_manage_files_pattern(httpd_ctl_t, httpd_squirrelmail_t, httpd_squirrelmail_t)
+manage_lnk_files_pattern(httpd_ctl_t, httpd_squirrelmail_t, httpd_squirrelmail_t)
+
+allow httpd_ctl_t httpd_suexec_exec_t:file read_file_perms;
+
+allow httpd_ctl_t httpd_sys_script_t:unix_stream_socket connectto;
+allow httpd_ctl_t httpd_sys_script_t:process signull;
+
+
+manage_dirs_pattern(httpd_ctl_t, httpd_tmp_t, httpd_tmp_t)
+manage_files_pattern(httpd_ctl_t, httpd_tmp_t, httpd_tmp_t)
+allow httpd_ctl_t httpd_tmp_t:file map;
+manage_sock_files_pattern(httpd_ctl_t, httpd_tmp_t, httpd_tmp_t)
+manage_lnk_files_pattern(httpd_ctl_t, httpd_tmp_t, httpd_tmp_t)
+files_tmp_filetrans(httpd_ctl_t, httpd_tmp_t, { file dir lnk_file sock_file })
+userdom_user_tmp_filetrans(httpd_ctl_t, httpd_tmp_t, dir)
+
+manage_dirs_pattern(httpd_ctl_t, httpd_tmpfs_t, httpd_tmpfs_t)
+manage_files_pattern(httpd_ctl_t, httpd_tmpfs_t, httpd_tmpfs_t)
+manage_lnk_files_pattern(httpd_ctl_t, httpd_tmpfs_t, httpd_tmpfs_t)
+manage_fifo_files_pattern(httpd_ctl_t, httpd_tmpfs_t, httpd_tmpfs_t)
+manage_sock_files_pattern(httpd_ctl_t, httpd_tmpfs_t, httpd_tmpfs_t)
+fs_tmpfs_filetrans(httpd_ctl_t, httpd_tmpfs_t, { dir file lnk_file sock_file fifo_file })
+
+manage_dirs_pattern(httpd_ctl_t, httpd_var_lib_t, httpd_var_lib_t)
+mmap_manage_files_pattern(httpd_ctl_t, httpd_var_lib_t, httpd_var_lib_t)
+manage_lnk_files_pattern(httpd_ctl_t, httpd_var_lib_t, httpd_var_lib_t)
+files_var_lib_filetrans(httpd_ctl_t, httpd_var_lib_t, { dir file })
+
+setattr_dirs_pattern(httpd_ctl_t, httpd_runtime_t, httpd_runtime_t)
+manage_dirs_pattern(httpd_ctl_t, httpd_runtime_t, httpd_runtime_t)
+manage_files_pattern(httpd_ctl_t, httpd_runtime_t, httpd_runtime_t)
+manage_sock_files_pattern(httpd_ctl_t, httpd_runtime_t, httpd_runtime_t)
+files_runtime_filetrans(httpd_ctl_t, httpd_runtime_t, { file sock_file dir })
+
+manage_dirs_pattern(httpd_ctl_t, squirrelmail_spool_t, squirrelmail_spool_t)
+manage_files_pattern(httpd_ctl_t, squirrelmail_spool_t, squirrelmail_spool_t)
+manage_lnk_files_pattern(httpd_ctl_t, squirrelmail_spool_t, squirrelmail_spool_t)
+
+can_exec(httpd_ctl_t, httpd_exec_t)
+
+kernel_read_kernel_sysctls(httpd_ctl_t)
+kernel_read_vm_sysctls(httpd_ctl_t)
+kernel_read_vm_overcommit_sysctl(httpd_ctl_t)
+kernel_read_network_state(httpd_ctl_t)
+kernel_read_system_state(httpd_ctl_t)
+kernel_search_network_sysctl(httpd_ctl_t)
+
+# nginx -t checks that it can bind to ports
+corenet_tcp_bind_generic_node(httpd_ctl_t)
+corenet_tcp_bind_http_port(httpd_ctl_t)
+corenet_tcp_bind_http_cache_port(httpd_ctl_t)
+optional_policy(`
+	tunable_policy(`httpd_mod_auth_ntlm_winbind',`
+		samba_domtrans_winbind_helper(httpd_ctl_t)
+	')
+')
+tunable_policy(`httpd_enable_ftp_server',`
+	corenet_tcp_bind_ftp_port(httpd_ctl_t)
+')
+
+dev_read_sysfs(httpd_ctl_t)
+dev_read_rand(httpd_ctl_t)
+dev_read_urand(httpd_ctl_t)
+dev_rwx_zero(httpd_ctl_t)
+
+domain_use_interactive_fds(httpd_ctl_t)
+
+fs_getattr_all_fs(httpd_ctl_t)
+fs_search_auto_mountpoints(httpd_ctl_t)
+
+fs_read_iso9660_files(httpd_ctl_t)
+
+files_dontaudit_getattr_all_runtime_files(httpd_ctl_t)
+files_read_usr_files(httpd_ctl_t)
+files_map_usr_files(httpd_ctl_t)
+files_list_mnt(httpd_ctl_t)
+files_search_spool(httpd_ctl_t)
+files_read_var_symlinks(httpd_ctl_t)
+files_read_var_lib_files(httpd_ctl_t)
+files_search_home(httpd_ctl_t)
+files_getattr_home_dir(httpd_ctl_t)
+files_read_etc_runtime_files(httpd_ctl_t)
+files_read_var_lib_symlinks(httpd_ctl_t)
+files_map_etc_files(httpd_ctl_t)
+
+auth_use_nsswitch(httpd_ctl_t)
+
+init_rw_inherited_script_tmp_files(httpd_ctl_t)
+
+libs_exec_lib_files(httpd_ctl_t)
+
+logging_send_syslog_msg(httpd_ctl_t)
+
+miscfiles_read_localization(httpd_ctl_t)
+miscfiles_read_fonts(httpd_ctl_t)
+miscfiles_read_public_files(httpd_ctl_t)
+miscfiles_read_generic_certs(httpd_ctl_t)
+miscfiles_read_generic_tls_privkey(httpd_ctl_t)
+miscfiles_read_tetex_data(httpd_ctl_t)
+
+seutil_dontaudit_search_config(httpd_ctl_t)
 
 ########################################
 #
