@@ -92,6 +92,7 @@ template(`git_client_role_template',`
 	gen_require(`
 		attribute git_client_domain;
 		type git_exec_t, git_home_t, git_home_hook_t;
+		type git_xdg_config_t;
 	')
 
 	########################################
@@ -117,16 +118,43 @@ template(`git_client_role_template',`
 	allow $2 git_home_hook_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 git_home_hook_t:file { exec_file_perms manage_file_perms relabel_file_perms };
 	filetrans_pattern($2, git_home_t, git_home_hook_t, dir, "hooks")
+	xdg_config_filetrans($2, git_xdg_config_t, dir, "git")
+	userdom_user_home_dir_filetrans($2, git_xdg_config_t, file, ".gitconfig")
+	userdom_user_home_dir_filetrans($2, git_xdg_config_t, file, ".git-credentials")
 
 	allow $3 $1_git_t:process { ptrace signal_perms };
 	ps_process_pattern($3, $1_git_t)
 
 	auth_use_nsswitch($1_git_t)
 
+	type $1_git_tmp_t;
+	userdom_user_tmp_file($1_git_tmp_t)
+
+	allow $2 $1_git_tmp_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 $1_git_tmp_t:file { exec_file_perms manage_file_perms relabel_file_perms };
+	allow $2 $1_git_tmp_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+	allow $1_git_t $1_git_tmp_t:dir manage_dir_perms;
+	allow $1_git_t $1_git_tmp_t:file mmap_manage_file_perms;
+	allow $1_git_t $1_git_tmp_t:lnk_file manage_lnk_file_perms;
+	files_tmp_filetrans($1_git_t, $1_git_tmp_t, {dir file})
+
 	# allow userdomains to exec git hooks
 	exec_files_pattern($3, git_home_hook_t, git_home_hook_t)
 	# transition back to the user domain when executing git hooks
 	domtrans_pattern($1_git_t, git_home_t, $2)
+	# execute shell scripts
+	corecmd_exec_shell($1_git_t)
+	# execute user utilities, e.g., editor
+	corecmd_bin_domtrans($1_git_t, $2)
+
+	optional_policy(`
+		tunable_policy(`git_client_use_gpg', `
+			gpg_domtrans($1_git_t)
+			dev_read_urand($1_git_t)
+
+			gpg_read_files($1_git_tmp_t)
+		')
+	')
 
 	# transition to ssh client domain when performing ssh operations
 	optional_policy(`
