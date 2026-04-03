@@ -1,0 +1,119 @@
+## <summary>
+##      Policy for the URM (Username-Resource-Manager) service.
+## </summary>
+
+policy_module(urm)
+
+########################################
+#
+# Declarations
+#
+
+type urm_t;
+type urm_exec_t;
+init_daemon_domain(urm_t, urm_exec_t)
+
+type urm_config_t;
+
+type urm_runtime_t;
+files_runtime_file(urm_runtime_t)
+
+type urm_etc_t;
+
+########################################
+#
+# urm local policy
+#
+
+# Send log messages to syslog
+logging_send_syslog_msg(urm_t)
+
+# Read per-username resource configuration files under /etc/urm
+urm_read_config(urm_t)
+
+# Read and write sysfs entries for CPU frequency
+# scaling and IRQ affinity management
+dev_rw_sysfs(urm_t)
+
+# Access /dev/cpu_dma_latency for PM QoS
+# to manage power and latency per username
+dev_rw_pmqos(urm_t)
+
+# Read kernel sysctls e.g. sched_util_clamp_min
+kernel_read_kernel_sysctls(urm_t)
+
+# Read system state from /proc for monitoring
+# per-username resource usage
+kernel_read_system_state(urm_t)
+
+# Request kernel module loading e.g. netlink connector
+kernel_request_load_module(urm_t)
+
+# Read and write IRQ sysctls /proc/irq/*/smp_affinity
+# for per-username IRQ affinity management
+kernel_rw_irq_sysctls(urm_t)
+
+# Read and write cgroup files for
+# per-username resource group management
+fs_rw_cgroup_files(urm_t)
+
+# Read all domain process state /proc/<pid>
+# for per-username process resource monitoring
+domain_read_all_domains_state(urm_t)
+
+# Create runtime socket transition under /run
+files_runtime_filetrans(urm_t, urm_runtime_t, sock_file)
+
+########################################
+#
+# Allow urm to manage its runtime socket
+# under /run for client communication
+#
+
+allow urm_t urm_runtime_t:sock_file manage_sock_file_perms;
+
+########################################
+#
+# Netlink connector socket access
+#
+
+allow urm_t self:netlink_connector_socket { create_socket_perms read };
+allow urm_t self:unix_stream_socket { create connectto };
+dontaudit urm_t self: capability net_admin;
+
+########################################
+#
+# Allow urm to read and write kernel sysctl files
+# e.g. sched_util_clamp_min, sched_util_clamp_max
+# for per-username CPU scheduling resource management
+#
+
+allow urm_t sysctl_kernel_t:file { read write open getattr };
+
+########################################
+#
+# Allow urm to read and write its own config files
+# e.g. scaling_max_freq.txt for per-username
+# CPU frequency scaling settings
+#
+
+allow urm_t urm_config_t:file { read write open getattr };
+
+########################################
+#
+# Allow urm to manage /etc/urm directory
+# for storing per-username resource configurations
+#
+
+allow urm_t urm_etc_t:dir { search write create execute };
+allow urm_t urm_etc_t:file { read write open getattr create };
+
+########################################
+#
+# Allow urm to create and manage cgroup subdirectories
+# e.g. /sys/fs/cgroup/camera-cgroup for
+# per-username resource group isolation
+#
+type cgroup_t;
+allow urm_t cgroup_t:dir { add_name create write search read open getattr };
+allow urm_t cgroup_t:file { create write read open getattr };
