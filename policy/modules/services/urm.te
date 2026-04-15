@@ -14,11 +14,10 @@ type urm_exec_t;
 init_daemon_domain(urm_t, urm_exec_t)
 
 type urm_config_t;
+files_config_file(urm_config_t)
 
 type urm_runtime_t;
 files_runtime_file(urm_runtime_t)
-
-type urm_etc_t;
 
 ########################################
 #
@@ -40,7 +39,7 @@ dev_rw_sysfs(urm_t)
 dev_rw_pmqos(urm_t)
 
 # Read kernel sysctls e.g. sched_util_clamp_min
-kernel_read_kernel_sysctls(urm_t)
+kernel_rw_kernel_sysctl(urm_t)
 
 # Read system state from /proc for monitoring
 # per-username resource usage
@@ -53,67 +52,40 @@ kernel_request_load_module(urm_t)
 # for per-username IRQ affinity management
 kernel_rw_irq_sysctls(urm_t)
 
-# Read and write cgroup files for
+# Read and write cgroup files/dirs for
 # per-username resource group management
 fs_rw_cgroup_files(urm_t)
+fs_create_cgroup_dirs(urm_t)
 
 # Read all domain process state /proc/<pid>
 # for per-username process resource monitoring
 domain_read_all_domains_state(urm_t)
 
-# Create runtime socket transition under /run
-files_runtime_filetrans(urm_t, urm_runtime_t, sock_file)
-
-########################################
-#
 # Allow urm to manage its runtime socket
 # under /run for client communication
-#
-
 allow urm_t urm_runtime_t:sock_file manage_sock_file_perms;
 
-########################################
-#
 # Netlink connector socket access
-#
-
 allow urm_t self:netlink_connector_socket { create_socket_perms read };
 allow urm_t self:unix_stream_socket { create connectto };
-dontaudit urm_t self: capability net_admin;
 
-########################################
-#
-# Allow urm to read and write kernel sysctl files
-# e.g. sched_util_clamp_min, sched_util_clamp_max
-# for per-username CPU scheduling resource management
-#
+# Suppress spurious capability denials
+dontaudit urm_t self:capability net_admin;
+dontaudit urm_t self:capability dac_override;
+dontaudit urm_t self:capability dac_read_search;
 
-allow urm_t sysctl_kernel_t:file { read write open getattr };
-
-########################################
-#
-# Allow urm to read and write its own config files
+# Read and write its own config files
 # e.g. scaling_max_freq.txt for per-username
 # CPU frequency scaling settings
-#
+allow urm_t urm_config_t:file rw_file_perms;
 
-allow urm_t urm_config_t:file { read write open getattr };
+# Read and write /etc/urm directory for
+# storing per-username resource configurations
+# rw_files_pattern(urm_t, urm_etc_t, urm_etc_t)
 
-########################################
-#
-# Allow urm to manage /etc/urm directory
-# for storing per-username resource configurations
-#
+# Create and manage cgroup subdirectories
+# for per-username resource group isolation
+fs_create_cgroup_files(urm_t)
 
-allow urm_t urm_etc_t:dir { search write create execute };
-allow urm_t urm_etc_t:file { read write open getattr create };
-
-########################################
-#
-# Allow urm to create and manage cgroup subdirectories
-# e.g. /sys/fs/cgroup/camera-cgroup for
-# per-username resource group isolation
-#
-type cgroup_t;
-allow urm_t cgroup_t:dir { add_name create write search read open getattr };
-allow urm_t cgroup_t:file { create write read open getattr };
+# Create runtime socket transition under /run
+files_runtime_filetrans(urm_t, urm_runtime_t, sock_file)
