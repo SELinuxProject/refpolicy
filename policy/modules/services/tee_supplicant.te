@@ -5,12 +5,20 @@ policy_module(tee_supplicant)
 # Declarations
 #
 
+## <desc>
+##  <p>
+##  Control if tee_supplicant_t can access storage device.
+##  </p>
+## </desc>
+gen_tunable(tee_supplicant_qtee, false)
+
 type tee_supplicant_t;
 type tee_supplicant_exec_t;
 init_daemon_domain(tee_supplicant_t, tee_supplicant_exec_t)
 
 type tee_supplicant_var_lib_t;
 files_type(tee_supplicant_var_lib_t)
+files_mountpoint(tee_supplicant_var_lib_t)
 
 #########################################
 #
@@ -25,3 +33,34 @@ dev_rw_tee(tee_supplicant_t)
 dev_rw_tee_priv(tee_supplicant_t)
 
 kernel_read_vm_overcommit_sysctl(tee_supplicant_t)
+
+# Access qtee_supplicant to access UFS BSG device
+storage_read_scsi_generic(tee_supplicant_t)
+storage_write_scsi_generic(tee_supplicant_t)
+
+tunable_policy(`tee_supplicant_qtee',`
+
+        # Access tee_supplicant to read /var
+        files_list_var(tee_supplicant_t)
+
+        # Access qtee_supplicant to visit /var/lib
+        files_list_var_lib(tee_supplicant_t)
+
+        # Accesss qtee_supplicant to access compatible of device tree
+        dev_read_sysfs(tee_supplicant_t)
+
+        # Access qtee_supplicant to send logs to systemd journal
+        logging_send_syslog_msg(tee_supplicant_t)
+
+        # Access qtee_supplicant to access /proc/cmdline
+        kernel_read_system_state(tee_supplicant_t)
+
+        # Access qtee_supplicant to request sys_rawio capability
+        allow tee_supplicant_t self:capability sys_rawio;
+
+        # Access qtee_supplicant to write wake_lock
+        dev_write_sysfs(tee_supplicant_t)
+
+        # Allow qtee_supplicant to block system suspend (wake_lock)
+        allow tee_supplicant_t self:capability2 block_suspend;
+')
