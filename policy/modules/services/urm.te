@@ -1,0 +1,85 @@
+## <summary>
+##      Policy for the URM (Username-Resource-Manager) service.
+## </summary>
+
+policy_module(urm)
+
+########################################
+#
+# Declarations
+#
+
+type urm_t;
+type urm_exec_t;
+init_daemon_domain(urm_t, urm_exec_t)
+
+type urm_config_t;
+files_config_file(urm_config_t)
+
+type urm_runtime_t;
+files_runtime_file(urm_runtime_t)
+
+########################################
+#
+# urm local policy
+#
+
+# Allow urm to manage its runtime socket
+# under /run for client communication
+allow urm_t urm_runtime_t:sock_file manage_sock_file_perms;
+
+# Netlink connector socket access
+allow urm_t self:netlink_connector_socket create_socket_perms;
+allow urm_t self:unix_stream_socket { create connectto };
+
+# Suppress spurious capability denials
+dontaudit urm_t self:capability { dac_override dac_read_search net_admin };
+
+# Read and write its own config files
+# e.g. scaling_max_freq.txt for per-username
+# CPU frequency scaling settings
+allow urm_t urm_config_t:file rw_file_perms;
+
+# Send log messages to syslog
+logging_send_syslog_msg(urm_t)
+
+# Read per-username resource configuration files under /etc/urm
+urm_read_config(urm_t)
+
+# Read and write sysfs entries for CPU frequency
+# scaling and IRQ affinity management
+dev_rw_sysfs(urm_t)
+
+# Access /dev/cpu_dma_latency for PM QoS
+# to manage power and latency per username
+dev_rw_pmqos(urm_t)
+
+# Read kernel sysctls e.g. sched_util_clamp_min
+kernel_rw_kernel_sysctl(urm_t)
+
+# Read system state from /proc for monitoring
+# per-username resource usage
+kernel_read_system_state(urm_t)
+
+# Request kernel module loading e.g. netlink connector
+kernel_request_load_module(urm_t)
+
+# Read and write IRQ sysctls /proc/irq/*/smp_affinity
+# for per-username IRQ affinity management
+kernel_rw_irq_sysctls(urm_t)
+
+# Read and write cgroup files/dirs for
+# per-username resource group management
+fs_rw_cgroup_files(urm_t)
+fs_create_cgroup_dirs(urm_t)
+
+# Read all domain process state /proc/<pid>
+# for per-username process resource monitoring
+domain_read_all_domains_state(urm_t)
+
+# Create and manage cgroup subdirectories
+# for per-username resource group isolation
+fs_create_cgroup_files(urm_t)
+
+# Create runtime socket transition under /run
+files_runtime_filetrans(urm_t, urm_runtime_t, sock_file)
