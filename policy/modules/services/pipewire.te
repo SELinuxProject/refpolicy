@@ -1,0 +1,152 @@
+policy_module(pipewire, 1.0)
+
+########################################
+# External Declarations & Tunables
+########################################
+gen_require(`
+	type sound_device_t;
+	type pulseaudio_runtime_t;
+	type dma_device_t;
+	type tmpfs_t;
+	type initrc_t;
+')
+
+########################################
+# Types & Domains
+########################################
+
+# PipeWire daemon
+type pipewire_t;
+type pipewire_exec_t;
+init_daemon_domain(pipewire_t, pipewire_exec_t)
+
+########################################
+# File and Directory Types
+########################################
+
+# Config file contexts
+type pipewire_etc_t;
+files_config_file(pipewire_etc_t)
+
+# Shared configuration and presets
+type pipewire_share_t;
+files_type(pipewire_share_t)
+
+# Runtime directories
+type pipewire_run_t;
+files_runtime_file(pipewire_run_t)
+
+# Persistent state
+type pipewire_var_lib_t;
+files_type(pipewire_var_lib_t)
+
+########################################
+# Baseline Capabilities and Library Access
+########################################
+
+corecmd_exec_bin(pipewire_t)
+files_read_etc_files(pipewire_t)
+files_read_usr_files(pipewire_t)
+libs_use_ld_so(pipewire_t)
+libs_read_lib_files(pipewire_t)
+
+########################################
+# Process Control and Capabilities
+########################################
+
+allow pipewire_t self:process { fork sigchld signal getsched setsched };
+allow pipewire_t self:capability { sys_nice };
+
+########################################
+# Runtime Directory and Socket Handling
+########################################
+
+# PipeWire native runtime (/run/pipewire)
+files_runtime_filetrans(pipewire_t, pipewire_run_t, dir)
+allow pipewire_t pipewire_run_t:dir { create add_name remove_name write read getattr search };
+allow pipewire_t pipewire_run_t:sock_file { create unlink write read getattr };
+allow pipewire_t pipewire_run_t:file { create open read write getattr unlink lock };
+
+########################################
+# Hardware Device Access
+########################################
+
+# ALSA sound devices (/dev/snd/*, /dev/dsp*, etc.)
+allow pipewire_t sound_device_t:chr_file { open read write ioctl getattr };
+
+########################################
+# System Logging
+########################################
+
+systemd_read_journal_files(pipewire_t)
+logging_send_syslog_msg(pipewire_t)
+
+########################################
+# System Probing and Runtime Introspection
+########################################
+
+# sysfs read (transparent hugepage probe)
+dev_read_sysfs(pipewire_t)
+
+# procfs read (cpuinfo, asound/cards)
+kernel_read_system_state(pipewire_t)
+
+########################################
+# Configuration Access
+########################################
+
+# /etc/pipewire config access
+allow pipewire_t pipewire_etc_t:dir { search read open getattr };
+allow pipewire_t pipewire_etc_t:file { read open getattr map };
+
+# /usr/share/pipewire config access
+allow pipewire_t pipewire_share_t:dir { search read open getattr };
+allow pipewire_t pipewire_share_t:file { read open getattr map };
+
+########################################
+# Persistent State Access
+########################################
+
+# /var/lib/pipewire state access
+files_var_lib_filetrans(pipewire_t, pipewire_var_lib_t, { dir file })
+manage_dirs_pattern(pipewire_t, pipewire_var_lib_t, pipewire_var_lib_t)
+manage_files_pattern(pipewire_t, pipewire_var_lib_t, pipewire_var_lib_t)
+
+########################################
+# IPC and Memory Handling
+########################################
+
+# Self unix socket: create, bind, listen, accept, connect
+allow pipewire_t self:unix_stream_socket { create bind listen accept connectto read write getattr };
+
+# memfd shared memory (tmpfs-backed)
+allow pipewire_t tmpfs_t:file { read write getattr map };
+
+# Internal pipes
+allow pipewire_t self:fifo_file { read write };
+
+########################################
+# Compatibility with PulseAudio Runtime
+########################################
+
+# /run/pulse probing for PulseAudio compatibility
+allow pipewire_t pulseaudio_runtime_t:dir { getattr search };
+
+# DMA device access for hardware audio offload
+allow pipewire_t dma_device_t:chr_file { read open getattr ioctl };
+
+# PulseAudio runtime dir - pid file creation
+allow pipewire_t pulseaudio_runtime_t:dir { write add_name remove_name };
+allow pipewire_t pulseaudio_runtime_t:file { create write read open getattr unlink lock };
+
+# Suppress /proc scan denials - pipewire enumerates /proc for process discovery
+dontaudit pipewire_t initrc_t:file read;
+dontaudit pipewire_t initrc_t:lnk_file read;
+dontaudit pipewire_t initrc_t:dir search;
+optional_policy(`
+	gen_require(`
+		type unconfined_t;
+	')
+	dontaudit pipewire_t unconfined_t:lnk_file read;
+	dontaudit pipewire_t unconfined_t:dir search;
+')
