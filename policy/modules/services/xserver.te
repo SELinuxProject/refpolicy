@@ -313,6 +313,7 @@ userdom_read_user_tmp_files(xauth_t)
 
 xserver_rw_xdm_tmp_files(xauth_t)
 xserver_stream_connect(xauth_t)
+xserver_use_user_fonts(xdm_t)
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_manage_nfs_files(xauth_t)
@@ -335,15 +336,17 @@ optional_policy(`
 
 allow xdm_t self:capability { chown dac_override dac_read_search fowner fsetid ipc_owner kill mknod net_bind_service setgid setuid sys_nice sys_rawio sys_resource sys_tty_config };
 dontaudit xdm_t self:capability sys_admin;
-allow xdm_t self:process { getsched setexec setpgid setrlimit setsched signal_perms };
+allow xdm_t self:process { transition setcap getcap setfscreate getsched setexec setpgid setrlimit setsched signal_perms };
+allow xdm_t self:fd use;
 allow xdm_t self:fifo_file rw_fifo_file_perms;
 allow xdm_t self:shm create_shm_perms;
 allow xdm_t self:sem create_sem_perms;
 allow xdm_t self:unix_stream_socket { connectto create_stream_socket_perms };
-allow xdm_t self:unix_dgram_socket create_socket_perms;
+allow xdm_t self:unix_dgram_socket { sendto create_socket_perms };
 allow xdm_t self:socket create_socket_perms;
-allow xdm_t self:appletalk_socket create_socket_perms;
+allow xdm_t self:netlink_kobject_uevent_socket { create setopt bind getattr getopt read };
 allow xdm_t self:key { link search write };
+allow xdm_t self:bpf prog_load;
 
 # for sddm
 allow xdm_t xsession_exec_t:file entrypoint;
@@ -418,10 +421,14 @@ manage_files_pattern(xdm_t, xserver_log_t, xserver_log_t)
 manage_fifo_files_pattern(xdm_t, xserver_log_t, xserver_log_t)
 logging_log_filetrans(xdm_t, xserver_log_t, file)
 
+kernel_read_device_sysctls(xdm_t)
+kernel_read_fs_sysctls(xdm_t)
 kernel_read_system_state(xdm_t)
 kernel_read_kernel_sysctls(xdm_t)
 kernel_read_net_sysctls(xdm_t)
 kernel_read_network_state(xdm_t)
+kernel_read_psi(xdm_t)
+kernel_search_key(xdm_t)
 kernel_view_key(xdm_t)
 
 corecmd_exec_shell(xdm_t)
@@ -429,6 +436,8 @@ corecmd_exec_bin(xdm_t)
 
 dev_read_rand(xdm_t)
 dev_read_sysfs(xdm_t)
+dev_read_sound(xdm_t)
+dev_write_sound(xdm_t)
 dev_getattr_framebuffer_dev(xdm_t)
 dev_setattr_framebuffer_dev(xdm_t)
 dev_getattr_mouse_dev(xdm_t)
@@ -451,11 +460,15 @@ dev_setattr_sound_dev(xdm_t)
 dev_getattr_power_mgmt_dev(xdm_t)
 dev_setattr_power_mgmt_dev(xdm_t)
 
+auth_login_pgm_domain(xdm_t)
+
 domain_use_interactive_fds(xdm_t)
+domain_user_exemption_target(xdm_t)
 # Do not audit denied probes of /proc.
 domain_dontaudit_read_all_domains_state(xdm_t)
 
 files_read_etc_files(xdm_t)
+files_watch_etc_symlinks(xdm_t)
 files_read_var_files(xdm_t)
 files_read_etc_runtime_files(xdm_t)
 files_exec_etc_files(xdm_t)
@@ -463,12 +476,19 @@ files_list_mnt(xdm_t)
 # Read /usr/share/terminfo/l/linux and /usr/share/icons/default/index.theme...
 files_map_usr_files(xdm_t)
 files_read_usr_files(xdm_t)
+files_watch_usr_dirs(xdm_t)
 # Poweroff wants to create the /poweroff file when run from xdm
 files_create_boot_flag(xdm_t)
 
 fs_getattr_all_fs(xdm_t)
+fs_getattr_nsfs_files(xdm_t)
 fs_search_auto_mountpoints(xdm_t)
 fs_watch_memory_pressure(xdm_t)
+fs_create_cgroup_dirs(xdm_t)
+fs_delete_cgroup_dirs(xdm_t)
+fs_create_cgroup_files(xdm_t)
+fs_watch_cgroup_files(xdm_t)
+fs_rw_cgroup_files(xdm_t)
 
 mount_watch_reads_runtime_files(xdm_t)
 
@@ -483,6 +503,8 @@ storage_dontaudit_rw_scsi_generic(xdm_t)
 term_setattr_console(xdm_t)
 term_use_unallocated_ttys(xdm_t)
 term_setattr_unallocated_ttys(xdm_t)
+term_relabel_all_ttys(xdm_t)
+term_relabel_unallocated_ttys(xdm_t)
 
 auth_domtrans_pam_console(xdm_t)
 auth_manage_pam_runtime_dirs(xdm_t)
@@ -505,14 +527,28 @@ miscfiles_read_hwdata(xdm_t)
 miscfiles_read_localization(xdm_t)
 miscfiles_read_fonts(xdm_t)
 
+selinux_use_status_page(xdm_t)
+seutil_read_file_contexts(xdm_t)
+
 sysnet_read_config(xdm_t)
 
 userdom_dontaudit_use_unpriv_user_fds(xdm_t)
 userdom_create_all_users_keys(xdm_t)
+userdom_search_all_users_keys(xdm_t)
+userdom_write_all_users_keys(xdm_t)
 # Search /proc for any user domain processes.
 userdom_read_all_users_state(xdm_t)
 userdom_signal_all_users(xdm_t)
 userdom_user_runtime_filetrans(xdm_t, xdm_runtime_t, dir)
+
+userdom_read_user_home_content_symlinks(xdm_t)
+userdom_use_user_ttys(xdm_t)
+userdom_write_user_runtime_sockets(xdm_t)
+userdom_read_user_home_content_files(xdm_t)
+userdom_watch_user_runtime_dirs(xdm_t)
+xdg_read_config_files(xdm_t)
+xdg_manage_cache(xdm_t)
+xdg_manage_data(xdm_t)
 
 # for .dmrc: this was used by the Gnome Display Manager (gdm)
 # and it is now obsolete in Gnome3
@@ -522,6 +558,7 @@ xserver_manage_xsession_log(xdm_t)
 xserver_rw_session(xdm_t, xdm_tmpfs_t)
 xserver_unconfined(xdm_t)
 xserver_user_home_dir_filetrans_user_xsession_log(xdm_t)
+xserver_rw_mesa_shader_cache(xdm_t)
 
 tunable_policy(`use_nfs_home_dirs',`
 	fs_manage_nfs_dirs(xdm_t)
@@ -583,13 +620,13 @@ optional_policy(`
 ')
 
 optional_policy(`
-	allow xdm_t self:process getcap;
-
 	dbus_exec(xdm_t)
 	dbus_system_bus_client(xdm_t)
 	dbus_connect_system_bus(xdm_t)
+	dbus_write_session_runtime_socket(xdm_t)
 
 	optional_policy(`
+		accountsd_search_lib(xdm_t)
 		accountsd_dbus_chat(xdm_t)
 	')
 
@@ -609,6 +646,13 @@ optional_policy(`
 		auth_use_pam_systemd(xdm_t)
 		systemd_dbus_chat_hostnamed(xdm_t)
 		systemd_read_logind_runtime_files(xdm_t)
+		systemd_read_logind_sessions_files(xdm_t)
+		systemd_read_user_runtime_units_files(xdm_t)
+		systemd_search_user_runtime(xdm_t)
+		systemd_write_user_runtime_socket(xdm_t)
+		systemd_connectto_logind(xdm_t)
+		systemd_link_all_user_keys(xdm_t)
+		systemd_search_all_user_keys(xdm_t)
 	')
 ')
 
@@ -661,11 +705,6 @@ optional_policy(`
 ')
 
 optional_policy(`
-	unconfined_domain(xdm_t)
-	unconfined_domtrans(xdm_t)
-')
-
-optional_policy(`
 	userhelper_dontaudit_search_config(xdm_t)
 ')
 
@@ -675,6 +714,7 @@ optional_policy(`
 
 optional_policy(`
 	udev_run_domain(xdm_t, xdm_exec_t)
+	udev_read_runtime_files(xdm_t)
 ')
 
 optional_policy(`
@@ -814,6 +854,7 @@ init_getpgid(xserver_t)
 
 term_setattr_unallocated_ttys(xserver_t)
 term_use_unallocated_ttys(xserver_t)
+term_relabel_all_ttys(local_login_t)
 
 getty_use_fds(xserver_t)
 
@@ -894,11 +935,6 @@ optional_policy(`
 
 optional_policy(`
 	udev_read_runtime_files(xserver_t)
-')
-
-optional_policy(`
-	unconfined_domain_noaudit(xserver_t)
-	unconfined_domtrans(xserver_t)
 ')
 
 optional_policy(`
