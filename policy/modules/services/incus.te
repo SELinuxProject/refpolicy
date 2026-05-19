@@ -53,13 +53,24 @@ allow incusd_t self:vsock_socket create_stream_socket_perms;
 allow incusd_t self:rawip_socket create_socket_perms;
 allow incusd_t self:tun_socket { create relabelfrom relabelto };
 
+kernel_associate_proc(incusd_t)
+
 # mounton access to /proc/sys/kernel/random/boot_id
 kernel_mounton_kernel_sysctl_files(incusd_t)
+
+kernel_relabelfrom_unlabeled_dirs(incusd_t)
+kernel_relabelfrom_unlabeled_files(incusd_t)
+kernel_relabelfrom_unlabeled_symlinks(incusd_t)
+kernel_relabelfrom_unlabeled_blk_devs(incusd_t)
+kernel_relabelfrom_unlabeled_chr_devs(incusd_t)
 
 # incusd wants to load netdev-phys*
 kernel_request_load_module(incusd_t)
 
 kernel_setsched(incusd_t)
+
+selinux_getattr_dirs(incusd_t)
+selinux_read_fs(incusd_t)
 
 # for bridge management
 dev_create_sysfs_files(incusd_t)
@@ -79,6 +90,7 @@ dev_watch_dev_fs(incusd_t)
 
 # read /etc/machine-id
 files_read_etc_runtime_files(incusd_t)
+files_mounton_non_security(incusd_t)
 
 # incus apparmor support wants to handle /sys/kernel/tracing
 fs_dontaudit_getattr_configfs(incusd_t)
@@ -98,6 +110,9 @@ fs_watch_tmpfs_dirs(incusd_t)
 # name="stub-resolv.conf"
 fs_read_tmpfs_files(incusd_t)
 
+# required for incusd to start virtual networking
+init_signull_script(incusd_t)
+
 iptables_domtrans(incusd_t)
 iptables_kill(incusd_t)
 
@@ -106,6 +121,9 @@ container_exec_engine_tmp_files(incusd_t)
 
 # comm="incusd" path="/run/systemd/resolve/stub-resolv.conf"
 container_read_tmpfs_files(incusd_t)
+
+# to write oom_score_adj
+container_write_all_container_state(incusd_t)
 
 ifdef(`init_systemd',`
 	init_get_system_status(incusd_t)
@@ -155,6 +173,8 @@ optional_policy(`
 	# these are required for incusd to check and execute qemu
 	qemu_domtrans(incusd_t)
 	qemu_exec(incusd_t)
+	qemu_getattr(incusd_t)
+	qemu_manage_image_symlinks(incusd_t)
 
 	# required so that incus will get the VM PID
 	# and make "incus info VM" work
@@ -163,6 +183,11 @@ optional_policy(`
 
 	qemu_kill(incusd_t)
 	qemu_stream_connect(incusd_t)
+	# to write oom_score_adj
+	qemu_write_state(incusd_t)
+
+	virt_manage_images(incusd_t)
+	virt_relabel_images(incusd_t)
 
 	# avc:  denied  { read } for  pid=20404 comm="qemu-system-x86"
 	# name="overcommit_memory" dev="proc" ino=16557
