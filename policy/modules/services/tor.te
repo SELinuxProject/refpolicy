@@ -17,6 +17,10 @@ type tor_t;
 type tor_exec_t;
 init_daemon_domain(tor_t, tor_exec_t)
 
+type tor_pt_t;
+type tor_pt_exec_t;
+init_daemon_domain(tor_pt_t, tor_pt_exec_t)
+
 type tor_etc_t;
 files_config_file(tor_etc_t)
 
@@ -47,7 +51,7 @@ logging_log_file(tor_var_log_t)
 allow tor_t self:capability { chown dac_override dac_read_search fowner fsetid setgid setuid sys_tty_config };
 # net_admin is for SO_SNDBUFFORCE
 dontaudit tor_t self:capability net_admin;
-allow tor_t self:process signal;
+allow tor_t self:process { signal getsched };
 allow tor_t self:fifo_file rw_fifo_file_perms;
 allow tor_t self:unix_stream_socket { accept listen };
 allow tor_t self:tcp_socket { accept listen };
@@ -134,4 +138,42 @@ optional_policy(`
 
 optional_policy(`
 	seutil_sigchld_newrole(tor_t)
+')
+
+########################################
+#
+# Local policy for pluggable transports
+#
+
+allow tor_pt_t self:netlink_route_socket create_netlink_socket_perms;
+allow tor_pt_t self:process { getsched signal };
+allow tor_pt_t self:udp_socket create_socket_perms;
+allow tor_pt_t self:tcp_socket create_socket_perms;
+
+kernel_getattr_proc(tor_pt_t)
+kernel_read_kernel_sysctls(tor_pt_t)
+
+corenet_udp_bind_generic_node(tor_pt_t)
+corenet_tcp_connect_http_port(tor_pt_t)
+
+corecmd_search_bin(tor_pt_t)
+files_read_etc_files(tor_pt_t)
+files_read_etc_runtime_files(tor_pt_t)
+files_read_etc_symlinks(tor_pt_t)
+
+# for /usr/share/ca-certificates
+files_read_usr_files(tor_pt_t)
+
+fs_read_cgroup_files(tor_pt_t)
+
+init_unix_stream_socket_connectto(tor_pt_t)
+
+miscfiles_read_localization(tor_pt_t)
+miscfiles_read_generic_certs(tor_pt_t)
+
+sysnet_read_config(tor_pt_t)
+
+optional_policy(`
+	systemd_list_userdb_runtime_dirs(tor_pt_t)
+	systemd_stream_connect_homed(tor_pt_t)
 ')
