@@ -26,6 +26,8 @@ xdg_cache_content(thunderbird_xdg_cache_t)
 
 optional_policy(`
 	wm_application_domain(thunderbird_t, thunderbird_exec_t)
+	wm_mmap_rw_tmpfs_files(thunderbird_t)
+	wm_send_fd(thunderbird_t)
 ')
 
 ########################################
@@ -34,19 +36,25 @@ optional_policy(`
 #
 
 allow thunderbird_t self:capability sys_nice;
-allow thunderbird_t self:process { execheap execmem execstack getsched setsched signal_perms };
+allow thunderbird_t self:process { execheap execmem execstack getsched setsched signal_perms setcap };
 allow thunderbird_t self:fifo_file rw_fifo_file_perms;
 allow thunderbird_t self:unix_dgram_socket create_socket_perms;
 allow thunderbird_t self:unix_stream_socket create_stream_socket_perms;
 allow thunderbird_t self:shm create_shm_perms;
 
+allow thunderbird_t self:user_namespace create;
+# sys_admin is needed for unshare(CLONE_NEWPID)
+allow thunderbird_t self:cap_userns { sys_admin sys_chroot };
+
 manage_dirs_pattern(thunderbird_t, thunderbird_home_t, thunderbird_home_t)
 manage_files_pattern(thunderbird_t, thunderbird_home_t, thunderbird_home_t)
 manage_lnk_files_pattern(thunderbird_t, thunderbird_home_t, thunderbird_home_t)
 userdom_user_home_dir_filetrans(thunderbird_t, thunderbird_home_t, dir, ".thunderbird")
+userdom_user_home_dir_filetrans(thunderbird_t, thunderbird_home_t, file)
 
 manage_dirs_pattern(thunderbird_t, thunderbird_tmp_t, thunderbird_tmp_t)
 manage_files_pattern(thunderbird_t, thunderbird_tmp_t, thunderbird_tmp_t)
+allow thunderbird_t thunderbird_tmp_t:file map;
 manage_lnk_files_pattern(thunderbird_t, thunderbird_tmp_t, thunderbird_tmp_t)
 files_tmp_filetrans(thunderbird_t, thunderbird_tmp_t, { dir file lnk_file })
 
@@ -64,6 +72,7 @@ kernel_read_network_state(thunderbird_t)
 kernel_read_net_sysctls(thunderbird_t)
 kernel_read_system_state(thunderbird_t)
 
+corecmd_exec_bin(thunderbird_t)
 corecmd_exec_shell(thunderbird_t)
 
 corenet_all_recvfrom_netlabel(thunderbird_t)
@@ -85,8 +94,17 @@ corenet_tcp_connect_pop_port(thunderbird_t)
 corenet_sendrecv_http_client_packets(thunderbird_t)
 corenet_tcp_connect_http_port(thunderbird_t)
 
+corenet_tcp_connect_xserver_port(thunderbird_t)
+
+corenet_udp_bind_generic_node(thunderbird_t)
+
+dev_read_sysfs(thunderbird_t)
 dev_read_urand(thunderbird_t)
+dev_rw_dma_dev(thunderbird_t)
+dev_rw_dri(thunderbird_t)
 dev_dontaudit_search_sysfs(thunderbird_t)
+
+domain_use_interactive_fds(thunderbird_t)
 
 files_list_tmp(thunderbird_t)
 files_map_usr_files(thunderbird_t)
@@ -98,26 +116,45 @@ files_dontaudit_getattr_all_tmp_files(thunderbird_t)
 files_dontaudit_getattr_boot_dirs(thunderbird_t)
 files_dontaudit_getattr_lost_found_dirs(thunderbird_t)
 files_dontaudit_search_mnt(thunderbird_t)
+files_watch_etc_dirs(thunderbird_t)
+files_watch_usr_dirs(thunderbird_t)
 
 fs_getattr_all_fs(thunderbird_t)
 fs_list_inotifyfs(thunderbird_t)
+fs_read_cgroup_files(thunderbird_t)
 fs_search_auto_mountpoints(thunderbird_t)
 
 auth_use_nsswitch(thunderbird_t)
 
+logging_send_syslog_msg(thunderbird_t)
+
 miscfiles_read_fonts(thunderbird_t)
 miscfiles_read_localization(thunderbird_t)
 
+userdom_exec_user_bin_files(thunderbird_t)
 userdom_write_user_tmp_sockets(thunderbird_t)
 userdom_manage_user_tmp_dirs(thunderbird_t)
 userdom_manage_user_tmp_files(thunderbird_t)
+userdom_map_user_tmp_files(thunderbird_t)
+userdom_use_user_ptys(thunderbird_t)
+userdom_use_user_ttys(thunderbird_t)
 userdom_user_content_access_template(thunderbird, thunderbird_t)
 
+
 xdg_read_data_files(thunderbird_t)
+xdg_manage_cache(thunderbird_t)
+xdg_read_config_files(thunderbird_t)
 xdg_manage_downloads(thunderbird_t)
+xdg_watch_config_dirs(thunderbird_t)
+xdg_watch_data_dirs(thunderbird_t)
+
+# for .local/share/sddm/wayland-session.log
+xdg_manage_data(thunderbird_t)
 
 xserver_user_x_domain_template(thunderbird, thunderbird_t, thunderbird_tmpfs_t)
 xserver_read_xdm_tmp_files(thunderbird_t)
+xserver_read_xkb_libs(thunderbird_t)
+xserver_rw_mesa_shader_cache(thunderbird_t)
 xserver_dontaudit_getattr_xdm_tmp_sockets(thunderbird_t)
 
 tunable_policy(`use_nfs_home_dirs',`
@@ -149,6 +186,10 @@ optional_policy(`
 	optional_policy(`
 		mozilla_dbus_chat(thunderbird_t)
 	')
+
+	optional_policy(`
+		ntp_dbus_chat(thunderbird_t)
+	')
 ')
 
 optional_policy(`
@@ -160,6 +201,8 @@ optional_policy(`
 	gnome_stream_connect_gconf(thunderbird_t)
 	gnome_domtrans_gconfd(thunderbird_t)
 	gnome_manage_generic_home_content(thunderbird_t)
+	gnome_mmap_read_xdg_config_files(thunderbird_t)
+	gnome_watch_xdg_config_dirs(thunderbird_t)
 ')
 
 optional_policy(`
@@ -178,4 +221,8 @@ optional_policy(`
 optional_policy(`
 	ooffice_domtrans(thunderbird_t)
 	ooffice_rw_tmp_files(thunderbird_t)
+')
+
+optional_policy(`
+	systemd_dbus_chat_logind(thunderbird_t)
 ')
