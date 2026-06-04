@@ -47,33 +47,28 @@ jobs:
       with:
         name: selinux
 
-    - name: Install dependencies
+    - name: Unpack userspace artifact
       shell: bash
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       run: |
-        sudo apt-get update -q
         tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf selinux.tar.gz
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
-      with:
-        python-version: "${{ inputs.python-version }}"
-
     - name: Build setools
-      shell: bash
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
-      run: pip wheel --no-deps .
-      env:
-        CFLAGS: "-O2"
-        LD_LIBRARY_PATH: "${{steps.dl-userspace.outputs.download-path}}/lib:${{steps.dl-userspace.outputs.download-path}}/usr/lib:${LD_LIBRARY_PATH}"
+      #The new GH action is not available in a release yet.
+      uses: SELinuxProject/setools/.github/actions/build-setools@main
+      #uses: SELinuxProject/setools/.github/actions/build-setools@${{ inputs.version }}
+      id: build-setools
+      with:
+        python: "${{ inputs.python-version }}"
+        userspace-path: "${{ steps.dl-userspace.outputs.download-path }}"
 
     - name: Upload wheel
       uses: actions/upload-artifact@v4
       id: upload-artifact
       with:
         name: setools
-        path: "setools-*.whl"
+        path: "${{ steps.cache-setools.outputs.cache-hit != 'true' && steps.build-setools.outputs.wheel-path || 'setools-*.whl' }}"
 
     - name: Upload failed build directory artifact
       if: ${{ failure() && runner.debug }}
