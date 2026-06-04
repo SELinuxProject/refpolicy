@@ -24,7 +24,7 @@ jobs:
 
     steps:
     - name: Checkout setools
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: SELinuxProject/setools
         ref: "${{ inputs.version }}"
@@ -34,50 +34,45 @@ jobs:
       run: echo "COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
     - name: Download cached SETools
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       id: cache-setools
       with:
         path: "setools-*.whl"
         key: setools-${{ inputs.version }}-${{ env.COMMIT_HASH }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
 
     - name: Download userspace artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       id: dl-userspace
       with:
         name: selinux
 
-    - name: Install dependencies
+    - name: Unpack userspace artifact
       shell: bash
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       run: |
-        sudo apt-get update -q
         tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf selinux.tar.gz
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
-      with:
-        python-version: "${{ inputs.python-version }}"
-
     - name: Build setools
-      shell: bash
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
-      run: pip wheel --no-deps .
-      env:
-        CFLAGS: "-O2"
-        LD_LIBRARY_PATH: "${{steps.dl-userspace.outputs.download-path}}/lib:${{steps.dl-userspace.outputs.download-path}}/usr/lib:${LD_LIBRARY_PATH}"
+      #The new GH action is not available in a release yet.
+      uses: SELinuxProject/setools/.github/actions/build-setools@main
+      #uses: SELinuxProject/setools/.github/actions/build-setools@${{ inputs.version }}
+      id: build-setools
+      with:
+        python: "${{ inputs.python-version }}"
+        userspace-path: "${{ steps.dl-userspace.outputs.download-path }}"
 
     - name: Upload wheel
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       id: upload-artifact
       with:
         name: setools
-        path: "setools-*.whl"
+        path: "${{ steps.cache-setools.outputs.cache-hit != 'true' && steps.build-setools.outputs.wheel-path || 'setools-*.whl' }}"
 
     - name: Upload failed build directory artifact
       if: ${{ failure() && runner.debug }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: failed-setools
         path: |
