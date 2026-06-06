@@ -89,9 +89,13 @@ template(`mta_role',`
 	gen_require(`
 		attribute mta_user_agent;
 		attribute_role user_mail_roles;
-		type user_mail_t, sendmail_exec_t, mail_home_t;
+		type sendmail_exec_t, mail_home_t;
 		type user_mail_tmp_t, mail_home_rw_t;
 	')
+
+	mta_base_mail_template($1)
+	role $4 types $1_mail_t;
+	userdom_use_inherited_user_terminals($1_mail_t)
 
 	roleattribute $4 user_mail_roles;
 
@@ -100,11 +104,11 @@ template(`mta_role',`
 	# will role attribute work?
 	role $4 types mta_user_agent;
 
-	domtrans_pattern($3, sendmail_exec_t, user_mail_t)
+	domtrans_pattern($3, sendmail_exec_t, $1_mail_t)
 	allow $3 sendmail_exec_t:lnk_file read_lnk_file_perms;
 
-	allow $3 { user_mail_t mta_user_agent }:process { ptrace signal_perms };
-	ps_process_pattern($3, { user_mail_t mta_user_agent })
+	allow $3 { $1_mail_t mta_user_agent }:process { ptrace signal_perms };
+	ps_process_pattern($3, { $1_mail_t mta_user_agent })
 
 	allow $2 mail_home_t:file { manage_file_perms relabel_file_perms };
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".esmtp_queue")
@@ -130,8 +134,45 @@ template(`mta_role',`
 	')
 
 	optional_policy(`
-		systemd_user_app_status($1, user_mail_t)
+		systemd_user_app_status($1, $1_mail_t)
 	')
+')
+
+########################################
+## <summary>
+##	Role access for mta admin
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`mta_admin_role',`
+	gen_require(`
+		type etc_aliases_t;
+	')
+
+	mta_role($1, $2, $3, $4)
+
+	files_etc_filetrans($1_mail_t, etc_aliases_t, file)
+	allow $1_mail_t etc_aliases_t:file manage_file_perms;
 ')
 
 ########################################
