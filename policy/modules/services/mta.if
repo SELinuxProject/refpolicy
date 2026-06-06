@@ -104,6 +104,8 @@ template(`mta_role',`
 	# will role attribute work?
 	role $4 types mta_user_agent;
 
+	dev_read_sysfs($1_mail_t)
+
 	domtrans_pattern($3, sendmail_exec_t, $1_mail_t)
 	allow $3 sendmail_exec_t:lnk_file read_lnk_file_perms;
 
@@ -111,16 +113,24 @@ template(`mta_role',`
 	ps_process_pattern($3, { $1_mail_t mta_user_agent })
 
 	allow $2 mail_home_t:file { manage_file_perms relabel_file_perms };
+	manage_files_pattern($1_mail_t, mail_home_t, mail_home_t)
+
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".esmtp_queue")
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".forward")
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, ".mailrc")
 	userdom_user_home_dir_filetrans($2, mail_home_t, file, "dead.letter")
+
+	userdom_user_home_dir_filetrans($1_mail_t, mail_home_t, file, ".esmtp_queue")
+	userdom_user_home_dir_filetrans($1_mail_t, mail_home_t, file, ".forward")
+	userdom_user_home_dir_filetrans($1_mail_t, mail_home_t, file, ".mailrc")
+	userdom_user_home_dir_filetrans($1_mail_t, mail_home_t, file, "dead.letter")
 
 	allow $2 mail_home_rw_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 mail_home_rw_t:file { manage_file_perms relabel_file_perms };
 	allow $2 mail_home_rw_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
 	userdom_user_home_dir_filetrans($2, mail_home_rw_t, dir, "Maildir")
 	userdom_user_home_dir_filetrans($2, mail_home_rw_t, dir, ".maildir")
+
 
 	allow $2 user_mail_tmp_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 user_mail_tmp_t:file { manage_file_perms relabel_file_perms };
@@ -131,6 +141,15 @@ template(`mta_role',`
 
 	optional_policy(`
 		mailman_run($3, $4)
+	')
+
+	optional_policy(`
+		allow $1_mail_t self:capability dac_override;
+
+		userdom_rw_user_tmp_files($1_mail_t)
+
+		postfix_read_config($1_mail_t)
+		postfix_list_spool($1_mail_t)
 	')
 
 	optional_policy(`
