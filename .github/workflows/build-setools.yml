@@ -11,6 +11,16 @@ on:
         description: "Python version to use"
         type: string
         required: true
+      artifact-name:
+        description: "Name of the uploaded artifact"
+        type: string
+        required: false
+        default: "setools"
+      userspace-artifact-name:
+        description: "Name of the userspace artifact to download"
+        type: string
+        required: false
+        default: "selinux"
     outputs:
       artifact-id:
         description: "SETools wheel artifact ID"
@@ -45,13 +55,13 @@ jobs:
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       id: dl-userspace
       with:
-        name: selinux
+        name: ${{ inputs.userspace-artifact-name }}
 
     - name: Unpack userspace artifact
       shell: bash
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
       run: |
-        tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf selinux.tar.gz
+        tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf ${{ inputs.userspace-artifact-name }}
 
     - name: Build setools
       if: ${{ steps.cache-setools.outputs.cache-hit != 'true' }}
@@ -67,8 +77,9 @@ jobs:
       uses: actions/upload-artifact@v7
       id: upload-artifact
       with:
-        name: setools
-        path: "${{ steps.cache-setools.outputs.cache-hit != 'true' && steps.build-setools.outputs.wheel-path || 'setools-*.whl' }}"
+        name: ${{ inputs.artifact-name }}
+        path: setools*.whl
+        if-no-files-found: error
 
     - name: Upload failed build directory artifact
       if: ${{ failure() && runner.debug }}
