@@ -15,6 +15,14 @@ on:
         description: "Python version to use"
         required: true
         type: string
+      userspace-artifact-name:
+        description: "Name of the userspace artifact to download"
+        required: true
+        type: string
+      setools-artifact-name:
+        description: "Name of the setools artifact to download"
+        required: true
+        type: string
 
 jobs:
   sediff:
@@ -42,6 +50,9 @@ jobs:
           - { apps-off: "" }
           - { systemd: "n" }
 
+    env:
+      OUTPUT_LOG: diff-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}.log
+
     steps:
       - name: Checkout testing dir of repo
         uses: actions/checkout@v6
@@ -62,7 +73,12 @@ jobs:
         uses: actions/download-artifact@v8
         id: dl-userspace
         with:
-          name: selinux
+          name: ${{ inputs.userspace-artifact-name }}
+
+      - name: Unpack userspace artifact
+        shell: bash
+        run: |
+          tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf ${{ inputs.userspace-artifact-name }}
 
       - name: Download left policy artifact
         uses: actions/download-artifact@v8
@@ -82,28 +98,28 @@ jobs:
         uses: actions/download-artifact@v8
         id: dl-setools
         with:
-          name: setools
+          name: ${{ inputs.setools-artifact-name }}
 
       - name: Install dependencies
         shell: bash
         run: |
-          tar -C "${{ steps.dl-setools.outputs.download-path }}" -zxvf selinux.tar.gz
           sudo python -m pip install setools*.whl networkx
 
       - name: Diff policies
         shell: bash
         id: sediff
-        run: sediff left/sepolicy right/sepolicy &> diff-${{ inputs.left }}-${{ inputs.right }}.log
+        run: sediff left/sepolicy right/sepolicy | tee ${{ env.OUTPUT_LOG}}
         env:
           LD_LIBRARY_PATH: "${{steps.dl-userspace.outputs.download-path}}/lib:${{steps.dl-userspace.outputs.download-path}}/usr/lib:${LD_LIBRARY_PATH}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         with:
-          name: diff-${{ matrix.distro }}-${{ matrix.type }}-${{ matrix.monolithic }}-${{ matrix.systemd }}-${{ matrix.direct_initrc }}-${{ matrix.apps-off }}
-          path: |
-            diff-${{ inputs.left }}-${{ inputs.right }}.log
+          name: ${{ env.OUTPUT_LOG}}
+          path: ${{ env.OUTPUT_LOG}}
+          archive: false
+          if-no-files-found: error
 
       - name: Upload failed build directory artifact
         if: ${{ failure() && runner.debug }}

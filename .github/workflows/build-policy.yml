@@ -22,6 +22,16 @@ on:
         required: false
         type: string
         default: "refpolicy"
+      userspace-artifact-name:
+        description: "Name of the userspace artifact to download"
+        required: false
+        type: string
+        default: "selinux"
+      setools-artifact-name:
+        description: "Name of the setools artifact to download"
+        required: false
+        type: string
+        default: "setools"
 
 jobs:
   build:
@@ -55,7 +65,12 @@ jobs:
       uses: actions/download-artifact@v8
       id: dl-userspace
       with:
-        name: selinux
+        name: ${{ inputs.userspace-artifact-name }}
+
+    - name: Unpack userspace artifact
+      shell: bash
+      run: |
+        tar -C "${{ steps.dl-userspace.outputs.download-path }}" -zxvf ${{ inputs.userspace-artifact-name }}
 
     # This should be the minimum required Python version to build refpolicy.
     # or the standard Python version on Ubuntu.
@@ -68,12 +83,11 @@ jobs:
       uses: actions/download-artifact@v8
       id: dl-setools
       with:
-        name: setools
+        name: ${{ inputs.setools-artifact-name }}
 
     - name: Install dependencies
       shell: bash
       run: |
-        tar -C "${{ steps.dl-setools.outputs.download-path }}" -zxvf selinux.tar.gz
         sudo python -m pip install setools*.whl networkx
 
     - name: Configure environment
@@ -163,6 +177,7 @@ jobs:
         path: |
           ${{ inputs.path }}/sepolicy
           ${{ inputs.path }}/file_contexts
+        if-no-files-found: error
 
     - name: Upload failed build directory artifact
       if: ${{ failure() && runner.debug }}
