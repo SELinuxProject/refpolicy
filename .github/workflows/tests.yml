@@ -1,75 +1,74 @@
 name: Build tests
 
-on: [push, pull_request]
-
-env:
-  # Minimum versions to build refpolicy.
-  PYTHON_VERSION: "3.10"
-  SELINUX_USERSPACE_VERSION: "3.9"
-  # branch for sechecker
-  SECHECKER_VERSION: "4.5"
-  # branch for selint
-  SELINT_VERSION: "v1.5.0"
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
+  global_vars:
+    uses: ./.github/workflows/global-vars.yml
+
   lint_branch_policy:
     uses: ./.github/workflows/lint-policy.yml
+    needs: global_vars
     with:
-      python-version: "3.10"
-      selint-version: "v1.5.0"
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      selint-version: ${{ needs.global_vars.outputs.selint-version }}
 
   build_userspace:
     uses: ./.github/workflows/build-userspace.yml
+    needs: global_vars
     # depend on lint so expensive operations don't run if lint fails
     with:
-      version: "3.9"
-      python-version: "3.10"
-      artifact-name: "selinux-userspace.tar.gz"
+      version: ${{ needs.global_vars.outputs.selinux-userspace-version }}
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
 
   build_setools:
     uses: ./.github/workflows/build-setools.yml
-    needs: build_userspace
+    needs: [build_userspace, global_vars]
     with:
-      version: "4.5"
-      python-version: "3.10"
-      artifact-name: "setools.whl"
-      userspace-artifact-name: "selinux-userspace.tar.gz"
+      version: ${{ needs.global_vars.outputs.sechecker-version }}
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      artifact-name: ${{ needs.global_vars.outputs.setools-artifact-name }}
+      userspace-artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
 
   build_branch_policy:
     uses: ./.github/workflows/build-policy.yml
-    needs: [lint_branch_policy, build_setools, build_userspace]
+    needs: [lint_branch_policy, build_setools, build_userspace, global_vars]
     with:
-      # Minimum versions to build refpolicy.
-      python-version: "3.10"
-      userspace-artifact-name: "selinux-userspace.tar.gz"
-      setools-artifact-name: "setools.whl"
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      userspace-artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
+      setools-artifact-name: ${{ needs.global_vars.outputs.setools-artifact-name }}
+      matrix: ${{ needs.global_vars.outputs.build-matrix }}
 
   validate_branch_policy:
     uses: ./.github/workflows/validate-policy.yml
-    needs: [build_branch_policy, build_setools, build_userspace]
+    needs: [build_branch_policy, build_setools, build_userspace, global_vars]
     with:
-      python-version: "3.10"
-      userspace-artifact-name: "selinux-userspace.tar.gz"
-      setools-artifact-name: "setools.whl"
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      userspace-artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
+      setools-artifact-name: ${{ needs.global_vars.outputs.setools-artifact-name }}
+      matrix: ${{ needs.global_vars.outputs.analysis-matrix }}
 
   build_PRtarget_policy:
     uses: ./.github/workflows/build-policy.yml
-    needs: [lint_branch_policy, build_setools, build_userspace]
+    needs: [lint_branch_policy, build_setools, build_userspace, global_vars]
     if: ${{ github.event_name == 'pull_request' }}
     with:
       version: ${{ github.base_ref }}
       artifact-name: "PRbase"
-      python-version: "3.10"
-      userspace-artifact-name: "selinux-userspace.tar.gz"
-      setools-artifact-name: "setools.whl"
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      userspace-artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
+      setools-artifact-name: ${{ needs.global_vars.outputs.setools-artifact-name }}
+      matrix: ${{ needs.global_vars.outputs.build-matrix }}
 
   diff_policy:
     uses: ./.github/workflows/diff-policy.yml
-    needs: [build_branch_policy, build_PRtarget_policy, build_setools, build_userspace]
+    needs: [build_branch_policy, build_PRtarget_policy, build_setools, build_userspace, global_vars]
     if: ${{ github.event_name == 'pull_request' }}
     with:
       left: "PRbase"
       right: "refpolicy"
-      python-version: "3.10"
-      userspace-artifact-name: "selinux-userspace.tar.gz"
-      setools-artifact-name: "setools.whl"
+      python-version: ${{ needs.global_vars.outputs.python-version }}
+      userspace-artifact-name: ${{ needs.global_vars.outputs.userspace-artifact-name }}
+      setools-artifact-name: ${{ needs.global_vars.outputs.setools-artifact-name }}
+      matrix: ${{ needs.global_vars.outputs.analysis-matrix }}
