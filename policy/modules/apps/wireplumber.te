@@ -1,0 +1,181 @@
+policy_module(wireplumber)
+
+########################################
+#
+# Declarations
+#
+
+## <desc>
+##	<p>
+##	Run WirePlumber as a system-wide daemon launched by the systemd system
+##	instance.  When false (default), WirePlumber runs as a per-user session
+##	service launched by systemd --user.
+##	Define wireplumber_system_service at build time to enable system-service mode.
+##	</p>
+## </desc>
+
+attribute_role wireplumber_roles;
+
+#
+# wireplumber_t — the WirePlumber session manager daemon.
+#
+type wireplumber_t;
+type wireplumber_exec_t;
+ifdef(`wireplumber_system_service',`
+	init_daemon_domain(wireplumber_t, wireplumber_exec_t)
+',`
+	userdom_user_application_domain(wireplumber_t, wireplumber_exec_t)
+	role wireplumber_roles types wireplumber_t;
+')
+
+type wireplumber_home_t;
+userdom_user_home_content(wireplumber_home_t)
+
+type wireplumber_var_lib_t;
+files_type(wireplumber_var_lib_t)
+
+type wireplumber_runtime_t;
+files_runtime_file(wireplumber_runtime_t)
+
+type wireplumber_tmpfs_t;
+userdom_user_tmpfs_file(wireplumber_tmpfs_t)
+
+########################################
+#
+# wireplumber_t — common policy (both system and user instances)
+#
+
+allow wireplumber_t self:capability sys_nice;
+allow wireplumber_t self:process { getsched setsched signal signull };
+allow wireplumber_t self:fifo_file rw_fifo_file_perms;
+allow wireplumber_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow wireplumber_t self:unix_dgram_socket create_socket_perms;
+
+# Bluetooth socket for BlueZ audio routing (A2DP/HFP profile management).
+allow wireplumber_t self:bluetooth_socket create_socket_perms;
+
+# netlink kobject uevent socket for udev device monitoring.
+allow wireplumber_t self:netlink_kobject_uevent_socket create_socket_perms;
+
+# Shared memory (memfd) files for zero-copy audio buffer sharing with PipeWire.
+mmap_manage_files_pattern(wireplumber_t, wireplumber_tmpfs_t, wireplumber_tmpfs_t)
+fs_tmpfs_filetrans(wireplumber_t, wireplumber_tmpfs_t, file)
+
+# NSS/name-service lookups to resolve user names for session ownership checks.
+auth_use_nsswitch(wireplumber_t)
+
+# Filesystem getattr for device/mount enumeration.
+dev_getattr_fs(wireplumber_t)
+
+# Suppress noisy denials when WirePlumber probes video devices it does not use.
+dev_dontaudit_getattr_video_dev(wireplumber_t)
+
+# Device enumeration via sysfs.
+dev_read_sysfs(wireplumber_t)
+
+# /dev/snd inotify watch for ALSA device add/remove events.
+dev_watch_dev_dirs(wireplumber_t)
+
+# Suppress harmless /proc/<pid>/status probes during client enumeration.
+domain_dontaudit_read_all_domains_state(wireplumber_t)
+
+files_map_usr_files(wireplumber_t)
+files_read_etc_files(wireplumber_t)
+
+# /etc/machine-id (used for unique instance identification).
+files_read_etc_runtime_files(wireplumber_t)
+
+files_read_usr_files(wireplumber_t)
+
+fs_getattr_xattr_fs(wireplumber_t)
+
+# Read /proc state for scheduling and memory info.
+kernel_read_system_state(wireplumber_t)
+
+logging_send_syslog_msg(wireplumber_t)
+
+miscfiles_read_localization(wireplumber_t)
+
+# udev runtime data (/run/udev) for device property lookups.
+udev_read_runtime_files(wireplumber_t)
+udev_search_runtime(wireplumber_t)
+
+# D-Bus communication with BlueZ (Bluetooth audio routing).
+optional_policy(`
+	bluetooth_dbus_chat(wireplumber_t)
+')
+
+# D-Bus communication with ModemManager (telephony audio routing).
+optional_policy(`
+	modemmanager_dbus_chat(wireplumber_t)
+')
+
+# D-Bus communication with oFono (telephony audio routing).
+optional_policy(`
+	ofono_dbus_chat(wireplumber_t)
+')
+
+# Connect to the PipeWire daemon socket and map its shared memory buffers.
+optional_policy(`
+	pipewire_mmap_rw_tmpfs_files(wireplumber_t)
+	pipewire_stream_connect(wireplumber_t)
+	pipewire_use_fds(wireplumber_t)
+')
+
+# Real-time scheduling priority via rtkit-daemon.
+optional_policy(`
+	rtkit_scheduled(wireplumber_t)
+')
+
+# systemd-logind session tracking and journal logging.
+optional_policy(`
+	systemd_read_journal_files(wireplumber_t)
+	systemd_read_logind_sessions_files(wireplumber_t)
+	systemd_watch_logind_sessions_dirs(wireplumber_t)
+')
+
+########################################
+#
+# wireplumber_t — system-service-only policy
+#
+
+ifdef(`wireplumber_system_service',`
+	# Persistent state directory under /var/lib/wireplumber.
+	manage_dirs_pattern(wireplumber_t, wireplumber_var_lib_t, wireplumber_var_lib_t)
+	manage_files_pattern(wireplumber_t, wireplumber_var_lib_t, wireplumber_var_lib_t)
+	files_var_lib_filetrans(wireplumber_t, wireplumber_var_lib_t, { dir file })
+
+	# Runtime socket/pid directory transition under /run/wireplumber.
+	files_runtime_filetrans(wireplumber_t, wireplumber_runtime_t, dir, "wireplumber")
+
+	manage_dirs_pattern(wireplumber_t, wireplumber_runtime_t, wireplumber_runtime_t)
+	manage_files_pattern(wireplumber_t, wireplumber_runtime_t, wireplumber_runtime_t)
+	manage_sock_files_pattern(wireplumber_t, wireplumber_runtime_t, wireplumber_runtime_t)
+
+	# System D-Bus registration.
+	optional_policy(`
+		dbus_system_domain(wireplumber_t, wireplumber_exec_t)
+	')
+')
+
+########################################
+#
+# wireplumber_t — user-service-only policy
+#
+
+ifndef(`wireplumber_system_service',`
+	# Home directory state (~/.config/wireplumber, ~/.local/share/wireplumber).
+	# mmap_manage_file_perms includes map permission needed for config file mmap.
+	manage_dirs_pattern(wireplumber_t, wireplumber_home_t, wireplumber_home_t)
+	allow wireplumber_t wireplumber_home_t:file mmap_manage_file_perms;
+	manage_lnk_files_pattern(wireplumber_t, wireplumber_home_t, wireplumber_home_t)
+
+	# Runtime socket directory transition under $XDG_RUNTIME_DIR/wireplumber.
+	userdom_user_runtime_filetrans(wireplumber_t, wireplumber_runtime_t, dir, "wireplumber")
+
+	# Session D-Bus (register on the per-user session bus).
+	optional_policy(`
+		dbus_all_session_bus_client(wireplumber_t)
+		dbus_connect_all_session_bus(wireplumber_t)
+	')
+')
