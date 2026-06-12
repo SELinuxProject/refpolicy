@@ -1,0 +1,100 @@
+policy_module(pipewire)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role pipewire_roles;
+
+type pipewire_t;
+type pipewire_exec_t;
+ifdef(`pipewire_system_service',`
+	init_daemon_domain(pipewire_t, pipewire_exec_t)
+',`
+	userdom_user_application_domain(pipewire_t, pipewire_exec_t)
+	role pipewire_roles types pipewire_t;
+')
+
+type pipewire_home_t alias pipewire_var_lib_t;
+userdom_user_home_content(pipewire_home_t)
+
+type pipewire_runtime_t;
+files_runtime_file(pipewire_runtime_t)
+
+type pipewire_tmpfs_t;
+userdom_user_tmpfs_file(pipewire_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow pipewire_t self:capability sys_nice;
+allow pipewire_t self:process { getsched setsched signal sigchld };
+allow pipewire_t self:fifo_file rw_fifo_file_perms;
+allow pipewire_t self:unix_stream_socket { create_stream_socket_perms connectto bind listen accept };
+
+manage_dirs_pattern(pipewire_t, pipewire_home_t, pipewire_home_t)
+manage_files_pattern(pipewire_t, pipewire_home_t, pipewire_home_t)
+
+manage_dirs_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+manage_files_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+manage_sock_files_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+
+mmap_manage_files_pattern(pipewire_t, pipewire_tmpfs_t, pipewire_tmpfs_t)
+fs_tmpfs_filetrans(pipewire_t, pipewire_tmpfs_t, file)
+
+dev_read_sound(pipewire_t)
+dev_read_sysfs(pipewire_t)
+dev_write_sound(pipewire_t)
+
+kernel_read_system_state(pipewire_t)
+
+domain_dontaudit_read_all_domains_state(pipewire_t)
+
+files_read_etc_files(pipewire_t)
+files_read_usr_files(pipewire_t)
+files_map_usr_files(pipewire_t)
+
+logging_send_syslog_msg(pipewire_t)
+
+# Allow pw-play to read files from /tmp
+files_search_tmp(pipewire_t)
+files_read_all_tmp_files(pipewire_t)
+
+# Allow use of inherited stream sockets from init scripts (e.g. ADB shell)
+init_rw_script_stream_sockets(pipewire_t)
+
+miscfiles_read_localization(pipewire_t)
+
+ifdef(`pipewire_system_service',`
+	allow pipewire_t self:capability dac_override;
+	files_var_lib_filetrans(pipewire_t, pipewire_home_t, { dir file })
+	files_runtime_filetrans(pipewire_t, pipewire_runtime_t, { dir file sock_file })
+	dev_rw_dma_dev(pipewire_t)
+',`
+	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, dir)
+	userdom_user_home_dir_filetrans(pipewire_t, pipewire_home_t, dir)
+')
+
+optional_policy(`
+	dbus_all_session_bus_client(pipewire_t)
+	dbus_connect_all_session_bus(pipewire_t)
+
+	ifdef(`pipewire_system_service',`
+		dbus_system_domain(pipewire_t, pipewire_exec_t)
+	')
+')
+
+optional_policy(`
+	pulseaudio_stream_connect(pipewire_t)
+')
+
+optional_policy(`
+	rtkit_scheduled(pipewire_t)
+')
+
+optional_policy(`
+	systemd_read_journal_files(pipewire_t)
+')
