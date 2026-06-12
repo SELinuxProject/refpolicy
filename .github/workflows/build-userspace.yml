@@ -1,9 +1,5 @@
 name: "Build SELinux userspace"
 
-env:
-  SELINUX_SRC: "${{ github.workspace }}/selinux-src"
-  SELINUX_BIN: "${{ github.workspace }}/selinux-bin"
-
 on:
   workflow_call:
     inputs:
@@ -13,6 +9,10 @@ on:
         type: string
       python-version:
         description: "Python version to use"
+        required: true
+        type: string
+      ruby-version:
+        description: "Ruby version to use"
         required: true
         type: string
       artifact-name:
@@ -36,12 +36,10 @@ jobs:
       with:
         repository: SELinuxProject/selinux
         ref: "${{ inputs.version }}"
-        path: "${{ env.SELINUX_SRC }}"
 
     - name: Get the latest commit hash
       shell: bash
       run: echo "COMMIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
-      working-directory: "${{ env.SELINUX_SRC }}"
 
     - name: Download cached SELinux userspace
       uses: actions/cache@v5
@@ -50,54 +48,22 @@ jobs:
         path: ${{ github.workspace }}/${{ inputs.artifact-name }}
         key: selinux-${{ inputs.version }}-${{ env.COMMIT_HASH }}-${{ runner.os }}-${{ runner.arch }}-Python${{ inputs.python-version }}
 
-    - name: Set up Python
-      uses: actions/setup-python@v6
+    - name: Build SELinux userspace
       if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
+      #The new GH action is not available in a release yet.
+      uses: SELinuxProject/selinux/.github/actions/build-userspace@main
+      #uses: SELinuxProject/selinux/.github/actions/build-userspace@${{ inputs.version }}
+      id: build-userspace
       with:
         python-version: "${{ inputs.python-version }}"
-
-    - name: Install dependencies
-      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
-      shell: bash
-      run: |
-        sudo apt-get update -q
-        sudo apt-get install -qy \
-            bison \
-            flex \
-            gettext \
-            libaudit-dev \
-            libbz2-dev \
-            libpcre3-dev \
-            libxml2-utils \
-            swig
-
-    - name: Compile
-      if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
-      shell: bash
-      id: compile
-      working-directory: "${{ env.SELINUX_SRC }}"
-      run: |
-        # Drop secilc to break xmlto dependence (secilc isn't used here anyway)
-        sed -i -e 's/secilc//' Makefile
-        # Drop sepolicy to break setools dependence (sepolicy isn't used anyway)
-        sed -i -e 's/sepolicy//' policycoreutils/Makefile
-        # Drop restorecond to break glib dependence
-        sed -i -e 's/ restorecond//' policycoreutils/Makefile
-        # Drop sandbox to break libcap-ng dependence
-        sed -i -e 's/ sandbox//' policycoreutils/Makefile
-        # Compile and install SELinux toolchain
-        make OPT_SUBDIRS=semodule-utils install install-pywrap
-        # set output directory on successful/pre-existing compile
-        echo "DESTDIR=\"${DESTDIR}\"" >> $GITHUB_OUTPUT
-      env:
-        DESTDIR: "${{ env.SELINUX_BIN }}"
-        CFLAGS: "-O2"
+        compiler: gcc
+        ruby-version: "${{ inputs.ruby-version }}"
 
     - name: Create artifact
       if: ${{ steps.cache-userspace.outputs.cache-hit != 'true' }}
       shell: bash
       id: create-artifact
-      working-directory: "${{ env.SELINUX_BIN }}"
+      working-directory: "${{ steps.build-userspace.outputs.DESTDIR }}"
       run: |
         # Create a tarball of the binary directory
         tar -czf "${{ github.workspace }}/${{ inputs.artifact-name }}" .
