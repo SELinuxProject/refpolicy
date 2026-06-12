@@ -1,0 +1,229 @@
+policy_module(pipewire, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+
+type pipewire_t;
+type pipewire_exec_t;
+ifdef(`pipewire_system_service',`
+	init_daemon_domain(pipewire_t, pipewire_exec_t)
+',`
+	userdom_user_application_domain(pipewire_t, pipewire_exec_t)
+')
+
+type pipewire_home_t;
+userdom_user_home_content(pipewire_home_t)
+
+type pipewire_var_lib_t;
+files_type(pipewire_var_lib_t)
+
+type pipewire_runtime_t;
+files_type(pipewire_runtime_t)
+
+type pipewire_tmpfs_t;
+userdom_user_tmp_file(pipewire_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow pipewire_t self:capability sys_nice;
+allow pipewire_t self:process { getsched setsched signal sigchld };
+allow pipewire_t self:fifo_file rw_fifo_file_perms;
+allow pipewire_t self:unix_stream_socket { create_stream_socket_perms connectto };
+
+manage_dirs_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+manage_files_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+manage_sock_files_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
+
+manage_files_pattern(pipewire_t, pipewire_tmpfs_t, pipewire_tmpfs_t)
+allow pipewire_t pipewire_tmpfs_t:file map;
+fs_tmpfs_filetrans(pipewire_t, pipewire_tmpfs_t, file)
+
+dev_read_sound(pipewire_t)
+dev_read_sysfs(pipewire_t)
+dev_write_sound(pipewire_t)
+
+kernel_read_system_state(pipewire_t)
+
+domain_dontaudit_read_all_domains_state(pipewire_t)
+
+files_read_etc_files(pipewire_t)
+files_read_usr_files(pipewire_t)
+ifdef(`files_map_usr_files',`
+	files_map_usr_files(pipewire_t)
+')
+
+logging_send_syslog_msg(pipewire_t)
+
+# Allow pw-play to read files from /tmp
+files_search_tmp(pipewire_t)
+files_read_all_tmp_files(pipewire_t)
+
+miscfiles_read_localization(pipewire_t)
+
+ifdef(`pipewire_system_service',`
+	allow pipewire_t self:capability dac_override;
+
+	manage_dirs_pattern(pipewire_t, pipewire_var_lib_t, pipewire_var_lib_t)
+	manage_files_pattern(pipewire_t, pipewire_var_lib_t, pipewire_var_lib_t)
+	files_var_lib_filetrans(pipewire_t, pipewire_var_lib_t, { dir file })
+
+	gen_require(`
+		type var_run_t;
+	')
+	allow pipewire_t var_run_t:dir { search add_name write remove_name };
+	filetrans_pattern(pipewire_t, var_run_t, pipewire_runtime_t, dir, "pipewire")
+
+	# Needed only when launched from init/system scripts.
+	init_rw_script_stream_sockets(pipewire_t)
+	dev_rw_dma_dev(pipewire_t)
+
+	# Allow pw-record to create/write output files in /tmp (e.g. pw-record /tmp/test.wav).
+	ifdef(`files_write_tmp_files',`
+		files_write_tmp_files(pipewire_t)
+	',`
+		gen_require(`
+			type tmp_t;
+		')
+		allow pipewire_t tmp_t:dir { search add_name write };
+		allow pipewire_t tmp_t:file { create open read write getattr setattr };
+	')
+
+	ifdef(`dbus_system_domain',`
+		optional_policy(`
+			dbus_system_domain(pipewire_t, pipewire_exec_t)
+		')
+	')
+',`
+	manage_dirs_pattern(pipewire_t, pipewire_home_t, pipewire_home_t)
+	manage_files_pattern(pipewire_t, pipewire_home_t, pipewire_home_t)
+
+	ifdef(`userdom_user_runtime_filetrans',`
+		userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, dir)
+	',`
+		gen_require(`
+			type user_tmp_t;
+		')
+		filetrans_pattern(pipewire_t, user_tmp_t, pipewire_runtime_t, dir, "pipewire")
+	')
+
+	ifdef(`userdom_user_home_dir_filetrans',`
+		userdom_user_home_dir_filetrans(pipewire_t, pipewire_home_t, dir)
+	',`
+		# Older trees fallback: keep compile compatibility; rely on FC/restorecon for home paths.
+	')
+
+	# Session/system D-Bus socket access for PipeWire helpers.
+	optional_policy(`
+		gen_require(`
+			type session_dbusd_tmp_t;
+			type staff_dbusd_t;
+		')
+		allow pipewire_t session_dbusd_tmp_t:sock_file write;
+		allow pipewire_t staff_dbusd_t:unix_stream_socket connectto;
+	')
+
+	optional_policy(`
+		gen_require(`
+			type system_dbusd_var_run_t;
+			type system_dbusd_t;
+		')
+		allow pipewire_t system_dbusd_var_run_t:sock_file write;
+		allow pipewire_t system_dbusd_t:unix_stream_socket connectto;
+	')
+
+	# Name-service and ALSA config reads observed in enforcing logs.
+	optional_policy(`
+		gen_require(`
+			type passwd_file_t;
+		')
+		allow pipewire_t passwd_file_t:file { getattr open read };
+	')
+
+	optional_policy(`
+		gen_require(`
+			type alsa_etc_rw_t;
+		')
+		allow pipewire_t alsa_etc_rw_t:file { getattr open read map };
+	')
+
+	ifdef(`dbus_all_session_bus_client',`
+		optional_policy(`
+			dbus_all_session_bus_client(pipewire_t)
+		')
+	')
+	ifdef(`dbus_connect_all_session_bus',`
+		optional_policy(`
+			dbus_connect_all_session_bus(pipewire_t)
+		')
+	')
+')
+
+ifdef(`pulseaudio_stream_connect',`
+	optional_policy(`
+		pulseaudio_stream_connect(pipewire_t)
+	')
+')
+
+ifdef(`rtkit_scheduled',`
+	optional_policy(`
+		rtkit_scheduled(pipewire_t)
+	')
+')
+
+ifdef(`systemd_read_journal_files',`
+	optional_policy(`
+		systemd_read_journal_files(pipewire_t)
+	')
+')
+
+########################################
+#
+# Unconfined access rules
+#
+
+ifdef(`pipewire_system_service',`',`
+    gen_require(`
+        type staff_t;
+        type user_t;
+        role staff_r;
+        role user_r;
+    ')
+    role staff_r types pipewire_t;
+    role user_r types pipewire_t;
+    domtrans_pattern(staff_t, pipewire_exec_t, pipewire_t)
+    domtrans_pattern(user_t, pipewire_exec_t, pipewire_t)
+    allow staff_t pipewire_t:unix_stream_socket { create setopt bind listen connectto getopt };
+    allow user_t pipewire_t:unix_stream_socket { create setopt bind listen connectto getopt };
+    allow staff_t pipewire_t:process { signal sigkill signull };
+    allow user_t pipewire_t:process { signal sigkill signull };
+    allow staff_t pipewire_t:process2 nnp_transition;
+    allow user_t pipewire_t:process2 nnp_transition;
+
+    # PipeWire stores lock/pid/socket files directly under /run/user/<uid>.
+    gen_require(`
+        type user_tmp_t;
+    ')
+    manage_files_pattern(pipewire_t, user_tmp_t, user_tmp_t)
+    manage_sock_files_pattern(pipewire_t, user_tmp_t, user_tmp_t)
+
+    # WirePlumber (left in staff_t/user_t) maps PipeWire memfd files.
+    allow staff_t pipewire_tmpfs_t:file { read write map getattr open };
+    allow user_t pipewire_tmpfs_t:file { read write map getattr open };
+
+    optional_policy(`
+        gen_require(`
+            type systemd_user_t;
+        ')
+        domtrans_pattern(systemd_user_t, pipewire_exec_t, pipewire_t)
+        allow systemd_user_t pipewire_t:unix_stream_socket { create setopt bind listen connectto getopt };
+        allow systemd_user_t pipewire_t:process { signal sigkill signull };
+        allow systemd_user_t pipewire_t:process2 nnp_transition;
+        allow systemd_user_t pipewire_tmpfs_t:file { read write map getattr open };
+    ')
+')
