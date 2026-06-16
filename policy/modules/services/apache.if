@@ -134,6 +134,7 @@ template(`apache_role',`
 		type httpd_user_content_t, httpd_user_htaccess_t;
 		type httpd_user_script_t, httpd_user_script_exec_t;
 		type httpd_user_ra_content_t, httpd_user_rw_content_t;
+		attribute_role httpd_ctl_roles;
 	')
 
 	role $4 types httpd_user_script_t;
@@ -155,6 +156,10 @@ template(`apache_role',`
 	allow $2 httpd_user_script_exec_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 httpd_user_script_exec_t:file { manage_file_perms relabel_file_perms };
 	allow $2 httpd_user_script_exec_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+
+	roleattribute $4 httpd_ctl_roles;
+	apache_ctl_domtrans($3)
+	apache_ctl_domtrans_from_httpd($3)
 
 	userdom_user_home_dir_filetrans($2, httpd_user_content_t, dir, "public_html")
 	userdom_user_home_dir_filetrans($2, httpd_user_content_t, dir, "web")
@@ -1416,6 +1421,7 @@ interface(`apache_admin',`
 		type httpd_runtime_t, httpd_passwd_t, httpd_suexec_t;
 		type httpd_suexec_tmp_t, httpd_tmp_t, httpd_rotatelogs_t;
 		type httpd_initrc_exec_t, httpd_keytab_t;
+		attribute_role httpd_ctl_roles;
 	')
 
 	allow $1 { httpd_script_domains httpd_t httpd_helper_t }:process { ptrace signal_perms };
@@ -1424,6 +1430,9 @@ interface(`apache_admin',`
 	ps_process_pattern($1, { httpd_rotatelogs_t httpd_suexec_t httpd_passwd_t })
 
 	init_startstop_service($1, $2, httpd_t, httpd_initrc_exec_t)
+	roleattribute $2 httpd_ctl_roles;
+	apache_ctl_domtrans($1)
+	apache_ctl_domtrans_from_httpd($1)
 
 	apache_manage_all_content($1)
 	miscfiles_manage_public_files($1)
@@ -1465,4 +1474,44 @@ interface(`apache_rw_runtime_files',`
 	')
 
 	allow $1 httpd_runtime_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow domain transitions to httpd_ctl_d
+##	from httpd_ctl_exec_t
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`apache_ctl_domtrans',`
+	gen_require(`
+		type httpd_ctl_t, httpd_ctl_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, httpd_ctl_exec_t, httpd_ctl_t)
+')
+
+########################################
+## <summary>
+##	Allow domain transitions to httpd_ctl_d
+##	from httpd_exec_t
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`apache_ctl_domtrans_from_httpd',`
+	gen_require(`
+		type httpd_ctl_t, httpd_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, httpd_exec_t, httpd_ctl_t)
 ')
