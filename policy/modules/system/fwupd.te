@@ -22,6 +22,7 @@ init_daemon_domain(fwupd_t, fwupd_exec_t)
 attribute_role fwupdmgr_roles;
 type fwupdmgr_t;
 type fwupdmgr_exec_t;
+init_daemon_domain(fwupd_t, fwupdmgr_exec_t)
 application_domain(fwupdmgr_t, fwupdmgr_exec_t)
 role fwupdmgr_roles types fwupdmgr_t;
 
@@ -33,6 +34,9 @@ files_type(fwupd_conf_t)
 
 type fwupd_runtime_t;
 files_runtime_file(fwupd_runtime_t)
+
+type fwupd_tmp_t;
+files_tmp_file(fwupd_tmp_t)
 
 type fwupd_var_lib_t;
 files_type(fwupd_var_lib_t)
@@ -50,10 +54,11 @@ dontaudit fwupd_t self:capability net_admin;
 # linux_immutable is for setting /sys/firmware/efi/efivars/* as mutable
 allow fwupd_t self:capability { dac_override dac_read_search linux_immutable sys_admin };
 allow fwupd_t self:fifo_file rw_fifo_file_perms;
-allow fwupd_t self:process getsched;
-allow fwupd_t self:udp_socket { create connect getattr };
-allow fwupd_t self:tcp_socket { create connect };
-allow fwupd_t self:netlink_route_socket { create bind getattr nlmsg_read read write };
+allow fwupd_t self:process { getsched signal };
+allow fwupd_t self:udp_socket create_socket_perms;
+allow fwupd_t self:tcp_socket create_stream_socket_perms;
+allow fwupd_t self:netlink_route_socket { create bind getattr nlmsg_read read write getopt setopt };
+allow fwupd_t self:netlink_generic_socket { create bind setopt getattr write read };
 
 allow fwupd_t self:netlink_kobject_uevent_socket create_socket_perms;
 
@@ -69,16 +74,21 @@ allow fwupd_t fwupd_cache_t:file mmap_manage_file_perms;
 auth_use_pam_motd_dynamic(fwupd_t)
 
 allow fwupd_t fwupd_runtime_t:file manage_file_perms;
+files_runtime_filetrans(fwupd_t, fwupd_runtime_t, file)
 allow fwupd_t fwupdmgr_tmpfs_t:file rw_inherited_file_perms;
 
+files_tmp_filetrans(fwupd_t, fwupd_tmp_t, { file })
+allow fwupd_t fwupd_tmp_t:file manage_file_perms;
+
 kernel_read_kernel_sysctls(fwupd_t)
+kernel_read_net_sysctls(fwupd_t)
 # for /proc/filesystems etc
 kernel_read_system_state(fwupd_t)
 kernel_read_vm_overcommit_sysctl(fwupd_t)
 kernel_watch_kernel_sysctl_dirs(fwupd_t)
 kernel_watch_proc_dirs(fwupd_t)
 
-dev_getattr_sysfs(fwupd_t)
+dev_write_sysfs(fwupd_t)
 dev_map_sysfs_files(fwupd_t)
 dev_read_gpiochip(fwupd_t)
 dev_read_urand(fwupd_t)
@@ -97,7 +107,9 @@ corecmd_exec_bin(fwupd_t)
 corecmd_list_bin(fwupd_t)
 corecmd_watch_bin_dirs(fwupd_t)
 
+corenet_tcp_connect_all_unreserved_ports(fwupd_t)
 corenet_tcp_connect_generic_port(fwupd_t)
+corenet_tcp_connect_http_port(fwupd_t)
 
 files_map_usr_files(fwupd_t)
 files_read_etc_files(fwupd_t)
@@ -125,7 +137,10 @@ init_get_system_status(fwupd_t)
 init_read_state(fwupd_t)
 
 miscfiles_read_generic_certs(fwupd_t)
+miscfiles_mmap_generic_certs(fwupd_t)
 miscfiles_read_localization(fwupd_t)
+
+term_getattr_pty_fs(fwupdmgr_t)
 
 mount_read_runtime_files(fwupd_t)
 
@@ -136,10 +151,13 @@ selinux_watch_status_page(fwupd_t)
 
 storage_raw_read_fixed_disk(fwupd_t)
 storage_raw_write_fixed_disk(fwupd_t)
+storage_raw_read_removable_device(fwupd_t)
 
 sysnet_read_config(fwupd_t)
 
 udev_read_runtime_files(fwupd_t)
+
+userdom_mmap_manage_user_runtime_files(fwupd_t)
 
 optional_policy(`
 	bluetooth_dbus_chat(fwupd_t)
@@ -174,6 +192,7 @@ optional_policy(`
 ')
 
 optional_policy(`
+	networkmanager_dbus_chat(fwupd_t)
 	networkmanager_read_runtime_files(fwupd_t)
 ')
 
@@ -221,6 +240,7 @@ files_map_usr_files(fwupdmgr_t)
 miscfiles_read_generic_certs(fwupdmgr_t)
 miscfiles_read_localization(fwupdmgr_t)
 
+userdom_mmap_manage_user_runtime_files(fwupdmgr_t)
 userdom_use_user_ptys(fwupdmgr_t)
 userdom_use_user_ttys(fwupdmgr_t)
 userdom_search_user_home_dirs(fwupdmgr_t)
@@ -233,10 +253,12 @@ userdom_mmap_manage_user_runtime_files(fwupdmgr_t)
 xdg_search_config_dirs(fwupdmgr_t)
 
 optional_policy(`
+	dbus_all_session_bus_client(fwupdmgr_t)
 	dbus_list_system_bus_runtime(fwupdmgr_t)
 	dbus_write_session_runtime_socket(fwupdmgr_t)
 	dbus_system_bus_client(fwupdmgr_t)
 	dbus_system_bus_receive_file_handle(fwupdmgr_t, fwupdmgr_tmpfs_t)
+	dbus_getattr_session_runtime_socket(fwupdmgr_t)
 ')
 
 optional_policy(`
