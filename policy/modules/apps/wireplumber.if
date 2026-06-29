@@ -21,25 +21,71 @@ interface(`wireplumber_stream_connect',`
 
 ########################################
 ## <summary>
-##	Role access for WirePlumber in user-service mode.
+##	Send and receive messages from
+##	wireplumber over dbus.
 ## </summary>
-## <param name="role">
-##	<summary>
-##	Role allowed access.
-##	</summary>
-## </param>
 ## <param name="domain">
 ##	<summary>
-##	User domain for the role.
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`wireplumber_dbus_chat',`
+	gen_require(`
+		type wireplumber_t;
+		class dbus send_msg;
+	')
+
+	allow $1 wireplumber_t:dbus send_msg;
+	allow wireplumber_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Role access for WirePlumber in user-service mode.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., "user" for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role (e.g., user_t).
+##	</summary>
+## </param>
+## <param name="user_exec_domain">
+##	<summary>
+##	User exec domain for execute and transition access
+##	(e.g., user_application_exec_domain).
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access (e.g., user_r).
 ##	</summary>
 ## </param>
 #
 interface(`wireplumber_role',`
 	gen_require(`
 		type wireplumber_t, wireplumber_exec_t;
+		type wireplumber_tmpfs_t, wireplumber_runtime_t, wireplumber_home_t;
 		attribute_role wireplumber_roles;
 	')
 
-	roleattribute $1 wireplumber_roles;
-	domtrans_pattern($2, wireplumber_exec_t, wireplumber_t)
+	wireplumber_dbus_chat($2)
+
+	roleattribute $4 wireplumber_roles;
+	ifndef(`wireplumber_system_service',`
+		manage_files_pattern($2, wireplumber_tmpfs_t, wireplumber_tmpfs_t)
+		manage_sock_files_pattern($2, wireplumber_tmpfs_t, wireplumber_tmpfs_t)
+		manage_dirs_pattern($2, wireplumber_tmpfs_t, wireplumber_tmpfs_t)
+		manage_files_pattern($2, wireplumber_runtime_t, wireplumber_runtime_t)
+		manage_sock_files_pattern($2, wireplumber_runtime_t, wireplumber_runtime_t)
+		manage_dirs_pattern($2, wireplumber_runtime_t, wireplumber_runtime_t)
+		manage_files_pattern($2, wireplumber_home_t, wireplumber_home_t)
+		manage_dirs_pattern($2, wireplumber_home_t, wireplumber_home_t)
+		systemd_user_daemon_domain($1, wireplumber_exec_t, wireplumber_t)
+		domtrans_pattern($3, wireplumber_exec_t, wireplumber_t)
+	')
 ')
