@@ -16,6 +16,8 @@ policy_module(pipewire)
 
 attribute_role pipewire_roles;
 
+attribute pipewire_client;
+
 #
 # pipewire_t — the PipeWire multimedia daemon.
 #
@@ -172,6 +174,23 @@ ifndef(`pipewire_system_service',`
 
 ########################################
 #
+# pipewire_client domain
+#
+# domain that captures requirements to use the pipewire service
+#
+
+pipewire_stream_connect(pipewire_client)
+pipewire_rw_stream_sockets(pipewire_client)
+pipewire_mmap_rw_tmpfs_files(pipewire_client)
+pipewire_use_fds(pipewire_client)
+allow pipewire_t pipewire_client:fd use;
+
+optional_policy(`
+	pipewire_dbus_chat(pipewire_client)
+')
+
+########################################
+#
 # pipewire_client_t — pw-cat and other client utilities
 #
 # pw-cat is a standalone client that connects to a running PipeWire daemon
@@ -192,11 +211,7 @@ kernel_read_system_state(pipewire_client_t)
 miscfiles_read_localization(pipewire_client_t)
 
 # Connect to the PipeWire daemon socket and map its shared memory buffers.
-pipewire_stream_connect(pipewire_client_t)
-pipewire_rw_stream_sockets(pipewire_client_t)
-pipewire_mmap_rw_tmpfs_files(pipewire_client_t)
-pipewire_use_fds(pipewire_client_t)
-pipewire_use_client_fds(pipewire_t)
+pipewire_client_domain(pipewire_client_t)
 
 # Read media files from the user's home, and allow capture tools such as
 # pw-record to manage user-selected output files in /tmp.
@@ -206,9 +221,4 @@ userdom_tmp_filetrans_user_tmp(pipewire_client_t, file)
 
 optional_policy(`
 	alsa_read_config(pipewire_client_t)
-')
-
-optional_policy(`
-	dbus_all_session_bus_client(pipewire_client_t)
-	dbus_connect_all_session_bus(pipewire_client_t)
 ')
