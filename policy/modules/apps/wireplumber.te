@@ -1,0 +1,158 @@
+policy_module(wireplumber)
+
+########################################
+#
+# Declarations
+#
+
+attribute_role wireplumber_roles;
+
+type wireplumber_t;
+type wireplumber_exec_t;
+ifdef(`wireplumber_system_service',`
+	init_daemon_domain(wireplumber_t, wireplumber_exec_t)
+',`
+	userdom_user_application_domain(wireplumber_t, wireplumber_exec_t)
+	role wireplumber_roles types wireplumber_t;
+')
+
+type wireplumber_home_t alias wireplumber_var_lib_t;
+userdom_user_home_content(wireplumber_home_t)
+
+type wireplumber_runtime_t;
+files_runtime_file(wireplumber_runtime_t)
+
+type wireplumber_tmpfs_t;
+userdom_user_tmpfs_file(wireplumber_tmpfs_t)
+
+########################################
+#
+# Local policy
+#
+
+allow wireplumber_t self:process { getsched setsched signal signull setrlimit };
+allow wireplumber_t self:capability sys_nice;
+allow wireplumber_t self:fifo_file rw_fifo_file_perms;
+allow wireplumber_t self:unix_stream_socket { create_stream_socket_perms connectto };
+allow wireplumber_t self:unix_dgram_socket create_socket_perms;
+
+manage_files_pattern(wireplumber_t, wireplumber_home_t, wireplumber_home_t)
+manage_dirs_pattern(wireplumber_t, wireplumber_home_t, wireplumber_home_t)
+
+# Bluetooth socket (for BlueZ audio routing)
+allow wireplumber_t self:bluetooth_socket { create bind setopt listen shutdown connect getopt read write };
+
+# netlink kobject uevent socket (for udev device monitoring)
+allow wireplumber_t self:netlink_kobject_uevent_socket { create bind setopt getattr getopt read };
+
+dev_read_sysfs(wireplumber_t)
+
+# /dev/snd inotify watch for device monitoring
+dev_watch_dev_dirs(wireplumber_t)
+
+# filesystem getattr
+dev_getattr_fs(wireplumber_t)
+dev_getattr_sysfs(wireplumber_t)
+fs_getattr_xattr_fs(wireplumber_t)
+
+# v4l device getattr (video device enumeration)
+dev_dontaudit_getattr_video_dev(wireplumber_t)
+
+files_read_usr_files(wireplumber_t)
+files_map_usr_files(wireplumber_t)
+files_read_etc_files(wireplumber_t)
+
+dev_read_sound(wireplumber_t)
+dev_write_sound(wireplumber_t)
+
+dev_read_video_dev(wireplumber_t)
+dev_write_video_dev(wireplumber_t)
+
+# /etc/machine-id
+files_read_etc_runtime_files(wireplumber_t)
+
+kernel_read_system_state(wireplumber_t)
+
+domain_dontaudit_read_all_domains_state(wireplumber_t)
+
+logging_send_syslog_msg(wireplumber_t)
+
+miscfiles_read_localization(wireplumber_t)
+
+optional_policy(`
+	pipewire_client_domain(wireplumber_t)
+')
+
+# Runtime directory management - differs between system and user service
+ifdef(`wireplumber_system_service',`
+	files_var_lib_filetrans(wireplumber_t, wireplumber_home_t, { dir file })
+	files_runtime_filetrans(wireplumber_t, wireplumber_runtime_t, { dir file sock_file })
+',`
+	userdom_user_runtime_filetrans(wireplumber_t, wireplumber_runtime_t, dir)
+	userdom_user_home_dir_filetrans(wireplumber_t, wireplumber_home_t, dir)
+
+	optional_policy(`
+		xdg_search_data_dirs(wireplumber_t)
+		xdg_search_config_dirs(wireplumber_t)
+		xdg_data_filetrans(wireplumber_t, wireplumber_home_t, dir, "wireplumber")
+	')
+')
+
+# tmpfs shared memory (memfd for zero-copy audio buffers)
+mmap_manage_files_pattern(wireplumber_t, wireplumber_tmpfs_t, wireplumber_tmpfs_t)
+fs_tmpfs_filetrans(wireplumber_t, wireplumber_tmpfs_t, file)
+
+# udev runtime data (/run/udev)
+udev_search_runtime(wireplumber_t)
+udev_read_runtime_files(wireplumber_t)
+
+optional_policy(`
+	alsa_read_config(wireplumber_t)
+	alsa_read_lib(wireplumber_t)
+')
+
+# systemd sessions (/run/systemd/sessions)
+
+optional_policy(`
+	systemd_read_logind_sessions_files(wireplumber_t)
+	systemd_watch_logind_sessions_dirs(wireplumber_t)
+')
+
+optional_policy(`
+	dbus_system_bus_client(wireplumber_t)
+	dbus_connect_system_bus(wireplumber_t)
+	dbus_write_session_runtime_socket(wireplumber_t)
+	dbus_connect_all_session_bus(wireplumber_t)
+
+	ifdef(`wireplumber_system_service',`
+		dbus_system_domain(wireplumber_t, wireplumber_exec_t)
+	')
+')
+
+# Allow ModemManager D-Bus replies to wireplumber_t
+optional_policy(`
+	modemmanager_dbus_chat(wireplumber_t)
+')
+
+# Allow BlueZ D-Bus signals to wireplumber_t
+optional_policy(`
+	bluetooth_dbus_chat(wireplumber_t)
+	bluetooth_use(wireplumber_t)
+')
+
+optional_policy(`
+	devicekit_dbus_chat_power(wireplumber_t)
+')
+
+# Allow oFono D-Bus communication (telephony)
+optional_policy(`
+	ofono_dbus_chat(wireplumber_t)
+')
+
+optional_policy(`
+	rtkit_scheduled(wireplumber_t)
+')
+
+optional_policy(`
+	systemd_read_journal_files(wireplumber_t)
+')
