@@ -200,7 +200,7 @@ interface(`wm_dontaudit_exec_tmp_files',`
 
 ########################################
 ## <summary>
-##	mmap and read-write files in temporary filesystems.
+##	mmap and read-write files created by wm_domain in tmpfs filesystems.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -234,6 +234,60 @@ interface(`wm_dontaudit_exec_tmpfs_files',`
 	')
 
 	dontaudit $1 wm_tmpfs_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow receiving fd from wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_receive_fd',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow $1 wm_domain:fd use;
+')
+
+########################################
+## <summary>
+##	Allow sending fd to wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_send_fd',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow wm_domain $1:fd use;
+')
+
+########################################
+## <summary>
+##      Allow using socket of wm domain
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain to allow
+##      </summary>
+## </param>
+#
+interface(`wm_sock_rw',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow $1 wm_domain:unix_stream_socket rw_stream_socket_perms;
 ')
 
 ########################################
@@ -274,10 +328,52 @@ interface(`wm_dontaudit_exec_tmpfs_files',`
 interface(`wm_application_domain',`
 	gen_require(`
 		attribute wm_domain;
+		type wm_tmpfs_t;
 	')
 
 	userdom_user_application_domain($1, $2)
 	domtrans_pattern(wm_domain, $2, $1)
+	allow $1 wm_domain:unix_stream_socket { connectto rw_stream_socket_perms };
+	allow $1 wm_tmpfs_t:file mmap_rw_file_perms;
+	allow wm_domain $1:fd use;
+')
+
+########################################
+## <summary>
+##	Allow sending dbus message to wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_send_dbus',`
+	gen_require(`
+		attribute wm_domain;
+		class dbus send_msg;
+	')
+
+	allow $1 wm_domain:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Allow receiving dbus message from wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_recv_dbus',`
+	gen_require(`
+		attribute wm_domain;
+		class dbus send_msg;
+	')
+
+	allow wm_domain $1:dbus send_msg;
 ')
 
 ########################################
