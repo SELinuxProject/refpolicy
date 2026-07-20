@@ -1,0 +1,136 @@
+policy_module(rauc, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+type rauc_t;
+type rauc_exec_t;
+init_daemon_domain(rauc_t, rauc_exec_t)
+
+type rauc_bundle_t;
+files_type(rauc_bundle_t)
+
+type rauc_conf_t;
+files_config_file(rauc_conf_t)
+
+# Lock file used by the bootloader environment tools.
+type rauc_lock_t;
+files_lock_file(rauc_lock_t)
+
+type rauc_log_t;
+logging_log_file(rauc_log_t)
+
+# Runtime mount tree under /run/rauc (RuntimeDirectory=rauc).
+type rauc_runtime_t;
+files_runtime_file(rauc_runtime_t)
+
+# Slot status file (slot.raucs) written via atomic temp+rename
+# into the root of the target partition.
+type rauc_status_t;
+files_type(rauc_status_t)
+
+type rauc_tmp_t;
+files_tmp_file(rauc_tmp_t)
+
+# Bootloader environment tools (fw_setenv/fw_printenv).
+# Dedicated type: a domain with sys_rawio and raw disk write
+# must not execute arbitrary bin_t.
+type rauc_ubootenv_exec_t;
+application_executable_file(rauc_ubootenv_exec_t)
+
+type rauc_var_lib_t;
+files_type(rauc_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+allow rauc_t self:capability { fowner fsetid mknod sys_admin sys_rawio };
+allow rauc_t self:process { setrlimit signal_perms };
+allow rauc_t self:fifo_file rw_fifo_file_perms;
+allow rauc_t self:unix_stream_socket create_stream_socket_perms;
+
+allow rauc_t rauc_bundle_t:dir list_dir_perms;
+allow rauc_t rauc_bundle_t:file read_file_perms;
+
+allow rauc_t rauc_conf_t:dir list_dir_perms;
+allow rauc_t rauc_conf_t:file read_file_perms;
+
+allow rauc_t rauc_lock_t:file manage_file_perms;
+files_lock_filetrans(rauc_t, rauc_lock_t, file)
+
+append_files_pattern(rauc_t, rauc_log_t, rauc_log_t)
+create_files_pattern(rauc_t, rauc_log_t, rauc_log_t)
+logging_log_filetrans(rauc_t, rauc_log_t, file)
+
+manage_dirs_pattern(rauc_t, rauc_runtime_t, rauc_runtime_t)
+manage_files_pattern(rauc_t, rauc_runtime_t, rauc_runtime_t)
+manage_lnk_files_pattern(rauc_t, rauc_runtime_t, rauc_runtime_t)
+allow rauc_t rauc_runtime_t:dir mounton;
+files_runtime_filetrans(rauc_t, rauc_runtime_t, { dir file lnk_file })
+
+allow rauc_t rauc_status_t:file manage_file_perms;
+files_root_filetrans(rauc_t, rauc_status_t, file)
+
+manage_dirs_pattern(rauc_t, rauc_tmp_t, rauc_tmp_t)
+manage_files_pattern(rauc_t, rauc_tmp_t, rauc_tmp_t)
+files_tmp_filetrans(rauc_t, rauc_tmp_t, { dir file })
+
+can_exec(rauc_t, rauc_ubootenv_exec_t)
+allow rauc_t rauc_ubootenv_exec_t:lnk_file read_lnk_file_perms;
+
+manage_dirs_pattern(rauc_t, rauc_var_lib_t, rauc_var_lib_t)
+manage_files_pattern(rauc_t, rauc_var_lib_t, rauc_var_lib_t)
+files_var_lib_filetrans(rauc_t, rauc_var_lib_t, { dir file })
+
+kernel_dontaudit_setsched(rauc_t)
+kernel_read_kernel_sysctls(rauc_t)
+kernel_read_system_state(rauc_t)
+
+corenet_tcp_connect_http_cache_port(rauc_t)
+corenet_tcp_connect_http_port(rauc_t)
+
+dev_read_sysfs(rauc_t)
+dev_read_urand(rauc_t)
+dev_rw_loop_control(rauc_t)
+dev_rw_lvm_control(rauc_t)
+
+files_delete_root_dir_entry(rauc_t)
+files_read_etc_files(rauc_t)
+files_read_etc_runtime_files(rauc_t)
+files_search_runtime(rauc_t)
+
+fs_getattr_tmpfs(rauc_t)
+fs_getattr_xattr_fs(rauc_t)
+fs_mount_xattr_fs(rauc_t)
+fs_remount_xattr_fs(rauc_t)
+fs_unmount_xattr_fs(rauc_t)
+
+storage_raw_read_fixed_disk(rauc_t)
+storage_raw_read_removable_device(rauc_t)
+storage_raw_write_fixed_disk(rauc_t)
+storage_raw_write_removable_device(rauc_t)
+
+logging_send_syslog_msg(rauc_t)
+
+miscfiles_read_generic_certs(rauc_t)
+miscfiles_read_localization(rauc_t)
+
+mount_exec(rauc_t)
+mount_list_runtime(rauc_t)
+
+sysnet_dns_name_resolve(rauc_t)
+
+optional_policy(`
+	dbus_system_bus_client(rauc_t)
+	dbus_connect_system_bus(rauc_t)
+
+	# rauc-mark-good and the admin CLI run as unconfined_t;
+	# the daemon must be allowed to reply over D-Bus.
+	optional_policy(`
+		unconfined_dbus_chat(rauc_t)
+	')
+')
