@@ -1,0 +1,167 @@
+## <summary>Policy for the RAUC embedded update framework.</summary>
+
+########################################
+## <summary>
+##	Execute rauc in the rauc_t domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`rauc_domtrans',`
+	gen_require(`
+		type rauc_t, rauc_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, rauc_exec_t, rauc_t)
+')
+
+########################################
+## <summary>
+##	Send and receive D-Bus messages
+##	from/to rauc over the system bus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to chat.
+##	</summary>
+## </param>
+#
+interface(`rauc_dbus_chat',`
+	gen_require(`
+		type rauc_t;
+		class dbus send_msg;
+	')
+
+	allow $1 rauc_t:dbus send_msg;
+	allow rauc_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	Get the attributes of rauc bundle files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rauc_getattr_bundle_files',`
+	gen_require(`
+		type rauc_bundle_t;
+	')
+
+	allow $1 rauc_bundle_t:file getattr_file_perms;
+')
+
+########################################
+## <summary>
+##	Read rauc configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rauc_read_config',`
+	gen_require(`
+		type rauc_conf_t;
+	')
+
+	allow $1 rauc_conf_t:dir list_dir_perms;
+	allow $1 rauc_conf_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Read rauc bundle files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`rauc_read_bundle',`
+	gen_require(`
+		type rauc_bundle_t;
+	')
+
+	allow $1 rauc_bundle_t:dir list_dir_perms;
+	allow $1 rauc_bundle_t:file read_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow rauc to read bundles from a
+##	domain's own labeled storage (e.g. a
+##	data partition or download directory).
+## </summary>
+## <param name="source_type">
+##	<summary>
+##	Type of the storage containing bundles.
+##	</summary>
+## </param>
+#
+interface(`rauc_bundle_source',`
+	gen_require(`
+		type rauc_t;
+	')
+
+	allow rauc_t $1:dir search_dir_perms;
+	allow rauc_t $1:file read_file_perms;
+	allow rauc_t $1:filesystem getattr;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administer the rauc environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`rauc_admin',`
+	gen_require(`
+		type rauc_t, rauc_bundle_t, rauc_conf_t;
+		type rauc_lock_t, rauc_log_t, rauc_runtime_t;
+		type rauc_status_t, rauc_tmp_t, rauc_var_lib_t;
+	')
+
+	allow $1 rauc_t:process { ptrace signal_perms };
+	ps_process_pattern($1, rauc_t)
+
+	files_search_etc($1)
+	admin_pattern($1, rauc_conf_t)
+
+	files_search_locks($1)
+	admin_pattern($1, rauc_lock_t)
+
+	logging_search_logs($1)
+	admin_pattern($1, rauc_log_t)
+
+	files_search_runtime($1)
+	admin_pattern($1, rauc_runtime_t)
+
+	files_search_tmp($1)
+	admin_pattern($1, rauc_tmp_t)
+
+	files_search_var_lib($1)
+	admin_pattern($1, rauc_var_lib_t)
+
+	admin_pattern($1, rauc_bundle_t)
+	admin_pattern($1, rauc_status_t)
+')
