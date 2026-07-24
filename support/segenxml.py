@@ -76,8 +76,8 @@ def getModuleXML(file_name):
 	# Gather information.
 	module_dir = os.path.dirname(file_name)
 	module_name = os.path.basename(file_name)
-	module_te = "%s/%s.te" % (module_dir, module_name)
-	module_if = "%s/%s.if" % (module_dir, module_name)
+	module_te = f"{module_dir}/{module_name}.te"
+	module_if = f"{module_dir}/{module_name}.if"
 
 	# Try to open the file, if it can't, just ignore it.
 	try:
@@ -85,14 +85,13 @@ def getModuleXML(file_name):
 		module_code = module_file.readlines()
 		module_file.close()
 	except OSError:
-		logging.warning("cannot open file %s for read, skipping", file_name)
+		logging.warning(f"cannot open file {file_name} for read, skipping")
 		return []
 
 	module_buf = []
 
 	# Infer the module name, which is the base of the file name.
-	module_buf.append("<module name=\"%s\" filename=\"%s\">\n"
-		% (os.path.splitext(os.path.split(file_name)[-1])[0], module_if))
+	module_buf.append(f"<module name=\"{os.path.splitext(os.path.split(file_name)[-1])[0]}\" filename=\"{module_if}\">\n")
 
 	temp_buf = []
 	interface = None
@@ -147,7 +146,7 @@ def getModuleXML(file_name):
 		if interface:
 			# Add the opening tag for the interface/template
 			groups = interface.groups()
-			module_buf.append("<%s name=\"%s\" lineno=\"%s\">\n" % (groups[0], groups[1], line_num))
+			module_buf.append(f"<{groups[0]} name=\"{groups[1]}\" lineno=\"{line_num}\">\n")
 
 			# Add all the comments attributed to this interface to
 			#  the module buffer.
@@ -158,7 +157,7 @@ def getModuleXML(file_name):
 			# Add default summaries and parameters so that the
 			#  DTD is happy.
 			else:
-				logging.warning("unable to find XML for %s %s()", groups[0], groups[1])
+				logging.warning(f"unable to find XML for {groups[0]} {groups[1]}()")
 				module_buf.append("<summary>\n")
 				module_buf.append("Summary is missing!\n")
 				module_buf.append("</summary>\n")
@@ -169,7 +168,7 @@ def getModuleXML(file_name):
 				module_buf.append("</param>\n")
 
 			# Close the interface/template tag.
-			module_buf.append("</%s>\n" % interface.group(1))
+			module_buf.append(f"</{interface.group(1)}>\n")
 
 			interface = None
 			continue
@@ -188,7 +187,7 @@ def getModuleXML(file_name):
 	# Otherwise there are some lingering XML comments at the bottom, warn
 	#  the user.
 	elif temp_buf:
-		logging.warning("orphan XML comments at bottom of file %s", file_name)
+		logging.warning(f"orphan XML comments at bottom of file {file_name}")
 
 	# Process the TE file if it exists.
 	module_buf = module_buf + getTunableXML(module_te, "both")
@@ -208,7 +207,7 @@ def getTunableXML(file_name, kind):
 		tunable_code = tunable_file.readlines()
 		tunable_file.close()
 	except OSError:
-		logging.warning("cannot open file %s for read, skipping", file_name)
+		logging.warning(f"cannot open file {file_name} for read, skipping")
 		return []
 
 	tunable_buf = []
@@ -232,17 +231,17 @@ def getTunableXML(file_name, kind):
 			if template_call:
 				# Read template file based on template_call.group(1)
 				try:
-					template_file = open(templatedir + "/" + template_call.group(1) + ".iftemplate", "r")
+					template_file = open(f"{templatedir}/{template_call.group(1)}.iftemplate", "r")
 					template_code = template_file.readlines()
 					template_file.close()
 				except OSError:
-					logging.warning("cannot open file %s for read, bailing out", templatedir + "/" + template_call.group(1) + ".iftemplate")
+					logging.warning(f"cannot open file {templatedir}/{template_call.group(1)}.iftemplate for read, bailing out")
 					return []
 				# Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
 				template_split = re.findall(r"[\w\" {}]+", line.strip())
 				for index, item in enumerate(template_code):
 					for group in range(1, len(template_split)):
-						template_code[index] = template_code[index].replace("$" + str(group), template_split[group].strip())
+						template_code[index] = template_code[index].replace(f"${group}", template_split[group].strip())
 				# Now 'inject' the code in the tunable_code variable
 				tunable_processed_code.extend(template_code)
 				has_changed = True
@@ -277,18 +276,18 @@ def getTunableXML(file_name, kind):
 			# Skip if both kinds are valid.
 			if kind != "both":
 				if boolean.group(1) != kind:
-					logging.error("%s in a %s file.", boolean.group(1), kind)
+					logging.error(f"{boolean.group(1)} in a {kind} file.")
 					sys.exit(1)
 
-			tunable_buf.append("<%s name=\"%s\" dftval=\"%s\">\n" % boolean.groups())
+			tunable_buf.append(f"<{boolean.group(1)} name=\"{boolean.group(2)}\" dftval=\"{boolean.group(3)}\">\n")
 			tunable_buf += temp_buf
 			temp_buf = []
-			tunable_buf.append("</%s>\n" % boolean.group(1))
+			tunable_buf.append(f"</{boolean.group(1)}>\n")
 
 	# If there are XML comments at the end of the file, they aren't
 	# attributed to anything. These are ignored.
 	if len(temp_buf):
-		logging.warning("orphan XML comments at bottom of file %s", file_name)
+		logging.warning(f"orphan XML comments at bottom of file {file_name}")
 
 
 	# If the caller requested a the global_tunables and global_booleans to be
@@ -297,12 +296,12 @@ def getTunableXML(file_name, kind):
 		xmlfile = os.path.split(file_name)[1] + ".xml"
 
 		try:
-			xml_outfile = open(output_dir + "/" + xmlfile, "w")
+			xml_outfile = open(f"{output_dir}/{xmlfile}", "w")
 			for tunable_line in tunable_buf:
 				xml_outfile.write (tunable_line)
 			xml_outfile.close()
 		except OSError:
-			logging.warning("cannot write to file %s, skipping creation", xmlfile)
+			logging.warning(f"cannot write to file {xmlfile}, skipping creation")
 
 	return tunable_buf
 
