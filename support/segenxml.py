@@ -45,7 +45,8 @@ INTERFACE = re.compile(r"^\s*(interface|template)\(`(\w*)'")
 #   "gen_tunable(allow_kerberos, false)"
 #    -> ("tunable", "allow_kerberos", "false")
 BOOLEAN = re.compile(r"^\s*gen_(tunable|bool)\(\s*\`?\s*(\w*)\s*\'?\s*,\s*(true|false)\s*\)")
-TEMPLATE_BOOLEAN = re.compile(r"^\s*gen_(tunable|bool)\(\s*\`?\s*([\w\$]*)\s*\'?\s*,\s*(true|false)\s*\)")
+TEMPLATE_BOOLEAN = re.compile(
+    r"^\s*gen_(tunable|bool)\(\s*\`?\s*([\w\$]*)\s*\'?\s*,\s*(true|false)\s*\)")
 
 # Matches a XML comment in the policy, which is defined as any line starting
 #  with two # and at least one character of white space. Will give the single
@@ -68,7 +69,7 @@ XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 TEMPLATE_CALL = re.compile(r"^\s*(\w*_template)\(\s*(\w*)\s*(?:,\s*(?:[^,)]*)\s*)*\)")
 
 # FUNCTIONS
-def getModuleXML(file_name):
+def getModuleXML(file_name, templatedir):
     '''
     Returns the XML data for a module in a list, one line per list item.
     '''
@@ -83,11 +84,10 @@ def getModuleXML(file_name):
 
     # Try to open the file, if it can't, just ignore it.
     try:
-        module_file = open(module_if, "r")
-        module_code = module_file.readlines()
-        module_file.close()
+        with open(module_if, "r", encoding="utf-8") as module_file:
+            module_code = module_file.readlines()
     except OSError:
-        logging.warning(f"cannot open file {file_name} for read, skipping")
+        logging.warning(f"cannot open file {module_if} for read, skipping")
         return [], 1
 
     module_buf = []
@@ -190,11 +190,12 @@ def getModuleXML(file_name):
     # Otherwise there are some lingering XML comments at the bottom, warn
     #  the user.
     elif temp_buf:
-        logging.warning(f"orphan XML comments at bottom of file {file_name}")
+        logging.warning(f"orphan XML comments at bottom of file {module_if}:")
+        sys.stderr.write(f">  {'>  '.join(temp_buf)}\n")
         warn_count += 1
 
     # Process the TE file if it exists.
-    te_buf, te_warns = getTunableXML(module_te, "both")
+    te_buf, te_warns = getTunableXML(module_te, "both", templatedir)
     module_buf = module_buf + te_buf
     warn_count += te_warns
 
@@ -202,7 +203,7 @@ def getModuleXML(file_name):
 
     return module_buf, warn_count
 
-def getTunableXML(file_name, kind):
+def getTunableXML(file_name, kind, templatedir):
     '''
     Return all the XML for the tunables/bools in the file specified.
     '''
@@ -211,9 +212,8 @@ def getTunableXML(file_name, kind):
 
     # Try to open the file, if it can't, just ignore it.
     try:
-        tunable_file = open(file_name, "r")
-        tunable_code = tunable_file.readlines()
-        tunable_file.close()
+        with open(file_name, "r", encoding="utf-8") as tunable_file:
+            tunable_code = tunable_file.readlines()
     except OSError:
         logging.warning(f"cannot open file {file_name} for read, skipping")
         return [], 1
@@ -238,20 +238,21 @@ def getTunableXML(file_name, kind):
             #  the second match, $2 with the third match, etc.
             if template_call:
                 # Read template file based on template_call.group(1)
+                filename = f"{templatedir}/{template_call.group(1)}.iftemplate"
                 try:
-                    template_file = open(f"{templatedir}/{template_call.group(1)}.iftemplate", "r")
-                    template_code = template_file.readlines()
-                    template_file.close()
+                    with open(filename, "r", encoding="utf-8") as template_file:
+                        template_code = template_file.readlines()
                 except OSError:
-                    logging.warning(f"cannot open file {templatedir}/{template_call.group(1)}.iftemplate for read.  Ingnoring.")
+                    logging.warning(f"cannot open file {filename}.  Ignoring.")
                     # Do not increase the warning count here, because this is an
                     # optional file.
                     return [], warn_count
                 # Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
                 template_split = re.findall(r"[\w\" {}]+", line.strip())
-                for index, item in enumerate(template_code):
-                    for group in range(1, len(template_split)):
-                        template_code[index] = template_code[index].replace(f"${group}", template_split[group].strip())
+                for index, _ in enumerate(template_code):
+                    for g in range(1, len(template_split)):
+                        template_code[index] = template_code[index].replace(
+                            f"${g}", template_split[g].strip())
                 # Now 'inject' the code in the tunable_code variable
                 tunable_processed_code.extend(template_code)
                 has_changed = True
@@ -263,7 +264,7 @@ def getTunableXML(file_name, kind):
         tunable_code = tunable_processed_code
         tunable_processed_code = []
     # If subst_threshold is 0 or less we want to know
-    if (subst_threshold <= 0):
+    if subst_threshold <= 0:
         logging.warning("Detected a possible loop in policy code and template usage")
         warn_count += 1
 
@@ -296,21 +297,22 @@ def getTunableXML(file_name, kind):
 
     # If there are XML comments at the end of the file, they aren't
     # attributed to anything. These are ignored.
-    if len(temp_buf):
+    if temp_buf:
         logging.warning(f"orphan XML comments at bottom of file {file_name}")
+        sys.stderr.write(f">  {'>  '.join(temp_buf)}\n")
         warn_count += 1
 
 
     # If the caller requested a the global_tunables and global_booleans to be
     # output to a file output them now
-    if len(output_dir) > 0:
+    if output_dir:
         xmlfile = os.path.split(file_name)[1] + ".xml"
 
         try:
-            xml_outfile = open(f"{output_dir}/{xmlfile}", "w")
-            for tunable_line in tunable_buf:
-                xml_outfile.write (tunable_line)
-            xml_outfile.close()
+            filename = f"{output_dir}/{xmlfile}"
+            with open(filename, "w", encoding="utf-8") as xml_outfile:
+                for tunable_line in tunable_buf:
+                    xml_outfile.write (tunable_line)
         except OSError:
             logging.warning(f"cannot write to file {xmlfile}, skipping creation")
             warn_count += 1
@@ -348,16 +350,14 @@ if __name__ == "__main__":
     logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
         level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
-    templatedir = args.templatedir
-
     lines: str
     warnings: int
     if args.module:
-        lines, warnings = getModuleXML(args.module)
+        lines, warnings = getModuleXML(args.module, args.templatedir)
     elif args.tunable:
-        lines, warnings = getTunableXML(args.tunable, "tunable")
+        lines, warnings = getTunableXML(args.tunable, "tunable", args.templatedir)
     elif args.boolean:
-        lines, warnings = getTunableXML(args.boolean, "bool")
+        lines, warnings = getTunableXML(args.boolean, "bool", args.templatedir)
 
     if args.Werror and warnings:
         sys.stderr.write(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
