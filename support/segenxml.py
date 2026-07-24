@@ -305,37 +305,35 @@ def getTunableXML(file_name, kind):
 	return tunable_buf
 
 
+if __name__ == "__main__":
+	parser = argparse.ArgumentParser(
+		description="Generate XML documentation information for layers.",
+		epilog="examples:\n"
+			"  %(prog)s -w -T tmp/templates -m policy/modules/apache\n"
+			"  %(prog)s -t policy/global_tunables\n",
+		formatter_class=argparse.RawDescriptionHelpFormatter)
+	parser.add_argument('-w', '--warn', action='store_true',
+		help='show warnings')
+	group = parser.add_mutually_exclusive_group(required=True)
+	group.add_argument('-m', '--module',
+		help='name of module to process')
+	group.add_argument('-t', '--tunable',
+		help='name of global tunable file to process')
+	group.add_argument('-b', '--boolean',
+		help='name of global boolean file to process')
+	parser.add_argument('-T', '--templates', default='', dest='templatedir',
+		help='name of template directory to use')
 
-# MAIN PROGRAM
+	args = parser.parse_args()
 
-parser = argparse.ArgumentParser(
-	description="Generate XML documentation information for layers.",
-	epilog="examples:\n"
-		"  %(prog)s -w -T tmp/templates -m policy/modules/apache\n"
-		"  %(prog)s -t policy/global_tunables\n",
-	formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('-w', '--warn', action='store_true',
-	help='show warnings')
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-m', '--module',
-	help='name of module to process')
-group.add_argument('-t', '--tunable',
-	help='name of global tunable file to process')
-group.add_argument('-b', '--boolean',
-	help='name of global boolean file to process')
-parser.add_argument('-T', '--templates', default='', dest='templatedir',
-	help='name of template directory to use')
+	logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
+		level=logging.WARNING if args.warn else logging.ERROR)
 
-args = parser.parse_args()
+	templatedir = args.templatedir
 
-logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
-	level=logging.WARNING if args.warn else logging.ERROR)
-
-templatedir = args.templatedir
-
-if args.module:
-	sys.stdout.writelines(getModuleXML(args.module))
-elif args.tunable:
-	sys.stdout.writelines(getTunableXML(args.tunable, "tunable"))
-elif args.boolean:
-	sys.stdout.writelines(getTunableXML(args.boolean, "bool"))
+	if args.module:
+		sys.stdout.writelines(getModuleXML(args.module))
+	elif args.tunable:
+		sys.stdout.writelines(getTunableXML(args.tunable, "tunable"))
+	elif args.boolean:
+		sys.stdout.writelines(getTunableXML(args.boolean, "bool"))
