@@ -338,6 +338,10 @@ if __name__ == "__main__":
         help='name of global boolean file to process')
     parser.add_argument('-T', '--templates', default='', dest='templatedir',
         help='name of template directory to use')
+    parser.add_argument('-o', '--output', required=True,
+        help='output file')
+    parser.add_argument('-a', '--append', action='store_true',
+        help='open output file in append mode')
 
     args = parser.parse_args()
 
@@ -359,4 +363,5 @@ if __name__ == "__main__":
         sys.stderr.write(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
         sys.exit(1)
 
-    sys.stdout.writelines(lines)
+    with open(args.output, "a" if args.append else "w", encoding="utf-8") as output_file:
+        output_file.writelines(lines)

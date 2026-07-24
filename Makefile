@@ -481,16 +481,16 @@ endif
 $(layerxml): %.xml: $(doctmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
 	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
 ifdef LOCAL_ROOT
-	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
 endif
 
 $(tunxml): $(globaltun)
-	$(verbose) $(genxml) -w -t $< > $@
+	$(verbose) $(genxml) -w -t $< -o $@
 
 $(boolxml): $(globalbool)
-	$(verbose) $(genxml) -w -b $< > $@
+	$(verbose) $(genxml) -w -b $< -o $@
 
 $(polxml): $(layerxml) $(tunxml) $(boolxml)
 	@echo "Creating $(@F)"
