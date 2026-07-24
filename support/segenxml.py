@@ -18,6 +18,7 @@
 import sys
 import os
 import re
+import logging
 import argparse
 
 # GLOBALS
@@ -84,7 +85,7 @@ def getModuleXML(file_name):
 		module_code = module_file.readlines()
 		module_file.close()
 	except OSError:
-		warning("cannot open file %s for read, skipping" % file_name)
+		logging.warning("cannot open file %s for read, skipping", file_name)
 		return []
 
 	module_buf = []
@@ -157,7 +158,7 @@ def getModuleXML(file_name):
 			# Add default summaries and parameters so that the
 			#  DTD is happy.
 			else:
-				warning ("unable to find XML for %s %s()" % (groups[0], groups[1]))
+				logging.warning("unable to find XML for %s %s()", groups[0], groups[1])
 				module_buf.append("<summary>\n")
 				module_buf.append("Summary is missing!\n")
 				module_buf.append("</summary>\n")
@@ -187,7 +188,7 @@ def getModuleXML(file_name):
 	# Otherwise there are some lingering XML comments at the bottom, warn
 	#  the user.
 	elif temp_buf:
-		warning("orphan XML comments at bottom of file %s" % file_name)
+		logging.warning("orphan XML comments at bottom of file %s", file_name)
 
 	# Process the TE file if it exists.
 	module_buf = module_buf + getTunableXML(module_te, "both")
@@ -207,7 +208,7 @@ def getTunableXML(file_name, kind):
 		tunable_code = tunable_file.readlines()
 		tunable_file.close()
 	except OSError:
-		warning("cannot open file %s for read, skipping" % file_name)
+		logging.warning("cannot open file %s for read, skipping", file_name)
 		return []
 
 	tunable_buf = []
@@ -235,7 +236,7 @@ def getTunableXML(file_name, kind):
 					template_code = template_file.readlines()
 					template_file.close()
 				except OSError:
-					warning("cannot open file %s for read, bailing out" % (templatedir + "/" + template_call.group(1) + ".iftemplate"))
+					logging.warning("cannot open file %s for read, bailing out", templatedir + "/" + template_call.group(1) + ".iftemplate")
 					return []
 				# Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
 				template_split = re.findall(r"[\w\" {}]+", line.strip())
@@ -254,7 +255,7 @@ def getTunableXML(file_name, kind):
 		tunable_processed_code = []
 	# If subst_threshold is 0 or less we want to know
 	if (subst_threshold <= 0):
-		warning("Detected a possible loop in policy code and template usage")
+		logging.warning("Detected a possible loop in policy code and template usage")
 
 	# Find tunables and booleans line by line and use the comments above
 	# them.
@@ -276,7 +277,8 @@ def getTunableXML(file_name, kind):
 			# Skip if both kinds are valid.
 			if kind != "both":
 				if boolean.group(1) != kind:
-					error("%s in a %s file." % (boolean.group(1), kind))
+					logging.error("%s in a %s file.", boolean.group(1), kind)
+					sys.exit(1)
 
 			tunable_buf.append("<%s name=\"%s\" dftval=\"%s\">\n" % boolean.groups())
 			tunable_buf += temp_buf
@@ -286,7 +288,7 @@ def getTunableXML(file_name, kind):
 	# If there are XML comments at the end of the file, they aren't
 	# attributed to anything. These are ignored.
 	if len(temp_buf):
-		warning("orphan XML comments at bottom of file %s" % file_name)
+		logging.warning("orphan XML comments at bottom of file %s", file_name)
 
 
 	# If the caller requested a the global_tunables and global_booleans to be
@@ -300,28 +302,9 @@ def getTunableXML(file_name, kind):
 				xml_outfile.write (tunable_line)
 			xml_outfile.close()
 		except OSError:
-			warning ("cannot write to file %s, skipping creation" % xmlfile)
+			logging.warning("cannot write to file %s, skipping creation", xmlfile)
 
 	return tunable_buf
-
-def warning(description):
-	'''
-	Warns the user of a non-critical error.
-	'''
-
-	if warn:
-		sys.stderr.write("%s: " % sys.argv[0] )
-		sys.stderr.write("warning: " + description + "\n")
-
-def error(description):
-	'''
-	Describes an error and exists the program.
-	'''
-
-	sys.stderr.write("%s: " % sys.argv[0] )
-	sys.stderr.write("error: " + description + "\n")
-	sys.stderr.flush()
-	sys.exit(1)
 
 
 
@@ -347,7 +330,9 @@ parser.add_argument('-T', '--templates', default='', dest='templatedir',
 
 args = parser.parse_args()
 
-warn = args.warn
+logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
+	level=logging.WARNING if args.warn else logging.ERROR)
+
 templatedir = args.templatedir
 
 if args.module:
