@@ -276,8 +276,7 @@ def getTunableXML(file_name, kind):
 			# Skip if both kinds are valid.
 			if kind != "both":
 				if boolean.group(1) != kind:
-					logging.error(f"{boolean.group(1)} in a {kind} file.")
-					sys.exit(1)
+					raise ValueError(f"{boolean.group(1)} in a {kind} file.")
 
 			tunable_buf.append(f"<{boolean.group(1)} name=\"{boolean.group(2)}\" dftval=\"{boolean.group(3)}\">\n")
 			tunable_buf += temp_buf
