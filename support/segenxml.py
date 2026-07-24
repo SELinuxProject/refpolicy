@@ -18,7 +18,7 @@
 import sys
 import os
 import re
-import getopt
+import argparse
 
 # GLOBALS
 
@@ -304,22 +304,6 @@ def getTunableXML(file_name, kind):
 
 	return tunable_buf
 
-def usage():
-	"""
-	Displays a message describing the proper usage of this script.
-	"""
-
-	sys.stdout.write("usage: %s [-w] [-T <templatedir>] [-mtb] <file>\n\n" % sys.argv[0])
-	sys.stdout.write("-w --warn\t\t\tshow warnings\n"+\
-	"-m --module <file>\t\tname of module to process\n"+\
-	"-t --tunable <file>\t\tname of global tunable file to process\n"+\
-	"-b --boolean <file>\t\tname of global boolean file to process\n"+\
-	"-T --templates <dir>\t\tname of template directory to use\n\n")
-
-	sys.stdout.write("examples:\n")
-	sys.stdout.write("> %s -w -T tmp/templates -m policy/modules/apache\n" % sys.argv[0])
-	sys.stdout.write("> %s -t policy/global_tunables\n" % sys.argv[0])
-
 def warning(description):
 	'''
 	Warns the user of a non-critical error.
@@ -343,48 +327,32 @@ def error(description):
 
 # MAIN PROGRAM
 
-# Defaults
-warn = False
-module = False
-tunable = False
-boolean = False
-templatedir = ''
+parser = argparse.ArgumentParser(
+	description="Generate XML documentation information for layers.",
+	epilog="examples:\n"
+		"  %(prog)s -w -T tmp/templates -m policy/modules/apache\n"
+		"  %(prog)s -t policy/global_tunables\n",
+	formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('-w', '--warn', action='store_true',
+	help='show warnings')
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('-m', '--module',
+	help='name of module to process')
+group.add_argument('-t', '--tunable',
+	help='name of global tunable file to process')
+group.add_argument('-b', '--boolean',
+	help='name of global boolean file to process')
+parser.add_argument('-T', '--templates', default='', dest='templatedir',
+	help='name of template directory to use')
 
-# Check that there are command line arguments.
-if len(sys.argv) <= 1:
-	usage()
-	sys.exit(1)
+args = parser.parse_args()
 
-# Parse command line args
-try:
-	opts, args = getopt.getopt(sys.argv[1:], 'whm:t:b:T:', ['warn', 'help', 'module=', 'tunable=', 'boolean=', 'templates='])
-except getopt.GetoptError:
-	usage()
-	sys.exit(2)
-for o, a in opts:
-	if o in ('-w', '--warn'):
-		warn = True
-	elif o in ('-h', '--help'):
-		usage()
-		sys.exit(0)
-	elif o in ('-m', '--module'):
-		module = a
-	elif o in ('-t', '--tunable'):
-		tunable = a
-	elif o in ('-b', '--boolean'):
-		boolean = a
-	elif o in ('-T', '--templates'):
-		templatedir = a
-	else:
-		usage()
-		sys.exit(2)
+warn = args.warn
+templatedir = args.templatedir
 
-if module:
-	sys.stdout.writelines(getModuleXML(module))
-elif tunable:
-	sys.stdout.writelines(getTunableXML(tunable, "tunable"))
-elif boolean:
-	sys.stdout.writelines(getTunableXML(boolean, "bool"))
-else:
-	usage()
-	sys.exit(2)
+if args.module:
+	sys.stdout.writelines(getModuleXML(args.module))
+elif args.tunable:
+	sys.stdout.writelines(getTunableXML(args.tunable, "tunable"))
+elif args.boolean:
+	sys.stdout.writelines(getTunableXML(args.boolean, "bool"))
