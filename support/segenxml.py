@@ -16,10 +16,11 @@
 """
 
 import sys
-import os
 import re
 import logging
 import argparse
+from itertools import dropwhile
+from pathlib import Path
 
 # GLOBALS
 
@@ -69,16 +70,17 @@ XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 TEMPLATE_CALL = re.compile(r"^\s*(\w*_template)\(\s*(\w*)\s*(?:,\s*(?:[^,)]*)\s*)*\)")
 
 # FUNCTIONS
-def getModuleXML(file_name, templatedir):
+def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
     '''
     Returns the XML data for a module in a list, one line per list item.
     '''
 
     # Gather information.
-    module_dir = os.path.dirname(file_name)
-    module_name = os.path.basename(file_name)
-    module_te = f"{module_dir}/{module_name}.te"
-    module_if = f"{module_dir}/{module_name}.if"
+    file_path = Path(file_name)
+    module_dir = file_path.parent
+    module_name = file_path.name
+    module_te = module_dir / f"{module_name}.te"
+    module_if = module_dir / f"{module_name}.if"
 
     warn_count = 0
 
@@ -93,7 +95,7 @@ def getModuleXML(file_name, templatedir):
     module_buf = []
 
     # Infer the module name, which is the base of the file name.
-    module_buf.append(f"<module name=\"{os.path.splitext(os.path.split(file_name)[-1])[0]}\" filename=\"{module_if}\">\n")
+    module_buf.append(f"<module name=\"{file_path.stem}\" filename=\"{module_if}\">\n")
 
     temp_buf = []
     interface = None
@@ -103,17 +105,13 @@ def getModuleXML(file_name, templatedir):
     finding_header = True
 
     # Get rid of whitespace at top of file
-    while(module_code and module_code[0].isspace()):
-        module_code = module_code[1:]
+    module_code = list(dropwhile(str.isspace, module_code))
 
     # Go line by line and figure out what to do with it.
-    line_num = 0
-    for line in module_code:
-        line_num += 1
+    for line_num, line in enumerate(module_code, start=1):
         if finding_header:
             # If there is a XML comment, add it to the temp buffer.
-            comment = XML_COMMENT.match(line)
-            if comment:
+            if comment := XML_COMMENT.match(line):
                 temp_buf.append(comment.group(1) + "\n")
                 continue
 
@@ -135,8 +133,7 @@ def getModuleXML(file_name, templatedir):
 
         # Grab a comment and add it to the temporary buffer, if it
         #  is there.
-        comment = XML_COMMENT.match(line)
-        if comment:
+        if comment := XML_COMMENT.match(line):
             temp_buf.append(comment.group(1) + "\n")
             continue
 
@@ -161,14 +158,16 @@ def getModuleXML(file_name, templatedir):
             else:
                 logging.warning(f"unable to find XML for {groups[0]} {groups[1]}()")
                 warn_count += 1
-                module_buf.append("<summary>\n")
-                module_buf.append("Summary is missing!\n")
-                module_buf.append("</summary>\n")
-                module_buf.append("<param name=\"?\">\n")
-                module_buf.append("<summary>\n")
-                module_buf.append("Parameter descriptions are missing!\n")
-                module_buf.append("</summary>\n")
-                module_buf.append("</param>\n")
+                module_buf.extend([
+                    "<summary>\n",
+                    "Summary is missing!\n",
+                    "</summary>\n",
+                    "<param name=\"?\">\n",
+                    "<summary>\n",
+                    "Parameter descriptions are missing!\n",
+                    "</summary>\n",
+                    "</param>\n",
+                ])
 
             # Close the interface/template tag.
             module_buf.append(f"</{interface.group(1)}>\n")
@@ -179,8 +178,7 @@ def getModuleXML(file_name, templatedir):
         # If the line is a boolean/tunable definition, ignore it for now (these
         #  lines are processed later on) and dismiss the XML comment received
         #  thus far as it is otherwise attributed to an interface.
-        tunable = TEMPLATE_BOOLEAN.match(line)
-        if tunable:
+        if TEMPLATE_BOOLEAN.match(line):
             temp_buf = []
             continue
 
@@ -195,7 +193,7 @@ def getModuleXML(file_name, templatedir):
         warn_count += 1
 
     # Process the TE file if it exists.
-    te_buf, te_warns = getTunableXML(module_te, "both", templatedir)
+    te_buf, te_warns = get_tunable_xml(str(module_te), "both", templatedir)
     module_buf = module_buf + te_buf
     warn_count += te_warns
 
@@ -203,7 +201,7 @@ def getModuleXML(file_name, templatedir):
 
     return module_buf, warn_count
 
-def getTunableXML(file_name, kind, templatedir):
+def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[str], int]:
     '''
     Return all the XML for the tunables/bools in the file specified.
     '''
@@ -228,15 +226,11 @@ def getTunableXML(file_name, kind, templatedir):
     #  template calls keep us busy, we max out at 9999 substitutions
     has_changed = True
     subst_threshold = 9999
-    while (has_changed and (subst_threshold > 0)):
+    while has_changed and subst_threshold > 0:
         has_changed = False
         for line in tunable_code:
             # Get the template call match
-            template_call = TEMPLATE_CALL.match(line)
-            # If we reach a template call, read in the template data
-            #  from the template directory, but substitute all $1 with
-            #  the second match, $2 with the third match, etc.
-            if template_call:
+            if template_call := TEMPLATE_CALL.match(line):
                 # Read template file based on template_call.group(1)
                 filename = f"{templatedir}/{template_call.group(1)}.iftemplate"
                 try:
@@ -272,17 +266,14 @@ def getTunableXML(file_name, kind, templatedir):
     # them.
     for line in tunable_code:
         # If it is an XML comment, add it to the buffer and go on.
-        comment = XML_COMMENT.match(line)
-        if comment:
+        if comment := XML_COMMENT.match(line):
             temp_buf.append(comment.group(1) + "\n")
             continue
 
         # Get the boolean/tunable data.
-        boolean = BOOLEAN.match(line)
-
-        # If we reach a boolean/tunable declaration, attribute all XML
-        #  in the temp buffer to it and add XML to the tunable buffer.
-        if boolean:
+        if boolean := BOOLEAN.match(line):
+            # If we reach a boolean/tunable declaration, attribute all XML
+            #  in the temp buffer to it and add XML to the tunable buffer.
             # If there is a gen_bool in a tunable file or a
             # gen_tunable in a boolean file, error and exit.
             # Skip if both kinds are valid.
@@ -306,13 +297,12 @@ def getTunableXML(file_name, kind, templatedir):
     # If the caller requested a the global_tunables and global_booleans to be
     # output to a file output them now
     if output_dir:
-        xmlfile = os.path.split(file_name)[1] + ".xml"
+        xmlfile = Path(file_name).name + ".xml"
+        outpath = Path(output_dir) / xmlfile
 
         try:
-            filename = f"{output_dir}/{xmlfile}"
-            with open(filename, "w", encoding="utf-8") as xml_outfile:
-                for tunable_line in tunable_buf:
-                    xml_outfile.write (tunable_line)
+            with open(outpath, "w", encoding="utf-8") as xml_outfile:
+                xml_outfile.writelines(tunable_buf)
         except OSError:
             logging.warning(f"cannot write to file {xmlfile}, skipping creation")
             warn_count += 1
@@ -350,14 +340,18 @@ if __name__ == "__main__":
     logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
         level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
-    lines: str
-    warnings: int
-    if args.module:
-        lines, warnings = getModuleXML(args.module, args.templatedir)
-    elif args.tunable:
-        lines, warnings = getTunableXML(args.tunable, "tunable", args.templatedir)
-    elif args.boolean:
-        lines, warnings = getTunableXML(args.boolean, "bool", args.templatedir)
+    try:
+        lines: list[str]
+        warnings: int
+        if args.module:
+            lines, warnings = get_module_xml(args.module, args.templatedir)
+        elif args.tunable:
+            lines, warnings = get_tunable_xml(args.tunable, "tunable", args.templatedir)
+        elif args.boolean:
+            lines, warnings = get_tunable_xml(args.boolean, "bool", args.templatedir)
+    except ValueError as e:
+        logging.error(str(e))
+        sys.exit(1)
 
     if args.Werror and warnings:
         sys.stderr.write(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
