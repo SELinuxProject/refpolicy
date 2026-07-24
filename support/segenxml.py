@@ -79,6 +79,8 @@ def getModuleXML(file_name):
     module_te = f"{module_dir}/{module_name}.te"
     module_if = f"{module_dir}/{module_name}.if"
 
+    warn_count = 0
+
     # Try to open the file, if it can't, just ignore it.
     try:
         module_file = open(module_if, "r")
@@ -86,7 +88,7 @@ def getModuleXML(file_name):
         module_file.close()
     except OSError:
         logging.warning(f"cannot open file {file_name} for read, skipping")
-        return []
+        return [], 1
 
     module_buf = []
 
@@ -158,6 +160,7 @@ def getModuleXML(file_name):
             #  DTD is happy.
             else:
                 logging.warning(f"unable to find XML for {groups[0]} {groups[1]}()")
+                warn_count += 1
                 module_buf.append("<summary>\n")
                 module_buf.append("Summary is missing!\n")
                 module_buf.append("</summary>\n")
@@ -188,18 +191,23 @@ def getModuleXML(file_name):
     #  the user.
     elif temp_buf:
         logging.warning(f"orphan XML comments at bottom of file {file_name}")
+        warn_count += 1
 
     # Process the TE file if it exists.
-    module_buf = module_buf + getTunableXML(module_te, "both")
+    te_buf, te_warns = getTunableXML(module_te, "both")
+    module_buf = module_buf + te_buf
+    warn_count += te_warns
 
     module_buf.append("</module>\n")
 
-    return module_buf
+    return module_buf, warn_count
 
 def getTunableXML(file_name, kind):
     '''
     Return all the XML for the tunables/bools in the file specified.
     '''
+
+    warn_count = 0
 
     # Try to open the file, if it can't, just ignore it.
     try:
@@ -208,7 +216,7 @@ def getTunableXML(file_name, kind):
         tunable_file.close()
     except OSError:
         logging.warning(f"cannot open file {file_name} for read, skipping")
-        return []
+        return [], 1
 
     tunable_buf = []
     temp_buf = []
@@ -235,8 +243,10 @@ def getTunableXML(file_name, kind):
                     template_code = template_file.readlines()
                     template_file.close()
                 except OSError:
-                    logging.warning(f"cannot open file {templatedir}/{template_call.group(1)}.iftemplate for read, bailing out")
-                    return []
+                    logging.warning(f"cannot open file {templatedir}/{template_call.group(1)}.iftemplate for read.  Ingnoring.")
+                    # Do not increase the warning count here, because this is an
+                    # optional file.
+                    return [], warn_count
                 # Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
                 template_split = re.findall(r"[\w\" {}]+", line.strip())
                 for index, item in enumerate(template_code):
@@ -255,6 +265,7 @@ def getTunableXML(file_name, kind):
     # If subst_threshold is 0 or less we want to know
     if (subst_threshold <= 0):
         logging.warning("Detected a possible loop in policy code and template usage")
+        warn_count += 1
 
     # Find tunables and booleans line by line and use the comments above
     # them.
@@ -287,6 +298,7 @@ def getTunableXML(file_name, kind):
     # attributed to anything. These are ignored.
     if len(temp_buf):
         logging.warning(f"orphan XML comments at bottom of file {file_name}")
+        warn_count += 1
 
 
     # If the caller requested a the global_tunables and global_booleans to be
@@ -301,8 +313,9 @@ def getTunableXML(file_name, kind):
             xml_outfile.close()
         except OSError:
             logging.warning(f"cannot write to file {xmlfile}, skipping creation")
+            warn_count += 1
 
-    return tunable_buf
+    return tunable_buf, warn_count
 
 
 if __name__ == "__main__":
@@ -314,6 +327,8 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-w', '--warn', action='store_true',
         help='show warnings')
+    parser.add_argument('-W', '--Werror', action='store_true',
+        help='treat warnings as errors')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-m', '--module',
         help='name of module to process')
@@ -327,13 +342,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
-        level=logging.WARNING if args.warn else logging.ERROR)
+        level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
     templatedir = args.templatedir
 
+    lines: str
+    warnings: int
     if args.module:
-        sys.stdout.writelines(getModuleXML(args.module))
+        lines, warnings = getModuleXML(args.module)
     elif args.tunable:
-        sys.stdout.writelines(getTunableXML(args.tunable, "tunable"))
+        lines, warnings = getTunableXML(args.tunable, "tunable")
     elif args.boolean:
-        sys.stdout.writelines(getTunableXML(args.boolean, "bool"))
+        lines, warnings = getTunableXML(args.boolean, "bool")
+
+    if args.Werror and warnings:
+        sys.stderr.write(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
+        sys.exit(1)
+
+    sys.stdout.writelines(lines)
