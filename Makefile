@@ -31,6 +31,9 @@ ifdef LOCAL_ROOT
 	-include $(LOCAL_ROOT)/build.conf
 endif
 
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -ec
+
 # refpolicy version
 version := $(shell cat VERSION)
 
@@ -110,7 +113,8 @@ endif
 
 # policy building support tools
 support := support
-genxml := $(PYTHON) $(support)/segenxml.py
+genxml_tool := $(support)/segenxml.py
+genxml := $(PYTHON) $(genxml_tool)
 gendoc := $(PYTHON) $(support)/sedoctool.py
 genperm := $(PYTHON) $(support)/genclassperms.py
 policyvers := $(PYTHON) $(support)/policyvers.py
@@ -243,6 +247,7 @@ endif
 
 ifeq "$(WERROR)" "y"
 	M4PARAM += -D m4_werror=true
+	genxml += --Werror
 endif
 
 ifeq "$(UBAC)" "y"
@@ -476,16 +481,16 @@ endif
 $(layerxml): %.xml: $(doctmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
 	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
 ifdef LOCAL_ROOT
-	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i >> $@; done
+	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
 endif
 
 $(tunxml): $(globaltun)
-	$(verbose) $(genxml) -w -t $< > $@
+	$(verbose) $(genxml) -w -t $< -o $@
 
 $(boolxml): $(globalbool)
-	$(verbose) $(genxml) -w -b $< > $@
+	$(verbose) $(genxml) -w -b $< -o $@
 
 $(polxml): $(layerxml) $(tunxml) $(boolxml)
 	@echo "Creating $(@F)"
@@ -586,7 +591,7 @@ install-headers: $(layerxml) $(tunxml) $(boolxml)
 	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
 	$(verbose) $(INSTALL) -d -m 755 $(headerdir)/support
 	$(verbose) $(INSTALL) -m 644 $(m4support) $(xmldtd) $(headerdir)/support
-	$(verbose) $(INSTALL) -m 755 $(word $(words $(genxml)),$(genxml)) $(headerdir)/support
+	$(verbose) $(INSTALL) -m 755 $(genxml_tool) $(headerdir)/support
 	$(verbose) $(INSTALL) -m 644 /dev/null $(headerdir)/support/all_perms.spt
 	$(verbose) $(genperm) $(avs) $(secclass) > $(headerdir)/support/all_perms.spt
 	$(verbose) for i in $(notdir $(all_layers)); do \
