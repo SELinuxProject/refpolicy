@@ -304,7 +304,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Generate XML documentation information for layers.",
         epilog="examples:\n"
-            "  %(prog)s -w -T tmp/templates -m policy/modules/apache\n"
+            "  %(prog)s -w -T tmp/templates -m policy/modules/admin/sudo policy/modules/admin/su\n"
             "  %(prog)s -t policy/global_tunables\n",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-w', '--warn', action='store_true',
@@ -312,33 +312,41 @@ if __name__ == "__main__":
     parser.add_argument('-W', '--Werror', action='store_true',
         help='treat warnings as errors')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-m', '--module',
-        help='name of module to process')
-    group.add_argument('-t', '--tunable',
-        help='name of global tunable file to process')
-    group.add_argument('-b', '--boolean',
-        help='name of global boolean file to process')
+    group.add_argument('-m', '--module', action='store_true',
+        help='process module files')
+    group.add_argument('-t', '--tunable', action='store_true',
+        help='process a global tunable file')
+    group.add_argument('-b', '--boolean', action='store_true',
+        help='process a global boolean file')
     parser.add_argument('-T', '--templates', default='', dest='templatedir',
         help='name of template directory to use')
     parser.add_argument('-o', '--output', required=True,
         help='output file')
     parser.add_argument('-a', '--append', action='store_true',
         help='open output file in append mode')
+    parser.add_argument('files', nargs='+', metavar='FILE',
+        help='files to process')
 
     args = parser.parse_args()
+
+    if (args.tunable or args.boolean) and len(args.files) != 1:
+        parser.error("-t/--tunable and -b/--boolean require exactly 1 file argument")
 
     logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
         level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
     try:
-        elements: list[ET.Element]
-        warnings: int
+        elements: list[ET.Element] = []
+        warnings: int = 0
         if args.module:
-            elements, warnings = get_module_xml(args.module, args.templatedir)
+            for f in args.files:
+                elems, warns = get_module_xml(f, args.templatedir)
+                elements.extend(elems)
+                warnings += warns
         elif args.tunable:
-            elements, warnings = get_tunable_xml(args.tunable, "tunable", args.templatedir)
+            elements, warnings = get_tunable_xml(args.files[0], "tunable", args.templatedir)
         elif args.boolean:
-            elements, warnings = get_tunable_xml(args.boolean, "bool", args.templatedir)
+            elements, warnings = get_tunable_xml(args.files[0], "bool", args.templatedir)
 
         if args.Werror and warnings:
             raise RuntimeError(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")

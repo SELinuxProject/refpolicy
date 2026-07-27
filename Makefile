@@ -481,9 +481,9 @@ endif
 $(layerxml): %.xml: $(doctmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
 	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) for i in $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
+	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -a -o $@ $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 ifdef LOCAL_ROOT
-	$(verbose) for i in $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods))); do $(genxml) -w -T $(doctmpdir)/iftemplates -m $$i -a -o $@; done
+	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -a -o $@ $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods)))
 endif
 
 $(tunxml): $(globaltun)
