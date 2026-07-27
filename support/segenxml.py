@@ -19,13 +19,10 @@ import sys
 import re
 import logging
 import argparse
+import xml.etree.ElementTree as ET
 from itertools import dropwhile
 from pathlib import Path
 
-# GLOBALS
-
-# Default values of command line arguments:
-output_dir = ""
 
 # Pre compiled regular expressions:
 
@@ -69,10 +66,26 @@ XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 #   "zarafa_domain_template(gateway)"
 TEMPLATE_CALL = re.compile(r"^\s*(\w*_template)\(\s*(\w*)\s*(?:,\s*(?:[^,)]*)\s*)*\)")
 
+
 # FUNCTIONS
-def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
+def _parse_xml_fragments(fragments: list[str], parent: ET.Element,
+                         file_name: str, line_num: int = 0) -> None:
     '''
-    Returns the XML data for a module in a list, one line per list item.
+    Parse collected XML comment lines and append as children of parent.
+    '''
+    try:
+        root = ET.fromstring("<_root>" + "".join(fragments) + "</_root>")
+        parent.extend(root)
+
+    except ET.ParseError as err:
+        location = f"{file_name}:{line_num}" if line_num else file_name
+        raise ValueError(f"{location}: failed to parse XML:\n"
+                         f"{''.join(fragments)}") from err
+
+
+def get_module_xml(file_name: str, templatedir: str) -> tuple[list[ET.Element], int]:
+    '''
+    Returns a list containing the XML Element for a module, or an empty list on failure.
     '''
 
     # Gather information.
@@ -92,12 +105,9 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
         logging.warning(f"cannot open file {module_if} for read, skipping")
         return [], 1
 
-    module_buf = []
+    module_elem = ET.Element("module", name=file_path.stem, filename=str(module_if))
 
-    # Infer the module name, which is the base of the file name.
-    module_buf.append(f"<module name=\"{file_path.stem}\" filename=\"{module_if}\">\n")
-
-    temp_buf = []
+    temp_buf: list[str] = []
     interface = None
 
     # finding_header is a flag to denote whether we are still looking
@@ -123,7 +133,8 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
                 finding_header = False
                 interface = INTERFACE.match(line)
                 if not interface:
-                    module_buf += temp_buf
+                    _parse_xml_fragments(temp_buf, module_elem,
+                                         str(module_if), line_num)
                     temp_buf = []
                     continue
 
@@ -143,14 +154,14 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
         if not interface:
             interface = INTERFACE.match(line)
         if interface:
-            # Add the opening tag for the interface/template
             groups = interface.groups()
-            module_buf.append(f"<{groups[0]} name=\"{groups[1]}\" lineno=\"{line_num}\">\n")
+            iface_elem = ET.SubElement(module_elem, groups[0],
+                                       name=groups[1], lineno=str(line_num))
 
-            # Add all the comments attributed to this interface to
-            #  the module buffer.
+            # Add all the comments attributed to this interface.
             if temp_buf:
-                module_buf += temp_buf
+                _parse_xml_fragments(temp_buf, iface_elem,
+                                     str(module_if), line_num)
                 temp_buf = []
 
             # Add default summaries and parameters so that the
@@ -158,19 +169,9 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
             else:
                 logging.warning(f"unable to find XML for {groups[0]} {groups[1]}()")
                 warn_count += 1
-                module_buf.extend([
-                    "<summary>\n",
-                    "Summary is missing!\n",
-                    "</summary>\n",
-                    "<param name=\"?\">\n",
-                    "<summary>\n",
-                    "Parameter descriptions are missing!\n",
-                    "</summary>\n",
-                    "</param>\n",
-                ])
-
-            # Close the interface/template tag.
-            module_buf.append(f"</{interface.group(1)}>\n")
+                ET.SubElement(iface_elem, "summary").text = "Summary is missing!"
+                param = ET.SubElement(iface_elem, "param", name="?")
+                ET.SubElement(param, "summary").text = "Parameter descriptions are missing!"
 
             interface = None
             continue
@@ -184,7 +185,8 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
 
     # If the file just had a header, add the comments to the module buffer.
     if finding_header:
-        module_buf += temp_buf
+        if temp_buf:
+            _parse_xml_fragments(temp_buf, module_elem, str(module_if))
     # Otherwise there are some lingering XML comments at the bottom, warn
     #  the user.
     elif temp_buf:
@@ -193,17 +195,16 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[str], int]:
         warn_count += 1
 
     # Process the TE file if it exists.
-    te_buf, te_warns = get_tunable_xml(str(module_te), "both", templatedir)
-    module_buf = module_buf + te_buf
+    te_elems, te_warns = get_tunable_xml(str(module_te), "both", templatedir)
+    module_elem.extend(te_elems)
     warn_count += te_warns
 
-    module_buf.append("</module>\n")
+    return [module_elem], warn_count
 
-    return module_buf, warn_count
 
-def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[str], int]:
+def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[ET.Element], int]:
     '''
-    Return all the XML for the tunables/bools in the file specified.
+    Return all the XML elements for the tunables/bools in the file specified.
     '''
 
     warn_count = 0
@@ -216,9 +217,9 @@ def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[s
         logging.warning(f"cannot open file {file_name} for read, skipping")
         return [], 1
 
-    tunable_buf = []
-    temp_buf = []
-    tunable_processed_code = []
+    tunable_elems: list[ET.Element] = []
+    temp_buf: list[str] = []
+    tunable_processed_code: list[str] = []
 
     # We first go through the code and substitute template calls with the
     #  complete template content. This needs to happen iteratively, because
@@ -281,10 +282,13 @@ def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[s
                 if boolean.group(1) != kind:
                     raise ValueError(f"{boolean.group(1)} in a {kind} file.")
 
-            tunable_buf.append(f"<{boolean.group(1)} name=\"{boolean.group(2)}\" dftval=\"{boolean.group(3)}\">\n")
-            tunable_buf += temp_buf
-            temp_buf = []
-            tunable_buf.append(f"</{boolean.group(1)}>\n")
+            tun_elem = ET.Element(boolean.group(1),
+                                  name=boolean.group(2),
+                                  dftval=boolean.group(3))
+            if temp_buf:
+                _parse_xml_fragments(temp_buf, tun_elem, file_name)
+                temp_buf = []
+            tunable_elems.append(tun_elem)
 
     # If there are XML comments at the end of the file, they aren't
     # attributed to anything. These are ignored.
@@ -293,21 +297,7 @@ def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[s
         sys.stderr.write(f">  {'>  '.join(temp_buf)}\n")
         warn_count += 1
 
-
-    # If the caller requested a the global_tunables and global_booleans to be
-    # output to a file output them now
-    if output_dir:
-        xmlfile = Path(file_name).name + ".xml"
-        outpath = Path(output_dir) / xmlfile
-
-        try:
-            with open(outpath, "w", encoding="utf-8") as xml_outfile:
-                xml_outfile.writelines(tunable_buf)
-        except OSError:
-            logging.warning(f"cannot write to file {xmlfile}, skipping creation")
-            warn_count += 1
-
-    return tunable_buf, warn_count
+    return tunable_elems, warn_count
 
 
 if __name__ == "__main__":
@@ -341,21 +331,24 @@ if __name__ == "__main__":
         level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
     try:
-        lines: list[str]
+        elements: list[ET.Element]
         warnings: int
         if args.module:
-            lines, warnings = get_module_xml(args.module, args.templatedir)
+            elements, warnings = get_module_xml(args.module, args.templatedir)
         elif args.tunable:
-            lines, warnings = get_tunable_xml(args.tunable, "tunable", args.templatedir)
+            elements, warnings = get_tunable_xml(args.tunable, "tunable", args.templatedir)
         elif args.boolean:
-            lines, warnings = get_tunable_xml(args.boolean, "bool", args.templatedir)
-    except ValueError as e:
+            elements, warnings = get_tunable_xml(args.boolean, "bool", args.templatedir)
+
+        if args.Werror and warnings:
+            raise RuntimeError(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
+
+        with open(args.output, "a" if args.append else "w", encoding="utf-8") as output_file:
+            for elem in elements:
+                ET.indent(elem)
+                output_file.write(ET.tostring(elem, encoding="unicode", short_empty_elements=True))
+                output_file.write("\n")
+
+    except Exception as e:
         logging.error(str(e))
         sys.exit(1)
-
-    if args.Werror and warnings:
-        sys.stderr.write(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
-        sys.exit(1)
-
-    with open(args.output, "a" if args.append else "w", encoding="utf-8") as output_file:
-        output_file.writelines(lines)
