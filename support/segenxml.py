@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 #  Author(s): Donald Miner <dminer@tresys.com>
-#	     Dave Sugar <dsugar@tresys.com>
-#	     Brian Williams <bwilliams@tresys.com>
-#	     Caleb Case <ccase@tresys.com>
+#        Dave Sugar <dsugar@tresys.com>
+#        Brian Williams <bwilliams@tresys.com>
+#        Caleb Case <ccase@tresys.com>
 #
 # Copyright (C) 2005 - 2006 Tresys Technology, LLC
 #      This program is free software; you can redistribute it and/or modify
@@ -11,50 +11,50 @@
 #      the Free Software Foundation, version 2.
 
 """
-	This script generates XML documentation information for layers specified
-	by the user.
+    This script generates XML documentation information for layers specified
+    by the user.
 """
 
 import sys
-import os
 import re
-import getopt
+import logging
+import argparse
+import xml.etree.ElementTree as ET
+from itertools import dropwhile
+from pathlib import Path
 
-# GLOBALS
-
-# Default values of command line arguments:
-output_dir = ""
 
 # Pre compiled regular expressions:
 
 # Matches either an interface or a template declaration. Will give the tuple:
-#	("interface" or "template", name)
+#   ("interface" or "template", name)
 # Some examples:
-#	"interface(`kernel_read_system_state',`"
-#	 -> ("interface", "kernel_read_system_state")
-#	"template(`base_user_template',`"
-#	 -> ("template", "base_user_template")
+#   "interface(`kernel_read_system_state',`"
+#    -> ("interface", "kernel_read_system_state")
+#   "template(`base_user_template',`"
+#    -> ("template", "base_user_template")
 INTERFACE = re.compile(r"^\s*(interface|template)\(`(\w*)'")
 
 # Matches either a gen_bool or a gen_tunable statement. Will give the tuple:
-#	("tunable" or "bool", name, "true" or "false")
+#   ("tunable" or "bool", name, "true" or "false")
 # Some examples:
-#	"gen_bool(secure_mode, false)"
-#	 -> ("bool", "secure_mode", "false")
-#	"gen_tunable(allow_kerberos, false)"
-#	 -> ("tunable", "allow_kerberos", "false")
+#   "gen_bool(secure_mode, false)"
+#    -> ("bool", "secure_mode", "false")
+#   "gen_tunable(allow_kerberos, false)"
+#    -> ("tunable", "allow_kerberos", "false")
 BOOLEAN = re.compile(r"^\s*gen_(tunable|bool)\(\s*\`?\s*(\w*)\s*\'?\s*,\s*(true|false)\s*\)")
-TEMPLATE_BOOLEAN = re.compile(r"^\s*gen_(tunable|bool)\(\s*\`?\s*([\w\$]*)\s*\'?\s*,\s*(true|false)\s*\)")
+TEMPLATE_BOOLEAN = re.compile(
+    r"^\s*gen_(tunable|bool)\(\s*\`?\s*([\w\$]*)\s*\'?\s*,\s*(true|false)\s*\)")
 
 # Matches a XML comment in the policy, which is defined as any line starting
 #  with two # and at least one character of white space. Will give the single
 #  valued tuple:
-#	("comment")
+#   ("comment")
 # Some Examples:
-#	"## <summary>"
-#	 -> ("<summary>")
-#	"##		The domain allowed access.	"
-#	 -> ("The domain allowed access.")
+#   "## <summary>"
+#    -> ("<summary>")
+#   "##     The domain allowed access.  "
+#    -> ("The domain allowed access.")
 XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 
 # Matches a template call in the policy, which is defined as any line having
@@ -62,329 +62,301 @@ XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 #  arguments between an opening and closing bracket. Regexp cannot deal with
 #  unknown number of arguments, so we will split arguments in the code later on.
 # Some examples:
-#	"userdom_user_access_template(gpg, gpg_t)"
-#	"zarafa_domain_template(gateway)"
+#   "userdom_user_access_template(gpg, gpg_t)"
+#   "zarafa_domain_template(gateway)"
 TEMPLATE_CALL = re.compile(r"^\s*(\w*_template)\(\s*(\w*)\s*(?:,\s*(?:[^,)]*)\s*)*\)")
 
+
 # FUNCTIONS
-def getModuleXML(file_name):
-	'''
-	Returns the XML data for a module in a list, one line per list item.
-	'''
+def _parse_xml_fragments(fragments: list[str], parent: ET.Element,
+                         file_name: str, line_num: int = 0) -> None:
+    '''
+    Parse collected XML comment lines and append as children of parent.
+    '''
+    try:
+        root = ET.fromstring("<_root>" + "".join(fragments) + "</_root>")
+        parent.extend(root)
 
-	# Gather information.
-	module_dir = os.path.dirname(file_name)
-	module_name = os.path.basename(file_name)
-	module_te = "%s/%s.te" % (module_dir, module_name)
-	module_if = "%s/%s.if" % (module_dir, module_name)
-
-	# Try to open the file, if it can't, just ignore it.
-	try:
-		module_file = open(module_if, "r")
-		module_code = module_file.readlines()
-		module_file.close()
-	except OSError:
-		warning("cannot open file %s for read, skipping" % file_name)
-		return []
-
-	module_buf = []
-
-	# Infer the module name, which is the base of the file name.
-	module_buf.append("<module name=\"%s\" filename=\"%s\">\n"
-		% (os.path.splitext(os.path.split(file_name)[-1])[0], module_if))
-
-	temp_buf = []
-	interface = None
-
-	# finding_header is a flag to denote whether we are still looking
-	#  for the XML documentation at the head of the file.
-	finding_header = True
-
-	# Get rid of whitespace at top of file
-	while(module_code and module_code[0].isspace()):
-		module_code = module_code[1:]
-
-	# Go line by line and figure out what to do with it.
-	line_num = 0
-	for line in module_code:
-		line_num += 1
-		if finding_header:
-			# If there is a XML comment, add it to the temp buffer.
-			comment = XML_COMMENT.match(line)
-			if comment:
-				temp_buf.append(comment.group(1) + "\n")
-				continue
-
-			# Once a line that is not an XML comment is reached,
-			#  either put the XML out to module buffer as the
-			#  module's documentation, or attribute it to an
-			#  interface/template.
-			elif temp_buf:
-				finding_header = False
-				interface = INTERFACE.match(line)
-				if not interface:
-					module_buf += temp_buf
-					temp_buf = []
-					continue
-
-		# Skip over empty lines
-		if line.isspace():
-			continue
-
-		# Grab a comment and add it to the temporary buffer, if it
-		#  is there.
-		comment = XML_COMMENT.match(line)
-		if comment:
-			temp_buf.append(comment.group(1) + "\n")
-			continue
-
-		# Grab the interface information. This is only not true when
-		#  the interface is at the top of the file and there is no
-		#  documentation for the module.
-		if not interface:
-			interface = INTERFACE.match(line)
-		if interface:
-			# Add the opening tag for the interface/template
-			groups = interface.groups()
-			module_buf.append("<%s name=\"%s\" lineno=\"%s\">\n" % (groups[0], groups[1], line_num))
-
-			# Add all the comments attributed to this interface to
-			#  the module buffer.
-			if temp_buf:
-				module_buf += temp_buf
-				temp_buf = []
-
-			# Add default summaries and parameters so that the
-			#  DTD is happy.
-			else:
-				warning ("unable to find XML for %s %s()" % (groups[0], groups[1]))
-				module_buf.append("<summary>\n")
-				module_buf.append("Summary is missing!\n")
-				module_buf.append("</summary>\n")
-				module_buf.append("<param name=\"?\">\n")
-				module_buf.append("<summary>\n")
-				module_buf.append("Parameter descriptions are missing!\n")
-				module_buf.append("</summary>\n")
-				module_buf.append("</param>\n")
-
-			# Close the interface/template tag.
-			module_buf.append("</%s>\n" % interface.group(1))
-
-			interface = None
-			continue
-
-		# If the line is a boolean/tunable definition, ignore it for now (these
-		#  lines are processed later on) and dismiss the XML comment received
-		#  thus far as it is otherwise attributed to an interface.
-		tunable = TEMPLATE_BOOLEAN.match(line)
-		if tunable:
-			temp_buf = []
-			continue
-
-	# If the file just had a header, add the comments to the module buffer.
-	if finding_header:
-		module_buf += temp_buf
-	# Otherwise there are some lingering XML comments at the bottom, warn
-	#  the user.
-	elif temp_buf:
-		warning("orphan XML comments at bottom of file %s" % file_name)
-
-	# Process the TE file if it exists.
-	module_buf = module_buf + getTunableXML(module_te, "both")
-
-	module_buf.append("</module>\n")
-
-	return module_buf
-
-def getTunableXML(file_name, kind):
-	'''
-	Return all the XML for the tunables/bools in the file specified.
-	'''
-
-	# Try to open the file, if it can't, just ignore it.
-	try:
-		tunable_file = open(file_name, "r")
-		tunable_code = tunable_file.readlines()
-		tunable_file.close()
-	except OSError:
-		warning("cannot open file %s for read, skipping" % file_name)
-		return []
-
-	tunable_buf = []
-	temp_buf = []
-	tunable_processed_code = []
-
-	# We first go through the code and substitute template calls with the
-	#  complete template content. This needs to happen iteratively, because
-	#  a template can call another template. In order to ensure no cyclic
-	#  template calls keep us busy, we max out at 9999 substitutions
-	has_changed = True
-	subst_threshold = 9999
-	while (has_changed and (subst_threshold > 0)):
-		has_changed = False
-		for line in tunable_code:
-			# Get the template call match
-			template_call = TEMPLATE_CALL.match(line)
-			# If we reach a template call, read in the template data
-			#  from the template directory, but substitute all $1 with
-			#  the second match, $2 with the third match, etc.
-			if template_call:
-				# Read template file based on template_call.group(1)
-				try:
-					template_file = open(templatedir + "/" + template_call.group(1) + ".iftemplate", "r")
-					template_code = template_file.readlines()
-					template_file.close()
-				except OSError:
-					warning("cannot open file %s for read, bailing out" % (templatedir + "/" + template_call.group(1) + ".iftemplate"))
-					return []
-				# Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
-				template_split = re.findall(r"[\w\" {}]+", line.strip())
-				for index, item in enumerate(template_code):
-					for group in range(1, len(template_split)):
-						template_code[index] = template_code[index].replace("$" + str(group), template_split[group].strip())
-				# Now 'inject' the code in the tunable_code variable
-				tunable_processed_code.extend(template_code)
-				has_changed = True
-				subst_threshold -= 1
-			else:
-				tunable_processed_code.append(line)
-		# It is a bad practice to try and update lists while in a loop, so we
-		# created an intermediate one and are now assigning it back
-		tunable_code = tunable_processed_code
-		tunable_processed_code = []
-	# If subst_threshold is 0 or less we want to know
-	if (subst_threshold <= 0):
-		warning("Detected a possible loop in policy code and template usage")
-
-	# Find tunables and booleans line by line and use the comments above
-	# them.
-	for line in tunable_code:
-		# If it is an XML comment, add it to the buffer and go on.
-		comment = XML_COMMENT.match(line)
-		if comment:
-			temp_buf.append(comment.group(1) + "\n")
-			continue
-
-		# Get the boolean/tunable data.
-		boolean = BOOLEAN.match(line)
-
-		# If we reach a boolean/tunable declaration, attribute all XML
-		#  in the temp buffer to it and add XML to the tunable buffer.
-		if boolean:
-			# If there is a gen_bool in a tunable file or a
-			# gen_tunable in a boolean file, error and exit.
-			# Skip if both kinds are valid.
-			if kind != "both":
-				if boolean.group(1) != kind:
-					error("%s in a %s file." % (boolean.group(1), kind))
-
-			tunable_buf.append("<%s name=\"%s\" dftval=\"%s\">\n" % boolean.groups())
-			tunable_buf += temp_buf
-			temp_buf = []
-			tunable_buf.append("</%s>\n" % boolean.group(1))
-
-	# If there are XML comments at the end of the file, they aren't
-	# attributed to anything. These are ignored.
-	if len(temp_buf):
-		warning("orphan XML comments at bottom of file %s" % file_name)
+    except ET.ParseError as err:
+        location = f"{file_name}:{line_num}" if line_num else file_name
+        raise ValueError(f"{location}: failed to parse XML:\n"
+                         f"{''.join(fragments)}") from err
 
 
-	# If the caller requested a the global_tunables and global_booleans to be
-	# output to a file output them now
-	if len(output_dir) > 0:
-		xmlfile = os.path.split(file_name)[1] + ".xml"
+def get_module_xml(file_name: str, templatedir: str) -> tuple[list[ET.Element], int]:
+    '''
+    Returns a list containing the XML Element for a module, or an empty list on failure.
+    '''
 
-		try:
-			xml_outfile = open(output_dir + "/" + xmlfile, "w")
-			for tunable_line in tunable_buf:
-				xml_outfile.write (tunable_line)
-			xml_outfile.close()
-		except OSError:
-			warning ("cannot write to file %s, skipping creation" % xmlfile)
+    # Gather information.
+    file_path = Path(file_name)
+    module_dir = file_path.parent
+    module_name = file_path.name
+    module_te = module_dir / f"{module_name}.te"
+    module_if = module_dir / f"{module_name}.if"
 
-	return tunable_buf
+    warn_count = 0
 
-def usage():
-	"""
-	Displays a message describing the proper usage of this script.
-	"""
+    # Try to open the file, if it can't, just ignore it.
+    try:
+        with open(module_if, "r", encoding="utf-8") as module_file:
+            module_code = module_file.readlines()
+    except OSError:
+        logging.warning(f"cannot open file {module_if} for read, skipping")
+        return [], 1
 
-	sys.stdout.write("usage: %s [-w] [-T <templatedir>] [-mtb] <file>\n\n" % sys.argv[0])
-	sys.stdout.write("-w --warn\t\t\tshow warnings\n"+\
-	"-m --module <file>\t\tname of module to process\n"+\
-	"-t --tunable <file>\t\tname of global tunable file to process\n"+\
-	"-b --boolean <file>\t\tname of global boolean file to process\n"+\
-	"-T --templates <dir>\t\tname of template directory to use\n\n")
+    module_elem = ET.Element("module", name=file_path.stem, filename=str(module_if))
 
-	sys.stdout.write("examples:\n")
-	sys.stdout.write("> %s -w -T tmp/templates -m policy/modules/apache\n" % sys.argv[0])
-	sys.stdout.write("> %s -t policy/global_tunables\n" % sys.argv[0])
+    temp_buf: list[str] = []
+    interface = None
 
-def warning(description):
-	'''
-	Warns the user of a non-critical error.
-	'''
+    # finding_header is a flag to denote whether we are still looking
+    #  for the XML documentation at the head of the file.
+    finding_header = True
 
-	if warn:
-		sys.stderr.write("%s: " % sys.argv[0] )
-		sys.stderr.write("warning: " + description + "\n")
+    # Get rid of whitespace at top of file
+    module_code = list(dropwhile(str.isspace, module_code))
 
-def error(description):
-	'''
-	Describes an error and exists the program.
-	'''
+    # Go line by line and figure out what to do with it.
+    for line_num, line in enumerate(module_code, start=1):
+        if finding_header:
+            # If there is a XML comment, add it to the temp buffer.
+            if comment := XML_COMMENT.match(line):
+                temp_buf.append(comment.group(1) + "\n")
+                continue
 
-	sys.stderr.write("%s: " % sys.argv[0] )
-	sys.stderr.write("error: " + description + "\n")
-	sys.stderr.flush()
-	sys.exit(1)
+            # Once a line that is not an XML comment is reached,
+            #  either put the XML out to module buffer as the
+            #  module's documentation, or attribute it to an
+            #  interface/template.
+            elif temp_buf:
+                finding_header = False
+                interface = INTERFACE.match(line)
+                if not interface:
+                    _parse_xml_fragments(temp_buf, module_elem,
+                                         str(module_if), line_num)
+                    temp_buf = []
+                    continue
+
+        # Skip over empty lines
+        if line.isspace():
+            continue
+
+        # Grab a comment and add it to the temporary buffer, if it
+        #  is there.
+        if comment := XML_COMMENT.match(line):
+            temp_buf.append(comment.group(1) + "\n")
+            continue
+
+        # Grab the interface information. This is only not true when
+        #  the interface is at the top of the file and there is no
+        #  documentation for the module.
+        if not interface:
+            interface = INTERFACE.match(line)
+        if interface:
+            groups = interface.groups()
+            iface_elem = ET.SubElement(module_elem, groups[0],
+                                       name=groups[1], lineno=str(line_num))
+
+            # Add all the comments attributed to this interface.
+            if temp_buf:
+                _parse_xml_fragments(temp_buf, iface_elem,
+                                     str(module_if), line_num)
+                temp_buf = []
+
+            # Add default summaries and parameters so that the
+            #  DTD is happy.
+            else:
+                logging.warning(f"unable to find XML for {groups[0]} {groups[1]}()")
+                warn_count += 1
+                ET.SubElement(iface_elem, "summary").text = "Summary is missing!"
+                param = ET.SubElement(iface_elem, "param", name="?")
+                ET.SubElement(param, "summary").text = "Parameter descriptions are missing!"
+
+            interface = None
+            continue
+
+        # If the line is a boolean/tunable definition, ignore it for now (these
+        #  lines are processed later on) and dismiss the XML comment received
+        #  thus far as it is otherwise attributed to an interface.
+        if TEMPLATE_BOOLEAN.match(line):
+            temp_buf = []
+            continue
+
+    # If the file just had a header, add the comments to the module buffer.
+    if finding_header:
+        if temp_buf:
+            _parse_xml_fragments(temp_buf, module_elem, str(module_if))
+    # Otherwise there are some lingering XML comments at the bottom, warn
+    #  the user.
+    elif temp_buf:
+        logging.warning(f"orphan XML comments at bottom of file {module_if}:")
+        sys.stderr.write(f">  {'>  '.join(temp_buf)}\n")
+        warn_count += 1
+
+    # Process the TE file if it exists.
+    te_elems, te_warns = get_tunable_xml(str(module_te), "both", templatedir)
+    module_elem.extend(te_elems)
+    warn_count += te_warns
+
+    return [module_elem], warn_count
 
 
+def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[ET.Element], int]:
+    '''
+    Return all the XML elements for the tunables/bools in the file specified.
+    '''
 
-# MAIN PROGRAM
+    warn_count = 0
 
-# Defaults
-warn = False
-module = False
-tunable = False
-boolean = False
-templatedir = ''
+    # Try to open the file, if it can't, just ignore it.
+    try:
+        with open(file_name, "r", encoding="utf-8") as tunable_file:
+            tunable_code = tunable_file.readlines()
+    except OSError:
+        logging.warning(f"cannot open file {file_name} for read, skipping")
+        return [], 1
 
-# Check that there are command line arguments.
-if len(sys.argv) <= 1:
-	usage()
-	sys.exit(1)
+    tunable_elems: list[ET.Element] = []
+    temp_buf: list[str] = []
+    tunable_processed_code: list[str] = []
 
-# Parse command line args
-try:
-	opts, args = getopt.getopt(sys.argv[1:], 'whm:t:b:T:', ['warn', 'help', 'module=', 'tunable=', 'boolean=', 'templates='])
-except getopt.GetoptError:
-	usage()
-	sys.exit(2)
-for o, a in opts:
-	if o in ('-w', '--warn'):
-		warn = True
-	elif o in ('-h', '--help'):
-		usage()
-		sys.exit(0)
-	elif o in ('-m', '--module'):
-		module = a
-	elif o in ('-t', '--tunable'):
-		tunable = a
-	elif o in ('-b', '--boolean'):
-		boolean = a
-	elif o in ('-T', '--templates'):
-		templatedir = a
-	else:
-		usage()
-		sys.exit(2)
+    # We first go through the code and substitute template calls with the
+    #  complete template content. This needs to happen iteratively, because
+    #  a template can call another template. In order to ensure no cyclic
+    #  template calls keep us busy, we max out at 9999 substitutions
+    has_changed = True
+    subst_threshold = 9999
+    while has_changed and subst_threshold > 0:
+        has_changed = False
+        for line in tunable_code:
+            # Get the template call match
+            if template_call := TEMPLATE_CALL.match(line):
+                # Read template file based on template_call.group(1)
+                filename = f"{templatedir}/{template_call.group(1)}.iftemplate"
+                try:
+                    with open(filename, "r", encoding="utf-8") as template_file:
+                        template_code = template_file.readlines()
+                except OSError:
+                    logging.warning(f"cannot open file {filename}.  Ignoring.")
+                    # Do not increase the warning count here, because this is an
+                    # optional file.
+                    return [], warn_count
+                # Substitute content (i.e. $1 for argument 1, $2 for argument 2, etc.)
+                template_split = re.findall(r"[\w\" {}]+", line.strip())
+                for index, _ in enumerate(template_code):
+                    for g in range(1, len(template_split)):
+                        template_code[index] = template_code[index].replace(
+                            f"${g}", template_split[g].strip())
+                # Now 'inject' the code in the tunable_code variable
+                tunable_processed_code.extend(template_code)
+                has_changed = True
+                subst_threshold -= 1
+            else:
+                tunable_processed_code.append(line)
+        # It is a bad practice to try and update lists while in a loop, so we
+        # created an intermediate one and are now assigning it back
+        tunable_code = tunable_processed_code
+        tunable_processed_code = []
+    # If subst_threshold is 0 or less we want to know
+    if subst_threshold <= 0:
+        logging.warning("Detected a possible loop in policy code and template usage")
+        warn_count += 1
 
-if module:
-	sys.stdout.writelines(getModuleXML(module))
-elif tunable:
-	sys.stdout.writelines(getTunableXML(tunable, "tunable"))
-elif boolean:
-	sys.stdout.writelines(getTunableXML(boolean, "bool"))
-else:
-	usage()
-	sys.exit(2)
+    # Find tunables and booleans line by line and use the comments above
+    # them.
+    for line in tunable_code:
+        # If it is an XML comment, add it to the buffer and go on.
+        if comment := XML_COMMENT.match(line):
+            temp_buf.append(comment.group(1) + "\n")
+            continue
+
+        # Get the boolean/tunable data.
+        if boolean := BOOLEAN.match(line):
+            # If we reach a boolean/tunable declaration, attribute all XML
+            #  in the temp buffer to it and add XML to the tunable buffer.
+            # If there is a gen_bool in a tunable file or a
+            # gen_tunable in a boolean file, error and exit.
+            # Skip if both kinds are valid.
+            if kind != "both":
+                if boolean.group(1) != kind:
+                    raise ValueError(f"{boolean.group(1)} in a {kind} file.")
+
+            tun_elem = ET.Element(boolean.group(1),
+                                  name=boolean.group(2),
+                                  dftval=boolean.group(3))
+            if temp_buf:
+                _parse_xml_fragments(temp_buf, tun_elem, file_name)
+                temp_buf = []
+            tunable_elems.append(tun_elem)
+
+    # If there are XML comments at the end of the file, they aren't
+    # attributed to anything. These are ignored.
+    if temp_buf:
+        logging.warning(f"orphan XML comments at bottom of file {file_name}")
+        sys.stderr.write(f">  {'>  '.join(temp_buf)}\n")
+        warn_count += 1
+
+    return tunable_elems, warn_count
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate XML documentation information for layers.",
+        epilog="examples:\n"
+            "  %(prog)s -w -T tmp/templates -m policy/modules/admin/sudo policy/modules/admin/su\n"
+            "  %(prog)s -t policy/global_tunables\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-w', '--warn', action='store_true',
+        help='show warnings')
+    parser.add_argument('-W', '--Werror', action='store_true',
+        help='treat warnings as errors')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-m', '--module', action='store_true',
+        help='process module files')
+    group.add_argument('-t', '--tunable', action='store_true',
+        help='process a global tunable file')
+    group.add_argument('-b', '--boolean', action='store_true',
+        help='process a global boolean file')
+    parser.add_argument('-T', '--templates', default='', dest='templatedir',
+        help='name of template directory to use')
+    parser.add_argument('-o', '--output', required=True,
+        help='output file')
+    parser.add_argument('-a', '--append', action='store_true',
+        help='open output file in append mode')
+    parser.add_argument('files', nargs='+', metavar='FILE',
+        help='files to process')
+
+    args = parser.parse_args()
+
+    if (args.tunable or args.boolean) and len(args.files) != 1:
+        parser.error("-t/--tunable and -b/--boolean require exactly 1 file argument")
+
+    logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
+        level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
+
+    try:
+        elements: list[ET.Element] = []
+        warnings: int = 0
+        if args.module:
+            for f in args.files:
+                elems, warns = get_module_xml(f, args.templatedir)
+                elements.extend(elems)
+                warnings += warns
+        elif args.tunable:
+            elements, warnings = get_tunable_xml(args.files[0], "tunable", args.templatedir)
+        elif args.boolean:
+            elements, warnings = get_tunable_xml(args.files[0], "bool", args.templatedir)
+
+        if args.Werror and warnings:
+            raise RuntimeError(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
+
+        with open(args.output, "a" if args.append else "w", encoding="utf-8") as output_file:
+            for elem in elements:
+                ET.indent(elem)
+                output_file.write(ET.tostring(elem, encoding="unicode", short_empty_elements=True))
+                output_file.write("\n")
+
+    except Exception as e:
+        logging.error(str(e))
+        sys.exit(1)
