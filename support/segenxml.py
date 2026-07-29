@@ -232,6 +232,64 @@ def get_layer_xml(dir_name: str, templatedir: str) -> tuple[list[ET.Element], in
     return [layer_elem], warn_count
 
 
+def _read_policy(file_name: str) -> ET.Element:
+    '''
+    Read a policy XML document from a file.
+    '''
+
+    try:
+        root = ET.parse(file_name).getroot()
+    except OSError as err:
+        raise ValueError(f"cannot open file {file_name} for read") from err
+    except ET.ParseError as err:
+        raise ValueError(f"{file_name}: failed to parse XML") from err
+
+    if root.tag != "policy":
+        raise ValueError(f"{file_name}: expected policy XML")
+
+    return root
+
+
+def get_policy_xml(layer_dirs: list[str], policy_files: list[str], tunable_file: str,
+                   boolean_file: str, templatedir: str) -> tuple[ET.Element, int]:
+    '''
+    Return a complete policy element from source directories and XML inputs.
+    '''
+
+    policy_elem = ET.Element("policy")
+    warn_count = 0
+    global_elems: list[ET.Element] = []
+
+    for policy_file in policy_files:
+        for xml_elem in _read_policy(policy_file):
+            if xml_elem.tag == "layer":
+                policy_elem.append(xml_elem)
+            else:
+                global_elems.append(xml_elem)
+
+    for layer_dir in layer_dirs:
+        layer_xml, layer_warns = get_layer_xml(layer_dir, templatedir)
+        policy_elem.extend(layer_xml)
+        warn_count += layer_warns
+
+    if not policy_elem.findall("layer"):
+        raise ValueError("policy requires at least one layer")
+
+    policy_elem.extend(global_elems)
+
+    if tunable_file:
+        tunable_xml, tunable_warns = get_tunable_xml(tunable_file, "tunable", templatedir)
+        policy_elem.extend(tunable_xml)
+        warn_count += tunable_warns
+
+    if boolean_file:
+        boolean_xml, boolean_warns = get_tunable_xml(boolean_file, "bool", templatedir)
+        policy_elem.extend(boolean_xml)
+        warn_count += boolean_warns
+
+    return policy_elem, warn_count
+
+
 def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[ET.Element], int]:
     '''
     Return all the XML elements for the tunables/bools in the file specified.
@@ -332,60 +390,53 @@ def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[E
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate XML documentation information for layers.",
+        description="Generate policy XML documentation.",
         epilog="examples:\n"
-            "  %(prog)s -w -T tmp/templates -m policy/modules/admin\n"
-            "  %(prog)s -t policy/global_tunables\n",
+            "  %(prog)s -w -T tmp/templates -t policy/global_tunables "
+            "-b policy/global_booleans -o policy.xml policy/modules/*\n",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-w', '--warn', action='store_true',
         help='show warnings')
     parser.add_argument('-W', '--Werror', action='store_true',
         help='treat warnings as errors')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-m', '--module', action='store_true',
-        help='process module files')
-    group.add_argument('-t', '--tunable', action='store_true',
-        help='process a global tunable file')
-    group.add_argument('-b', '--boolean', action='store_true',
-        help='process a global boolean file')
+    parser.add_argument('-t', '--tunable', default='', metavar='FILE',
+        help='global tunable source file')
+    parser.add_argument('-b', '--boolean', default='', metavar='FILE',
+        help='global boolean source file')
     parser.add_argument('-T', '--templates', default='', dest='templatedir',
         help='name of template directory to use')
     parser.add_argument('-o', '--output', required=True,
         help='output file')
-    parser.add_argument('-a', '--append', action='store_true',
-        help='open output file in append mode')
-    parser.add_argument('files', nargs='+', metavar='PATH',
-        help='layer directories or global tunable/boolean file to process')
+    parser.add_argument('--policy-file', action='append', default=[], metavar='FILE',
+        help='include layers and globals from an existing policy XML file')
+    parser.add_argument('files', nargs='*', metavar='PATH',
+        help='layer directories to process')
 
     args = parser.parse_args()
 
-    if (args.tunable or args.boolean) and len(args.files) != 1:
-        parser.error("-t/--tunable and -b/--boolean require exactly 1 file argument")
+    if not args.files and not args.policy_file:
+        parser.error("at least 1 layer directory or --policy-file is required")
 
     logging.basicConfig(format=sys.argv[0] + ': %(levelname)s: %(message)s',
         level=logging.WARNING if args.warn or args.Werror else logging.ERROR)
 
     try:
-        elements: list[ET.Element] = []
-        warnings: int = 0
-        if args.module:
-            for f in args.files:
-                elems, warns = get_layer_xml(f, args.templatedir)
-                elements.extend(elems)
-                warnings += warns
-        elif args.tunable:
-            elements, warnings = get_tunable_xml(args.files[0], "tunable", args.templatedir)
-        elif args.boolean:
-            elements, warnings = get_tunable_xml(args.files[0], "bool", args.templatedir)
+        policy_element, warnings = get_policy_xml(
+            args.files, args.policy_file, args.tunable,
+            args.boolean, args.templatedir)
 
         if args.Werror and warnings:
             raise RuntimeError(f"{sys.argv[0]}: ERROR: Treating warnings as errors.\n")
 
-        with open(args.output, "a" if args.append else "w", encoding="utf-8") as output_file:
-            for elem in elements:
-                ET.indent(elem)
-                output_file.write(ET.tostring(elem, encoding="unicode", short_empty_elements=True))
-                output_file.write("\n")
+        ET.indent(policy_element)
+        tree = ET.ElementTree(policy_element)
+        with open(args.output, "wb") as binary_output:
+            binary_output.write(
+                b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+                b'<!DOCTYPE policy SYSTEM "policy.dtd">\n')
+            tree.write(binary_output, encoding="UTF-8",
+                       xml_declaration=False, short_empty_elements=True)
+            binary_output.write(b"\n")
 
     except Exception as e:
         logging.error(str(e))

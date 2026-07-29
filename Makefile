@@ -143,14 +143,10 @@ docfiles := $(docs)/Makefile.example $(addprefix $(docs)/,example.te example.if 
 
 ifndef LOCAL_ROOT
 polxml := $(docs)/policy.xml
-tunxml := $(docs)/global_tunables.xml
-boolxml := $(docs)/global_booleans.xml
 htmldir := $(docs)/html
 doctmpdir := $(docs)/tmp
 else
 polxml := $(LOCAL_ROOT)/doc/policy.xml
-tunxml := $(LOCAL_ROOT)/doc/global_tunables.xml
-boolxml := $(LOCAL_ROOT)/doc/global_booleans.xml
 htmldir := $(LOCAL_ROOT)/doc/html
 doctmpdir := $(LOCAL_ROOT)/doc/tmp
 endif
@@ -311,8 +307,6 @@ generated_fc := $(basename $(foreach dir,$(all_layers),$(wildcard $(dir)/*.fc.in
 # when a generated file is already generated
 detected_mods := $(sort $(foreach dir,$(all_layers),$(wildcard $(dir)/*.te)) $(generated_te))
 
-modxml := $(addprefix $(doctmpdir)/, $(detected_mods:.te=.xml))
-layerxml := $(sort $(addprefix $(doctmpdir)/, $(notdir $(addsuffix .xml,$(all_layers)))))
 layer_names := $(sort $(notdir $(all_layers)))
 all_metaxml = $(call detect-metaxml, $(layer_names))
 
@@ -478,26 +472,11 @@ ifdef LOCAL_ROOT
 endif
 	@touch $(doctmpdir)/iftemplates
 
-$(layerxml): %.xml: $(doctmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
-	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
-	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -o $@ $(wildcard $(moddir)/$(notdir $*) $(if $(local_moddir),$(local_moddir)/$(notdir $*)))
-
-$(tunxml): $(globaltun)
-	$(verbose) $(genxml) -w -t $< -o $@
-
-$(boolxml): $(globalbool)
-	$(verbose) $(genxml) -w -b $< -o $@
-
-$(polxml): $(layerxml) $(tunxml) $(boolxml)
+$(polxml): $(doctmpdir)/iftemplates $(all_metaxml) $(detected_mods) $(detected_mods:.te=.if) $(globaltun) $(globalbool)
 	@echo "Creating $(@F)"
 	@test -d $(dir $(polxml)) || mkdir -p $(dir $(polxml))
 	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
-	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
-	$(verbose) echo '<policy>' >> $@
-	$(verbose) cat $(layerxml) >> $@
-	$(verbose) cat $(tunxml) $(boolxml) >> $@
-	$(verbose) echo '</policy>' >> $@
+	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -t $(globaltun) -b $(globalbool) -o $@ $(all_layers)
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
 		else \
@@ -581,7 +560,7 @@ $(appdir)/%: $(builtappconf)/%
 #
 # Install policy headers
 #
-install-headers: $(layerxml) $(tunxml) $(boolxml)
+install-headers: $(polxml)
 	$(verbose) $(INSTALL) -d -m 755 $(headerdir)
 	@echo "Installing $(NAME) policy headers."
 	$(verbose) $(INSTALL) -m 644 $^ $(headerdir)
@@ -709,8 +688,6 @@ resetlabels:
 bare: clean
 	$(verbose) rm -f $(polxml)
 	$(verbose) rm -fR $(doctmpdir)
-	$(verbose) rm -f $(tunxml)
-	$(verbose) rm -f $(boolxml)
 	$(verbose) rm -f $(mod_conf)
 	$(verbose) rm -f $(booleans)
 	$(verbose) rm -fR $(htmldir)
