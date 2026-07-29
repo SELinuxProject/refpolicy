@@ -480,11 +480,7 @@ endif
 
 $(layerxml): %.xml: $(doctmpdir)/iftemplates $(all_metaxml) $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)) $(subst .te,.if, $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
 	@test -d $(doctmpdir) || mkdir -p $(doctmpdir)
-	$(verbose) cat $(filter %/$(notdir $*)/$(metaxml), $(all_metaxml)) > $@
-	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -a -o $@ $(basename $(filter $(addprefix $(moddir)/, $(notdir $*))%, $(detected_mods)))
-ifdef LOCAL_ROOT
-	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -a -o $@ $(basename $(filter $(addprefix $(local_moddir)/, $(notdir $*))%, $(detected_mods)))
-endif
+	$(verbose) $(genxml) -w -T $(doctmpdir)/iftemplates -m -o $@ $(wildcard $(moddir)/$(notdir $*) $(if $(local_moddir),$(local_moddir)/$(notdir $*)))
 
 $(tunxml): $(globaltun)
 	$(verbose) $(genxml) -w -t $< -o $@
@@ -499,7 +495,7 @@ $(polxml): $(layerxml) $(tunxml) $(boolxml)
 	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
 	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
 	$(verbose) echo '<policy>' >> $@
-	$(verbose) for i in $(basename $(notdir $(layerxml))); do echo "<layer name=\"$$i\">" >> $@; cat $(doctmpdir)/$$i.xml >> $@; echo "</layer>" >> $@; done
+	$(verbose) cat $(layerxml) >> $@
 	$(verbose) cat $(tunxml) $(boolxml) >> $@
 	$(verbose) echo '</policy>' >> $@
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \

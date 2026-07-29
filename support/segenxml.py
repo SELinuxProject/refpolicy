@@ -83,17 +83,12 @@ def _parse_xml_fragments(fragments: list[str], parent: ET.Element,
                          f"{''.join(fragments)}") from err
 
 
-def get_module_xml(file_name: str, templatedir: str) -> tuple[list[ET.Element], int]:
+def get_module_xml(module_te: Path, templatedir: str) -> tuple[list[ET.Element], int]:
     '''
     Returns a list containing the XML Element for a module, or an empty list on failure.
     '''
 
-    # Gather information.
-    file_path = Path(file_name)
-    module_dir = file_path.parent
-    module_name = file_path.name
-    module_te = module_dir / f"{module_name}.te"
-    module_if = module_dir / f"{module_name}.if"
+    module_if = module_te.with_suffix(".if")
 
     warn_count = 0
 
@@ -105,7 +100,7 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[ET.Element], 
         logging.warning(f"cannot open file {module_if} for read, skipping")
         return [], 1
 
-    module_elem = ET.Element("module", name=file_path.stem, filename=str(module_if))
+    module_elem = ET.Element("module", name=module_te.stem, filename=str(module_if))
 
     temp_buf: list[str] = []
     interface = None
@@ -200,6 +195,41 @@ def get_module_xml(file_name: str, templatedir: str) -> tuple[list[ET.Element], 
     warn_count += te_warns
 
     return [module_elem], warn_count
+
+
+def get_layer_xml(dir_name: str, templatedir: str) -> tuple[list[ET.Element], int]:
+    '''
+    Return the XML element for a layer and all modules found in it.
+    '''
+
+    layer_dir = Path(dir_name)
+    if not layer_dir.is_dir():
+        raise ValueError(f"{dir_name}: not a layer directory")
+
+    layer_name = layer_dir.name or layer_dir.absolute().name
+    layer_elem = ET.Element("layer", name=layer_name)
+    warn_count = 0
+
+    metadata_file = layer_dir / "metadata.xml"
+    try:
+        with open(metadata_file, "r", encoding="utf-8") as metadata:
+            _parse_xml_fragments(metadata.readlines(), layer_elem,
+                                 str(metadata_file))
+    except OSError:
+        logging.warning(f"cannot open file {metadata_file} for read")
+        warn_count += 1
+        ET.SubElement(layer_elem, "summary").text = "Summary is missing!"
+
+    module_files = sorted(layer_dir.glob("*.te"))
+    if not module_files:
+        raise ValueError(f"{dir_name}: no module .te files found")
+
+    for module_te in module_files:
+        module_xml, module_warns = get_module_xml(module_te, templatedir)
+        layer_elem.extend(module_xml)
+        warn_count += module_warns
+
+    return [layer_elem], warn_count
 
 
 def get_tunable_xml(file_name: str, kind: str, templatedir: str) -> tuple[list[ET.Element], int]:
@@ -304,7 +334,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Generate XML documentation information for layers.",
         epilog="examples:\n"
-            "  %(prog)s -w -T tmp/templates -m policy/modules/admin/sudo policy/modules/admin/su\n"
+            "  %(prog)s -w -T tmp/templates -m policy/modules/admin\n"
             "  %(prog)s -t policy/global_tunables\n",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-w', '--warn', action='store_true',
@@ -324,8 +354,8 @@ if __name__ == "__main__":
         help='output file')
     parser.add_argument('-a', '--append', action='store_true',
         help='open output file in append mode')
-    parser.add_argument('files', nargs='+', metavar='FILE',
-        help='files to process')
+    parser.add_argument('files', nargs='+', metavar='PATH',
+        help='layer directories or global tunable/boolean file to process')
 
     args = parser.parse_args()
 
@@ -340,7 +370,7 @@ if __name__ == "__main__":
         warnings: int = 0
         if args.module:
             for f in args.files:
-                elems, warns = get_module_xml(f, args.templatedir)
+                elems, warns = get_layer_xml(f, args.templatedir)
                 elements.extend(elems)
                 warnings += warns
         elif args.tunable:
