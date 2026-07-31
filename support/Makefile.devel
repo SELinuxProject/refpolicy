@@ -34,10 +34,7 @@ genxml := $(PYTHON) $(HEADERDIR)/support/segenxml.py
 docs := doc
 polxml := $(docs)/policy.xml
 xmldtd := $(HEADERDIR)/support/policy.dtd
-metaxml := metadata.xml
-
-globaltun = $(HEADERDIR)/global_tunables.xml
-globalbool = $(HEADERDIR)/global_booleans.xml
+basepolxml := $(HEADERDIR)/policy.xml
 
 # enable MLS if requested.
 ifeq "$(TYPE)" "mls"
@@ -94,13 +91,9 @@ M4PARAM += -D mls_num_sens=$(MLS_SENS) -D mls_num_cats=$(MLS_CATS) -D mcs_num_ca
 m4support = $(wildcard $(HEADERDIR)/support/*.spt)
 
 header_layers := $(filter-out $(HEADERDIR)/support,$(shell find $(HEADERDIR)/* -maxdepth 0 -type d))
-header_xml := $(addsuffix .xml,$(header_layers))
 header_interfaces := $(foreach layer,$(header_layers),$(wildcard $(layer)/*.if))
 
 local_layers := $(filter-out CVS tmp $(docs),$(shell find * -maxdepth 0 -type d))
-local_xml := $(addprefix tmp/, $(addsuffix .xml,$(local_layers)))
-
-all_layer_names := $(sort $(notdir $(header_layers) $(local_layers)))
 
 3rd_party_mods := $(wildcard *.te)
 detected_mods := $(3rd_party_mods) $(foreach layer,$(local_layers),$(wildcard $(layer)/*.te))
@@ -196,33 +189,10 @@ $(detected_ifs):
 #
 # Documentation generation
 #
-tmp/%.xml: %/*.te %/*.if
-	@test -d $(@D) || mkdir -p $(@D)
-	$(verbose) test -f $(HEADERDIR)/$*.xml || cat $*/$(metaxml) > $@
-	$(verbose) $(genxml) -w -m $(sort $(basename $^)) >> $@
-
-vars: $(local_xml)
-
-$(polxml): $(header_xml) $(local_xml) $(globaltun) $(globalbool) $(detected_mods) $(detected_ifs)
+$(polxml): $(basepolxml) $(detected_mods) $(detected_ifs) $(foreach dir,$(local_layers),$(wildcard $(dir)/metadata.xml))
 	@echo "Creating $(@F)"
 	@test -d $(@D) || mkdir -p $(@D)
-	$(verbose) echo '<?xml version="1.0" encoding="ISO-8859-1" standalone="no"?>' > $@
-	$(verbose) echo '<!DOCTYPE policy SYSTEM "$(notdir $(xmldtd))">' >> $@
-	$(verbose) echo '<policy>' >> $@
-	$(verbose) for i in $(all_layer_names); do \
-		echo "<layer name=\"$$i\">" >> $@ ;\
-		test -f $(HEADERDIR)/$$i.xml && cat $(HEADERDIR)/$$i.xml >> $@ ;\
-		test -f tmp/$$i.xml && cat tmp/$$i.xml >> $@ ;\
-		echo "</layer>" >> $@ ;\
-	done
-ifneq "$(strip $(3rd_party_mods))" ""
-	$(verbose) echo "<layer name=\"third_party\">" >> $@
-	$(verbose) echo "<summary>These are all third-party modules.</summary>" >> $@
-	$(verbose) $(genxml) -w -m $(addprefix ./,$(basename $(3rd_party_mods))) >> $@
-	$(verbose) echo "</layer>" >> $@
-endif
-	$(verbose) cat $(globaltun) $(globalbool) >> $@
-	$(verbose) echo '</policy>' >> $@
+	$(verbose) $(genxml) -w -o $@ --policy-file $(basepolxml) $(local_layers) $(if $(strip $(3rd_party_mods)),.)
 	$(verbose) if test -x $(XMLLINT) && test -f $(xmldtd); then \
 		$(XMLLINT) --noout --path $(dir $(xmldtd)) --dtdvalid $(xmldtd) $@ ;\
 	fi
