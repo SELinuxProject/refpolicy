@@ -287,6 +287,10 @@ def get_policy_xml(layer_dirs: list[str], policy_files: list[str], tunable_file:
         policy_elem.extend(boolean_xml)
         warn_count += boolean_warns
 
+    for summary_elem in policy_elem.iter("summary"):
+        assert summary_elem.text is not None, "summary element text should not be None. segenxml.py bug."
+        summary_elem.text = re.sub(r"\s+", " ", summary_elem.text).strip()
+
     return policy_elem, warn_count
 
 
