@@ -3,19 +3,22 @@
 All Reference Policy interfaces and templates should use the following
 naming convention.
 
-```
+```text
 modulename[_modifier]_verb_predicate()
 ```
 
-* modulename: The name of the module, or for modules with long names, an abbreviation of the module name. If an abbreviation is used, it must be consistent throughout the module. e.g., apache, samba, and corenet (for corenetwork).
-* modifier: Describe variations of a common interface. The most common use is the modifier dontaudit. (optional)
+* modulename: The name of the module, or for modules with long names, an abbreviation of the
+module name. If an abbreviation is used, it must be consistent throughout the module. e.g.,
+apache, samba, and corenet (for corenetwork).
+* modifier: Describe variations of a common interface. The most common use is the modifier
+dontaudit. (optional)
 
 ## Common File Interface Elements
 
 These are applicable for all file object classes (file, lnk\_file,
 sock\_file, fifo\_file, blk\_file, chr\_file).
 
-### Verbs
+### File Verbs
 
 * getattr: Get the attributes of an object, such as stat().
 * setattr: Set the attributes of an object, such as chmod().
@@ -35,13 +38,15 @@ sock\_file, fifo\_file, blk\_file, chr\_file).
 * exec: Execute a file in the caller's domain (no domain transition; file object class only).
 * mmap_exec: Memory map a file as read-only and executable
 
-### Predicates
+### File Predicates
 
-The predicate is usually derived on the object's type, such as smbd_tmp_files. In general they should also be plural (tmp_file**s**, not tmp_file), since the policy normally can't enforce a label existing on single objects.
+The predicate is usually derived on the object's type, such as smbd_tmp_files. In general they
+should also be plural (tmp_file**s**, not tmp_file), since the policy normally can't enforce a
+label existing on single objects.
 
 ## Common Directory Interface Elements
 
-### Verbs
+### Directory Verbs
 
 * getattr: Get the attributes of a directory.
 * setattr: Set the attributes of a directory.
@@ -51,22 +56,26 @@ The predicate is usually derived on the object's type, such as smbd_tmp_files. I
 * manage: Add and remove directory entries, create and delete directories.
 * mounton: Filesystems can be mounted on this directory.
 
-### Predicates
+### Directory Predicates
 
-The predicate is usually derived on the object's type, such as smbd_tmp_dirs. In general they should also be plural (tmp_dir**s**, not tmp_dir), since the policy normally can't enforce a label existing on single objects.
+The predicate is usually derived on the object's type, such as smbd_tmp_dirs. In general they
+should also be plural (tmp_dir**s**, not tmp_dir), since the policy normally can't enforce a label
+existing on single objects.
 
 ## Common Process Interface Elements
 
-### Verbs
+### Process Verbs
 
 * sigchld: Send a SIGCHLD signal.
 * sigstop: Send a SIGSTOP signal.
 * signull: Send a null signal.
 * kill: Send a kill signal (SIGKILL).
 * domtrans: Execute a program and perform a domain transition.
-* run: Execute a program and perform a domain transition. Allow the target domain to read and write the specified terminal, and allow the specified role the target domain. This is used with interactive programs.
+* run: Execute a program and perform a domain transition. Allow the target domain to read and
+write the specified terminal, and allow the specified role the target domain. This is used with
+interactive programs.
 
-### Predicates
+### Process Predicates
 
 The predicate of process interfaces usually is the common name of the
 domain, e.g., smbd or nmbd.
@@ -81,7 +90,7 @@ domain, e.g., smbd or nmbd.
 * stream: Unix domain stream sockets
 * dgram: Unix domain datagram sockets
 
-### Verbs
+### Networking Verbs
 
 * send: Send network traffic on the network object.
 * receive: Receive network traffic on the network object.
@@ -89,7 +98,7 @@ domain, e.g., smbd or nmbd.
 * bind: Bind a socket to a port or node.
 * connect: Connect to another process or port.
 
-### Predicates
+### Networking Predicates
 
 * if: Network interfaces
 * nodes: Network nodes
@@ -98,7 +107,7 @@ domain, e.g., smbd or nmbd.
 
 ## Common Filesystem Interface Elements
 
-### Verbs
+### Filesystem Verbs
 
 * getattr: Get the attributes of the filesystem
 * mount: Mount the filesystem
@@ -106,7 +115,7 @@ domain, e.g., smbd or nmbd.
 * remount: Remount the filesystem (change mount options)
 * associate: Associate a file type to the filesystem
 
-### Predicates
+### Filesystem Predicates
 
 The predicate of filesystem interfaces is usually the filesystem type,
 e.g., tmpfs or cifs.

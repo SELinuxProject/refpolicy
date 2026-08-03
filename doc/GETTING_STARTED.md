@@ -26,7 +26,7 @@ below).
 
 First create `myapp.te` and add the following:
 
-``` {.wiki}
+```sepolicy
 policy_module(myapp,1.0)
 
 # Private type declarations
@@ -58,7 +58,7 @@ types. My application needs access between its own types and access to
 read random numbers. The access between private types is written exactly
 the same way current policy rules are written, i.e.:
 
-``` {.wiki}
+```sepolicy
 allow myapp_t myapp_log_t:file append_file_perms;
 allow myapp_t myapp_tmp_t:file manage_file_perms;
 ```
@@ -67,19 +67,37 @@ This allows myapp\_t to write to its private types, but it needs to be
 able to create its temporary files in /tmp. This requires a call to the
 files module.
 
-``` {.wiki}
+```sepolicy
 files_tmp_filetrans(myapp_t,myapp_tmp_t,file)
 ```
 
 This call to the files module allows myapp\_t to create myapp\_tmp\_t
-files in the /tmp directory.
+files in the /tmp directory by adding a type transition so files my\_app\_t
+creates in /tmp get the myapp_tmp_t type.
+
+The `/dev/random` device has the type random\_device\_t. Since this is owned by
+the devices module, not the myapp module, it requires a call to the devices
+module.
+
+```sepolicy
+dev_read_rand(myapp_t)
+```
+
+The `dev_read_rand()` interface provides all the access required to read
+`/dev/random`.
 
 ### Module FC Policy {#ModuleFCPolicy}
 
 The file contexts file lists files and the labels they should have.
+
+**Note**: When the policy is loaded, the file contexts will not automatically
+change the label of existing files.  See the
+[SELinux Notebook](https://github.com/SELinuxProject/selinux-notebook/blob/main/src/objects.md#labeling-objects)
+for more information.
+
 Create myapp.fc and add the following:
 
-``` {.wiki}
+```text
 /usr/bin/myapp    --  gen_context(system_u:object_r:myapp_exec_t,s0)
 ```
 
@@ -91,7 +109,7 @@ compiled for a MLS policy, and no categories when compiled for MCS. If
 the level s5:c1 is needed for MLS, and category c0 is needed for MCS,
 the above line would become:
 
-``` {.wiki}
+```text
 /usr/bin/myapp    --  gen_context(system_u:object_r:myapp_exec_t,s5:c1,c0)
 ```
 
@@ -108,7 +126,7 @@ gain access to my resources. This allows the module that created the
 type or attribute to define appropriate uses. Additionally, it provides
 a single point for documentation. Create myapp.if and add the following:
 
-``` {.wiki}
+```sepolicy
 ## <summary>Myapp example policy</summary>
 ## <desc>
 ##  <p>
@@ -194,11 +212,11 @@ should be copied to this directory. It is usually located in the
 /usr/share/doc/PKGNAME directory, where PKGNAME is the name of the
 policy package that has the policy headers.
 
-``` {.wiki}
+```bash
 $ cp /usr/share/doc/refpolicy-20060307/Makefile.example ~/policy/Makefile
 ```
 
-Alternatively, this can be copied [from the Reference Policy source](https://github.com/SELinuxProject/refpolicy/blob/master/doc/Makefile.example), from
+Alternatively, this can be copied from the Reference Policy source, from
 the doc directory. The Makefile is not required, but will simplify the
 process.
 
@@ -206,7 +224,7 @@ Now the policy directory should have the three module source files and
 Makefile. All that needs to be done is to run make, and the policy will
 be compiled.
 
-``` {.wiki}
+```bash
 $ make
 Compiling targeted myapp module
 /usr/bin/checkmodule:  loading policy configuration from tmp/myapp.tmp
@@ -221,7 +239,7 @@ for the base policy provided by the Linux distribution should be found
 in the /usr/share/selinux/NAME/include directory, where NAME is the name
 of the policy, for example, strict or targeted.
 
-``` {.wiki}
+```bash
 $ make -f /usr/share/selinux/targeted/include/Makefile
 Compiling targeted myapp module
 /usr/bin/checkmodule:  loading policy configuration from tmp/myapp.tmp
@@ -235,15 +253,15 @@ inserted into the running policy. To load the module, you must be running
 as root, in a role allowed to run `semodule`. Then run `semodule -i` to
 insert the module into the running policy:
 
-``` {.wiki}
-# semodule -i myapp.pp
+```bash
+$ sudo semodule -i myapp.pp
 ```
 
 The semodule command will only print messages if there is an error
 inserting the module. If it succeeds, `semodule -l` should list the myapp
 module, and the version:
 
-``` {.wiki}
-# semodule -l
+```bash
+$ sudo semodule -l
 myapp   1.0
 ```

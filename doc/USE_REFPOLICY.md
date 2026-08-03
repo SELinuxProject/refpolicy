@@ -10,15 +10,15 @@ switching to the Reference Policy on a generic Red Hat/Fedora system.
 ## Download and unpack the policy
 
 The policy is available from the
-[DownloadRelease](https://github.com/SELinuxProject/refpolicy/wiki/DownloadRelease) page.
+[releases](https://github.com/SELinuxProject/refpolicy/releases) page.
 Download the policy, and unpack it to a temporary directory. Then use
 the install-src make target to install the policy sources.
 
-``` {.wiki}
-# tar -jxvf refpolicy-20071214.tar.bz2 -C /tmp
+```bash
+$ tar -jxvf refpolicy-20071214.tar.bz2 -C /tmp
 
-# cd /tmp/refpolicy
-# make install-src
+$ cd /tmp/refpolicy
+$ sudo make install-src
 ```
 
 ## Configure the policy
@@ -26,8 +26,8 @@ the install-src make target to install the policy sources.
 The policy source is found in the /etc/selinux/refpolicy/src/policy/
 directory.
 
-``` {.wiki}
-# cd /etc/selinux/refpolicy/src/policy
+```bash
+$ cd /etc/selinux/refpolicy/src/policy
 ```
 
 Edit the policy build.conf file
@@ -35,7 +35,7 @@ Edit the policy build.conf file
 file, the policy has a few build options. The DISTRO option needs to be
 uncommented and set to redhat, and DIRECT\_INITRC should be set to y.
 
-``` {.wiki}
+```make
 ########################################
 #
 # Policy build options
@@ -77,7 +77,7 @@ DISTRO = redhat
 
 # Direct admin init
 # Setting this will allow sysadm to directly
-# run init scripts, instead of requring run_init.
+# run init scripts, instead of requiring run_init.
 # This is a build option, as role transitions do
 # not work in conditional policy.
 DIRECT_INITRC=y
@@ -110,8 +110,8 @@ QUIET=n
 Next, install the policy, application configuration files, and file
 contexts.
 
-``` {.wiki}
-# make install
+```bash
+$ sudo make install
 ```
 
 ## Change SELinux Configuration
@@ -119,7 +119,7 @@ contexts.
 Modify the /etc/selinux/config file, and set SELINUXTYPE to refpolicy.
 It should look similar to this:
 
-``` {.wiki}
+```make
 # This file controls the state of SELinux on the system.
 # SELINUX= can take one of these three values:
 #       enforcing - SELinux security policy is enforced.
@@ -137,7 +137,7 @@ SELINUXTYPE=refpolicy
 The system needs to be restarted with the new policy, and relabeled on
 booting, to finalize the switch.
 
-``` {.wiki}
-# touch /.autorelabel
-# shutdown -r now
+```bash
+$ sudo touch /.autorelabel
+$ sudo shutdown -r now
 ```
