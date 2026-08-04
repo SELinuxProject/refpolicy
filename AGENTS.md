@@ -4,15 +4,7 @@ Guidance for automated coding agents working in the SELinux Reference Policy rep
 
 ## Repository Layout
 
-- `policy/modules/` contains policy modules grouped by layer. A module commonly has a
-  type-enforcement (`.te`), interface (`.if`), and file-context (`.fc`) file.
-- `policy/support/` contains shared policy macros and definitions.
-- `policy/` also contains users, constraints, capabilities, booleans, tunables, and Flask
-  definitions.
-- `config/appconfig-*` contains SELinux-aware application configuration for each policy type.
-- `support/` contains Python, shell, awk, and m4 build tools.
-- `testing/` contains standalone validation tools and testing configurations.
-- `doc/` contains project guides, example policy files, and documentation build sources.
+See `doc/REPO_LAYOUT.md` for repository paths and generated-file descriptions.
 
 ## Documentation
 
@@ -23,8 +15,10 @@ Guidance for automated coding agents working in the SELinux Reference Policy rep
   SELinux Notebook as the next reference when this repository does not answer the question.
 - If the SELinux Notebook does not answer the question, consult the upstream SELinux userspace
   man pages under `https://github.com/SELinuxProject/selinux/*/man/**` for further information.
-- Read `README.md` for make targets, build options, repository paths, and header-based module
-  builds.
+- Read `README.md` for the project overview and goals.
+- Read `doc/WHITEPAPER.md` for the original Reference Policy design concepts and historical
+  context.
+- Read `doc/BUILD_INSTALL.md` for make targets, build options, and header-based module builds.
 - Read `doc/GETTING_STARTED.md` for the module structure and development workflow.
 - Follow `doc/STYLE_GUIDE.md` for ordering declarations, local rules, interfaces, and
   file-context entries.
@@ -33,6 +27,8 @@ Guidance for automated coding agents working in the SELinux Reference Policy rep
 - Read `doc/USE_REFPOLICY.md` when changing installation or migration workflows.
 - Format Markdown documentation with a maximum line length of 100 columns. Preformatted code
   blocks may exceed this limit.
+- Format `doc/WHITEPAPER.md` with a maximum line length of 80 columns. Its preformatted code blocks
+  may exceed this limit.
 - Use spaces for indentation in Markdown documentation; do not use tabs.
 - Avoid using the term `authorize` and its variants when `permission`, `access`, or `privilege`
   (or their variants) will work.
@@ -125,8 +121,8 @@ requirements and CI dependency versions are defined in `.github/workflows/global
 - For Python changes, run the narrowest relevant script or test with warnings treated as errors
   before broader policy validation.
 - For Markdown changes, run markdownlint and resolve all diagnostics. Also verify that non-code
-  lines are at most 100 columns, no hard tabs are present, referenced local paths exist, and links
-  resolve.
+  lines are at most 100 columns, or 80 columns in `doc/WHITEPAPER.md`; no hard tabs are present;
+  referenced local paths exist; and links resolve.
 
 ### Generated Outputs
 
