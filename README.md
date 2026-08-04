@@ -15,3 +15,6 @@ Reference Policy modules.
 
 For an in-depth discussion of Reference Policy concepts, see the
 [paper](doc/WHITEPAPER.md) published at the 2006 SELinux Symposium.
+
+The current project-wide objectives are defined in the
+[security goals](doc/SECURITY_GOALS.md).

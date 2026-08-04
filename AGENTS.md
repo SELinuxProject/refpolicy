@@ -18,6 +18,7 @@ See `doc/REPO_LAYOUT.md` for repository paths and generated-file descriptions.
 - Read `README.md` for the project overview and goals.
 - Read `doc/WHITEPAPER.md` for the original Reference Policy design concepts and historical
   context.
+- Use `doc/SECURITY_GOALS.md` when evaluating the intended security effects of policy changes.
 - Read `doc/BUILD_INSTALL.md` for make targets, build options, and header-based module builds.
 - Read `doc/GETTING_STARTED.md` for the module structure and development workflow.
 - Follow `doc/STYLE_GUIDE.md` for ordering declarations, local rules, interfaces, and
@@ -26,9 +27,10 @@ See `doc/REPO_LAYOUT.md` for repository paths and generated-file descriptions.
 - See `doc/HOW_TO_CONTRIBUTE.md` for contribution, patch submission, and sign-off requirements.
 - Read `doc/USE_REFPOLICY.md` when changing installation or migration workflows.
 - Format Markdown documentation with a maximum line length of 100 columns. Preformatted code
-  blocks may exceed this limit.
+  blocks and Markdown tables may exceed this limit.
 - Format `doc/WHITEPAPER.md` with a maximum line length of 80 columns. Its preformatted code blocks
-  may exceed this limit.
+  and Markdown tables may exceed this limit.
+- Align Markdown table cells and delimiters so tables are readable in the source text.
 - Use spaces for indentation in Markdown documentation; do not use tabs.
 - Avoid using the term `authorize` and its variants when `permission`, `access`, or `privilege`
   (or their variants) will work.
@@ -120,9 +122,10 @@ requirements and CI dependency versions are defined in `.github/workflows/global
 
 - For Python changes, run the narrowest relevant script or test with warnings treated as errors
   before broader policy validation.
-- For Markdown changes, run markdownlint and resolve all diagnostics. Also verify that non-code
-  lines are at most 100 columns, or 80 columns in `doc/WHITEPAPER.md`; no hard tabs are present;
-  referenced local paths exist; and links resolve.
+- For Markdown changes, run markdownlint and resolve all diagnostics. Also verify that non-code,
+  non-table lines are at most 100 columns, or 80 columns in `doc/WHITEPAPER.md`; table cells and
+  delimiters are aligned for source readability; no hard tabs are present; referenced local paths
+  exist; and links resolve.
 
 ### Generated Outputs
 
@@ -138,6 +141,8 @@ requirements and CI dependency versions are defined in `.github/workflows/global
 - SETools is required for semantic review of policy changes.
 - Build base and changed policy artifacts and review `sediff` output for policy behavior changes.
 - Run `sechecker testing/sechecker.ini` against the changed compiled policy.
+- If a reasonable permission grant fails a sechecker test, a new exemption must include an inline
+  comment explaining why or how the domain needs the permission.
 - Treat semantic differences and security-goal failures as results to explain, not output to
   suppress.
 
