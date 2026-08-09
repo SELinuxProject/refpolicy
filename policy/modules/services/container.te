@@ -12,6 +12,14 @@ gen_tunable(container_execmod_ro_files, false)
 
 ## <desc>
 ##	<p>
+##	Allow init containers to run nested application containers,
+## 	e.g. docker.
+##	</p>
+## </desc>
+gen_tunable(container_init_allow_nesting, false)
+
+## <desc>
+##	<p>
 ##	Allow the kernel to relabel to/from container file content,
 ##	if for example an NFS share with container files is exported
 ##	with the security_label option.
@@ -732,11 +740,42 @@ storage_getattr_fixed_disk_dev(container_init_t)
 storage_getattr_fuse_dev(container_init_t)
 storage_rw_fuse(container_init_t)
 
-term_dontaudit_remount_devpts(container_init_t)
 term_unmount_devpts(container_init_t)
 term_use_generic_ptys(container_init_t)
 
 userdom_use_user_ptys(container_init_t)
+
+tunable_policy(`container_init_allow_nesting',`
+	# required for lxc containers with nesting enabled to start
+	allow container_init_t self:user_namespace create;
+
+	# required by docker
+	allow container_init_t self:netlink_xfrm_socket create_socket_perms;
+
+	container_manage_chr_files(container_init_t)
+
+	dev_mount_sysfs(container_init_t)
+	dev_unmount_sysfs(container_init_t)
+
+	fs_mount_xattr_fs(container_init_t)
+	fs_unmount_nsfs(container_init_t)
+
+	kernel_manage_unlabeled_chr_files(container_init_t)
+	kernel_mount_proc(container_init_t)
+	kernel_mounton_core_if(container_init_t)
+	kernel_mounton_irq_sysctl_dirs(container_init_t)
+	kernel_mounton_proc_dirs(container_init_t)
+	kernel_mounton_proc_files(container_init_t)
+	kernel_mounton_sysctl_dirs(container_init_t)
+	kernel_mounton_sysctl_files(container_init_t)
+	kernel_rw_irq_sysctls(container_init_t)
+	kernel_unmount_proc(container_init_t)
+
+	term_mount_devpts(container_init_t)
+	term_remount_devpts(container_init_t)
+',`
+	term_dontaudit_remount_devpts(container_init_t)
+')
 
 ########################################
 #
