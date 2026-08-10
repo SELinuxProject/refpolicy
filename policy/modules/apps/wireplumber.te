@@ -42,13 +42,13 @@ userdom_user_tmpfs_file(wireplumber_tmpfs_t)
 #
 
 allow wireplumber_t self:capability sys_nice;
-allow wireplumber_t self:process { getsched setsched signal signull };
+allow wireplumber_t self:process { getsched setsched signal signull setrlimit };
 allow wireplumber_t self:fifo_file rw_fifo_file_perms;
 allow wireplumber_t self:unix_stream_socket { create_stream_socket_perms connectto };
 allow wireplumber_t self:unix_dgram_socket create_socket_perms;
 
 # Bluetooth socket for BlueZ audio routing (A2DP/HFP profile management).
-allow wireplumber_t self:bluetooth_socket create_socket_perms;
+allow wireplumber_t self:bluetooth_socket { listen create_socket_perms };
 
 # netlink kobject uevent socket for udev device monitoring.
 allow wireplumber_t self:netlink_kobject_uevent_socket create_socket_perms;
@@ -64,10 +64,14 @@ auth_use_nsswitch(wireplumber_t)
 dev_getattr_fs(wireplumber_t)
 
 # Device enumeration via sysfs.
+dev_getattr_sysfs(wireplumber_t)
 dev_read_sysfs(wireplumber_t)
 
 # /dev/snd inotify watch for ALSA device add/remove events.
 dev_watch_dev_dirs(wireplumber_t)
+
+dev_read_sound(wireplumber_t)
+dev_write_sound(wireplumber_t)
 
 # Suppress harmless /proc/<pid>/status probes during client enumeration.
 domain_dontaudit_read_all_domains_state(wireplumber_t)
@@ -93,9 +97,23 @@ miscfiles_read_localization(wireplumber_t)
 udev_read_runtime_files(wireplumber_t)
 udev_search_runtime(wireplumber_t)
 
+xdg_search_config_dirs(wireplumber_t)
+xdg_search_data_dirs(wireplumber_t)
+xdg_manage_data(wireplumber_t)
+
 # D-Bus communication with BlueZ (Bluetooth audio routing).
 optional_policy(`
 	bluetooth_dbus_chat(wireplumber_t)
+')
+
+optional_policy(`
+	dbus_list_system_bus_runtime(wireplumber_t)
+	dbus_write_session_runtime_socket(wireplumber_t)
+	dbus_system_bus_client(wireplumber_t)
+')
+
+optional_policy(`
+	devicekit_dbus_chat_power(wireplumber_t)
 ')
 
 # D-Bus communication with ModemManager (telephony audio routing).
@@ -111,6 +129,7 @@ optional_policy(`
 # Connect to the PipeWire daemon socket and map its shared memory buffers.
 optional_policy(`
 	pipewire_mmap_rw_tmpfs_files(wireplumber_t)
+	pipewire_read_home_files(wireplumber_t)
 	pipewire_stream_connect(wireplumber_t)
 	pipewire_use_fds(wireplumber_t)
 ')
@@ -124,6 +143,8 @@ optional_policy(`
 optional_policy(`
 	systemd_read_journal_files(wireplumber_t)
 	systemd_read_logind_sessions_files(wireplumber_t)
+	systemd_read_logind_runtime_files(wireplumber_t)
+	systemd_watch_logind_runtime_dirs(wireplumber_t)
 	systemd_watch_logind_sessions_dirs(wireplumber_t)
 ')
 
