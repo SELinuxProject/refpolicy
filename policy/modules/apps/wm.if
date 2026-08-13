@@ -87,6 +87,7 @@ template(`wm_role_template',`
 	userdom_map_user_tmpfs_files($1_wm_t)
 
 	xserver_role($1, $1_wm_t, $3, $4)
+	xserver_user_runtime_dir_filetrans_user_xauth($1_wm_t)
 	xserver_manage_core_devices($1_wm_t)
 
 	wm_write_pipes($1, $3)
@@ -131,6 +132,10 @@ template(`wm_role_template',`
 		systemd_read_logind_state($1_wm_t)
 		systemd_user_app_status($1, $1_wm_t)
 		systemd_write_inherited_logind_inhibit_pipes($1_wm_t)
+	')
+
+	optional_policy(`
+		wayland_compositor_domain($1_wm_t)
 	')
 
 	optional_policy(`
@@ -205,7 +210,7 @@ interface(`wm_dontaudit_exec_tmp_files',`
 
 ########################################
 ## <summary>
-##	mmap and read-write files in temporary filesystems.
+##	mmap and read-write files created by wm_domain in tmpfs filesystems.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -239,6 +244,60 @@ interface(`wm_dontaudit_exec_tmpfs_files',`
 	')
 
 	dontaudit $1 wm_tmpfs_t:file exec_file_perms;
+')
+
+########################################
+## <summary>
+##	Allow receiving fd from wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_use_application_fds',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow $1 wm_domain:fd use;
+')
+
+########################################
+## <summary>
+##	Allow sending fd to wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_send_fd',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow wm_domain $1:fd use;
+')
+
+########################################
+## <summary>
+##      Allow using socket of wm domain
+## </summary>
+## <param name="domain">
+##      <summary>
+##      Domain to allow
+##      </summary>
+## </param>
+#
+interface(`wm_rw_application_stream_sockets',`
+	gen_require(`
+		attribute wm_domain;
+	')
+
+	allow $1 wm_domain:unix_stream_socket rw_stream_socket_perms;
 ')
 
 ########################################
@@ -279,10 +338,37 @@ interface(`wm_dontaudit_exec_tmpfs_files',`
 interface(`wm_application_domain',`
 	gen_require(`
 		attribute wm_domain;
+		type wm_tmpfs_t;
 	')
 
 	userdom_user_application_domain($1, $2)
 	domtrans_pattern(wm_domain, $2, $1)
+	allow $1 wm_domain:unix_stream_socket { connectto rw_stream_socket_perms };
+	allow $1 wm_tmpfs_t:file mmap_rw_file_perms;
+	allow wm_domain $1:fd use;
+	optional_policy(`
+		wayland_client_domain($1)
+	')
+')
+
+########################################
+## <summary>
+##	Allow dbus communication with wm domain
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain to allow
+##	</summary>
+## </param>
+#
+interface(`wm_dbus_chat_applications',`
+	gen_require(`
+		attribute wm_domain;
+		class dbus send_msg;
+	')
+
+	allow $1 wm_domain:dbus send_msg;
+	allow wm_domain $1:dbus send_msg;
 ')
 
 ########################################
