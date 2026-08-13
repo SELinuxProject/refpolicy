@@ -24,22 +24,12 @@ ifdef(`pipewire_system_service',`
 	role pipewire_roles types pipewire_t;
 ')
 
-#
-# pipewire_client_t — domain for pw-cat and other PipeWire client utilities.
-# pw-cat, pw-play, pw-record, etc. are standalone clients that connect to a
-# running PipeWire daemon; they are separate programs and must not run in
-# pipewire_t.
-#
-type pipewire_client_t;
-type pipewire_client_exec_t;
-userdom_user_application_domain(pipewire_client_t, pipewire_client_exec_t)
-role pipewire_roles types pipewire_client_t;
-
 type pipewire_home_t alias pipewire_var_lib_t;
 userdom_user_home_content(pipewire_home_t)
 
 type pipewire_runtime_t;
 files_runtime_file(pipewire_runtime_t)
+userdom_user_runtime_content(pipewire_runtime_t)
 
 type pipewire_tmpfs_t;
 userdom_user_tmpfs_file(pipewire_tmpfs_t)
@@ -50,7 +40,7 @@ userdom_user_tmpfs_file(pipewire_tmpfs_t)
 #
 
 allow pipewire_t self:capability sys_nice;
-allow pipewire_t self:process { getsched setsched setrlimit signal sigchld };
+allow pipewire_t self:process { getsched setsched setrlimit signal sigchld setrlimit };
 allow pipewire_t self:fifo_file rw_fifo_file_perms;
 allow pipewire_t self:unix_stream_socket { create_stream_socket_perms connectto };
 
@@ -67,6 +57,10 @@ fs_tmpfs_filetrans(pipewire_t, pipewire_tmpfs_t, file)
 # Audio hardware access.
 dev_read_sound(pipewire_t)
 dev_write_sound(pipewire_t)
+
+# Video hardware access.
+dev_read_video_dev(pipewire_t)
+dev_write_video_dev(pipewire_t)
 
 # Device enumeration via sysfs (discovering ALSA/USB audio devices at startup).
 dev_read_sysfs(pipewire_t)
@@ -90,6 +84,8 @@ miscfiles_read_localization(pipewire_t)
 
 # NSS/name-service lookups to resolve user names for session ownership checks.
 auth_use_nsswitch(pipewire_t)
+
+xdg_search_config_dirs(pipewire_t)
 
 # ALSA configuration files (/etc/alsa/*, ~/.asoundrc).
 optional_policy(`
@@ -154,6 +150,7 @@ ifndef(`pipewire_system_service',`
 
 	# Runtime socket directory transition under $XDG_RUNTIME_DIR/pipewire.
 	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, dir, "pipewire")
+	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, file)
 
 	# Session D-Bus (register org.PipeWire.* on the per-user session bus).
 	optional_policy(`
@@ -170,47 +167,4 @@ ifndef(`pipewire_system_service',`
 		systemd_user_daemon_domain(user, pipewire_exec_t, pipewire_t)
 		systemd_user_daemon_domain(staff, pipewire_exec_t, pipewire_t)
 	')
-')
-
-########################################
-#
-# pipewire_client_t — pw-cat and other client utilities
-#
-# pw-cat is a standalone client that connects to a running PipeWire daemon
-# to play back or capture audio; it does not implement the daemon itself.
-#
-
-allow pipewire_client_t self:process { getsched signal };
-allow pipewire_client_t self:fifo_file rw_fifo_file_perms;
-allow pipewire_client_t self:unix_stream_socket { create_stream_socket_perms connectto };
-
-auth_use_nsswitch(pipewire_client_t)
-
-files_read_usr_files(pipewire_client_t)
-files_map_usr_files(pipewire_client_t)
-
-kernel_read_system_state(pipewire_client_t)
-
-miscfiles_read_localization(pipewire_client_t)
-
-# Connect to the PipeWire daemon socket and map its shared memory buffers.
-pipewire_stream_connect(pipewire_client_t)
-pipewire_rw_stream_sockets(pipewire_client_t)
-pipewire_mmap_rw_tmpfs_files(pipewire_client_t)
-pipewire_use_fds(pipewire_client_t)
-pipewire_use_client_fds(pipewire_t)
-
-# Read media files from the user's home, and allow capture tools such as
-# pw-record to manage user-selected output files in /tmp.
-userdom_read_user_home_content_files(pipewire_client_t)
-userdom_manage_user_tmp_files(pipewire_client_t)
-userdom_tmp_filetrans_user_tmp(pipewire_client_t, file)
-
-optional_policy(`
-	alsa_read_config(pipewire_client_t)
-')
-
-optional_policy(`
-	dbus_all_session_bus_client(pipewire_client_t)
-	dbus_connect_all_session_bus(pipewire_client_t)
 ')

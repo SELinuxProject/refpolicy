@@ -32,7 +32,6 @@ template(`pipewire_role',`
 	gen_require(`
 		attribute_role pipewire_roles;
 		type pipewire_t, pipewire_exec_t;
-		type pipewire_client_t, pipewire_client_exec_t;
 		type pipewire_home_t, pipewire_tmpfs_t, pipewire_runtime_t;
 	')
 
@@ -40,8 +39,6 @@ template(`pipewire_role',`
 
 	domtrans_pattern($2, pipewire_exec_t, pipewire_t)
 	domtrans_pattern($3, pipewire_exec_t, pipewire_t)
-	domtrans_pattern($2, pipewire_client_exec_t, pipewire_client_t)
-	domtrans_pattern($3, pipewire_client_exec_t, pipewire_client_t)
 
 	allow $3 pipewire_t:process { ptrace signal_perms };
 	allow $3 pipewire_t:fd use;
@@ -93,22 +90,39 @@ interface(`pipewire_domtrans',`
 
 ########################################
 ## <summary>
-##	Execute a domain transition to run a PipeWire client utility
-##	(e.g. pw-cat).
+##	Create pipewire user socket /run/user/$UID/pipewire-0
 ## </summary>
 ## <param name="domain">
 ##	<summary>
-##	Domain allowed to transition.
+##	Domain allowed access.
 ##	</summary>
 ## </param>
 #
-interface(`pipewire_domtrans_client',`
+interface(`pipewire_manage_user_dirs',`
 	gen_require(`
-		type pipewire_client_t, pipewire_client_exec_t;
+		type pipewire_runtime_t;
 	')
 
-	corecmd_search_bin($1)
-	domtrans_pattern($1, pipewire_client_exec_t, pipewire_client_t)
+	allow $1 pipewire_runtime_t:dir manage_dir_perms;
+')
+
+########################################
+## <summary>
+##	unlink pipewire user socket /run/user/$UID/pipewire-0
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pipewire_delete_user_sockets',`
+	gen_require(`
+		type pipewire_runtime_t;
+	')
+
+	userdom_rw_user_runtime_dirs($1)
+	delete_sock_files_pattern($1, pipewire_runtime_t, pipewire_runtime_t)
 ')
 
 ########################################
@@ -168,24 +182,6 @@ interface(`pipewire_use_fds',`
 
 ########################################
 ## <summary>
-##	Use file descriptors inherited from PipeWire clients.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`pipewire_use_client_fds',`
-	gen_require(`
-		type pipewire_client_t;
-	')
-
-	allow $1 pipewire_client_t:fd use;
-')
-
-########################################
-## <summary>
 ##	Allow a domain to read, write, and map PipeWire shared memory (tmpfs) files.
 ##	These are memfd files passed between the daemon and its clients for
 ##	zero-copy audio buffer sharing.
@@ -223,4 +219,25 @@ interface(`pipewire_read_home_files',`
 	userdom_search_user_home_dirs($1)
 	read_files_pattern($1, pipewire_home_t, pipewire_home_t)
 	read_lnk_files_pattern($1, pipewire_home_t, pipewire_home_t)
+')
+
+########################################
+## <summary>
+##	Allow full pipewire access to the main client facilities
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pipewire_client',`
+	gen_require(`
+		type pipewire_runtime_t;
+	')
+
+	allow $1 pipewire_runtime_t:dir list_dir_perms;
+	pipewire_stream_connect($1)
+	pipewire_use_fds($1)
+	pipewire_mmap_rw_tmpfs_files($1)
 ')
