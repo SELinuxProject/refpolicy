@@ -7,6 +7,8 @@ policy_module(pipewire)
 
 attribute_role pipewire_roles;
 
+attribute pipewire_client_domain;
+
 #
 # pipewire_t — the PipeWire multimedia daemon.
 #
@@ -31,6 +33,10 @@ type pipewire_runtime_t;
 files_runtime_file(pipewire_runtime_t)
 userdom_user_runtime_content(pipewire_runtime_t)
 
+optional_policy(`
+	systemd_user_runtime_dir_unlink(pipewire_runtime_t, sock_file)
+')
+
 type pipewire_tmpfs_t;
 userdom_user_tmpfs_file(pipewire_tmpfs_t)
 
@@ -53,6 +59,8 @@ manage_sock_files_pattern(pipewire_t, pipewire_runtime_t, pipewire_runtime_t)
 # for zero-copy audio buffer sharing.
 mmap_manage_files_pattern(pipewire_t, pipewire_tmpfs_t, pipewire_tmpfs_t)
 fs_tmpfs_filetrans(pipewire_t, pipewire_tmpfs_t, file)
+
+allow pipewire_t pipewire_client_domain:fd use;
 
 # Audio hardware access.
 dev_read_sound(pipewire_t)
@@ -90,11 +98,13 @@ xdg_search_config_dirs(pipewire_t)
 # ALSA configuration files (/etc/alsa/*, ~/.asoundrc).
 optional_policy(`
 	alsa_read_config(pipewire_t)
+	alsa_read_home_files(pipewire_t)
+	alsa_read_lib(pipewire_t)
 ')
 
 # PulseAudio compatibility layer (pipewire-pulse connects to PulseAudio clients).
 optional_policy(`
-	pulseaudio_stream_connect(pipewire_t)
+	pulseaudio_provide_server(pipewire_t)
 ')
 
 # Real-time scheduling priority via rtkit-daemon.
@@ -105,6 +115,12 @@ optional_policy(`
 # Read systemd journal for log correlation.
 optional_policy(`
 	systemd_read_journal_files(pipewire_t)
+')
+
+optional_policy(`
+	dbus_list_system_bus_runtime(pipewire_t)
+	dbus_send_system_bus(pipewire_t)
+	dbus_system_bus_client(pipewire_t)
 ')
 
 ########################################
@@ -151,14 +167,12 @@ ifndef(`pipewire_system_service',`
 	# Runtime socket directory transition under $XDG_RUNTIME_DIR/pipewire.
 	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, dir, "pipewire")
 	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, file)
+	userdom_user_runtime_filetrans(pipewire_t, pipewire_runtime_t, sock_file)
 
 	# Session D-Bus (register org.PipeWire.* on the per-user session bus).
 	optional_policy(`
 		dbus_all_session_bus_client(pipewire_t)
 		dbus_connect_all_session_bus(pipewire_t)
-		dbus_list_system_bus_runtime(pipewire_t)
-		dbus_send_system_bus(pipewire_t)
-		dbus_system_bus_client(pipewire_t)
 		dbus_write_session_runtime_socket(pipewire_t)
 	')
 
@@ -167,4 +181,22 @@ ifndef(`pipewire_system_service',`
 		systemd_user_daemon_domain(user, pipewire_exec_t, pipewire_t)
 		systemd_user_daemon_domain(staff, pipewire_exec_t, pipewire_t)
 	')
+
+	optional_policy(`
+		xdg_search_config_dirs(pipewire_t)
+	')
 ')
+
+########################################
+#
+# pipewire_client domain
+#
+# domain that captures requirements to use the pipewire service
+#
+
+allow pipewire_client_domain pipewire_runtime_t:dir list_dir_perms;
+pipewire_stream_connect(pipewire_client_domain)
+pipewire_use_fds(pipewire_client_domain)
+pipewire_mmap_rw_inherited_tmpfs_files(pipewire_client_domain)
+pipewire_rw_stream_sockets(pipewire_client_domain)
+pipewire_dbus_chat(pipewire_client_domain)
