@@ -2,6 +2,27 @@
 
 ########################################
 ## <summary>
+##	Allow full pipewire access to the main client facilities
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`pipewire_client',`
+	gen_require(`
+		type pipewire_runtime_t;
+	')
+
+	allow $1 pipewire_runtime_t:dir list_dir_perms;
+	pipewire_stream_connect($1)
+	pipewire_use_fds($1)
+	pipewire_mmap_rw_tmpfs_files($1)
+')
+
+########################################
+## <summary>
 ##	Role access for PipeWire (user-service mode).
 ##	Call this from unprivuser.te / staff.te in the same
 ##	way pulseaudio_role is called.
@@ -41,8 +62,10 @@ template(`pipewire_role',`
 	domtrans_pattern($3, pipewire_exec_t, pipewire_t)
 
 	allow $3 pipewire_t:process { ptrace signal_perms };
-	allow $3 pipewire_t:fd use;
 	ps_process_pattern($3, pipewire_t)
+
+	pipewire_client($2)
+	pipewire_client($3)
 
 	allow pipewire_t $3:unix_stream_socket connectto;
 	allow pipewire_t $3:process signull;
@@ -57,10 +80,7 @@ template(`pipewire_role',`
 	# (e.g. stale socket cleanup after daemon crash).
 	allow $2 pipewire_runtime_t:dir { manage_dir_perms relabel_dir_perms };
 	allow $2 pipewire_runtime_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
-	allow $2 pipewire_t:unix_stream_socket connectto;
 
-	# Allow the user domain to manage shared memory files created by the daemon.
-	pipewire_mmap_rw_tmpfs_files($2)
 	allow $2 pipewire_tmpfs_t:file relabel_file_perms;
 
 	optional_policy(`
@@ -142,23 +162,6 @@ interface(`pipewire_stream_connect',`
 
 	files_search_runtime($1)
 	stream_connect_pattern($1, pipewire_runtime_t, pipewire_runtime_t, pipewire_t)
-')
-
-########################################
-## <summary>
-##	Read and write connected PipeWire daemon stream sockets.
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`pipewire_rw_stream_sockets',`
-	gen_require(`
-		type pipewire_t;
-	')
-
 	allow $1 pipewire_t:unix_stream_socket rw_socket_perms;
 ')
 
@@ -219,25 +222,4 @@ interface(`pipewire_read_home_files',`
 	userdom_search_user_home_dirs($1)
 	read_files_pattern($1, pipewire_home_t, pipewire_home_t)
 	read_lnk_files_pattern($1, pipewire_home_t, pipewire_home_t)
-')
-
-########################################
-## <summary>
-##	Allow full pipewire access to the main client facilities
-## </summary>
-## <param name="domain">
-##	<summary>
-##	Domain allowed access.
-##	</summary>
-## </param>
-#
-interface(`pipewire_client',`
-	gen_require(`
-		type pipewire_runtime_t;
-	')
-
-	allow $1 pipewire_runtime_t:dir list_dir_perms;
-	pipewire_stream_connect($1)
-	pipewire_use_fds($1)
-	pipewire_mmap_rw_tmpfs_files($1)
 ')
