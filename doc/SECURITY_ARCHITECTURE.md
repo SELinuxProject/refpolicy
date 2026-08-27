@@ -38,7 +38,8 @@ packets, and IPC objects that have the same type.
 Types should separate objects with different readers, writers, trust levels, lifecycles, executers,
 or transition behavior. An application/service may have additional types to support its security
 goals. A service commonly has distinct types for executable code, configuration, persistent state,
-logs, temporary data, and runtime objects. Network, device, filesystem, and IPC types similarly distinguish resources that Linux discretionary access control may otherwise treat alike.
+logs, temporary data, and runtime objects. Network, device, filesystem, and IPC types similarly
+distinguish resources that Linux discretionary access control may otherwise treat alike.
 
 ### Type Attributes
 

@@ -28,8 +28,6 @@ See `doc/REPO_LAYOUT.md` for repository paths and generated-file descriptions.
 - Read `doc/USE_REFPOLICY.md` when changing installation or migration workflows.
 - Format Markdown documentation with a maximum line length of 100 columns. Preformatted code
   blocks and Markdown tables may exceed this limit.
-- Format `doc/WHITEPAPER.md` with a maximum line length of 80 columns. Its preformatted code blocks
-  and Markdown tables may exceed this limit.
 - Align Markdown table cells and delimiters so tables are readable in the source text.
 - Use spaces for indentation in Markdown documentation; do not use tabs.
 - Avoid using the term `authorize` and its variants when `permission`, `access`, or `privilege`
@@ -122,10 +120,14 @@ requirements and CI dependency versions are defined in `.github/workflows/global
 
 - For Python changes, run the narrowest relevant script or test with warnings treated as errors
   before broader policy validation.
-- For Markdown changes, run markdownlint and resolve all diagnostics. Also verify that non-code,
-  non-table lines are at most 100 columns, or 80 columns in `doc/WHITEPAPER.md`; table cells and
-  delimiters are aligned for source readability; no hard tabs are present; referenced local paths
-  exist; and links resolve.
+- For Markdown changes, run the repository configuration and resolve all diagnostics:
+
+  ```sh
+  npx --yes markdownlint-cli2 --config testing/refpolicy.markdownlint.json "**/*.md"
+  ```
+
+  The configuration enforces the 100-column prose limit, aligned tables, and prohibition on hard
+  tabs. Also verify that referenced local paths exist and links resolve.
 
 ### Generated Outputs
 
