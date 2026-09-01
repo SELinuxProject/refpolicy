@@ -1,4 +1,6 @@
 ifdef(`enable_mls',`
+
+define(`mls_file_like_class_set', `{ dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file }')
 #
 # Define sensitivities
 #
@@ -69,13 +71,13 @@ mlsconstrain { file lnk_file fifo_file anon_inode memfd_file } { create relabelt
 	( l2 eq h2 );
 
 # new file labels must be dominated by the relabeling subjects clearance
-mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file } relabelto
+mlsconstrain mls_file_like_class_set relabelto
 	(( h1 dom h2 ) or
 	(( t1 == mlsfilerelabeltoclr ) and ( h1 dom l2 )) or
 	( t1 == mlsfilerelabel ));
 
 # the file "read" ops (note the check is dominance of the low level)
-mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file } { read getattr execute }
+mlsconstrain mls_file_like_class_set { read getattr execute }
 	(( l1 dom l2 ) or
 	 (( t1 == mlsfilereadtoclr ) and ( h1 dom l2 )) or
 	 ( t1 == mlsfileread ) or
@@ -88,7 +90,7 @@ mlsconstrain dir search
 	 ( t2 == mlstrustedobject ));
 
 # the "single level" file "write" ops
-mlsconstrain { file lnk_file fifo_file dir chr_file blk_file sock_file anon_inode memfd_file } { write create setattr relabelfrom append unlink link rename mounton }
+mlsconstrain mls_file_like_class_set { write create setattr relabelfrom append unlink link rename mounton }
 	(( l1 eq l2 ) or
 	 (( t1 == mlsfilewritetoclr ) and ( h1 dom l2 ) and ( l1 domby l2 )) or
 	 (( t2 == mlsfilewriteinrange ) and ( l1 dom l2 ) and ( h1 domby h2 )) or
@@ -104,13 +106,13 @@ mlsconstrain dir { add_name remove_name reparent rmdir }
 	 ( t2 == mlstrustedobject ));
 
 # these access vectors have no MLS restrictions
-# { dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file } { ioctl lock quotaon }
+# mls_file_like_class_set { ioctl lock quotaon }
 #
 # { file } { execute_no_trans entrypoint execmod }
 # { chr_file } { execmod }
 
 # the file upgrade/downgrade rule
-mlsvalidatetrans { dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file }
+mlsvalidatetrans mls_file_like_class_set
 	((( l1 eq l2 ) or
 	  (( t3 == mlsfileupgrade ) and ( l1 domby l2 )) or
 	  (( t3 == mlsfiledowngrade ) and ( l1 dom l2 )) or
@@ -123,7 +125,7 @@ mlsvalidatetrans { dir file lnk_file chr_file blk_file sock_file fifo_file anon_
 # create can also require the upgrade/downgrade checks if the creating process
 # has used setfscreate (note that both the high and low level of the object
 # default to the process sensitivity level)
-mlsconstrain { dir file lnk_file chr_file blk_file sock_file fifo_file anon_inode memfd_file } create
+mlsconstrain mls_file_like_class_set create
 	((( l1 eq l2 ) or
 	  (( t1 == mlsfileupgrade ) and ( l1 domby l2 )) or
 	  (( t1 == mlsfiledowngrade ) and ( l1 dom l2 )) or
@@ -905,4 +907,5 @@ mlsvalidatetrans { db_database db_schema db_table db_sequence db_view db_procedu
 	  (( t3 == mlsdbdowngrade ) and ( h1 dom h2 )) or
 	  (( t3 == mlsdbdowngrade ) and ( h1 incomp h2 ))));
 
+undefine(`mls_file_like_class_set')
 ') dnl end enable_mls
