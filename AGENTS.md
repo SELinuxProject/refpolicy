@@ -62,6 +62,11 @@ See `doc/REPO_LAYOUT.md` for repository paths and generated-file descriptions.
 - Change `policy/modules/kernel/corenetwork.te.in`, `corenetwork.if.in`, or `corenetwork.if.m4`
   instead of the generated `corenetwork.te` and `corenetwork.if` files.
 - New Python code requires Python 3.10 or newer and should match the existing support-tool style.
+- If any constraints files are modified, revalidate the entire file, including revalidating
+  if explicit perimssion exemptions are still valid. The following are constraints files:
+  `policy/constraints`, `policy/mls`, and `policy/mcs`.
+- Any time an object class is added or modified, either permissions changed, or a change
+  to the common permission set it inherits, update the constraints files accordingly.
 
 ## Building and Validation
 
