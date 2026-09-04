@@ -1,0 +1,112 @@
+## <summary>Policy for the sway Wayland compositor.</summary>
+
+########################################
+## <summary>
+##	Role access for sway.
+## </summary>
+## <param name="role_prefix">
+##	<summary>
+##	The prefix of the user role (e.g., user
+##	is the prefix for user_r).
+##	</summary>
+## </param>
+## <param name="user_domain">
+##	<summary>
+##	User domain for the role.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access
+##	</summary>
+## </param>
+#
+template(`sway_role',`
+	gen_require(`
+		attribute_role sway_roles;
+		type sway_exec_t, sway_etc_t;
+		type sway_runtime_t, sway_xdg_config_t;
+	')
+
+	type $1_sway_t;
+	# Even though sway instances for different user types are separated by the
+	# $1_ prefix before their domain, making separate domains, we still want
+	# the various sway instances to be ubac constrained for other various file
+	# types.
+	userdom_user_application_domain($1_sway_t, sway_exec_t)
+	wayland_compositor_domain($1_sway_t)
+
+	domtrans_pattern($2, sway_exec_t, $1_sway_t)
+
+	roleattribute $3 sway_roles;
+	role $3 types { $1_sway_t };
+
+	type $1_sway_tmpfs_t;
+	userdom_user_tmpfs_file($1_sway_tmpfs_t)
+	wayland_compositor_tmpfs($1_sway_tmpfs_t)
+
+	# https://github.com/swaywm/sway/blob/master/sway/realtime.c
+	allow $1_sway_t self:process { getsched setsched };
+
+	read_files_pattern($1_sway_t, sway_etc_t, sway_etc_t)
+
+	# No transition or creation: sway only ever reads the config.
+	read_files_pattern($1_sway_t, sway_xdg_config_t, sway_xdg_config_t)
+
+	manage_sock_files_pattern($1_sway_t, sway_runtime_t, sway_runtime_t)
+	# sway-ipc: Wayland display socket is handled by the implied transitions in
+	# wayland_compositor_domain().
+	files_runtime_filetrans($1_sway_t, sway_runtime_t, sock_file)
+
+	manage_files_pattern($1_sway_t, $1_sway_tmpfs_t, $1_sway_tmpfs_t)
+	allow $1_sway_t $1_sway_tmpfs_t:file map;
+	fs_tmpfs_filetrans($1_sway_t, $1_sway_tmpfs_t, file)
+
+	# os-release/lsb-release information, /etc/fonts/fonts.conf
+	files_read_etc_files($1_sway_t)
+
+	# pixmaps and icons for xcursor.
+	files_read_usr_files($1_sway_t)
+
+	# /dev/udmabuf allocator.
+	dev_rw_dma_dev($1_sway_t)
+
+	# XXX: mesa tries to read boot_vga when using i915, and also attempts to read
+	# the various cpu_capacity sysfiles - should this be moved into the wayland
+	# modules?
+	dev_read_sysfs($1_sway_t)
+
+	# XXX: /proc/meminfo, seems to be mesa related - should this be moved into the
+	# wayland module?
+	kernel_read_system_state($1_sway_t)
+
+	# No need for corecmd_bin_domtrans(), sway executes everything with /bin/sh:
+	# https://github.com/swaywm/sway/blob/055be4ec35eec4eaaf066a18ccbf5132ebed0694/sway/commands/exec_always.c#L64
+	# Other things that are executed (e.g. swaybar, swaybg, and swaynag) are done
+	# so specially by sway, and require specific policy. Those modules should add
+	# domain transitions as needed instead.
+	corecmd_shell_domtrans($1_sway_t, $2)
+
+	optional_policy(`
+		# Talk to systemd-logind over the system bus.
+		dbus_system_bus_client($1_sway_t)
+	')
+
+	optional_policy(`
+		systemd_user_app_status($1, $1_sway_t)
+	')
+
+	# Policy for the user_domain
+	allow $2 sway_xdg_config_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 sway_xdg_config_t:file { manage_file_perms relabel_file_perms };
+	allow $2 sway_xdg_config_t:lnk_file { manage_lnk_file_perms relabel_lnk_file_perms };
+
+	allow $2 $1_sway_tmpfs_t:dir { manage_dir_perms relabel_dir_perms };
+	allow $2 $1_sway_tmpfs_t:file { manage_file_perms relabel_file_perms };
+	allow $2 $1_sway_tmpfs_t:fifo_file { manage_fifo_file_perms relabel_fifo_file_perms };
+	allow $2 $1_sway_tmpfs_t:sock_file { manage_sock_file_perms relabel_sock_file_perms };
+
+	optional_policy(`
+		xdg_config_filetrans($2, sway_xdg_config_t, dir, "sway")
+	')
+')
