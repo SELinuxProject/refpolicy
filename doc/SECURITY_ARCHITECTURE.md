@@ -126,7 +126,7 @@ domain and related types for terminals, home content, temporary files, and appli
 The principal login-role patterns are:
 
 - `user_r` for ordinary unprivileged users;
-- `staff_r` for unprivileged routine activity by users who are be authorized to transition to
+- `staff_r` for unprivileged routine activity by users who are authorized to transition to
   administrative roles;
 - `sysadm_r` for broad system administration;
 - `guest_r` and `xguest_r` for restricted login environments; and
