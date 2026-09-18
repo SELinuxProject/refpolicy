@@ -63,7 +63,6 @@ XML_COMMENT = re.compile(r"^\s*##\s+(.*?)\s*$")
 #  unknown number of arguments, so we will split arguments in the code later on.
 # Some examples:
 #   "userdom_user_access_template(gpg, gpg_t)"
-#   "zarafa_domain_template(gateway)"
 TEMPLATE_CALL = re.compile(r"^\s*(\w*_template)\(\s*(\w*)\s*(?:,\s*(?:[^,)]*)\s*)*\)")
 
 
