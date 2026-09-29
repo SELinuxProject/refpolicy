@@ -8,6 +8,7 @@ policy_module(bootloader)
 attribute_role bootloader_roles;
 roleattribute system_r bootloader_roles;
 
+ifdef(`distro_redhat',`
 #
 # boot_runtime_t is the type for /boot/kernel.h,
 # which is automatically generated at boot time.
@@ -15,11 +16,17 @@ roleattribute system_r bootloader_roles;
 #
 type boot_runtime_t;
 files_type(boot_runtime_t)
+')
 
 type bootloader_t;
 type bootloader_exec_t;
 application_domain(bootloader_t, bootloader_exec_t)
 role bootloader_roles types bootloader_t;
+
+type mkinitramfs_t;
+type mkinitramfs_exec_t;
+application_domain(mkinitramfs_t, mkinitramfs_exec_t)
+role bootloader_roles types mkinitramfs_t;
 
 #
 # bootloader_etc_t is the configuration file,
@@ -43,13 +50,10 @@ dev_node(bootloader_tmp_t)
 
 allow bootloader_t self:capability { chown dac_override dac_read_search fsetid mknod setgid sys_admin sys_rawio };
 dontaudit bootloader_t self:capability { net_admin sys_resource };
-allow bootloader_t self:process { execmem getsched signal_perms };
+allow bootloader_t self:process { execmem getsched getcap signal_perms };
 allow bootloader_t self:fifo_file rw_fifo_file_perms;
 
 allow bootloader_t bootloader_etc_t:file read_file_perms;
-# uncomment the following lines if you use "lilo -p"
-#allow bootloader_t bootloader_etc_t:file manage_file_perms;
-#files_etc_filetrans(bootloader_t,bootloader_etc_t,file)
 
 manage_dirs_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
 manage_files_pattern(bootloader_t, bootloader_tmp_t, bootloader_tmp_t)
@@ -61,11 +65,15 @@ allow bootloader_t bootloader_tmp_t:dir mounton;
 # for tune2fs (cjp: ?)
 files_root_filetrans(bootloader_t, bootloader_tmp_t, file)
 
+domain_auto_transition_pattern(bootloader_t, mkinitramfs_exec_t, mkinitramfs_t)
+allow mkinitramfs_t bootloader_t:fd use;
+
 kernel_getattr_core_if(bootloader_t)
 kernel_read_network_state(bootloader_t)
 kernel_read_system_state(bootloader_t)
 kernel_read_software_raid_state(bootloader_t)
 kernel_read_kernel_sysctls(bootloader_t)
+kernel_read_vm_overcommit_sysctl(bootloader_t)
 kernel_search_debugfs(bootloader_t)
 kernel_setsched(bootloader_t)
 kernel_dontaudit_getattr_proc(bootloader_t)
@@ -98,6 +106,7 @@ fs_getattr_tmpfs(bootloader_t)
 fs_read_tmpfs_symlinks(bootloader_t)
 #Needed for EFI
 fs_getattr_efivarfs(bootloader_t)
+fs_manage_dos_dirs(bootloader_t)
 fs_manage_dos_files(bootloader_t)
 fs_mmap_read_dos_files(bootloader_t)
 fs_search_cgroup_dirs(bootloader_t)
@@ -176,16 +185,12 @@ userdom_dontaudit_manage_user_home_dirs(bootloader_t)
 userdom_dontaudit_write_user_home_content_files(bootloader_t)
 
 ifdef(`distro_debian',`
+	# for /usr/lib/kernel/install.d/50-depmod.install
+	files_delete_kernel_modules(bootloader_t)
+	modutils_delete_module_deps(bootloader_t)
+
 	allow bootloader_t bootloader_tmp_t:{ dir file } { relabelfrom relabelto };
 	fs_list_tmpfs(bootloader_t)
-
-	files_relabel_kernel_modules(bootloader_t)
-	files_relabelfrom_boot_files(bootloader_t)
-	files_delete_kernel_modules(bootloader_t)
-	files_relabelto_usr_files(bootloader_t)
-	files_search_var_lib(bootloader_t)
-	# for /usr/share/initrd-tools/scripts
-	files_exec_usr_files(bootloader_t)
 
 	fstools_manage_entry_files(bootloader_t)
 	fstools_relabelto_entry_files(bootloader_t)
@@ -244,6 +249,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	fwupd_read_var_file(bootloader_t)
+')
+
+optional_policy(`
 	gpm_getattr_gpmctl(bootloader_t)
 ')
 
@@ -270,4 +279,110 @@ optional_policy(`
 
 optional_policy(`
 	rpm_rw_pipes(bootloader_t)
+')
+
+
+########################################
+#
+# mkinitramfs local policy
+#
+
+allow mkinitramfs_t self:capability sys_chroot;
+allow mkinitramfs_t self:process getsched;
+allow mkinitramfs_t self:fifo_file rw_fifo_file_perms;
+
+manage_dirs_pattern(mkinitramfs_t, bootloader_tmp_t, bootloader_tmp_t)
+manage_files_pattern(mkinitramfs_t, bootloader_tmp_t, bootloader_tmp_t)
+manage_lnk_files_pattern(mkinitramfs_t, bootloader_tmp_t, bootloader_tmp_t)
+files_tmp_filetrans(mkinitramfs_t, bootloader_tmp_t, { file dir })
+allow mkinitramfs_t bootloader_tmp_t:file relabelfrom;
+allow mkinitramfs_t bootloader_tmp_t:lnk_file relabelfrom;
+can_exec(mkinitramfs_t, bootloader_tmp_t)
+
+# /usr/share/initramfs-tools/hooks/keymap calls setupcon which uses /run for temp files
+files_runtime_filetrans(mkinitramfs_t, bootloader_tmp_t, file)
+
+can_exec(mkinitramfs_t, mkinitramfs_exec_t)
+
+domain_auto_transition_pattern(mkinitramfs_t, bootloader_exec_t, bootloader_t)
+allow bootloader_t mkinitramfs_t:fd use;
+
+kernel_read_kernel_sysctls(mkinitramfs_t)
+kernel_read_system_state(mkinitramfs_t)
+kernel_read_vm_overcommit_sysctl(mkinitramfs_t)
+
+dev_read_sysfs(mkinitramfs_t)
+dev_read_urand(mkinitramfs_t)
+domain_obj_id_change_exemption(mkinitramfs_t)
+
+consolesetup_read_conf(mkinitramfs_t)
+
+corecmd_exec_bin(mkinitramfs_t)
+corecmd_exec_shell(mkinitramfs_t)
+
+domain_use_interactive_fds(mkinitramfs_t)
+userdom_use_inherited_user_terminals(mkinitramfs_t)
+
+files_exec_usr_files(mkinitramfs_t)
+files_manage_boot_files(mkinitramfs_t)
+files_manage_kernel_modules(mkinitramfs_t)
+files_read_etc_files(mkinitramfs_t)
+files_read_kernel_modules(mkinitramfs_t)
+files_relabel_kernel_modules(mkinitramfs_t)
+files_search_var_lib(mkinitramfs_t)
+
+fs_list_efivars(mkinitramfs_t)
+fs_read_efivarfs_files(mkinitramfs_t)
+fs_read_cgroup_symlinks(mkinitramfs_t)
+fstools_exec(mkinitramfs_t)
+fstools_manage_runtime_files(mkinitramfs_t)
+
+libs_exec_ld_so(mkinitramfs_t)
+libs_exec_ldconfig(mkinitramfs_t)
+libs_exec_lib_files(mkinitramfs_t)
+libs_manage_lib_files(mkinitramfs_t)
+libs_relabelto_lib_files(mkinitramfs_t)
+
+miscfiles_read_localization(mkinitramfs_t)
+
+modutils_domtrans(mkinitramfs_t)
+modutils_read_module_config(mkinitramfs_t)
+modutils_read_module_deps(mkinitramfs_t)
+mount_domtrans(mkinitramfs_t)
+
+storage_raw_read_fixed_disk(mkinitramfs_t)
+sysnet_read_config(mkinitramfs_t)
+
+term_getattr_unallocated_ttys(mkinitramfs_t)
+
+udev_read_rules_files(mkinitramfs_t)
+
+userdom_dontaudit_getattr_user_home_dirs(mkinitramfs_t)
+
+optional_policy(`
+	dpkg_exec(mkinitramfs_t)
+')
+
+optional_policy(`
+	loadkeys_exec(mkinitramfs_t)
+')
+
+optional_policy(`
+	lvm_domtrans(mkinitramfs_t)
+	lvm_manage_config(mkinitramfs_t)
+')
+
+optional_policy(`
+	raid_domtrans_mdadm(mkinitramfs_t)
+')
+
+optional_policy(`
+	udev_domtrans(mkinitramfs_t)
+')
+
+ifdef(`distro_debian',`
+	optional_policy(`
+		apt_use_fds(mkinitramfs_t)
+		apt_use_ptys(mkinitramfs_t)
+	')
 ')
