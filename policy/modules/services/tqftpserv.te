@@ -1,0 +1,48 @@
+policy_module(tqftpserv)
+
+# tqftpserv is a TFTP server running on top of AF_QIPCRTR (QRTR) sockets. It
+# serves firmware images from /lib/firmware to the modem remoteproc over QRTR,
+# and stores small readwrite state under systemd's StateDirectory=tqftpserv.
+# https://github.com/linux-msm/tqftpserv
+
+########################################
+#
+# Declarations
+#
+
+type tqftpserv_t;
+type tqftpserv_exec_t;
+init_daemon_domain(tqftpserv_t, tqftpserv_exec_t)
+
+# Persistent read/write state (systemd StateDirectory=tqftpserv,
+# translate_readwrite() in translate.c) lives in its own type instead of
+# the generic var_lib_t, so tqftpserv can't reach other services' data under /var/lib.
+type tqftpserv_var_lib_t;
+files_type(tqftpserv_var_lib_t)
+
+########################################
+#
+# Local policy
+#
+
+# dac_read_search: traverse remoteproc firmware directories that may lack
+# world search/execute bits on read-only firmware mounts.
+allow tqftpserv_t self:capability dac_read_search;
+dontaudit tqftpserv_t self:capability net_admin;
+
+# QRTR socket for modem IPC (TFTP-style firmware/data transfer protocol).
+allow tqftpserv_t self:qipcrtr_socket { create connect getattr read setopt write };
+
+manage_dirs_pattern(tqftpserv_t, tqftpserv_var_lib_t, tqftpserv_var_lib_t)
+manage_files_pattern(tqftpserv_t, tqftpserv_var_lib_t, tqftpserv_var_lib_t)
+
+# translate_readonly() walks /sys/class/remoteproc and reads the
+# firmware_class sysfs path knob to locate remoteproc firmware images.
+dev_read_sysfs(tqftpserv_t)
+
+files_search_var_lib(tqftpserv_t)
+
+# translate_readonly() serves firmware blobs out of /lib/firmware, which
+# falls under the generic lib_t catch-all owned by the libraries module.
+libs_read_lib_files(tqftpserv_t)
+
