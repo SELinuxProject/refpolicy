@@ -75,13 +75,15 @@ xdg_cache_content(mozilla_xdg_cache_t)
 
 allow mozilla_t self:capability { setgid setuid sys_nice };
 allow mozilla_t self:cap_userns { sys_admin sys_chroot sys_ptrace };
-allow mozilla_t self:process { getsched setcap setrlimit setsched sigkill signal };
+allow mozilla_t self:process { getsched setcap getcap ptrace setrlimit setsched sigkill signal };
 allow mozilla_t self:user_namespace create;
 allow mozilla_t self:fifo_file rw_fifo_file_perms;
 allow mozilla_t self:shm create_shm_perms;
 allow mozilla_t self:sem create_sem_perms;
 allow mozilla_t self:socket create_socket_perms;
 allow mozilla_t self:unix_stream_socket { accept listen };
+allow mozilla_t self:netlink_route_socket nlmsg_write;
+allow mozilla_t self:netlink_kobject_uevent_socket { create getattr getopt setopt };
 
 allow mozilla_t mozilla_plugin_t:unix_stream_socket rw_socket_perms;
 allow mozilla_t mozilla_plugin_t:fd use;
@@ -106,6 +108,7 @@ manage_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
 manage_lnk_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
 manage_fifo_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
 manage_sock_files_pattern(mozilla_t, mozilla_tmpfs_t, mozilla_tmpfs_t)
+userdom_user_runtime_filetrans(mozilla_t, mozilla_tmpfs_t, sock_file)
 fs_tmpfs_filetrans(mozilla_t, mozilla_tmpfs_t, { file lnk_file sock_file fifo_file })
 allow mozilla_t mozilla_plugin_tmpfs_t:file map;
 
@@ -174,11 +177,13 @@ files_map_usr_files(mozilla_t)
 files_read_usr_files(mozilla_t)
 files_watch_usr_dirs(mozilla_t)
 files_read_var_files(mozilla_t)
+files_map_var_lib_files(mozilla_t)
 files_read_var_lib_files(mozilla_t)
 files_read_var_symlinks(mozilla_t)
 files_dontaudit_getattr_boot_dirs(mozilla_t)
 
 fs_getattr_all_fs(mozilla_t)
+fs_getattr_nsfs_files(mozilla_t)
 fs_search_auto_mountpoints(mozilla_t)
 fs_list_inotifyfs(mozilla_t)
 fs_rw_tmpfs_files(mozilla_t)
@@ -186,6 +191,8 @@ fs_rw_tmpfs_files(mozilla_t)
 term_dontaudit_getattr_pty_dirs(mozilla_t)
 
 auth_use_nsswitch(mozilla_t)
+
+libs_exec_lib_files(mozilla_t)
 
 logging_send_syslog_msg(mozilla_t)
 
@@ -212,7 +219,12 @@ mozilla_run_plugin_config(mozilla_t, mozilla_roles)
 xdg_read_config_files(mozilla_t)
 xdg_read_data_files(mozilla_t)
 xdg_manage_downloads(mozilla_t)
+xdg_watch_cache_dirs(mozilla_t)
+xdg_watch_config_dirs(mozilla_t)
+xdg_watch_data_dirs(mozilla_t)
 
+xserver_manage_mesa_shader_cache(mozilla_t)
+xserver_read_xkb_libs(mozilla_t)
 xserver_rw_mesa_shader_cache(mozilla_t)
 xserver_user_x_domain_template(mozilla, mozilla_t, mozilla_tmpfs_t)
 xserver_dontaudit_read_xdm_tmp_files(mozilla_t)
@@ -269,6 +281,10 @@ optional_policy(`
 ')
 
 optional_policy(`
+	chromium_domtrans(mozilla_t)
+')
+
+optional_policy(`
 	dbus_all_session_bus_client(mozilla_t)
 	dbus_connect_all_session_bus(mozilla_t)
 	dbus_write_session_runtime_socket(mozilla_t)
@@ -291,6 +307,10 @@ optional_policy(`
 	')
 
 	optional_policy(`
+		rtkit_daemon_dbus_chat(mozilla_t)
+	')
+
+	optional_policy(`
 		systemd_dbus_chat_logind(mozilla_t)
 	')
 ')
@@ -308,6 +328,8 @@ optional_policy(`
 	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome")
 	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome2")
 	gnome_home_filetrans_gnome_home(mozilla_t, dir, ".gnome2_private")
+	gnome_mmap_read_xdg_config_files(mozilla_t)
+	gnome_watch_xdg_config_dirs(mozilla_t)
 ')
 
 optional_policy(`
@@ -338,6 +360,10 @@ optional_policy(`
 
 optional_policy(`
 	pulseaudio_run(mozilla_t, mozilla_roles)
+')
+
+optional_policy(`
+	rtkit_scheduled(mozilla_t)
 ')
 
 optional_policy(`
