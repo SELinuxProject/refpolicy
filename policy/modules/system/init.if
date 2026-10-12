@@ -2178,35 +2178,48 @@ interface(`init_get_script_status',`
 ## </param>
 #
 interface(`init_startstop_service',`
-	ifelse(init_systemd,`true',`
+	ifdef(`init_systemd',`
 		# This ifelse condition is temporary, until
 		# all callers are updated to provide unit files.
-		ifelse(`$5',`',`',`
+		ifelse(`$5',`',`
+			refpolicywarn(`$0($*): No unit file_type provided. This will become an error in the future.')
+		',` dnl else
 			gen_require(`
 				class service { start status stop };
 			')
 
 			allow $1 $5:service { start status stop };
 		')
+	')
 
-	',distro_gentoo,`true',`
+	ifdef(`distro_gentoo',`
 		# for OpenRC
 		seutil_labeled_init_script_run_runinit($1, $2, $4)
 
-	',direct_sysadm_daemon,`true',`
-		gen_require(`
-			role system_r;
-		')
-
-		# rules for sysvinit / upstart
-		init_labeled_script_domtrans($1, $4)
-		domain_system_change_exemption($1)
-		role_transition $2 $4 system_r;
-		allow $2 system_r;
-
 	',` dnl else
-		optional_policy(`
-			seutil_run_runinit($1, $2)
+		ifdef(`direct_sysadm_daemon',`
+			gen_require(`
+				role system_r;
+			')
+
+			# rules for sysvinit / upstart
+			init_labeled_script_domtrans($1, $4)
+			domain_system_change_exemption($1)
+
+			# This works around an apparent checkpolicy bug looking for duplicate
+			# role_transitions (there is not one afaict):
+			#
+			# policy/modules/roles/sysadm.te:137:ERROR "duplicate role transition for
+			# (sysadm_r,abrt_initrc_exec_t,process)" at token ";" on line 2458781:
+			ifelse($2,`system_r',`
+				role_transition $2 $4 system_r;
+				allow $2 system_r;
+			')
+
+		',` dnl else
+			optional_policy(`
+				seutil_run_runinit($1, $2)
+			')
 		')
 	')
 ')
