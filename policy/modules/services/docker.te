@@ -117,12 +117,15 @@ optional_policy(`
 # Docker CLI local policy
 #
 
-allow dockerc_t self:process { getsched signal };
+allow dockerc_t self:process { getsched signal signull };
 allow dockerc_t self:fifo_file rw_fifo_file_perms;
 
 allow dockerc_t dockerd_t:unix_stream_socket connectto;
 
-corecmd_dontaudit_search_bin(dockerc_t)
+# the CLI runs its plugins, e.g. docker compose, in its own domain
+can_exec(dockerc_t, dockerc_exec_t)
+
+corecmd_search_bin(dockerc_t)
 
 domain_use_interactive_fds(dockerc_t)
 
@@ -130,7 +133,17 @@ auth_use_nsswitch(dockerc_t)
 
 miscfiles_read_localization(dockerc_t)
 
-userdom_use_user_ptys(dockerc_t)
+userdom_use_user_terminals(dockerc_t)
+
+# Go reads the CPU quota of the caller's cgroup scope for GOMAXPROCS
+fs_search_cgroup_dirs(dockerc_t)
+fs_read_cgroup_files(dockerc_t)
+
+kernel_getattr_proc(dockerc_t)
+
+# running a CLI plugin makes the CLI listen on a Unix socket for the plugin to
+# connect back to; Go reads the listen backlog from /proc/sys/net/core/somaxconn
+kernel_dontaudit_search_network_sysctl(dockerc_t)
 
 container_stream_connect_system_containers(dockerc_t)
 
@@ -189,10 +202,13 @@ optional_policy(`
 # Rootless Docker CLI local policy
 #
 
-allow dockerc_user_t self:process { getsched signal };
+allow dockerc_user_t self:process { getsched signal signull };
 allow dockerc_user_t self:fifo_file rw_fifo_file_perms;
 
 allow dockerc_user_t dockerd_user_t:unix_stream_socket connectto;
+
+# the CLI runs its plugins, e.g. docker compose, in its own domain
+can_exec(dockerc_user_t, dockerc_exec_t)
 
 corecmd_search_bin(dockerc_user_t)
 
@@ -202,9 +218,19 @@ auth_use_nsswitch(dockerc_user_t)
 
 miscfiles_read_localization(dockerc_user_t)
 
-userdom_use_user_ptys(dockerc_user_t)
+userdom_use_user_terminals(dockerc_t)
 userdom_search_user_home_dirs(dockerc_user_t)
 userdom_search_user_runtime(dockerc_user_t)
+
+# Go reads the CPU quota of the caller's cgroup scope for GOMAXPROCS
+fs_search_cgroup_dirs(dockerc_user_t)
+fs_read_cgroup_files(dockerc_user_t)
+
+kernel_getattr_proc(dockerc_user_t)
+
+# running a CLI plugin makes the CLI listen on a Unix socket for the plugin to
+# connect back to; Go reads the listen backlog from /proc/sys/net/core/somaxconn
+kernel_dontaudit_search_network_sysctl(dockerc_user_t)
 
 xdg_search_data_dirs(dockerc_user_t)
 
