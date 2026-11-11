@@ -724,7 +724,6 @@ interface(`auth_manage_shadow',`
 
 	files_rw_etc_dirs($1)
 	auth_manage_shadow_history($1)
-	auth_rw_shadow_lock($1)
 	allow $1 shadow_t:file manage_file_perms;
 	typeattribute $1 can_read_shadow_passwords, can_write_shadow_passwords;
 ')
@@ -878,9 +877,64 @@ interface(`auth_rw_shadow_lock',`
 	')
 
 	allow $1 shadow_lock_t:file rw_file_perms;
+')
+
+########################################
+## <summary>
+##	Create shadow lock files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_create_shadow_lock',`
+	gen_require(`
+		type shadow_lock_t;
+	')
+
+	allow $1 shadow_lock_t:file create_file_perms;
+')
+
+#######################################
+## <summary>
+##	Automatic transition from etc_t to shadow_lock_t.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_etc_filetrans_shadow_lock',`
+	gen_require(`
+		type shadow_lock_t;
+	')
+
 	files_etc_filetrans($1, shadow_lock_t, file, ".pwd.lock")
 	files_etc_filetrans($1, shadow_lock_t, file, "passwd.lock")
 	files_etc_filetrans($1, shadow_lock_t, file, "group.lock")
+')
+
+#######################################
+## <summary>
+##	Provides permissions necessary to modify passwords
+##	in /etc/shadow.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`auth_change_passwords',`
+	auth_manage_shadow($1)
+	auth_etc_filetrans_shadow($1)
+
+	auth_create_shadow_lock($1)
+	auth_rw_shadow_lock($1)
+	auth_etc_filetrans_shadow_lock($1)
 ')
 
 ########################################
