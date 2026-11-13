@@ -313,6 +313,9 @@ type systemd_sysctl_t;
 type systemd_sysctl_exec_t;
 init_daemon_domain(systemd_sysctl_t, systemd_sysctl_exec_t)
 
+type systemd_sysctl_runtime_t;
+files_runtime_file(systemd_sysctl_runtime_t)
+
 type systemd_sysusers_t;
 type systemd_sysusers_exec_t;
 init_system_domain(systemd_sysusers_t, systemd_sysusers_exec_t)
@@ -536,7 +539,7 @@ ifdef(`enable_mls',`
 allow systemd_coredump_t self:capability { dac_read_search setgid setpcap setuid sys_ptrace };
 dontaudit systemd_coredump_t self:capability { dac_override net_admin sys_admin };
 allow systemd_coredump_t self:cap_userns { dac_override dac_read_search sys_ptrace sys_admin };
-allow systemd_coredump_t self:process { getcap setcap setfscreate };
+allow systemd_coredump_t self:process { getcap setcap setfscreate sigkill };
 allow systemd_coredump_t self:user_namespace create;
 allow systemd_coredump_t self:unix_dgram_socket { connect create getopt setopt write };
 allow systemd_coredump_t self:unix_stream_socket { connectto create_stream_socket_perms };
@@ -557,6 +560,7 @@ corecmd_mmap_read_all_executables(systemd_coredump_t)
 
 dev_write_kmsg(systemd_coredump_t)
 
+domain_getrlimit_all_domains(systemd_coredump_t)
 domain_read_all_domains_state(systemd_coredump_t)
 
 files_getattr_all_mountpoints(systemd_coredump_t)
@@ -570,6 +574,7 @@ fs_list_cgroup_dirs(systemd_coredump_t)
 fs_search_tmpfs(systemd_coredump_t)
 fs_read_nsfs_files(systemd_coredump_t)
 
+init_create_runtime_socket(systemd_coredump_t)
 init_list_var_lib_dirs(systemd_coredump_t)
 init_read_state(systemd_coredump_t)
 init_search_runtime(systemd_coredump_t)
@@ -577,6 +582,10 @@ init_write_runtime_socket(systemd_coredump_t)
 
 logging_send_syslog_msg(systemd_coredump_t)
 
+selinux_use_status_page(systemd_coredump_t)
+
+seutil_read_config(systemd_coredump_t)
+seutil_read_file_contexts(systemd_coredump_t)
 seutil_search_default_contexts(systemd_coredump_t)
 
 #######################################
@@ -2084,6 +2093,11 @@ kernel_rw_all_sysctls(systemd_sysctl_t)
 kernel_dontaudit_getattr_proc(systemd_sysctl_t)
 
 files_read_etc_files(systemd_sysctl_t)
+
+# systemd-sysctl --save= keeps the applied settings in /run/sysctl.d
+files_runtime_filetrans(systemd_sysctl_t, systemd_sysctl_runtime_t, dir)
+manage_dirs_pattern(systemd_sysctl_t, systemd_sysctl_runtime_t, systemd_sysctl_runtime_t)
+manage_files_pattern(systemd_sysctl_t, systemd_sysctl_runtime_t, systemd_sysctl_runtime_t)
 
 fs_getattr_all_fs(systemd_sysctl_t)
 fs_search_cgroup_dirs(systemd_sysctl_t)
